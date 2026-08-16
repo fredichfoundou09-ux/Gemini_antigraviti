@@ -1,0 +1,4 @@
+# Vercel Ignore
+backend/
+supabase/
+.git/

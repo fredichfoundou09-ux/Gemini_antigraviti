@@ -24,3 +24,5 @@ supabase/.temp
 # Backend local artifacts
 backend/node_modules/
 backend/dist/
+
+.vercel
