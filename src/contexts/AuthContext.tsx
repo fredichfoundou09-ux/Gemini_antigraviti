@@ -8,9 +8,9 @@ import {
   onAuthStateChange,
   signInWithPassword,
   signOut,
-} from "@/lib/supabase/auth";
-import { isSupabaseConfigured } from "@/lib/supabase/client";
-import { writeAudit } from "@/lib/supabase/audit";
+  isSupabaseConfigured,
+  writeAudit,
+} from "@/lib/supabase";
 
 interface AuthContextValue {
   ready: boolean;
