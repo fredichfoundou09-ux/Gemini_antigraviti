@@ -1,0 +1,5 @@
+-- Aucune donnée de démonstration.
+-- Les comptes sont créés exclusivement via :
+--   1) Le bootstrap sécurisé du premier Admin Sup (écran "Première configuration")
+--   2) L'Edge Function create-user (par un admin/superadmin authentifié)
+-- Les formations fixes sont insérées par la migration 0003_seed_formations.sql.

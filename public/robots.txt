@@ -1,0 +1,7 @@
+User-agent: *
+Disallow: /app/
+Disallow: /api/
+Allow: /
+Allow: /formations
+Allow: /tarifs
+Allow: /pre-inscription

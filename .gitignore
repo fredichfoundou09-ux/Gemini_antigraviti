@@ -1,0 +1,26 @@
+# Dependencies
+node_modules/
+
+# Build
+dist/
+build/
+.vercel/
+
+# Env / secrets
+.env
+.env.*
+!.env.example
+
+# Logs / IDE
+.DS_Store
+*.log
+.vscode/
+.idea/
+
+# Supabase local
+supabase/.branches
+supabase/.temp
+
+# Backend local artifacts
+backend/node_modules/
+backend/dist/

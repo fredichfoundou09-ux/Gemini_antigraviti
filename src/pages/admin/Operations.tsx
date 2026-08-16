@@ -1,0 +1,1601 @@
+import { useState } from "react";
+import { QRCodeSVG } from "qrcode.react";
+import {
+  PlusCircle, Trash2, Pencil, CalendarDays, Clock, MapPin, ClipboardCheck, FileText, TestTube2,
+  PenLine, Wallet, Award, BadgeDollarSign, Printer, CheckCircle2, XCircle, Timer, BookOpen,
+  GraduationCap, Eye, Save, ShieldCheck, ReceiptText, Upload, ImageOff, Users,
+} from "lucide-react";
+import { useStore } from "@/lib/store";
+import { toastMsg } from "@/lib/toast";
+import { cn } from "@/utils/cn";
+import {
+  Btn, Badge, Card, Empty, Field, Input, Modal, PageHead, Select, Textarea, uid, today,
+  money, formationLabel, moduleIcon, printHTML, readImage,
+} from "@/lib/ui";
+import { Formation, AttendanceStatus } from "@/lib/types";
+import { ingestFile, fileKind, humanSize, downloadFile } from "@/lib/files";
+import { studentsOfCourse, studentsOfSchedule } from "@/lib/access";
+import { financialSummary, nextReceiptRef, statusLabel } from "@/lib/finance";
+
+const DAYS = ["Lundi", "Mardi", "Mercredi", "Jeudi", "Vendredi", "Samedi"];
+
+/* ================= MODULES ================= */
+const ICONS = ["code", "network", "server", "terminal", "shield", "sigma", "lock", "cog", "zap", "cpu", "plug", "factory", "waves", "git", "ruler", "binary", "audio", "calc", "wrench"];
+
+const blankModule = (formation: Formation) => ({
+  titre: "", icon: "code", formation, notions: "", description: "", objectifs: "", programme: "",
+  duree: "", supports: "", infosSupp: "", image: "", chapitres: [] as { id: string; titre: string; contenu: string }[],
+});
+
+export function ModulesPage() {
+  const { db, user, update, log } = useStore();
+  const [tab, setTab] = useState<Formation>("informatique");
+  const [editing, setEditing] = useState<any>(null);
+  const [creating, setCreating] = useState(false);
+  const [viewing, setViewing] = useState<any>(null);
+  const [form, setForm] = useState<any>(blankModule("informatique"));
+
+  const isTeacher = user?.role === "teacher";
+  const myTeacher = isTeacher ? db.teachers.find((t) => t.userId === user!.id) : null;
+  const list = db.modules
+    .filter((m) => m.formation === tab)
+    .filter((m) => (myTeacher ? myTeacher.modules.includes(m.id) : true))
+    .sort((a, b) => a.numero - b.numero);
+
+  const openEdit = (m: any) => {
+    setForm({
+      titre: m.titre, icon: m.icon, formation: m.formation, notions: m.notions.join("\n"),
+      description: m.description ?? "", objectifs: (m.objectifs ?? []).join("\n"), programme: m.programme ?? "",
+      duree: m.duree ?? "", supports: m.supports ?? "", infosSupp: m.infosSupp ?? "", image: m.image ?? "",
+      chapitres: m.chapitres ?? [],
+    });
+    setEditing(m); setCreating(true);
+  };
+
+  const save = () => {
+    if (!form.titre) return;
+    const notions = form.notions.split("\n").map((s: string) => s.trim()).filter(Boolean);
+    const objectifs = form.objectifs.split("\n").map((s: string) => s.trim()).filter(Boolean);
+    const payload = {
+      titre: form.titre, icon: form.icon, notions, description: form.description, objectifs,
+      programme: form.programme, duree: form.duree, supports: form.supports, infosSupp: form.infosSupp,
+      image: form.image, chapitres: form.chapitres,
+    };
+    if (editing) {
+      update((d) => ({ ...d, modules: d.modules.map((m) => (m.id === editing.id ? { ...m, ...payload } : m)) }));
+      log(`Module modifié : ${form.titre}`);
+    } else {
+      const numero = db.modules.filter((m) => m.formation === tab).length + 1;
+      const id = `mod-${tab === "informatique" ? "inf" : "ind"}-${Date.now().toString(36)}`;
+      update((d) => ({ ...d, modules: [...d.modules, { id, formation: tab, numero, ...payload }] }));
+      log(`Module ajouté : ${form.titre}`);
+    }
+    setCreating(false); setEditing(null);
+  };
+
+  const addChapter = () => setForm((f: any) => ({ ...f, chapitres: [...f.chapitres, { id: uid("CH"), titre: `Chapitre ${f.chapitres.length + 1}`, contenu: "" }] }));
+  const updChapter = (id: string, k: string, v: string) => setForm((f: any) => ({ ...f, chapitres: f.chapitres.map((c: any) => (c.id === id ? { ...c, [k]: v } : c)) }));
+  const delChapter = (id: string) => setForm((f: any) => ({ ...f, chapitres: f.chapitres.filter((c: any) => c.id !== id) }));
+  const onImg = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const f = e.target.files?.[0];
+    if (f) { const img = await readImage(f, 700); setForm((p: any) => ({ ...p, image: img })); }
+  };
+
+  return (
+    <div>
+      <PageHead title="Formations & Modules" subtitle={isTeacher ? "Modifiez le contenu de vos modules : programme, chapitres, objectifs..." : "Fiches détaillées dynamiques — description, objectifs, programme, chapitres, image"}
+        actions={!isTeacher ? <Btn onClick={() => { setForm(blankModule(tab)); setEditing(null); setCreating(true); }}><PlusCircle size={16} /> Ajouter un module</Btn> : undefined} />
+      <div className="mb-5 flex gap-2">
+        {(["informatique", "industriel"] as Formation[]).map((f) => (
+          <button key={f} onClick={() => setTab(f)}
+            className={cn("rounded-xl border px-5 py-2.5 text-sm font-bold transition-all",
+              tab === f ? (f === "informatique" ? "border-red-500/60 bg-red-500/10 text-red-400" : "border-cyan-400/60 bg-cyan-400/10 text-cyan-300") : "border-white/10 text-slate-400 hover:bg-white/5")}>
+            {formationLabel(f)} ({db.modules.filter((m) => m.formation === f).length})
+          </button>
+        ))}
+      </div>
+
+      <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-3">
+        {list.map((m) => (
+          <Card key={m.id} className="overflow-hidden" glow={tab === "informatique" ? "red" : "cyan"}>
+            {m.image && <img src={m.image} alt="" className="h-28 w-full object-cover" />}
+            <div className="p-5">
+              <div className="flex items-start justify-between">
+                <div className="flex items-center gap-3">
+                  <div className={cn("rounded-xl border p-2.5", tab === "informatique" ? "border-red-500/30 bg-red-500/10 text-red-400" : "border-cyan-400/30 bg-cyan-400/10 text-cyan-300")}>
+                    {moduleIcon(m.icon, "h-5 w-5")}
+                  </div>
+                  <div>
+                    <p className="font-mono text-[10px] font-bold tracking-[0.25em] text-slate-500">MODULE {String(m.numero).padStart(2, "0")}</p>
+                    <h4 className="font-display text-sm font-bold text-white">{m.titre}</h4>
+                  </div>
+                </div>
+                <div className="flex gap-1.5">
+                  <button onClick={() => setViewing(m)} className="rounded-lg border border-white/10 p-2 text-slate-300 hover:border-cyan-400/40 hover:text-cyan-300"><Eye size={14} /></button>
+                  <button onClick={() => openEdit(m)} className="rounded-lg border border-white/10 p-2 text-slate-300 hover:border-amber-400/40 hover:text-amber-300"><Pencil size={14} /></button>
+                  {!isTeacher && <button onClick={() => { if (confirm("Supprimer ce module ?")) update((d) => ({ ...d, modules: d.modules.filter((x) => x.id !== m.id) })); }}
+                    className="rounded-lg border border-white/10 p-2 text-slate-300 hover:border-red-500/40 hover:text-red-400"><Trash2 size={14} /></button>}
+                </div>
+              </div>
+              {m.description && <p className="mt-3 line-clamp-2 text-xs text-slate-400">{m.description}</p>}
+              <div className="mt-3 flex flex-wrap gap-1.5">
+                {m.chapitres && m.chapitres.length > 0 && <Badge color="gray">{m.chapitres.length} chapitre(s)</Badge>}
+                {m.duree && <Badge color="cyan">{m.duree}</Badge>}
+              </div>
+            </div>
+          </Card>
+        ))}
+      </div>
+
+      {/* view fiche */}
+      <Modal open={!!viewing} onClose={() => setViewing(null)} title={viewing ? `Fiche — ${viewing.titre}` : ""} wide>
+        {viewing && (
+          <div className="space-y-4">
+            {viewing.image && <img src={viewing.image} alt="" className="h-44 w-full rounded-xl object-cover" />}
+            <div className="flex flex-wrap gap-2">
+              <Badge color={viewing.formation === "informatique" ? "red" : "cyan"}>{formationLabel(viewing.formation)}</Badge>
+              <Badge color="gray">Module {viewing.numero}</Badge>
+              {viewing.duree && <Badge color="cyan">{viewing.duree}</Badge>}
+            </div>
+            {viewing.description && <Section title="Description">{viewing.description}</Section>}
+            {viewing.objectifs?.length > 0 && (
+              <div>
+                <p className="mb-1.5 text-xs font-bold uppercase tracking-wider text-cyan-300">Objectifs</p>
+                <ul className="space-y-1">{viewing.objectifs.map((o: string, i: number) => <li key={i} className="flex gap-2 text-sm text-slate-300"><CheckCircle2 size={14} className="mt-0.5 shrink-0 text-emerald-300" />{o}</li>)}</ul>
+              </div>
+            )}
+            {viewing.chapitres?.length > 0 && (
+              <div>
+                <p className="mb-1.5 text-xs font-bold uppercase tracking-wider text-cyan-300">Programme & chapitres</p>
+                <div className="space-y-2">
+                  {viewing.chapitres.map((c: any, i: number) => (
+                    <div key={c.id} className="rounded-xl border border-white/10 bg-white/[0.02] p-3">
+                      <p className="text-sm font-bold text-slate-200">{i + 1}. {c.titre}</p>
+                      {c.contenu && <p className="mt-1 text-xs text-slate-400">{c.contenu}</p>}
+                    </div>
+                  ))}
+                </div>
+              </div>
+            )}
+            {viewing.supports && <Section title="Supports">{viewing.supports}</Section>}
+            {viewing.infosSupp && <Section title="Informations supplémentaires">{viewing.infosSupp}</Section>}
+          </div>
+        )}
+      </Modal>
+
+      {/* edit fiche */}
+      <Modal open={creating} onClose={() => setCreating(false)} title={editing ? `Modifier — ${editing.titre}` : "Nouveau module"} wide>
+        <div className="space-y-4">
+          <div className="flex flex-wrap items-center gap-4">
+            {form.image ? <img src={form.image} alt="" className="h-24 w-40 rounded-xl border border-cyan-400/40 object-cover" />
+              : <div className="flex h-24 w-40 items-center justify-center rounded-xl border border-white/10 bg-white/[0.03] text-slate-500">{moduleIcon(form.icon, "h-7 w-7")}</div>}
+            <div className="flex gap-2">
+              <label className="cursor-pointer">
+                <span className="inline-flex items-center gap-2 rounded-xl border border-cyan-400/40 px-3.5 py-2.5 text-xs font-bold text-cyan-300 hover:bg-cyan-400/10"><Upload size={14} /> {form.image ? "Remplacer l'image" : "Image du module"}</span>
+                <input type="file" accept="image/*" onChange={onImg} className="hidden" />
+              </label>
+              {form.image && <Btn variant="ghost" onClick={() => setForm({ ...form, image: "" })}><ImageOff size={14} /></Btn>}
+            </div>
+          </div>
+          <div className="grid gap-4 sm:grid-cols-2">
+            <Field label="Titre du module"><Input value={form.titre} onChange={(e) => setForm({ ...form, titre: e.target.value })} /></Field>
+            <Field label="Durée"><Input value={form.duree} onChange={(e) => setForm({ ...form, duree: e.target.value })} placeholder="ex: 2 à 3 semaines" /></Field>
+          </div>
+          <Field label="Icône">
+            <div className="grid grid-cols-8 gap-1.5">
+              {ICONS.map((ic) => (
+                <button key={ic} type="button" onClick={() => setForm({ ...form, icon: ic })}
+                  className={cn("flex items-center justify-center rounded-lg border p-2", form.icon === ic ? "border-cyan-400/60 bg-cyan-400/10 text-cyan-300" : "border-white/10 text-slate-400 hover:bg-white/5")}>
+                  {moduleIcon(ic, "h-4 w-4")}
+                </button>
+              ))}
+            </div>
+          </Field>
+          <Field label="Description"><Textarea value={form.description} onChange={(e) => setForm({ ...form, description: e.target.value })} /></Field>
+          <Field label="Objectifs" hint="Un objectif par ligne"><Textarea value={form.objectifs} onChange={(e) => setForm({ ...form, objectifs: e.target.value })} /></Field>
+          <Field label="Notions clés (affichées sur le site)" hint="Une notion par ligne"><Textarea value={form.notions} onChange={(e) => setForm({ ...form, notions: e.target.value })} /></Field>
+
+          <div className="rounded-xl border border-white/10 bg-white/[0.02] p-4">
+            <div className="mb-3 flex items-center justify-between">
+              <p className="text-xs font-bold uppercase tracking-wider text-cyan-300">Programme — Chapitres ({form.chapitres.length})</p>
+              <Btn variant="outline" onClick={addChapter}><PlusCircle size={13} /> Ajouter un chapitre</Btn>
+            </div>
+            <div className="space-y-2">
+              {form.chapitres.map((c: any, i: number) => (
+                <div key={c.id} className="rounded-lg border border-white/10 bg-black/20 p-3">
+                  <div className="mb-2 flex items-center gap-2">
+                    <span className="font-mono text-xs text-slate-500">{i + 1}.</span>
+                    <Input value={c.titre} onChange={(e) => updChapter(c.id, "titre", e.target.value)} placeholder="Titre du chapitre" />
+                    <button onClick={() => delChapter(c.id)} className="text-slate-500 hover:text-red-400"><Trash2 size={14} /></button>
+                  </div>
+                  <Textarea value={c.contenu} onChange={(e) => updChapter(c.id, "contenu", e.target.value)} placeholder="Contenu du chapitre..." className="min-h-[60px]" />
+                </div>
+              ))}
+              {form.chapitres.length === 0 && <p className="text-xs text-slate-500">Aucun chapitre. Ajoutez-en pour construire le programme pédagogique.</p>}
+            </div>
+          </div>
+
+          <Field label="Supports pédagogiques"><Textarea value={form.supports} onChange={(e) => setForm({ ...form, supports: e.target.value })} placeholder="PDF, vidéos, exercices..." /></Field>
+          <Field label="Informations supplémentaires"><Textarea value={form.infosSupp} onChange={(e) => setForm({ ...form, infosSupp: e.target.value })} placeholder="Prérequis, modalités d'évaluation..." /></Field>
+
+          <div className="flex justify-end gap-2">
+            <Btn variant="ghost" onClick={() => setCreating(false)}>Annuler</Btn>
+            <Btn onClick={save}><Save size={15} /> {editing ? "Enregistrer" : "Ajouter"}</Btn>
+          </div>
+        </div>
+      </Modal>
+    </div>
+  );
+}
+
+function Section({ title, children }: { title: string; children: React.ReactNode }) {
+  return (
+    <div>
+      <p className="mb-1.5 text-xs font-bold uppercase tracking-wider text-cyan-300">{title}</p>
+      <p className="whitespace-pre-wrap text-sm text-slate-300">{children}</p>
+    </div>
+  );
+}
+
+/* ================= EMPLOI DU TEMPS ================= */
+export function SchedulePage() {
+  const { db, user, update, log } = useStore();
+  const [creating, setCreating] = useState(false);
+  const [viewingItem, setViewingItem] = useState<any>(null);
+  const blankSlot = () => ({ jour: "Lundi", heureDebut: "08:00", heureFin: "10:00", date: "", moduleId: "", teacherId: "", salle: "", formation: "informatique" as Formation, cibleType: "module" as "module" | "groupe" | "apprenants", groupe: "", studentIds: [] as string[] });
+  const [form, setForm] = useState<any>(blankSlot());
+
+  const teacher = user?.role === "teacher" ? db.teachers.find((t) => t.userId === user.id) : null;
+  const items = db.schedule.filter((s) => (teacher ? teacher!.modules.includes(s.moduleId) : true));
+
+  const targetStudents = db.students.filter((s) => (!form.formation || s.formation === form.formation) && (!form.moduleId || s.modules.includes(form.moduleId)));
+
+  const save = () => {
+    if (!form.moduleId) return;
+    const payload: any = { jour: form.jour, heureDebut: form.heureDebut, heureFin: form.heureFin, moduleId: form.moduleId, teacherId: form.teacherId, salle: form.salle, formation: form.formation };
+    if (form.date) payload.date = form.date;
+    if (form.cibleType === "groupe" && form.groupe) payload.groupe = form.groupe;
+    if (form.cibleType === "apprenants" && form.studentIds.length) payload.studentIds = form.studentIds;
+    update((d) => ({ ...d, schedule: [...d.schedule, { id: uid("SCH"), ...payload }] }));
+    log(`Créneau ajouté : ${form.jour} ${form.heureDebut}-${form.heureFin} — ${db.modules.find((m) => m.id === form.moduleId)?.titre ?? ""}`);
+    setForm(blankSlot());
+    setCreating(false);
+  };
+
+  const modName = (id: string) => db.modules.find((m) => m.id === id)?.titre ?? "—";
+  const tName = (id: string) => db.teachers.find((t) => t.id === id)?.prenom ?? "—";
+
+  return (
+    <div>
+      <PageHead title="Emploi du temps" subtitle="Planning hebdomadaire des sessions"
+        actions={user?.role !== "teacher" ? <Btn onClick={() => setCreating(true)}><PlusCircle size={16} /> Nouveau créneau</Btn> : undefined} />
+      <div className="grid gap-3 md:grid-cols-2 xl:grid-cols-3">
+        {DAYS.map((day) => {
+          const dayItems = items.filter((i) => i.jour === day).sort((a, b) => a.heureDebut.localeCompare(b.heureDebut));
+          return (
+            <Card key={day} className="p-4">
+              <div className="mb-3 flex items-center gap-2 border-b border-white/5 pb-2">
+                <CalendarDays size={16} className="text-cyan-300" />
+                <h4 className="font-display text-sm font-bold text-white">{day}</h4>
+                <Badge color="gray">{dayItems.length} session(s)</Badge>
+              </div>
+              {dayItems.length === 0 ? (
+                <p className="py-3 text-center text-xs text-slate-600">Aucune session</p>
+              ) : (
+                <div className="space-y-2">
+                  {dayItems.map((i) => {
+                    const isInfo = i.formation === "informatique";
+                    const nbStudents = studentsOfSchedule(db, i).length;
+                    return (
+                      <div key={i.id} className={cn("rounded-xl border p-3", isInfo ? "border-red-500/20 bg-red-500/5" : "border-cyan-400/20 bg-cyan-400/5")}>
+                        <div className="flex items-center justify-between">
+                          <span className="font-mono text-xs font-bold text-white">{i.heureDebut} — {i.heureFin}</span>
+                          <div className="flex items-center gap-1.5">
+                            <button onClick={() => setViewingItem(i)} className="text-slate-500 hover:text-cyan-300" title="Voir les apprenants"><Eye size={12} /></button>
+                            {user?.role !== "teacher" && (
+                              <button onClick={() => update((d) => ({ ...d, schedule: d.schedule.filter((x) => x.id !== i.id) }))} className="text-slate-500 hover:text-red-400"><Trash2 size={13} /></button>
+                            )}
+                          </div>
+                        </div>
+                        <p className="mt-1 text-sm font-bold text-slate-200">{modName(i.moduleId)}</p>
+                        <p className="mt-0.5 flex flex-wrap gap-x-3 text-[11px] text-slate-500">
+                          <span className="flex items-center gap-1"><GraduationCap size={11} /> {tName(i.teacherId)}</span>
+                          {i.salle && <span className="flex items-center gap-1"><MapPin size={11} /> {i.salle}</span>}
+                          <span className={isInfo ? "text-red-400" : "text-cyan-300"}>{formationLabel(i.formation)}</span>
+                          <span className="flex items-center gap-1"><Users size={11} /> {nbStudents}</span>
+                        </p>
+                        {i.groupe && <p className="mt-0.5 text-[10px] text-cyan-300">Groupe : {i.groupe}</p>}
+                      </div>
+                    );
+                  })}
+                </div>
+              )}
+            </Card>
+          );
+        })}
+      </div>
+
+      {user?.role !== "teacher" && (
+        <Modal open={creating} onClose={() => setCreating(false)} title="Nouveau créneau" wide>
+          <div className="space-y-4">
+            <div className="grid grid-cols-2 gap-4 sm:grid-cols-4">
+              <Field label="Jour">
+                <Select value={form.jour} onChange={(e) => setForm({ ...form, jour: e.target.value })}>{DAYS.map((d) => <option key={d}>{d}</option>)}</Select>
+              </Field>
+              <Field label="Date (optionnelle)"><Input type="date" value={form.date} onChange={(e) => setForm({ ...form, date: e.target.value })} /></Field>
+              <Field label="Heure début"><Input type="time" value={form.heureDebut} onChange={(e) => setForm({ ...form, heureDebut: e.target.value })} /></Field>
+              <Field label="Heure fin"><Input type="time" value={form.heureFin} onChange={(e) => setForm({ ...form, heureFin: e.target.value })} /></Field>
+            </div>
+            <div className="grid grid-cols-2 gap-4">
+              <Field label="Formation">
+                <Select value={form.formation} onChange={(e) => setForm({ ...form, formation: e.target.value, moduleId: "" })}>
+                  <option value="informatique">Génie Informatique</option><option value="industriel">Génie Industriel</option>
+                </Select>
+              </Field>
+              <Field label="Salle"><Input value={form.salle} onChange={(e) => setForm({ ...form, salle: e.target.value })} placeholder="ex: Salle 01" /></Field>
+            </div>
+            <Field label="Module">
+              <Select value={form.moduleId} onChange={(e) => setForm({ ...form, moduleId: e.target.value })}>
+                <option value="">— Choisir —</option>
+                {db.modules.filter((m) => m.formation === form.formation).map((m) => <option key={m.id} value={m.id}>{m.numero}. {m.titre}</option>)}
+              </Select>
+            </Field>
+            <Field label="Enseignant">
+              <Select value={form.teacherId} onChange={(e) => setForm({ ...form, teacherId: e.target.value })}>
+                <option value="">— Choisir —</option>
+                {db.teachers.filter((t) => !form.moduleId || t.modules.includes(form.moduleId)).map((t) => <option key={t.id} value={t.id}>{t.prenom} {t.nom}</option>)}
+              </Select>
+            </Field>
+
+            <div className="rounded-xl border border-white/10 bg-white/[0.02] p-4">
+              <p className="mb-3 text-xs font-bold uppercase tracking-wider text-cyan-300">Apprenants concernés ({targetStudents.length} par défaut)</p>
+              <div className="mb-3 grid grid-cols-3 gap-2">
+                {([
+                  { k: "module", l: "Tous ceux du module" },
+                  { k: "groupe", l: "Un groupe précis" },
+                  { k: "apprenants", l: "Ciblage précis" },
+                ] as const).map((o) => (
+                  <button type="button" key={o.k} onClick={() => setForm({ ...form, cibleType: o.k })}
+                    className={cn("rounded-xl border px-3 py-2 text-xs font-bold",
+                      form.cibleType === o.k ? "border-cyan-400/60 bg-cyan-400/10 text-cyan-300" : "border-white/10 text-slate-400 hover:bg-white/5")}>
+                    {o.l}
+                  </button>
+                ))}
+              </div>
+              {form.cibleType === "groupe" && (
+                <Field label="Nom du groupe"><Input value={form.groupe} onChange={(e) => setForm({ ...form, groupe: e.target.value })} placeholder="ex: Groupe A" /></Field>
+              )}
+              {form.cibleType === "apprenants" && (
+                <div className="max-h-48 space-y-1 overflow-y-auto rounded-lg border border-white/5 p-2">
+                  {targetStudents.length === 0 && <p className="p-2 text-xs text-slate-500">Aucun apprenant inscrit à ce module.</p>}
+                  {targetStudents.map((s) => {
+                    const on = form.studentIds.includes(s.id);
+                    return (
+                      <button type="button" key={s.id}
+                        onClick={() => setForm({ ...form, studentIds: on ? form.studentIds.filter((x: string) => x !== s.id) : [...form.studentIds, s.id] })}
+                        className={cn("flex w-full items-center gap-2 rounded-lg border px-2.5 py-1.5 text-left text-xs",
+                          on ? "border-cyan-400/50 bg-cyan-400/10 text-cyan-200" : "border-white/10 text-slate-400 hover:bg-white/5")}>
+                        <input type="checkbox" readOnly checked={on} className="pointer-events-none" />
+                        <span className="font-mono text-[10px] text-slate-500">{s.id}</span> {s.prenom} {s.nom}
+                      </button>
+                    );
+                  })}
+                </div>
+              )}
+            </div>
+
+            <div className="flex justify-end gap-2">
+              <Btn variant="ghost" onClick={() => setCreating(false)}>Annuler</Btn>
+              <Btn onClick={save}>Ajouter</Btn>
+            </div>
+          </div>
+        </Modal>
+      )}
+
+      <Modal open={!!viewingItem} onClose={() => setViewingItem(null)} title={viewingItem ? `Créneau — ${modName(viewingItem.moduleId)}` : ""}>
+        {viewingItem && (() => {
+          const targets = studentsOfSchedule(db, viewingItem);
+          return (
+            <div className="space-y-3">
+              <div className="grid grid-cols-2 gap-3 text-sm">
+                <Info label="Jour / heures" value={`${viewingItem.jour}${viewingItem.date ? ` (${viewingItem.date})` : ""} • ${viewingItem.heureDebut}–${viewingItem.heureFin}`} />
+                <Info label="Formateur" value={(() => { const t = db.teachers.find((x) => x.id === viewingItem.teacherId); return t ? `${t.prenom} ${t.nom}` : "—"; })()} />
+                <Info label="Salle" value={viewingItem.salle || "—"} />
+                <Info label="Formation" value={formationLabel(viewingItem.formation)} />
+              </div>
+              <div>
+                <p className="mb-2 text-xs font-bold uppercase tracking-wider text-cyan-300">Apprenants concernés ({targets.length})</p>
+                <div className="max-h-64 space-y-1 overflow-y-auto">
+                  {targets.map((s) => (
+                    <div key={s.id} className="flex items-center justify-between rounded-lg border border-white/5 bg-white/[0.02] px-3 py-1.5 text-xs">
+                      <span className="font-semibold text-slate-200">{s.prenom} {s.nom}</span>
+                      <span className="font-mono text-[10px] text-cyan-300/70">{s.id}</span>
+                    </div>
+                  ))}
+                  {targets.length === 0 && <p className="text-xs text-slate-500">Personne n'est concerné par ce créneau.</p>}
+                </div>
+              </div>
+            </div>
+          );
+        })()}
+      </Modal>
+    </div>
+  );
+}
+
+function Info({ label, value }: { label: string; value: React.ReactNode }) {
+  return (
+    <div className="rounded-lg border border-white/10 bg-white/[0.02] p-2.5">
+      <p className="text-[10px] uppercase tracking-wider text-slate-500">{label}</p>
+      <p className="font-bold text-slate-200">{value}</p>
+    </div>
+  );
+}
+
+/* ================= PRÉSENCES ================= */
+export function AttendancePage() {
+  const { db, user, update, log } = useStore();
+  const [date, setDate] = useState(today());
+  const [moduleId, setModuleId] = useState("");
+  const [salle, setSalle] = useState("Salle 01");
+  const [status, setStatus] = useState<Record<string, AttendanceStatus>>({});
+
+  const teacher = user?.role === "teacher" ? db.teachers.find((t) => t.userId === user.id) : null;
+  const allowedModules = db.modules.filter((m) => (teacher ? teacher.modules.includes(m.id) : true));
+  const mod = db.modules.find((m) => m.id === moduleId);
+  const students = db.students.filter((s) => (mod ? s.modules.includes(mod.id) : true) && s.statut === "actif");
+
+  const existing = db.attendance.filter((a) => a.date === date && a.moduleId === moduleId);
+
+  const saveAll = () => {
+    const recs = students.map((s) => ({
+      id: uid("ATT"), studentId: s.id, date, moduleId, statut: status[s.id] ?? "present",
+      heure: new Date().toTimeString().slice(0, 5), salle, teacherId: teacher?.id ?? user!.id,
+    }));
+    update((d) => ({
+      ...d,
+      attendance: [...d.attendance.filter((a) => !(a.date === date && a.moduleId === moduleId)), ...recs],
+    }));
+    log(`Présences enregistrées : ${recs.filter((r) => r.statut === "present").length} présents sur ${recs.length}`);
+  };
+
+  return (
+    <div>
+      <PageHead title="Gestion des présences" subtitle="QR Code ou validation manuelle par l'enseignant" />
+      <Card className="mb-5 p-5">
+        <div className="grid gap-4 md:grid-cols-4">
+          <Field label="Date"><Input type="date" value={date} onChange={(e) => setDate(e.target.value)} /></Field>
+          <Field label="Module">
+            <Select value={moduleId} onChange={(e) => setModuleId(e.target.value)}>
+              <option value="">Tous les modules</option>
+              {allowedModules.map((m) => <option key={m.id} value={m.id}>{formationLabel(m.formation)} — {m.numero}. {m.titre}</option>)}
+            </Select>
+          </Field>
+          <Field label="Salle"><Input value={salle} onChange={(e) => setSalle(e.target.value)} /></Field>
+          <div className="flex items-end"><Btn onClick={saveAll} className="w-full"><Save size={16} /> Enregistrer {existing.length ? `(${existing.length} déjà)` : ""}</Btn></div>
+        </div>
+      </Card>
+
+      {students.length === 0 ? (
+        <Empty icon={<ClipboardCheck size={40} />} title="Aucun apprenant pour cette sélection" />
+      ) : (
+        <Card className="overflow-x-auto">
+          <table className="w-full min-w-[640px] text-left">
+            <thead>
+              <tr className="border-b border-white/5 text-[10px] uppercase tracking-[0.2em] text-slate-500">
+                <th className="px-4 py-3">Apprenant</th>
+                <th className="px-4 py-3">Formation</th>
+                <th className="px-4 py-3">Statut enregistré</th>
+                <th className="px-4 py-3 text-right">Définir le statut</th>
+              </tr>
+            </thead>
+            <tbody>
+              {students.map((s) => {
+                const rec = existing.find((a) => a.studentId === s.id);
+                const cur = status[s.id] ?? rec?.statut ?? "present";
+                return (
+                  <tr key={s.id} className="border-b border-white/5 last:border-0">
+                    <td className="px-4 py-3">
+                      <p className="text-sm font-bold text-white">{s.prenom} {s.nom}</p>
+                      <p className="font-mono text-[10px] text-slate-500">{s.id}</p>
+                    </td>
+                    <td className="px-4 py-3"><Badge color={s.formation === "informatique" ? "red" : "cyan"}>{formationLabel(s.formation)}</Badge></td>
+                    <td className="px-4 py-3">
+                      {rec ? (
+                        <Badge color={rec.statut === "present" ? "green" : rec.statut === "retard" ? "gold" : "red"}>{rec.statut}</Badge>
+                      ) : <span className="text-xs text-slate-600">Non enregistré</span>}
+                    </td>
+                    <td className="px-4 py-3">
+                      <div className="flex justify-end gap-1.5">
+                        {(["present", "retard", "absent"] as AttendanceStatus[]).map((st) => (
+                          <button key={st} onClick={() => setStatus({ ...status, [s.id]: st })}
+                            className={cn("rounded-lg border px-3 py-1.5 text-[11px] font-bold uppercase transition-all",
+                              cur === st
+                                ? st === "present" ? "border-emerald-400/60 bg-emerald-400/10 text-emerald-300"
+                                : st === "retard" ? "border-amber-400/60 bg-amber-400/10 text-amber-300"
+                                : "border-red-500/60 bg-red-500/10 text-red-400"
+                                : "border-white/10 text-slate-500 hover:bg-white/5")}>
+                            {st === "present" ? <CheckCircle2 size={13} className="inline" /> : st === "retard" ? <Timer size={13} className="inline" /> : <XCircle size={13} className="inline" />} {st}
+                          </button>
+                        ))}
+                      </div>
+                    </td>
+                  </tr>
+                );
+              })}
+            </tbody>
+          </table>
+        </Card>
+      )}
+    </div>
+  );
+}
+
+/* ================= COURS ================= */
+export function CoursesPage() {
+  const { db, user, update, log, notify } = useStore();
+  const [creating, setCreating] = useState(false);
+  const [editing, setEditing] = useState<any>(null);
+  const [viewing, setViewing] = useState<any>(null);
+  const [filter, setFilter] = useState("");
+
+  const teacher = user?.role === "teacher" ? db.teachers.find((t) => t.userId === user.id) : null;
+  const allowedModules = db.modules.filter((m) => (teacher ? teacher.modules.includes(m.id) : true));
+  const courses = db.courses
+    .filter((c) => (teacher ? allowedModules.some((m) => m.id === c.moduleId) : true))
+    .filter((c) => !filter || c.moduleId === filter);
+
+  const blankForm = () => ({
+    titre: "", description: "", moduleId: "", type: "cours", content: "",
+    formation: "" as any, audience: "module" as "module" | "groupe" | "apprenants",
+    groupe: "", studentIds: [] as string[], files: [] as any[], publie: true,
+  });
+  const [form, setForm] = useState<any>(blankForm());
+
+  const modulesOfForm = form.formation
+    ? allowedModules.filter((m) => m.formation === form.formation)
+    : allowedModules;
+  const targetableStudents = db.students.filter(
+    (s) => (!form.formation || s.formation === form.formation) && (!form.moduleId || s.modules.includes(form.moduleId))
+  );
+
+  const onFiles = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const list = Array.from(e.target.files || []);
+    for (const f of list) {
+      try {
+        const cf = await ingestFile(f);
+        setForm((prev: any) => ({ ...prev, files: [...prev.files, cf] }));
+      } catch (err: any) {
+        toastMsg.error(`Fichier refusé : ${f.name}`, err.message || "Fichier invalide");
+      }
+    }
+    // reset input
+    e.target.value = "";
+  };
+
+  const openEdit = (c: any) => {
+    setEditing(c);
+    setForm({
+      titre: c.titre, description: c.description, moduleId: c.moduleId, type: c.type, content: c.content,
+      formation: c.formation ?? db.modules.find((m) => m.id === c.moduleId)?.formation ?? "",
+      audience: c.audience ?? "module", groupe: c.groupe ?? "", studentIds: c.studentIds ?? [],
+      files: c.files ?? [], publie: c.publie ?? true,
+    });
+    setCreating(true);
+  };
+
+  const save = () => {
+    if (!form.titre || !form.moduleId) return;
+    const t = teacher ?? db.teachers.find((x) => x.modules.includes(form.moduleId)) ?? db.teachers[0];
+    const module = db.modules.find((m) => m.id === form.moduleId);
+    const payload = {
+      titre: form.titre.trim(), description: form.description, moduleId: form.moduleId, type: form.type, content: form.content,
+      formation: module?.formation, audience: form.audience,
+      groupe: form.audience === "groupe" ? form.groupe : undefined,
+      studentIds: form.audience === "apprenants" ? form.studentIds : undefined,
+      files: form.files, publie: form.publie,
+    };
+    if (editing) {
+      update((d) => ({ ...d, courses: d.courses.map((x) => (x.id === editing.id ? { ...x, ...payload } : x)) }));
+      log(`Cours modifié : ${form.titre}`);
+    } else {
+      const id = uid("CRS");
+      update((d) => ({ ...d, courses: [{ id, ...payload, teacherId: t?.id ?? "", date: today() } as any, ...d.courses] }));
+      log(`Cours publié : ${form.titre}${form.files.length ? ` (${form.files.length} fichier(s))` : ""}`);
+      if (form.publie) notifyTargets(payload.audience, module?.id, payload.groupe, payload.studentIds, form.titre);
+    }
+    setCreating(false); setEditing(null); setForm(blankForm());
+  };
+
+  const notifyTargets = (audience: string, modId?: string, groupe?: string, studentIds?: string[], title = "") => {
+    const targets = db.students.filter((s) => {
+      if (audience === "apprenants") return studentIds?.includes(s.id);
+      if (audience === "groupe") return s.groupe === groupe;
+      return modId ? s.modules.includes(modId) : false;
+    });
+    targets.forEach((s) => {
+      if (s.userId) notify(s.userId, "Nouveau cours publié", title, "info");
+    });
+  };
+
+  const togglePublish = (c: any) => {
+    update((d) => ({ ...d, courses: d.courses.map((x) => (x.id === c.id ? { ...x, publie: !(x.publie ?? true) } : x)) }));
+    log(`${c.publie === false ? "Publication" : "Dépublication"} : ${c.titre}`);
+  };
+
+  return (
+    <div>
+      <PageHead title="Cours & Supports" subtitle="Bibliothèque pédagogique avec téléversement de fichiers et ciblage précis"
+        actions={<Btn onClick={() => { setForm(blankForm()); setEditing(null); setCreating(true); }}><PlusCircle size={16} /> Publier un cours</Btn>} />
+
+      <div className="mb-5 flex flex-wrap gap-2">
+        <button onClick={() => setFilter("")} className={cn("rounded-xl border px-4 py-2 text-xs font-bold", !filter ? "border-cyan-400/50 bg-cyan-400/10 text-cyan-300" : "border-white/10 text-slate-400")}>Tous</button>
+        {allowedModules.map((m) => (
+          <button key={m.id} onClick={() => setFilter(m.id)} className={cn("rounded-xl border px-4 py-2 text-xs font-bold", filter === m.id ? "border-cyan-400/50 bg-cyan-400/10 text-cyan-300" : "border-white/10 text-slate-400")}>
+            {m.numero}. {m.titre}
+          </button>
+        ))}
+      </div>
+
+      {courses.length === 0 ? (
+        <Empty icon={<FileText size={40} />} title="Aucun cours publié" sub="Cliquez sur « Publier un cours » pour commencer." />
+      ) : (
+        <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-3">
+          {courses.map((c) => {
+            const mod = db.modules.find((m) => m.id === c.moduleId);
+            const targets = studentsOfCourse(db, c as any);
+            const files = c.files ?? [];
+            return (
+              <Card key={c.id} className="p-5" glow="cyan">
+                <div className="mb-2 flex items-center justify-between">
+                  <div className="flex items-center gap-1.5">
+                    <Badge color={c.type === "cours" ? "cyan" : c.type === "devoir" ? "gold" : "green"}>{c.type}</Badge>
+                    {c.publie === false && <Badge color="red">Brouillon</Badge>}
+                  </div>
+                  <span className="text-[10px] text-slate-500">{c.date}</span>
+                </div>
+                <h4 className="font-display text-base font-bold text-white">{c.titre}</h4>
+                {c.description && <p className="mt-1 text-sm text-slate-400">{c.description}</p>}
+                <div className="mt-3 flex items-center gap-2">
+                  <BookOpen size={13} className="text-cyan-300" />
+                  <span className="text-xs font-semibold text-slate-300">{mod ? `${mod.numero}. ${mod.titre}` : "—"}</span>
+                </div>
+                {files.length > 0 && (
+                  <div className="mt-2 flex flex-wrap gap-1.5">
+                    {files.map((f: any) => (
+                      <span key={f.id} className="inline-flex items-center gap-1 rounded-md border border-white/10 bg-white/[0.03] px-2 py-0.5 text-[10px] text-slate-300">
+                        <FileText size={10} /> {fileKind(f.mime, f.originalName)} · {humanSize(f.size)}
+                      </span>
+                    ))}
+                  </div>
+                )}
+                <div className="mt-3 flex flex-wrap items-center gap-2 text-[11px] text-slate-500">
+                  <Users size={11} /> {targets.length} destinataire(s)
+                  {(c as any).audience === "groupe" && (c as any).groupe && <span className="text-cyan-400">• Groupe : {(c as any).groupe}</span>}
+                  {(c as any).audience === "apprenants" && <span className="text-cyan-400">• Ciblage précis</span>}
+                </div>
+                <div className="mt-3 flex justify-between border-t border-white/5 pt-3">
+                  <span className="text-[11px] text-slate-500">{db.teachers.find((t) => t.id === c.teacherId)?.prenom} {db.teachers.find((t) => t.id === c.teacherId)?.nom}</span>
+                  <div className="flex gap-1.5">
+                    <button onClick={() => setViewing(c)} className="rounded-lg border border-white/10 p-1.5 text-slate-300 hover:border-cyan-400/40 hover:text-cyan-300" title="Voir"><Eye size={13} /></button>
+                    <button onClick={() => togglePublish(c)} className="rounded-lg border border-white/10 p-1.5 text-slate-300 hover:border-amber-400/40 hover:text-amber-300" title={c.publie === false ? "Publier" : "Dépublier"}>{c.publie === false ? <BookOpen size={13} /> : <FileText size={13} />}</button>
+                    <button onClick={() => openEdit(c)} className="rounded-lg border border-white/10 p-1.5 text-slate-300 hover:border-cyan-400/40 hover:text-cyan-300" title="Modifier"><Pencil size={13} /></button>
+                    <button onClick={() => { if (confirm(`Supprimer « ${c.titre} » ?`)) { update((d) => ({ ...d, courses: d.courses.filter((x) => x.id !== c.id) })); log(`Cours supprimé : ${c.titre}`); } }} className="text-slate-500 hover:text-red-400" title="Supprimer"><Trash2 size={13} /></button>
+                  </div>
+                </div>
+              </Card>
+            );
+          })}
+        </div>
+      )}
+
+      {/* Modal éditer / créer */}
+      <Modal open={creating} onClose={() => { setCreating(false); setEditing(null); }} title={editing ? `Modifier — ${editing.titre}` : "Publier un cours / document"} wide>
+        <div className="space-y-4">
+          <Field label="Titre"><Input value={form.titre} onChange={(e) => setForm({ ...form, titre: e.target.value })} /></Field>
+          <div className="grid gap-4 sm:grid-cols-3">
+            <Field label="Formation">
+              <Select value={form.formation} onChange={(e) => setForm({ ...form, formation: e.target.value, moduleId: "" })}>
+                <option value="">Toutes</option>
+                <option value="informatique">Génie Informatique</option>
+                <option value="industriel">Génie Industriel</option>
+              </Select>
+            </Field>
+            <Field label="Module">
+              <Select value={form.moduleId} onChange={(e) => setForm({ ...form, moduleId: e.target.value })}>
+                <option value="">— Choisir —</option>
+                {modulesOfForm.map((m) => <option key={m.id} value={m.id}>{formationLabel(m.formation)} — {m.numero}. {m.titre}</option>)}
+              </Select>
+            </Field>
+            <Field label="Type">
+              <Select value={form.type} onChange={(e) => setForm({ ...form, type: e.target.value })}>
+                <option value="cours">Cours</option><option value="document">Document</option><option value="devoir">Devoir</option>
+              </Select>
+            </Field>
+          </div>
+          <Field label="Description"><Input value={form.description} onChange={(e) => setForm({ ...form, description: e.target.value })} /></Field>
+          <Field label="Contenu / Consignes"><Textarea value={form.content} onChange={(e) => setForm({ ...form, content: e.target.value })} /></Field>
+
+          {/* Fichiers */}
+          <div className="rounded-xl border border-white/10 bg-white/[0.02] p-4">
+            <div className="mb-3 flex items-center justify-between">
+              <p className="text-xs font-bold uppercase tracking-wider text-cyan-300">Fichiers joints ({form.files.length})</p>
+              <label className="cursor-pointer">
+                <span className="inline-flex items-center gap-1.5 rounded-lg border border-cyan-400/40 px-3 py-1.5 text-xs font-bold text-cyan-300 hover:bg-cyan-400/10"><Upload size={13} /> Ajouter des fichiers</span>
+                <input type="file" multiple onChange={onFiles} className="hidden" accept=".pdf,.doc,.docx,.xls,.xlsx,.ppt,.pptx,.png,.jpg,.jpeg,.webp,.gif,.txt,.csv" />
+              </label>
+            </div>
+            {form.files.length === 0 ? (
+              <p className="text-xs text-slate-500">Aucun fichier. Formats acceptés : PDF, Word, Excel, PowerPoint, images. Taille max : 8 Mo par fichier.</p>
+            ) : (
+              <div className="space-y-1.5">
+                {form.files.map((f: any) => (
+                  <div key={f.id} className="flex items-center justify-between rounded-lg border border-white/5 bg-black/20 px-3 py-2 text-xs">
+                    <span className="flex items-center gap-2 text-slate-300">
+                      <FileText size={13} className="text-cyan-300" />
+                      <span className="font-semibold">{f.originalName}</span>
+                      <span className="text-slate-500">· {fileKind(f.mime, f.originalName)} · {humanSize(f.size)}</span>
+                    </span>
+                    <button onClick={() => setForm({ ...form, files: form.files.filter((x: any) => x.id !== f.id) })} className="text-red-400 hover:text-red-300"><Trash2 size={13} /></button>
+                  </div>
+                ))}
+              </div>
+            )}
+          </div>
+
+          {/* Ciblage */}
+          <div className="rounded-xl border border-white/10 bg-white/[0.02] p-4">
+            <p className="mb-3 text-xs font-bold uppercase tracking-wider text-cyan-300">Destinataires</p>
+            <div className="mb-3 grid gap-2 sm:grid-cols-3">
+              {([
+                { k: "module", l: "Tous les apprenants du module" },
+                { k: "groupe", l: "Un groupe précis" },
+                { k: "apprenants", l: "Apprenants spécifiques" },
+              ] as const).map((o) => (
+                <button key={o.k} type="button" onClick={() => setForm({ ...form, audience: o.k })}
+                  className={cn("rounded-xl border px-3 py-2.5 text-left text-xs font-bold",
+                    form.audience === o.k ? "border-cyan-400/60 bg-cyan-400/10 text-cyan-300" : "border-white/10 text-slate-400 hover:bg-white/5")}>
+                  {o.l}
+                </button>
+              ))}
+            </div>
+            {form.audience === "groupe" && (
+              <Field label="Nom du groupe"><Input value={form.groupe} onChange={(e) => setForm({ ...form, groupe: e.target.value })} placeholder="ex: Groupe A" /></Field>
+            )}
+            {form.audience === "apprenants" && (
+              <div className="max-h-56 space-y-1 overflow-y-auto rounded-lg border border-white/5 p-2">
+                {targetableStudents.length === 0 && <p className="p-2 text-xs text-slate-500">Aucun apprenant compatible avec la formation/module choisis.</p>}
+                {targetableStudents.map((s) => {
+                  const on = form.studentIds.includes(s.id);
+                  return (
+                    <button type="button" key={s.id}
+                      onClick={() => setForm({ ...form, studentIds: on ? form.studentIds.filter((x: string) => x !== s.id) : [...form.studentIds, s.id] })}
+                      className={cn("flex w-full items-center gap-2 rounded-lg border px-2.5 py-1.5 text-left text-xs",
+                        on ? "border-cyan-400/50 bg-cyan-400/10 text-cyan-200" : "border-white/10 text-slate-400 hover:bg-white/5")}>
+                      <input type="checkbox" readOnly checked={on} className="pointer-events-none" />
+                      <span className="font-mono text-[10px] text-slate-500">{s.id}</span> {s.prenom} {s.nom}
+                    </button>
+                  );
+                })}
+              </div>
+            )}
+          </div>
+
+          <label className="flex items-center gap-2 text-sm text-slate-300">
+            <input type="checkbox" checked={form.publie} onChange={(e) => setForm({ ...form, publie: e.target.checked })} />
+            Publier immédiatement (sinon enregistré en brouillon)
+          </label>
+
+          <div className="flex justify-end gap-2">
+            <Btn variant="ghost" onClick={() => { setCreating(false); setEditing(null); }}>Annuler</Btn>
+            <Btn onClick={save}>{editing ? "Enregistrer" : "Publier"}</Btn>
+          </div>
+        </div>
+      </Modal>
+
+      {/* Voir + destinataires */}
+      <Modal open={!!viewing} onClose={() => setViewing(null)} title={viewing?.titre ?? ""} wide>
+        {viewing && (() => {
+          const targets = studentsOfCourse(db, viewing);
+          return (
+            <div className="space-y-4">
+              <div className="flex flex-wrap gap-2">
+                <Badge color={viewing.type === "cours" ? "cyan" : viewing.type === "devoir" ? "gold" : "green"}>{viewing.type}</Badge>
+                {viewing.publie === false && <Badge color="red">Brouillon</Badge>}
+                <Badge color="gray">{db.modules.find((m) => m.id === viewing.moduleId)?.titre ?? "—"}</Badge>
+              </div>
+              {viewing.description && <p className="text-sm text-slate-300">{viewing.description}</p>}
+              {viewing.content && <p className="whitespace-pre-wrap rounded-lg border border-white/5 bg-black/30 p-3 font-mono text-[11px] text-slate-400">{viewing.content}</p>}
+              {(viewing.files ?? []).length > 0 && (
+                <div>
+                  <p className="mb-2 text-xs font-bold uppercase tracking-wider text-cyan-300">Fichiers ({viewing.files.length})</p>
+                  <div className="space-y-1.5">
+                    {viewing.files.map((f: any) => (
+                      <div key={f.id} className="flex items-center justify-between rounded-lg border border-white/5 bg-black/20 px-3 py-2 text-xs">
+                        <span className="flex items-center gap-2 text-slate-300">
+                          <FileText size={14} className="text-cyan-300" />
+                          <span className="font-semibold">{f.originalName}</span>
+                          <span className="text-slate-500">· {fileKind(f.mime, f.originalName)} · {humanSize(f.size)}</span>
+                        </span>
+                        <div className="flex gap-1.5">
+                          {f.mime?.startsWith("image/") && <a href={f.dataUrl} target="_blank" rel="noreferrer" className="rounded border border-white/10 px-2 py-1 text-cyan-300 hover:bg-white/5">Aperçu</a>}
+                          <button onClick={() => downloadFile(f)} className="rounded border border-cyan-400/40 px-2 py-1 text-cyan-300 hover:bg-cyan-400/10">Télécharger</button>
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              )}
+              <div>
+                <p className="mb-2 text-xs font-bold uppercase tracking-wider text-cyan-300">Destinataires ({targets.length})</p>
+                {targets.length === 0 ? <p className="text-xs text-slate-500">Aucun apprenant destinataire.</p> : (
+                  <div className="flex flex-wrap gap-1.5">
+                    {targets.map((s) => <span key={s.id} className="rounded-md border border-white/10 bg-white/[0.03] px-2 py-0.5 text-[10px] text-slate-300">{s.prenom} {s.nom}</span>)}
+                  </div>
+                )}
+              </div>
+            </div>
+          );
+        })()}
+      </Modal>
+    </div>
+  );
+}
+
+/* ================= TESTS ================= */
+export function TestsPage() {
+  const { db, user, update, log } = useStore();
+  const [creating, setCreating] = useState(false);
+  const [viewing, setViewing] = useState<any>(null);
+  const [resultsFor, setResultsFor] = useState<any>(null);
+  const blankTest = () => ({ titre: "", moduleId: "", chapitreId: "", duree: 45, bareme: 20, difficulte: "moyen", tentatives: 1, afficherCorrections: true, validationRequise: false, dateDebut: today(), dateFin: "", questions: [] as any[] });
+  const [form, setForm] = useState<any>(blankTest());
+  const [q, setQ] = useState<any>({ question: "", type: "qcm", options: ["", ""], bonneReponse: "", points: 4, explication: "" });
+
+  const teacher = user?.role === "teacher" ? db.teachers.find((t) => t.userId === user.id) : null;
+  const allowedModules = db.modules.filter((m) => (teacher ? teacher.modules.includes(m.id) : true));
+  const tests = db.tests.filter((t) => (teacher ? allowedModules.some((m) => m.id === t.moduleId) : true));
+  const selectedModule = db.modules.find((m) => m.id === form.moduleId);
+
+  const modName = (id: string) => db.modules.find((m) => m.id === id)?.titre ?? "—";
+
+  const addQuestion = () => {
+    if (!q.question) return;
+    setForm({ ...form, questions: [...form.questions, { id: uid("Q"), ...q, options: q.type === "qcm" ? q.options : q.type === "vf" ? ["Vrai", "Faux"] : [] }] });
+    setQ({ question: "", type: "qcm", options: ["", ""], bonneReponse: "", points: 4, explication: "" });
+  };
+
+  const saveTest = () => {
+    if (!form.titre || form.questions.length === 0) return;
+    const t = teacher ?? db.teachers[0];
+    update((d) => ({ ...d, tests: [{ id: uid("TST"), ...form, teacherId: t?.id ?? "", date: today() }, ...d.tests] }));
+    update((d) => ({ ...d, notifications: [{ id: uid("NTF"), toId: "all", title: `Test disponible : ${form.titre}`, body: "Un nouveau test d'évaluation est en ligne.", date: today(), lu: false, type: "test" }, ...d.notifications] }));
+    log(`Test créé : ${form.titre} (${form.questions.length} questions)`);
+    setCreating(false); setForm(blankTest());
+  };
+
+  const totalPoints = (test: any) => test.questions.reduce((a: number, x: any) => a + (x.points || 0), 0);
+
+  return (
+    <div>
+      <PageHead title="Tests & Évaluations" subtitle="QCM, vrai/faux et questions courtes"
+        actions={<Btn onClick={() => { setForm(blankTest()); setCreating(true); }}><PlusCircle size={16} /> Créer un test</Btn>} />
+      {tests.length === 0 ? (
+        <Empty icon={<TestTube2 size={40} />} title="Aucun test créé" />
+      ) : (
+        <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-3">
+          {tests.map((t) => (
+            <Card key={t.id} className="p-5" glow="red">
+              <div className="flex items-center justify-between">
+                <Badge color="red">Test</Badge>
+                <span className="text-[10px] text-slate-500">{t.date}</span>
+              </div>
+              <h4 className="font-display mt-2 text-base font-bold text-white">{t.titre}</h4>
+              <p className="mt-1 text-xs text-slate-400">{modName(t.moduleId)}</p>
+              <div className="mt-3 flex items-center gap-3 text-xs text-slate-400">
+                <span className="flex items-center gap-1"><FileText size={12} /> {t.questions.length} questions</span>
+                <span className="flex items-center gap-1"><Clock size={12} /> {t.duree} min</span>
+                <span className="flex items-center gap-1"><PenLine size={12} /> /{totalPoints(t)} pts</span>
+              </div>
+              <div className="mt-4 flex gap-2">
+                <Btn variant="outline" className="flex-1" onClick={() => setViewing(t)}><Eye size={14} /> Voir</Btn>
+                <Btn variant="ghost" onClick={() => setResultsFor(t)}><CheckCircle2 size={14} /></Btn>
+                <Btn variant="ghost" onClick={() => update((d) => ({ ...d, tests: d.tests.filter((x) => x.id !== t.id) }))}><Trash2 size={14} /></Btn>
+              </div>
+            </Card>
+          ))}
+        </div>
+      )}
+
+      <Modal open={creating} onClose={() => setCreating(false)} title="Créer un test" wide>
+        <div className="space-y-4">
+          <div className="grid gap-4 sm:grid-cols-3">
+            <Field label="Titre" ><Input value={form.titre} onChange={(e) => setForm({ ...form, titre: e.target.value })} /></Field>
+            <Field label="Module">
+              <Select value={form.moduleId} onChange={(e) => setForm({ ...form, moduleId: e.target.value })}>
+                <option value="">— Choisir —</option>
+                {allowedModules.map((m) => <option key={m.id} value={m.id}>{m.numero}. {m.titre}</option>)}
+              </Select>
+            </Field>
+            <Field label="Durée (min)"><Input type="number" value={form.duree} onChange={(e) => setForm({ ...form, duree: +e.target.value })} /></Field>
+          </div>
+
+          <div className="grid gap-4 sm:grid-cols-3">
+            <Field label="Chapitre concerné">
+              <Select value={form.chapitreId} onChange={(e) => setForm({ ...form, chapitreId: e.target.value })}>
+                <option value="">Tout le module</option>
+                {(selectedModule?.chapitres ?? []).map((c) => <option key={c.id} value={c.id}>{c.titre}</option>)}
+              </Select>
+            </Field>
+            <Field label="Barème (note max)"><Input type="number" value={form.bareme} onChange={(e) => setForm({ ...form, bareme: +e.target.value })} /></Field>
+            <Field label="Difficulté">
+              <Select value={form.difficulte} onChange={(e) => setForm({ ...form, difficulte: e.target.value })}>
+                <option value="facile">Facile</option><option value="moyen">Moyen</option><option value="difficile">Difficile</option>
+              </Select>
+            </Field>
+            <Field label="Date de début"><Input type="date" value={form.dateDebut} onChange={(e) => setForm({ ...form, dateDebut: e.target.value })} /></Field>
+            <Field label="Date de fin"><Input type="date" value={form.dateFin} onChange={(e) => setForm({ ...form, dateFin: e.target.value })} /></Field>
+            <Field label="Tentatives autorisées"><Input type="number" value={form.tentatives} onChange={(e) => setForm({ ...form, tentatives: +e.target.value })} /></Field>
+          </div>
+          <div className="flex flex-wrap gap-4 rounded-xl border border-white/10 bg-white/[0.02] p-3">
+            <label className="flex items-center gap-2 text-sm text-slate-300">
+              <input type="checkbox" checked={form.afficherCorrections} onChange={(e) => setForm({ ...form, afficherCorrections: e.target.checked })} /> Afficher les corrections aux apprenants
+            </label>
+            <label className="flex items-center gap-2 text-sm text-slate-300">
+              <input type="checkbox" checked={form.validationRequise} onChange={(e) => setForm({ ...form, validationRequise: e.target.checked })} /> Résultat visible seulement après validation du formateur
+            </label>
+          </div>
+
+          <div className="rounded-xl border border-white/10 bg-white/[0.02] p-4">
+            <p className="mb-3 text-xs font-bold uppercase tracking-wider text-cyan-300">Ajouter une question</p>
+            <div className="grid gap-3 sm:grid-cols-2">
+              <Field label="Question"><Input value={q.question} onChange={(e) => setQ({ ...q, question: e.target.value })} /></Field>
+              <Field label="Type">
+                <Select value={q.type} onChange={(e) => setQ({ ...q, type: e.target.value, options: e.target.value === "qcm" ? ["", ""] : e.target.value === "vf" ? ["Vrai", "Faux"] : [] })}>
+                  <option value="qcm">QCM</option><option value="vf">Vrai / Faux</option><option value="courte">Réponse courte</option>
+                </Select>
+              </Field>
+              {q.type === "qcm" && (
+                <div className="sm:col-span-2 grid gap-2 sm:grid-cols-2">
+                  {[0, 1, 2, 3].map((i) => (
+                    <Input key={i} placeholder={`Option ${i + 1}`} value={q.options[i] ?? ""}
+                      onChange={(e) => setQ({ ...q, options: q.options.map((o: string, j: number) => (j === i ? e.target.value : o)) })} />
+                  ))}
+                </div>
+              )}
+              <Field label="Bonne réponse">
+                {q.type === "qcm" || q.type === "vf" ? (
+                  <Select value={q.bonneReponse} onChange={(e) => setQ({ ...q, bonneReponse: e.target.value })}>
+                    <option value="">— Choisir —</option>
+                    {(q.type === "vf" ? ["Vrai", "Faux"] : q.options.filter(Boolean)).map((o: string) => <option key={o}>{o}</option>)}
+                  </Select>
+                ) : (
+                  <Input value={q.bonneReponse} onChange={(e) => setQ({ ...q, bonneReponse: e.target.value })} placeholder="Réponse attendue" />
+                )}
+              </Field>
+              <Field label="Points"><Input type="number" value={q.points} onChange={(e) => setQ({ ...q, points: +e.target.value })} /></Field>
+              <div className="sm:col-span-2">
+                <Field label="Explication (affichée dans la correction)"><Input value={q.explication} onChange={(e) => setQ({ ...q, explication: e.target.value })} placeholder="Pourquoi cette réponse est correcte..." /></Field>
+              </div>
+            </div>
+            <Btn variant="outline" className="mt-3" onClick={addQuestion}><PlusCircle size={14} /> Ajouter la question</Btn>
+          </div>
+
+          {form.questions.length > 0 && (
+            <div>
+              <p className="mb-2 text-xs font-bold uppercase tracking-wider text-emerald-300">{form.questions.length} question(s) ajoutée(s)</p>
+              <div className="space-y-1.5">
+                {form.questions.map((x: any, i: number) => (
+                  <div key={x.id} className="flex items-center justify-between rounded-lg border border-white/5 bg-white/[0.02] px-3 py-2 text-sm">
+                    <span className="text-slate-300">{i + 1}. {x.question}</span>
+                    <div className="flex items-center gap-2">
+                      <Badge color="gray">{x.type}</Badge>
+                      <span className="text-xs text-slate-500">{x.points} pts</span>
+                      <button onClick={() => setForm({ ...form, questions: form.questions.filter((y: any) => y.id !== x.id) })} className="text-red-400"><Trash2 size={13} /></button>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            </div>
+          )}
+
+          <div className="flex justify-end gap-2">
+            <Btn variant="ghost" onClick={() => setCreating(false)}>Annuler</Btn>
+            <Btn onClick={saveTest} disabled={form.questions.length === 0}><Save size={15} /> Enregistrer le test</Btn>
+          </div>
+        </div>
+      </Modal>
+
+      <Modal open={!!viewing} onClose={() => setViewing(null)} title={viewing?.titre} wide>
+        {viewing && (
+          <div className="space-y-3">
+            <p className="text-sm text-slate-400">{modName(viewing.moduleId)} • {viewing.questions.length} questions • {viewing.duree} min</p>
+            {viewing.questions.map((x: any, i: number) => (
+              <div key={x.id} className="rounded-xl border border-white/10 bg-white/[0.02] p-4">
+                <p className="text-sm font-bold text-white">{i + 1}. {x.question} <span className="ml-1 text-xs font-normal text-slate-500">({x.points} pts)</span></p>
+                {x.options && x.options.length > 0 && (
+                  <div className="mt-2 flex flex-wrap gap-1.5">
+                    {x.options.map((o: string) => (
+                      <span key={o} className={cn("rounded-lg border px-2.5 py-1 text-xs", o === x.bonneReponse ? "border-emerald-400/50 bg-emerald-400/10 text-emerald-300" : "border-white/10 text-slate-400")}>{o}</span>
+                    ))}
+                  </div>
+                )}
+                {x.type === "courte" && <p className="mt-2 text-xs text-slate-500">Réponse attendue : <span className="font-mono text-emerald-300">{x.bonneReponse}</span></p>}
+              </div>
+            ))}
+          </div>
+        )}
+      </Modal>
+
+      {/* Résultats & validation */}
+      <Modal open={!!resultsFor} onClose={() => setResultsFor(null)} title={resultsFor ? `Résultats — ${resultsFor.titre}` : ""} wide>
+        {resultsFor && (() => {
+          const results = db.results.filter((r) => r.testId === resultsFor.id);
+          const bareme = resultsFor.bareme ?? 20;
+          const seuil = bareme / 2;
+          if (results.length === 0) return <Empty icon={<TestTube2 size={36} />} title="Aucun apprenant n'a encore passé ce test" />;
+          return (
+            <div className="space-y-2">
+              <p className="mb-2 text-xs text-slate-500">{results.length} résultat(s) • Barème /{bareme} • {resultsFor.validationRequise ? "Validation requise avant affichage aux apprenants" : "Corrections visibles automatiquement"}</p>
+              {results.map((r) => {
+                const s = db.students.find((x) => x.id === r.studentId);
+                const reussi = r.note >= seuil;
+                return (
+                  <div key={r.id} className="flex flex-wrap items-center justify-between gap-3 rounded-xl border border-white/5 bg-white/[0.02] p-3.5">
+                    <div>
+                      <p className="text-sm font-bold text-white">{s ? `${s.prenom} ${s.nom}` : r.studentId}</p>
+                      <p className="text-[11px] text-slate-500">{r.date}{r.heure ? ` à ${r.heure}` : ""}</p>
+                    </div>
+                    <div className="flex items-center gap-2">
+                      <Badge color={reussi ? "green" : "red"}>{r.note}/{bareme}</Badge>
+                      <Badge color="cyan">{r.pourcentage}%</Badge>
+                      <Badge color={reussi ? "green" : "red"}>{reussi ? "Réussi" : "Échoué"}</Badge>
+                      {r.valide ? <Badge color="green">Validé</Badge> : (
+                        <Btn variant="outline" onClick={() => { update((d) => ({ ...d, results: d.results.map((x) => x.id === r.id ? { ...x, valide: true } : x) })); log(`Résultat validé : ${s?.prenom} ${s?.nom} — ${r.note}/${bareme}`); }}>
+                          <CheckCircle2 size={13} /> Valider
+                        </Btn>
+                      )}
+                    </div>
+                  </div>
+                );
+              })}
+            </div>
+          );
+        })()}
+      </Modal>
+    </div>
+  );
+}
+
+/* ================= NOTES ================= */
+export function GradesPage() {
+  const { db, user, update, log } = useStore();
+  const [moduleId, setModuleId] = useState("");
+  const [notes, setNotes] = useState<Record<string, string>>({});
+  const [appr, setAppr] = useState<Record<string, string>>({});
+
+  const teacher = user?.role === "teacher" ? db.teachers.find((t) => t.userId === user.id) : null;
+  const allowedModules = db.modules.filter((m) => (teacher ? teacher.modules.includes(m.id) : true));
+  const mod = db.modules.find((m) => m.id === moduleId);
+  const students = db.students.filter((s) => (mod ? s.modules.includes(mod.id) : true));
+  const existing = db.grades.filter((g) => g.moduleId === moduleId);
+
+  const save = () => {
+    const recs = students
+      .filter((s) => notes[s.id] !== undefined && notes[s.id] !== "")
+      .map((s) => ({ id: uid("GRD"), studentId: s.id, moduleId, note: Math.min(20, Math.max(0, +notes[s.id])), appreciation: appr[s.id] || "—", date: today() }));
+    update((d) => ({ ...d, grades: [...d.grades.filter((g) => !(g.moduleId === moduleId && recs.some((r) => r.studentId === g.studentId))), ...recs] }));
+    log(`Notes enregistrées pour ${recs.length} apprenant(s)`);
+  };
+
+  return (
+    <div>
+      <PageHead title="Saisie des notes" subtitle="Notation sur 20 par module"
+        actions={<Btn onClick={save}><Save size={16} /> Enregistrer les notes</Btn>} />
+      <div className="mb-5 max-w-md">
+        <Field label="Module">
+          <Select value={moduleId} onChange={(e) => setModuleId(e.target.value)}>
+            <option value="">— Choisir un module —</option>
+            {allowedModules.map((m) => <option key={m.id} value={m.id}>{formationLabel(m.formation)} — {m.numero}. {m.titre}</option>)}
+          </Select>
+        </Field>
+      </div>
+
+      {!moduleId ? (
+        <Empty icon={<PenLine size={40} />} title="Sélectionnez un module" />
+      ) : (
+        <Card className="overflow-x-auto">
+          <table className="w-full min-w-[620px] text-left">
+            <thead>
+              <tr className="border-b border-white/5 text-[10px] uppercase tracking-[0.2em] text-slate-500">
+                <th className="px-4 py-3">Apprenant</th><th className="px-4 py-3">Note actuelle</th><th className="px-4 py-3">Note /20</th><th className="px-4 py-3">Appréciation</th>
+              </tr>
+            </thead>
+            <tbody>
+              {students.map((s) => {
+                const g = existing.find((x) => x.studentId === s.id);
+                return (
+                  <tr key={s.id} className="border-b border-white/5 last:border-0">
+                    <td className="px-4 py-3">
+                      <p className="text-sm font-bold text-white">{s.prenom} {s.nom}</p>
+                      <p className="font-mono text-[10px] text-slate-500">{s.id}</p>
+                    </td>
+                    <td className="px-4 py-3">
+                      {g ? <Badge color={g.note >= 10 ? "green" : "red"}>{g.note}/20</Badge> : <span className="text-xs text-slate-600">—</span>}
+                    </td>
+                    <td className="px-4 py-3">
+                      <Input type="number" min={0} max={20} step={0.5} className="w-24" placeholder={g ? String(g.note) : "—"}
+                        value={notes[s.id] ?? ""} onChange={(e) => setNotes({ ...notes, [s.id]: e.target.value })} />
+                    </td>
+                    <td className="px-4 py-3">
+                      <Input className="w-40" placeholder={g?.appreciation || "Appréciation"} value={appr[s.id] ?? ""} onChange={(e) => setAppr({ ...appr, [s.id]: e.target.value })} />
+                    </td>
+                  </tr>
+                );
+              })}
+            </tbody>
+          </table>
+        </Card>
+      )}
+    </div>
+  );
+}
+
+/* ================= PAIEMENTS ================= */
+export function PaymentsPage() {
+  const { db, user, update, log } = useStore();
+  const [studentId, setStudentId] = useState("");
+  const [creatingPay, setCreatingPay] = useState(false);
+  const [creatingInv, setCreatingInv] = useState(false);
+  const blankPay = () => ({ invoiceId: "", type: "formation" as "inscription" | "formation", libelle: "", montant: 0, mode: "Espèces", observation: "" });
+  const blankInv = () => ({ type: "formation" as "inscription" | "formation", libelle: "", montant: 0, dueDate: "" });
+  const [payForm, setPayForm] = useState<any>(blankPay());
+  const [invForm, setInvForm] = useState<any>(blankInv());
+
+  const student = db.students.find((s) => s.id === studentId);
+  const summary = studentId ? financialSummary(db, studentId) : null;
+  const payments = summary ? [...summary.payments].sort((a, b) => (b.date + (b.heure ?? "")).localeCompare(a.date + (a.heure ?? ""))) : [];
+  const invoices = summary?.invoices ?? [];
+
+  const savePayment = () => {
+    if (!studentId || !payForm.montant || payForm.montant <= 0) return;
+    const now = new Date();
+    const inv = payForm.invoiceId ? invoices.find((i) => i.id === payForm.invoiceId) : undefined;
+    const libelle = payForm.libelle || (inv ? inv.libelle : payForm.type === "inscription" ? "Frais d'inscription" : "Paiement formation");
+    const ref = nextReceiptRef(db);
+    const p = {
+      id: uid("PAY"), studentId, invoiceId: inv?.id, type: (inv?.type ?? payForm.type),
+      libelle, montant: +payForm.montant, date: today(), heure: now.toTimeString().slice(0, 5),
+      mode: payForm.mode, reference: ref, observation: payForm.observation || undefined,
+      createdBy: user?.id, createdByName: user?.name,
+    };
+    update((d) => ({ ...d, payments: [p, ...d.payments] }));
+    // Statut recalculé automatiquement (utilisé pour rétro-compat sur student.statutPaiement).
+    const newSummary = financialSummary({ ...db, payments: [p, ...db.payments] }, studentId);
+    update((d) => ({ ...d, students: d.students.map((s) => (s.id === studentId ? { ...s, statutPaiement: (newSummary.statut === "retard" ? "partiel" : newSummary.statut) as any } : s)) }));
+    if (student?.userId) update((d) => ({ ...d, notifications: [{ id: uid("NTF"), toId: student.userId!, title: "Paiement enregistré", body: `${money(p.montant)} • ${p.mode} • Réf. ${ref}. Solde : ${money(newSummary.solde)}.`, date: today(), lu: false, type: "paiement" }, ...d.notifications] }));
+    log(`Paiement enregistré ${ref} : ${student?.prenom} ${student?.nom} — ${money(p.montant)} (${p.mode})`);
+    setPayForm(blankPay()); setCreatingPay(false);
+  };
+
+  const saveInvoice = () => {
+    if (!studentId || !invForm.libelle || !invForm.montant) return;
+    const inv = { id: uid("INV"), studentId, type: invForm.type, libelle: invForm.libelle, montant: +invForm.montant, date: today(), dueDate: invForm.dueDate || undefined, createdBy: user?.id };
+    update((d) => ({ ...d, invoices: [inv, ...d.invoices] }));
+    log(`Facture ajoutée : ${student?.prenom} ${student?.nom} — ${money(inv.montant)} (${inv.libelle})`);
+    setInvForm(blankInv()); setCreatingInv(false);
+  };
+
+  const receipt = (p: any) => {
+    printHTML(`Reçu ${p.reference ?? p.id}`, `
+      <div class="receipt">
+        <div style="display:flex;justify-content:space-between;align-items:center">
+          <div><h1 class="accent">SENTINELLES NUMÉRIQUES</h1><p>Centre de Formation — Génie Info & Industriel</p></div>
+          <div style="text-align:right"><p class="label">Reçu N°</p><p class="font-mono">${p.reference ?? p.id}</p></div>
+        </div>
+        <hr style="border-color:#1d2b45;margin:16px 0">
+        <div class="grid">
+          <div><p class="label">Apprenant</p><p style="font-weight:700">${student?.prenom} ${student?.nom} (${studentId})</p></div>
+          <div><p class="label">Date</p><p>${p.date}${p.heure ? " à " + p.heure : ""}</p></div>
+          <div><p class="label">Libellé</p><p>${p.libelle}</p></div>
+          <div><p class="label">Mode de paiement</p><p>${p.mode}</p></div>
+          ${p.createdByName ? `<div><p class="label">Encaissé par</p><p>${p.createdByName}</p></div>` : ""}
+          ${p.observation ? `<div><p class="label">Observation</p><p>${p.observation}</p></div>` : ""}
+        </div>
+        <div class="row" style="margin-top:16px"><span>Montant encaissé</span><span class="gold" style="font-size:20px;font-weight:800">${money(p.montant)}</span></div>
+        <div class="row"><span>Total payé (compte)</span><span class="green">${money(summary?.totalPaye ?? 0)}</span></div>
+        <div class="row"><span>Solde restant</span><span>${money(summary?.solde ?? 0)}</span></div>
+        <p style="margin-top:24px;text-align:center" class="label">Merci de votre confiance — SENTINELLES NUMÉRIQUES</p>
+      </div>`);
+  };
+
+  return (
+    <div>
+      <PageHead title="Finances & Paiements" subtitle="Factures, encaissements et suivi automatique"
+        actions={<div className="flex gap-2">
+          <Btn variant="outline" onClick={() => setCreatingInv(true)} disabled={!studentId}><FileText size={15} /> Ajouter une facture</Btn>
+          <Btn onClick={() => setCreatingPay(true)} disabled={!studentId}><PlusCircle size={16} /> Enregistrer un paiement</Btn>
+        </div>} />
+      <Card className="mb-5 p-5">
+        <Field label="Apprenant">
+          <Select value={studentId} onChange={(e) => setStudentId(e.target.value)}>
+            <option value="">— Sélectionner un apprenant —</option>
+            {db.students.map((s) => <option key={s.id} value={s.id}>{s.id} — {s.prenom} {s.nom}</option>)}
+          </Select>
+        </Field>
+      </Card>
+
+      {student && summary && (
+        <>
+          <div className="mb-5 grid gap-3 sm:grid-cols-4">
+            <div className="rounded-xl border border-white/10 bg-white/[0.02] p-4">
+              <p className="text-[10px] uppercase tracking-wider text-slate-500">Montant à payer</p>
+              <p className="font-display text-xl font-black text-white">{money(summary.totalDu)}</p>
+            </div>
+            <div className="rounded-xl border border-emerald-400/25 bg-emerald-400/5 p-4">
+              <p className="text-[10px] uppercase tracking-wider text-slate-500">Total payé (auto)</p>
+              <p className="font-display text-xl font-black text-emerald-300">{money(summary.totalPaye)}</p>
+            </div>
+            <div className={cn("rounded-xl border p-4", summary.solde === 0 ? "border-emerald-400/25 bg-emerald-400/5" : "border-amber-400/25 bg-amber-400/5")}>
+              <p className="text-[10px] uppercase tracking-wider text-slate-500">Solde restant</p>
+              <p className={cn("font-display text-xl font-black", summary.solde === 0 ? "text-emerald-300" : "text-amber-300")}>{money(summary.solde)}</p>
+            </div>
+            <div className="rounded-xl border border-white/10 bg-white/[0.02] p-4">
+              <p className="text-[10px] uppercase tracking-wider text-slate-500">Statut</p>
+              <p className="mt-1"><Badge color={summary.statut === "paye" ? "green" : summary.statut === "partiel" ? "gold" : summary.statut === "retard" ? "red" : "red"}>{statusLabel(summary.statut)}</Badge></p>
+            </div>
+          </div>
+
+          {/* Factures */}
+          <h3 className="font-display mb-3 text-sm font-bold text-white">Factures</h3>
+          {invoices.length === 0 ? (
+            <Empty icon={<FileText size={32} />} title="Aucune facture" sub="Ajoutez une facture pour enregistrer ce qui est dû (inscription, formation)." />
+          ) : (
+            <Card className="mb-6 overflow-x-auto">
+              <table className="w-full min-w-[640px] text-left text-sm">
+                <thead>
+                  <tr className="border-b border-white/5 text-[10px] uppercase tracking-[0.2em] text-slate-500">
+                    <th className="px-4 py-3">Libellé</th><th className="px-4 py-3">Type</th><th className="px-4 py-3">Émise</th><th className="px-4 py-3">Échéance</th><th className="px-4 py-3">Montant</th><th className="px-4 py-3">Payé</th><th className="px-4 py-3">Reste</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {invoices.map((i) => {
+                    const paid = db.payments.filter((p) => p.invoiceId === i.id).reduce((a, p) => a + p.montant, 0);
+                    const rest = Math.max(0, i.montant - paid);
+                    return (
+                      <tr key={i.id} className="border-b border-white/5 last:border-0">
+                        <td className="px-4 py-3 font-semibold text-slate-200">{i.libelle}</td>
+                        <td className="px-4 py-3"><Badge color={i.type === "inscription" ? "cyan" : "blue"}>{i.type}</Badge></td>
+                        <td className="px-4 py-3 text-xs text-slate-400">{i.date}</td>
+                        <td className="px-4 py-3 text-xs text-slate-400">{i.dueDate ?? "—"}</td>
+                        <td className="px-4 py-3 font-mono text-white">{money(i.montant)}</td>
+                        <td className="px-4 py-3 font-mono text-emerald-300">{money(paid)}</td>
+                        <td className="px-4 py-3 font-mono">
+                          {rest === 0 ? <Badge color="green">Soldé</Badge> : <span className="text-amber-300">{money(rest)}</span>}
+                        </td>
+                      </tr>
+                    );
+                  })}
+                </tbody>
+              </table>
+            </Card>
+          )}
+
+          {/* Historique paiements */}
+          <h3 className="font-display mb-3 text-sm font-bold text-white">Historique des paiements</h3>
+          {payments.length === 0 ? (
+            <Empty icon={<Wallet size={40} />} title="Aucun paiement enregistré" />
+          ) : (
+            <Card className="overflow-x-auto">
+              <table className="w-full min-w-[820px] text-left text-sm">
+                <thead>
+                  <tr className="border-b border-white/5 text-[10px] uppercase tracking-[0.2em] text-slate-500">
+                    <th className="px-4 py-3">Réf.</th><th className="px-4 py-3">Libellé</th><th className="px-4 py-3">Montant</th><th className="px-4 py-3">Mode</th><th className="px-4 py-3">Date / heure</th><th className="px-4 py-3">Encaissé par</th><th className="px-4 py-3 text-right">Reçu</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {payments.map((p) => (
+                    <tr key={p.id} className="border-b border-white/5 last:border-0 hover:bg-white/[0.02]">
+                      <td className="px-4 py-3 font-mono text-xs text-cyan-300">{p.reference ?? p.id}</td>
+                      <td className="px-4 py-3">
+                        <p className="font-semibold text-slate-200">{p.libelle}</p>
+                        {p.observation && <p className="text-[11px] text-slate-500">{p.observation}</p>}
+                      </td>
+                      <td className="px-4 py-3 font-mono text-white">{money(p.montant)}</td>
+                      <td className="px-4 py-3 text-xs text-slate-400">{p.mode}</td>
+                      <td className="px-4 py-3 text-xs text-slate-400">{p.date}{p.heure ? ` • ${p.heure}` : ""}</td>
+                      <td className="px-4 py-3 text-xs text-slate-400">{p.createdByName ?? "—"}</td>
+                      <td className="px-4 py-3 text-right">
+                        <button onClick={() => receipt(p)} className="rounded-lg border border-white/10 p-2 text-slate-300 hover:border-cyan-400/40 hover:text-cyan-300" title="Reçu"><ReceiptText size={15} /></button>
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </Card>
+          )}
+          <p className="mt-3 text-[11px] text-slate-500">Chaque transaction est traçable. La suppression d'un paiement est journalisée pour préserver l'intégrité financière.</p>
+        </>
+      )}
+
+      {/* Modal paiement */}
+      <Modal open={creatingPay} onClose={() => setCreatingPay(false)} title={`Nouveau paiement — ${student?.prenom ?? ""} ${student?.nom ?? ""}`}>
+        <div className="space-y-4">
+          <Field label="Rattacher à une facture (facultatif)">
+            <Select value={payForm.invoiceId} onChange={(e) => setPayForm({ ...payForm, invoiceId: e.target.value })}>
+              <option value="">— Aucune (paiement libre) —</option>
+              {invoices.map((i) => {
+                const paid = db.payments.filter((p) => p.invoiceId === i.id).reduce((a, p) => a + p.montant, 0);
+                const rest = Math.max(0, i.montant - paid);
+                return <option key={i.id} value={i.id}>{i.libelle} — reste {money(rest)}</option>;
+              })}
+            </Select>
+          </Field>
+          <div className="grid gap-4 sm:grid-cols-2">
+            <Field label="Type">
+              <Select value={payForm.type} onChange={(e) => setPayForm({ ...payForm, type: e.target.value })}>
+                <option value="inscription">Inscription</option><option value="formation">Formation</option>
+              </Select>
+            </Field>
+            <Field label="Mode">
+              <Select value={payForm.mode} onChange={(e) => setPayForm({ ...payForm, mode: e.target.value })}>
+                <option>Espèces</option><option>Mobile Money</option><option>Virement</option><option>Chèque</option><option>Autre</option>
+              </Select>
+            </Field>
+          </div>
+          <Field label="Libellé (optionnel)"><Input value={payForm.libelle} onChange={(e) => setPayForm({ ...payForm, libelle: e.target.value })} placeholder="Sera repris depuis la facture si vide" /></Field>
+          <Field label="Montant encaissé (FCFA)"><Input type="number" min={1} value={payForm.montant} onChange={(e) => setPayForm({ ...payForm, montant: +e.target.value })} /></Field>
+          <Field label="Observation (facultatif)"><Textarea value={payForm.observation} onChange={(e) => setPayForm({ ...payForm, observation: e.target.value })} placeholder="Précisions éventuelles..." /></Field>
+          <div className="rounded-lg border border-cyan-400/25 bg-cyan-400/5 p-3 text-xs text-slate-300">
+            La référence de reçu et le solde sont générés automatiquement. Le total payé et le statut du compte sont recalculés à partir de l'ensemble des transactions.
+          </div>
+          <div className="flex justify-end gap-2">
+            <Btn variant="ghost" onClick={() => setCreatingPay(false)}>Annuler</Btn>
+            <Btn onClick={savePayment}><Wallet size={15} /> Enregistrer le paiement</Btn>
+          </div>
+        </div>
+      </Modal>
+
+      {/* Modal facture */}
+      <Modal open={creatingInv} onClose={() => setCreatingInv(false)} title={`Nouvelle facture — ${student?.prenom ?? ""} ${student?.nom ?? ""}`}>
+        <div className="space-y-4">
+          <div className="grid gap-4 sm:grid-cols-2">
+            <Field label="Type">
+              <Select value={invForm.type} onChange={(e) => setInvForm({ ...invForm, type: e.target.value, libelle: e.target.value === "inscription" ? "Frais d'inscription" : invForm.libelle })}>
+                <option value="inscription">Inscription</option><option value="formation">Formation</option>
+              </Select>
+            </Field>
+            <Field label="Échéance (facultative)"><Input type="date" value={invForm.dueDate} onChange={(e) => setInvForm({ ...invForm, dueDate: e.target.value })} /></Field>
+          </div>
+          <Field label="Libellé"><Input value={invForm.libelle} onChange={(e) => setInvForm({ ...invForm, libelle: e.target.value })} placeholder="ex: Formation — 4 modules" /></Field>
+          <Field label="Montant total (FCFA)"><Input type="number" min={1} value={invForm.montant} onChange={(e) => setInvForm({ ...invForm, montant: +e.target.value })} /></Field>
+          <div className="flex justify-end gap-2">
+            <Btn variant="ghost" onClick={() => setCreatingInv(false)}>Annuler</Btn>
+            <Btn onClick={saveInvoice}><FileText size={15} /> Ajouter la facture</Btn>
+          </div>
+        </div>
+      </Modal>
+    </div>
+  );
+}
+
+/* ================= CERTIFICATS ================= */
+export function CertificatesPage() {
+  const { db, update, log, nextCertNumber } = useStore();
+  const [studentId, setStudentId] = useState("");
+  const [period, setPeriod] = useState("Août — Octobre 2026");
+  const [resultat, setResultat] = useState("Admis");
+  const [note, setNote] = useState(14);
+  const [viewing, setViewing] = useState<any>(null);
+
+  const sName = (id: string) => {
+    const s = db.students.find((x) => x.id === id);
+    return s ? `${s.prenom} ${s.nom}` : "—";
+  };
+
+  const generate = () => {
+    if (!studentId) return;
+    const s = db.students.find((x) => x.id === studentId)!;
+    const numero = nextCertNumber();
+    const cert = { id: uid("CERT"), studentId, numero, formation: s.formation, modules: s.modules, periode: period, resultat, note, date: today() };
+    update((d) => ({ ...d, certificates: [cert, ...d.certificates] }));
+    if (s.userId) update((d) => ({ ...d, notifications: [{ id: uid("NTF"), toId: s.userId!, title: "Certificat disponible", body: `Votre certificat ${numero} a été émis.`, date: today(), lu: false, type: "certif" }, ...d.notifications] }));
+    log(`Certificat généré : ${numero} pour ${sName(studentId)}`);
+    setViewing(cert);
+  };
+
+  const printCert = (c: any) => {
+    const s = db.students.find((x) => x.id === c.studentId)!;
+    const mods = db.modules.filter((m) => c.modules.includes(m.id)).map((m) => m.titre).join(" • ");
+    printHTML(`Certificat ${c.numero}`, `
+      <div class="receipt" style="text-align:center">
+        <p class="accent" style="letter-spacing:4px;font-size:12px">SENTINELLES NUMÉRIQUES</p>
+        <p class="label">Centre de Formation en Génie Informatique & Génie Industriel</p>
+        <div style="margin:24px 0"><h1 style="font-size:40px;letter-spacing:6px">CERTIFICAT</h1><p class="label">de formation professionnelle</p></div>
+        <p class="label">Décerné à</p>
+        <h2 style="font-size:28px;color:#FFB300;margin:8px 0">${s.prenom} ${s.nom}</h2>
+        <p class="label">N° ${s.id} • ${formationLabel(c.formation)}</p>
+        <p style="margin:20px auto;max-width:520px">pour avoir suivi avec succès la formation de <b>${formationLabel(c.formation)}</b> du ${c.periode}.</p>
+        <div class="row" style="max-width:420px;margin:0 auto"><span>Modules couverts</span><span style="text-align:right;max-width:220px">${mods}</span></div>
+        <div class="row" style="max-width:420px;margin:0 auto"><span>Résultat</span><span class="green">${c.resultat} — ${c.note}/20</span></div>
+        <div style="margin-top:32px;display:flex;justify-content:space-between;align-items:end">
+          <div style="text-align:center"><p style="border-top:1px solid #00E5FF;padding-top:6px;font-size:11px">Coach Fredich FOUNDOU<br>Responsable du Centre</p></div>
+          <div style="text-align:center"><p class="font-mono" style="font-size:12px">${c.numero}</p><p class="label">Certificat vérifiable</p></div>
+        </div>
+      </div>`);
+  };
+
+  return (
+    <div>
+      <PageHead title="Certificats" subtitle="Certification des délibérés par ENIA 2.0" />
+      <Card className="mb-6 p-5">
+        <div className="grid gap-4 md:grid-cols-5">
+          <Field label="Apprenant">
+            <Select value={studentId} onChange={(e) => setStudentId(e.target.value)}>
+              <option value="">— Choisir —</option>
+              {db.students.map((s) => <option key={s.id} value={s.id}>{s.id} — {s.prenom} {s.nom}</option>)}
+            </Select>
+          </Field>
+          <Field label="Période"><Input value={period} onChange={(e) => setPeriod(e.target.value)} /></Field>
+          <Field label="Résultat">
+            <Select value={resultat} onChange={(e) => setResultat(e.target.value)}>
+              <option>Admis</option><option>Admis avec mention</option><option>Non admis</option>
+            </Select>
+          </Field>
+          <Field label="Note /20"><Input type="number" value={note} onChange={(e) => setNote(+e.target.value)} /></Field>
+          <div className="flex items-end"><Btn onClick={generate} className="w-full"><Award size={16} /> Générer</Btn></div>
+        </div>
+      </Card>
+
+      {db.certificates.length === 0 ? (
+        <Empty icon={<Award size={40} />} title="Aucun certificat émis" />
+      ) : (
+        <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-3">
+          {db.certificates.map((c) => (
+            <Card key={c.id} className="p-5" glow="gold">
+              <div className="flex items-center justify-between">
+                <Award size={22} className="text-amber-300" />
+                <Badge color="gold">{c.resultat}</Badge>
+              </div>
+              <h4 className="font-display mt-2 text-lg font-black text-white">{sName(c.studentId)}</h4>
+              <p className="font-mono text-[11px] text-amber-300/80">{c.numero}</p>
+              <p className="mt-1 text-xs text-slate-400">{formationLabel(c.formation)} • {c.periode}</p>
+              <div className="mt-4 flex gap-2">
+                <Btn variant="outline" className="flex-1" onClick={() => setViewing(c)}><Eye size={14} /> Aperçu</Btn>
+                <Btn variant="ghost" onClick={() => printCert(c)}><Printer size={14} /></Btn>
+              </div>
+            </Card>
+          ))}
+        </div>
+      )}
+
+      <Modal open={!!viewing} onClose={() => setViewing(null)} title="Aperçu du certificat" wide>
+        {viewing && <CertificatePreview cert={viewing} onPrint={() => printCert(viewing)} />}
+      </Modal>
+    </div>
+  );
+}
+
+function CertificatePreview({ cert, onPrint }: { cert: any; onPrint: () => void }) {
+  const { db } = useStore();
+  const s = db.students.find((x) => x.id === cert.studentId)!;
+  const mods = db.modules.filter((m) => cert.modules.includes(m.id));
+  return (
+    <div>
+      <div id="print-area" className="relative overflow-hidden rounded-2xl border-2 border-amber-400/50 bg-gradient-to-br from-[#0A1224] to-[#120d1f] p-8 text-center">
+        <div className="bg-grid-hex pointer-events-none absolute inset-0 opacity-40" />
+        <div className="relative">
+          <div className="mx-auto mb-2 flex h-12 w-12 items-center justify-center rounded-xl border border-cyan-400/40 bg-cyan-400/10">
+            <ShieldCheck size={22} className="text-cyan-300" />
+          </div>
+          <p className="font-display text-sm font-black tracking-[0.3em] text-cyan-300">SENTINELLES NUMÉRIQUES</p>
+          <p className="text-[10px] uppercase tracking-[0.25em] text-slate-400">Centre de Formation en Génie Informatique & Génie Industriel</p>
+          <h2 className="font-display mt-6 text-4xl font-black tracking-[0.2em] text-white">CERTIFICAT</h2>
+          <p className="mt-1 text-[11px] uppercase tracking-[0.3em] text-slate-400">de formation professionnelle</p>
+          <p className="mt-6 text-[11px] uppercase tracking-[0.25em] text-slate-500">Décerné à</p>
+          <p className="font-display mt-1 text-3xl font-black text-amber-300 drop-shadow-[0_0_16px_rgba(255,179,0,0.4)]">{s.prenom} {s.nom}</p>
+          <p className="mt-1 font-mono text-xs text-cyan-300/70">N° {s.id} • {formationLabel(cert.formation)}</p>
+          <p className="mx-auto mt-4 max-w-md text-sm text-slate-300">
+            pour avoir suivi avec succès la formation de <b className="text-white">{formationLabel(cert.formation)}</b> du {cert.periode}.
+          </p>
+          <div className="mx-auto mt-4 flex max-w-md flex-wrap justify-center gap-1.5">
+            {mods.map((m) => <span key={m.id} className="rounded-md border border-white/10 bg-white/[0.03] px-2 py-0.5 text-[10px] text-slate-300">{m.numero}. {m.titre}</span>)}
+          </div>
+          <div className="mx-auto mt-5 flex max-w-md items-center justify-between border-t border-amber-400/20 pt-4">
+            <div className="text-left">
+              <p className="text-[10px] uppercase tracking-wider text-slate-500">Résultat</p>
+              <p className="font-bold text-emerald-300">{cert.resultat} — {cert.note}/20</p>
+            </div>
+            <div className="rounded-lg bg-white p-1">
+              <QRCodeSVG value={`CERT|${cert.numero}|${s.id}`} size={64} />
+            </div>
+            <div className="text-right">
+              <p className="text-[10px] uppercase tracking-wider text-slate-500">N° certificat</p>
+              <p className="font-mono text-[11px] text-cyan-300">{cert.numero}</p>
+            </div>
+          </div>
+          <p className="mt-5 text-[11px] text-slate-500">Signature : Coach Fredich FOUNDOU — Responsable du Centre</p>
+        </div>
+      </div>
+      <div className="no-print mt-4 flex justify-end gap-2">
+        <Btn onClick={onPrint}><Printer size={15} /> Imprimer</Btn>
+      </div>
+    </div>
+  );
+}
+
+/* ================= BOURSES ================= */
+const BOURSE_STATUS: { k: any; l: string; c: "gray" | "gold" | "cyan" | "green" | "red" }[] = [
+  { k: "en_attente", l: "En attente", c: "gray" },
+  { k: "test_programme", l: "Test programmé", c: "gold" },
+  { k: "test_effectue", l: "Test effectué", c: "cyan" },
+  { k: "admis", l: "Admis", c: "green" },
+  { k: "non_admis", l: "Non admis", c: "red" },
+  { k: "bourse_attribuee", l: "Bourse attribuée", c: "green" },
+];
+
+export function ScholarshipsPage() {
+  const { db, update, log } = useStore();
+  const eligible = db.students.filter((s) => s.statut === "actif");
+  const get = (id: string) => db.scholarships.find((x) => x.studentId === id);
+
+  const setStatus = (id: string, statut: any) => {
+    const existing = get(id);
+    update((d) => ({
+      ...d,
+      scholarships: existing
+        ? d.scholarships.map((x) => (x.studentId === id ? { ...x, statut } : x))
+        : [...d.scholarships, { id: uid("SCHL"), studentId: id, statut, date: today() }],
+    }));
+    const s = db.students.find((x) => x.id === id);
+    if (s?.userId) update((d) => ({ ...d, notifications: [{ id: uid("NTF"), toId: s.userId!, title: "Mise à jour bourse", body: `Votre statut bourse est désormais : ${statut.replace("_", " ")}`, date: today(), lu: false, type: "bourse" }, ...d.notifications] }));
+    log(`Bourse mise à jour : ${s?.prenom} ${s?.nom} → ${statut}`);
+  };
+
+  return (
+    <div>
+      <PageHead title="BOURSE MON AVENIR" subtitle="3 ans d'études 100% gratuites à ENIA 2.0 pour les lauréats du test final" />
+      <Card className="mb-6 flex items-center gap-4 border-amber-400/30 bg-gradient-to-r from-amber-400/10 via-transparent to-transparent p-5">
+        <BadgeDollarSign size={28} className="shrink-0 text-amber-300" />
+        <p className="text-sm text-slate-300">
+          Les apprenants qui réussissent le test final de fin de formation bénéficient d'une <b className="text-amber-300">bourse d'études de 3 ans à ENIA 2.0</b>.
+        </p>
+      </Card>
+
+      <Card className="overflow-x-auto">
+        <table className="w-full min-w-[680px] text-left">
+          <thead>
+            <tr className="border-b border-white/5 text-[10px] uppercase tracking-[0.2em] text-slate-500">
+              <th className="px-4 py-3">Apprenant</th><th className="px-4 py-3">Formation</th><th className="px-4 py-3">Moyenne</th><th className="px-4 py-3">Statut actuel</th><th className="px-4 py-3 text-right">Mettre à jour</th>
+            </tr>
+          </thead>
+          <tbody>
+            {eligible.map((s) => {
+              const grades = db.grades.filter((g) => g.studentId === s.id);
+              const avg = grades.length ? (grades.reduce((a, g) => a + g.note, 0) / grades.length).toFixed(1) : "—";
+              const b = get(s.id);
+              return (
+                <tr key={s.id} className="border-b border-white/5 last:border-0 hover:bg-white/[0.02]">
+                  <td className="px-4 py-3">
+                    <p className="text-sm font-bold text-white">{s.prenom} {s.nom}</p>
+                    <p className="font-mono text-[10px] text-slate-500">{s.id}</p>
+                  </td>
+                  <td className="px-4 py-3"><Badge color={s.formation === "informatique" ? "red" : "cyan"}>{formationLabel(s.formation)}</Badge></td>
+                  <td className="px-4 py-3 font-display text-sm font-bold text-white">{avg}</td>
+                  <td className="px-4 py-3">
+                    {b ? <Badge color={BOURSE_STATUS.find((x) => x.k === b.statut)?.c ?? "gray"}>{BOURSE_STATUS.find((x) => x.k === b.statut)?.l}</Badge> : <Badge color="gray">Non suivi</Badge>}
+                  </td>
+                  <td className="px-4 py-3">
+                    <Select value={b?.statut ?? "en_attente"} onChange={(e) => setStatus(s.id, e.target.value)} className="w-44 text-xs">
+                      {BOURSE_STATUS.map((x) => <option key={x.k} value={x.k}>{x.l}</option>)}
+                    </Select>
+                  </td>
+                </tr>
+              );
+            })}
+          </tbody>
+        </table>
+      </Card>
+    </div>
+  );
+}

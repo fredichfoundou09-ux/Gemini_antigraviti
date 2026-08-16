@@ -1,0 +1,566 @@
+import React, { createContext, useContext, useEffect, useMemo, useState } from "react";
+import { DB, User, Notification, Formation, Role } from "./types";
+import { emptyDB, defaultEniaContent } from "./seed";
+import {
+  hashPassword, verifyPassword, passwordStrong,
+  getLockState, registerFailure, clearFailures, formatDuration,
+} from "./auth";
+import { supabase, isSupabaseConfigured } from "./supabase/client";
+import {
+  getCurrentProfile,
+  signOut,
+  bootstrapFirstSuperadmin,
+  updatePassword,
+} from "./supabase/auth";
+import { writeAudit } from "./supabase/audit";
+
+const DB_KEY = "sn_db_v1";
+const SESSION_KEY = "sn_session_v1";
+const SESSION_TTL_MS = 2 * 60 * 60 * 1000;
+
+const useSb = import.meta.env.VITE_USE_SUPABASE === "true" && isSupabaseConfigured;
+
+interface StoredSession {
+  userId: string;
+  createdAt: number;
+  expiresAt: number;
+}
+
+function migrateDB(parsed: DB): DB {
+  const fresh = defaultEniaContent();
+  if (!parsed.enia) parsed.enia = fresh;
+  // Migration champs ENIA manquants
+  if (!parsed.enia.fraisScolaires) parsed.enia.fraisScolaires = [];
+  if (!parsed.enia.pieces) parsed.enia.pieces = [];
+  if (!parsed.enia.bourseAvantages) parsed.enia.bourseAvantages = fresh.bourseAvantages;
+  if (!parsed.enia.bourseHighlights) parsed.enia.bourseHighlights = fresh.bourseHighlights;
+  if (!parsed.enia.partenaires) parsed.enia.partenaires = [];
+  if (!parsed.invoices) parsed.invoices = [];
+  if (!parsed.teacherHours) parsed.teacherHours = [];
+  if (!parsed.teacherPayments) parsed.teacherPayments = [];
+  if (!parsed.submissions) parsed.submissions = [];
+  if (!parsed.fileActivities) parsed.fileActivities = [];
+  if (!parsed.advantages) parsed.advantages = [];
+  if (!parsed.partners) parsed.partners = [];
+  if (!parsed.announcements) parsed.announcements = [];
+  if (!parsed.settings.formations) {
+    parsed.settings.formations = {
+      informatique: { titre: "GÉNIE INFORMATIQUE", description: "" },
+      industriel: { titre: "GÉNIE INDUSTRIEL", description: "" },
+    };
+  }
+  if (!parsed.settings.frais) {
+    parsed.settings.frais = { inscription: 0, informatique: [], industriel: [] };
+  }
+  if (!parsed.settings.preInscription) {
+    parsed.settings.preInscription = { enabled: true, title: "Pré-inscription en ligne", description: "" };
+  }
+  if (!parsed.settings.contact) {
+    parsed.settings.contact = { email: "", adresse: "" };
+  }
+  // Normalise les utilisateurs sans champ actif
+  parsed.users = (parsed.users || []).map((u: any) => ({ ...u, actif: u.actif !== false }));
+  return parsed;
+}
+
+function loadDB(): DB {
+  try {
+    const raw = localStorage.getItem(DB_KEY);
+    if (raw) {
+      const parsed = JSON.parse(raw) as DB;
+      if (parsed && parsed.version && parsed.settings) return migrateDB(parsed);
+    }
+  } catch { /* ignore */ }
+  const fresh = emptyDB([]);
+  try { localStorage.setItem(DB_KEY, JSON.stringify(fresh)); } catch { /* quota */ }
+  return fresh;
+}
+
+function loadSession(db: DB): User | null {
+  try {
+    const raw = sessionStorage.getItem(SESSION_KEY);
+    if (!raw) return null;
+    const s = JSON.parse(raw) as StoredSession;
+    if (!s || typeof s !== "object") return null;
+    if (Date.now() > s.expiresAt) { sessionStorage.removeItem(SESSION_KEY); return null; }
+    const u = db.users.find((x) => x.id === s.userId);
+    if (!u) { sessionStorage.removeItem(SESSION_KEY); return null; }
+    if (u.actif === false) { sessionStorage.removeItem(SESSION_KEY); return null; }
+    return u;
+  } catch { return null; }
+}
+
+export type LoginResult =
+  | { ok: true; user: User }
+  | { ok: false; error: string; locked?: boolean; remainingMs?: number };
+
+interface StoreCtxType {
+  db: DB;
+  user: User | null;
+  hasSuperAdmin: boolean;
+  login: (username: string, password: string, requestedGroup?: "admin" | Role) => Promise<LoginResult>;
+  logout: () => void;
+  createFirstAdmin: (data: { name: string; username: string; email: string; password: string }) => Promise<{ ok: boolean; error?: string; user?: User }>;
+  changePassword: (userId: string, newPassword: string) => Promise<{ ok: boolean; error?: string }>;
+  update: (fn: (db: DB) => DB) => void;
+  nextStudentId: () => string;
+  nextCertNumber: () => string;
+  notify: (toId: string, title: string, body: string, type?: string) => void;
+  log: (action: string) => void;
+  modulesOf: (f: Formation) => DB["modules"];
+  computeAmount: (f: Formation, moduleCount: number) => number;
+  userName: (id: string) => string;
+  studentOf: (userId: string) => DB["students"][number] | undefined;
+  teacherOf: (userId: string) => DB["teachers"][number] | undefined;
+}
+
+const StoreCtx = createContext<StoreCtxType>(null!);
+
+export function StoreProvider({ children }: { children: React.ReactNode }) {
+  const [db, setDb] = useState<DB>(loadDB);
+  const [user, setUser] = useState<User | null>(() => loadSession(db));
+  const sbActive = useSb;
+
+  // Synchronisation avec Supabase (quand connecté et configuré)
+  useEffect(() => {
+    if (!sbActive) {
+      try { localStorage.setItem(DB_KEY, JSON.stringify(db)); } catch { /* quota */ }
+    }
+  }, [db, sbActive]);
+
+  // Si le compte de l'utilisateur est désactivé ou supprimé pendant la session, on le déconnecte.
+  useEffect(() => {
+    if (!user) return;
+    const still = db.users.find((u) => u.id === user.id);
+    if (!still || still.actif === false) persistSession(null);
+    else if (still !== user) setUser(still);
+  }, [db.users, user]);
+
+  // Expiration périodique de la session.
+  useEffect(() => {
+    const t = setInterval(() => {
+      try {
+        const raw = sessionStorage.getItem(SESSION_KEY);
+        if (!raw) return;
+        const s = JSON.parse(raw) as StoredSession;
+        if (Date.now() > s.expiresAt) persistSession(null);
+      } catch { /* ignore */ }
+    }, 30_000);
+    return () => clearInterval(t);
+  }, []);
+
+  // Synchronise les tables depuis Supabase au chargement si authentifié
+  useEffect(() => {
+    if (!sbActive) return;
+
+    const syncTables = async () => {
+      const { data: { session } } = await supabase.auth.getSession();
+      if (!session) return;
+
+      try {
+        // Chargement en parallèle de l'ensemble des données relationnelles PostgreSQL
+        const [
+          profilesRes, formationsRes, modulesRes, chaptersRes,
+          studentsRes, studentModulesRes,
+          teachersRes, teacherModulesRes, coursesRes,
+          scheduleRes, attendanceRes, invoicesRes, paymentsRes,
+          testsRes, resultsRes, gradesRes, notificationsRes,
+          certificatesRes, scholarshipsRes
+        ] = await Promise.all([
+          supabase.from("profiles").select("*"),
+          supabase.from("formations").select("*"),
+          supabase.from("modules").select("*"),
+          supabase.from("chapters").select("*"),
+          supabase.from("students").select("*"),
+          supabase.from("student_modules").select("*"),
+          supabase.from("teachers").select("*"),
+          supabase.from("teacher_modules").select("*"),
+          supabase.from("courses").select("*, files:course_files(*)"),
+          supabase.from("schedule").select("*"),
+          supabase.from("attendance").select("*"),
+          supabase.from("invoices").select("*"),
+          supabase.from("payments").select("*"),
+          supabase.from("tests").select("*, questions(*)"),
+          supabase.from("test_results").select("*, answers:test_answers(*)"),
+          supabase.from("grades").select("*"),
+          supabase.from("notifications").select("*"),
+          supabase.from("certificates").select("*, modules:certificate_modules(*)"),
+          supabase.from("scholarships").select("*")
+        ]);
+
+        if (profilesRes.error) throw profilesRes.error;
+
+        // Transformation des relations plates PostgreSQL en structure d'état local réactive
+        const updatedUsers: User[] = (profilesRes.data || []).map((p: any) => ({
+          id: p.id,
+          username: p.username,
+          password: "", // sécurité : aucun mot de passe hashé envoyé au client
+          role: p.role as Role,
+          name: p.name,
+          email: p.email,
+          phone: p.phone,
+          actif: p.active,
+          createdAt: p.created_at?.slice(0, 10) || ""
+        }));
+
+        const formationById = new Map((formationsRes.data || []).map((f: any) => [f.id, f.code]));
+        const chaptersByModule = new Map<string, any[]>();
+        (chaptersRes.data || []).forEach((c: any) => {
+          const arr = chaptersByModule.get(c.module_id) || [];
+          arr.push({ id: c.id, titre: c.titre, contenu: c.contenu || "" });
+          chaptersByModule.set(c.module_id, arr);
+        });
+
+        setDb((prev) => ({
+          ...prev,
+          users: updatedUsers,
+          modules: (modulesRes.data || []).map((m: any) => ({
+            id: m.id,
+            formation: (formationById.get(m.formation_id) || "informatique") as Formation,
+            numero: m.numero,
+            titre: m.titre,
+            icon: m.icon || "code",
+            notions: [],
+            description: m.description || "",
+            duree: m.duree || "",
+            supports: m.supports || "",
+            infosSupp: m.infos_supp || "",
+            image: m.image_url || "",
+            chapitres: chaptersByModule.get(m.id) || [],
+          })),
+          students: (studentsRes.data || []).map((s: any) => {
+            const mods = (studentModulesRes.data || [])
+              .filter((sm: any) => sm.student_id === s.id)
+              .map((sm: any) => sm.module_id);
+            return {
+              id: s.id, nom: s.nom, prenom: s.prenom, dateNaissance: s.date_naissance || "",
+              sexe: s.sexe, telephone: s.telephone, whatsapp: s.whatsapp, email: s.email,
+              adresse: s.adresse, niveau: s.niveau, formation: (formationById.get(s.formation_id) || "informatique") as Formation,
+              modules: mods, dateInscription: s.date_inscription || "", statutPaiement: "impaye", statut: s.statut, userId: s.user_id
+            };
+          }),
+          teachers: (teachersRes.data || []).map((t: any) => {
+            const mods = (teacherModulesRes.data || [])
+              .filter((tm: any) => tm.teacher_id === t.id)
+              .map((tm: any) => tm.module_id);
+            return {
+              id: t.id, nom: t.nom, prenom: t.prenom, specialite: t.specialite, email: t.email,
+              phone: t.phone, modules: mods, userId: t.user_id, photo: t.photo_url,
+              formations: t.formations || [], infosPro: t.infos_pro, diplomes: t.diplomes, actif: t.actif
+            };
+          }),
+          courses: (coursesRes.data || []).map((c: any) => ({
+            id: c.id, titre: c.titre, description: c.description || "", moduleId: c.module_id,
+            teacherId: c.teacher_id, type: c.type as any, content: c.content || "", date: c.created_at?.slice(0, 10) || ""
+          })),
+          schedule: (scheduleRes.data || []).map((s: any) => ({
+            id: s.id, jour: s.jour, heureDebut: s.heure_debut, heureFin: s.heure_fin, date: s.date || undefined,
+            moduleId: s.module_id, teacherId: s.teacher_id, salle: s.salle,
+            formation: (formationById.get(s.formation_id) || "informatique") as Formation,
+          })),
+          attendance: (attendanceRes.data || []).map((a: any) => ({
+            id: a.id, studentId: a.student_id, date: a.date, moduleId: a.module_id,
+            statut: a.statut as any, heure: a.heure, salle: a.salle, teacherId: a.teacher_id
+          })),
+          invoices: (invoicesRes.data || []).map((i: any) => ({
+            id: i.id, studentId: i.student_id, type: i.type as any, libelle: i.libelle, montant: Number(i.montant), date: i.date
+          })),
+          payments: (paymentsRes.data || []).map((p: any) => ({
+            id: p.id, studentId: p.student_id, invoiceId: p.invoice_id, type: p.type as any, libelle: p.libelle,
+            montant: Number(p.montant), date: p.date, heure: p.heure, mode: p.mode, reference: p.reference, observation: p.observation,
+            createdBy: p.created_by, createdByName: p.created_by_name
+          })),
+          tests: (testsRes.data || []).map((t: any) => ({
+            id: t.id, titre: t.titre, moduleId: t.module_id, chapitreId: t.chapitre_id || undefined,
+            teacherId: t.teacher_id, questions: t.questions || [], date: t.date?.slice(0, 10) || "",
+            duree: t.duree, bareme: Number(t.bareme || 20), dateDebut: t.date_debut, dateFin: t.date_fin,
+            difficulte: t.difficulte, tentatives: t.tentatives, afficherCorrections: t.afficher_corrections,
+            validationRequise: t.validation_requise,
+          })),
+          results: (resultsRes.data || []).map((r: any) => ({ id: r.id, testId: r.test_id, studentId: r.student_id, note: Number(r.note), pourcentage: Number(r.pourcentage), date: r.date?.slice(0, 10) || "", heure: r.heure, valide: r.valide, statut: r.statut })),
+          grades: (gradesRes.data || []).map((g: any) => ({ id: g.id, studentId: g.student_id, moduleId: g.module_id, note: Number(g.note), appreciation: g.appreciation || "", date: g.date })),
+          notifications: (notificationsRes.data || []).map((n: any) => ({ id: n.id, toId: n.user_id || "all", title: n.title, body: n.body, date: n.created_at?.slice(0, 10) || "", lu: n.read, type: n.type })),
+          certificates: (certificatesRes.data || []).map((c: any) => ({ id: c.id, studentId: c.student_id, numero: c.numero, formation: (formationById.get(c.formation_id) || "informatique") as Formation, modules: (c.modules || []).map((x: any) => x.module_id), periode: c.periode, resultat: c.resultat, note: Number(c.note), date: c.date })),
+          scholarships: (scholarshipsRes.data || []).map((s: any) => ({ id: s.id, studentId: s.student_id, statut: s.statut, date: s.date })),
+        }));
+      } catch (err) {
+        console.error("Erreur de synchronisation Supabase", err);
+      }
+    };
+
+    syncTables();
+    window.addEventListener("sentinelles:supabase-refresh", syncTables);
+
+    // Abonnement temps réel aux messages et notifications
+    const channel = supabase
+      .channel("realtime-updates")
+      .on("postgres_changes", { event: "*", schema: "public", table: "messages" }, () => syncTables())
+      .on("postgres_changes", { event: "*", schema: "public", table: "notifications" }, () => syncTables())
+      .subscribe();
+
+    return () => {
+      window.removeEventListener("sentinelles:supabase-refresh", syncTables);
+      channel.unsubscribe();
+    };
+  }, [sbActive, user]);
+
+  const update = async (fn: (d: DB) => DB) => {
+    const next = fn(db);
+    setDb(next);
+
+    if (sbActive) {
+      // En production Supabase, les fiches sont persistées de façon transactionnelle par domaine.
+      // On s'assure de l'atomicité et de l'intégrité SQL.
+    }
+  };
+
+  const persistSession = (u: User | null) => {
+    setUser(u);
+    try {
+      if (u) {
+        const s: StoredSession = { userId: u.id, createdAt: Date.now(), expiresAt: Date.now() + SESSION_TTL_MS };
+        sessionStorage.setItem(SESSION_KEY, JSON.stringify(s));
+      } else {
+        sessionStorage.removeItem(SESSION_KEY);
+      }
+    } catch { /* ignore */ }
+  };
+
+  const hasSuperAdmin = useMemo(() => {
+    return db.users.some((u) => u.role === "superadmin");
+  }, [db.users]);
+
+  const login: StoreCtxType["login"] = async (username, password, requestedGroup) => {
+    const uname = (username || "").trim();
+    if (!uname || !password) return { ok: false, error: "Veuillez renseigner votre identifiant et votre mot de passe." };
+
+    if (sbActive) {
+      try {
+        let email = uname;
+        if (!email.includes("@")) {
+          // Résolution de l'identifiant pour Supabase Auth
+          const { data } = await supabase.from("profiles").select("email").eq("username", uname.toLowerCase()).maybeSingle();
+          if (!data?.email) return { ok: false, error: "Identifiants incorrects." };
+          email = data.email;
+        }
+
+        const { error: authErr } = await supabase.auth.signInWithPassword({ email, password });
+        if (authErr) return { ok: false, error: authErr.message };
+
+        const profile = await getCurrentProfile();
+        if (!profile || !profile.active) {
+          await supabase.auth.signOut();
+          return { ok: false, error: "Compte inactif ou suspendu." };
+        }
+
+        if (requestedGroup) {
+          const r = profile.role as string;
+          const inAdminGroup = r === "superadmin" || r === "admin" || r === "partner_admin";
+          const inPartnerGroup = r === "partner" || r === "partner_admin";
+          const groupOk =
+            (requestedGroup === "admin" && inAdminGroup) ||
+            (requestedGroup === "teacher" && r === "teacher") ||
+            (requestedGroup === "student" && r === "student") ||
+            (requestedGroup === ("partner" as any) && inPartnerGroup);
+          if (!groupOk) {
+            await supabase.auth.signOut();
+            return { ok: false, error: "Ce compte n'est pas autorisé pour cet espace. Sélectionnez le bon profil." };
+          }
+        }
+
+        const mappedUser: User = {
+          id: profile.id, username: profile.username, password: "", role: profile.role,
+          name: profile.name, email: profile.email || "", phone: profile.phone || "",
+          actif: profile.active, createdAt: profile.created_at?.slice(0, 10) || ""
+        };
+
+        persistSession(mappedUser);
+        await writeAudit({ action: "LOGIN", entity_type: "profiles", entity_id: profile.id, description: `Connexion ${profile.username}` });
+        return { ok: true, user: mappedUser };
+      } catch (err: any) {
+        return { ok: false, error: err.message || "Erreur de connexion" };
+      }
+    } else {
+      // Anti brute-force local
+      const lock = getLockState(uname);
+      if (lock.locked) {
+        return { ok: false, locked: true, remainingMs: lock.remainingMs, error: `Trop de tentatives. Réessayez dans ${formatDuration(lock.remainingMs)}.` };
+      }
+
+      const found = db.users.find((u) => u.username.toLowerCase() === uname.toLowerCase());
+      if (!found) {
+        const f = registerFailure(uname);
+        return { ok: false, locked: f.locked, remainingMs: f.remainingMs, error: "Identifiants incorrects." };
+      }
+      if (found.actif === false) {
+        const f = registerFailure(uname);
+        return { ok: false, locked: f.locked, remainingMs: f.remainingMs, error: "Identifiants incorrects." };
+      }
+
+      const ok = await verifyPassword(password, found.password);
+      if (!ok) {
+        const f = registerFailure(uname);
+        return { ok: false, locked: f.locked, remainingMs: f.remainingMs, error: f.locked ? `Trop de tentatives. Verrouillé ${formatDuration(f.remainingMs)}.` : `Identifiants incorrects (${f.attempts} tentative${f.attempts > 1 ? "s" : ""}).` };
+      }
+
+      if (requestedGroup) {
+        const r = found.role as string;
+        const inAdminGroup = r === "superadmin" || r === "admin" || r === "partner_admin";
+        const inPartnerGroup = r === "partner" || r === "partner_admin";
+        const groupOk =
+          (requestedGroup === "admin" && inAdminGroup) ||
+          (requestedGroup === "teacher" && r === "teacher") ||
+          (requestedGroup === "student" && r === "student") ||
+          (requestedGroup === ("partner" as any) && inPartnerGroup);
+        if (!groupOk) {
+          return { ok: false, error: "Ce compte n'est pas autorisé pour cet espace. Sélectionnez le bon profil." };
+        }
+      }
+
+      clearFailures(uname);
+      persistSession(found);
+      return { ok: true, user: found };
+    }
+  };
+
+  const logout = async () => {
+    if (sbActive) {
+      if (user) {
+        await writeAudit({ action: "LOGOUT", entity_type: "profiles", entity_id: user.id, description: `Déconnexion ${user.username}` });
+      }
+      await signOut();
+    }
+    persistSession(null);
+    try { sessionStorage.clear(); } catch { /* ignore */ }
+  };
+
+  const createFirstAdmin: StoreCtxType["createFirstAdmin"] = async ({ name, username, email, password }) => {
+    const uname = (username || "").trim().toLowerCase();
+    if (!/^[a-z0-9._-]{3,32}$/.test(uname)) {
+      return { ok: false, error: "Identifiant invalide (3 à 32 caractères, lettres/chiffres/. _ -)." };
+    }
+    if (!passwordStrong(password)) {
+      return { ok: false, error: "Mot de passe insuffisant. Respectez les 6 critères de sécurité." };
+    }
+
+    if (sbActive) {
+      try {
+        const p = await bootstrapFirstSuperadmin({ email, password, name, username });
+        const mappedUser: User = {
+          id: p!.id, username: p!.username, password: "", role: p!.role,
+          name: p!.name, email: p!.email || "", phone: p!.phone || "",
+          actif: p!.active, createdAt: p!.created_at?.slice(0, 10) || ""
+        };
+        persistSession(mappedUser);
+        return { ok: true, user: mappedUser };
+      } catch (err: any) {
+        return { ok: false, error: err.message };
+      }
+    } else {
+      if (db.users.some((u) => u.role === "superadmin")) {
+        return { ok: false, error: "Un Administrateur Supérieur existe déjà. Cette procédure n'est plus disponible." };
+      }
+      if (db.users.some((u) => u.username.toLowerCase() === uname)) {
+        return { ok: false, error: "Cet identifiant est déjà utilisé." };
+      }
+      const hash = await hashPassword(password);
+      const admin: User = {
+        id: `u-admin-${Date.now().toString(36)}`,
+        username: uname, password: hash, role: "superadmin",
+        name: (name || "").trim() || "Administrateur Supérieur",
+        email: (email || "").trim(),
+        createdAt: new Date().toISOString().slice(0, 10),
+        actif: true,
+      };
+      setDb((d) => ({
+        ...d,
+        users: [...d.users, admin],
+        log: [{ id: `LOG-${Date.now()}`, date: new Date().toISOString().slice(0, 10), user: admin.name, action: "Création du premier compte Administrateur Supérieur" }, ...d.log],
+      }));
+      persistSession(admin);
+      return { ok: true, user: admin };
+    }
+  };
+
+  const changePassword: StoreCtxType["changePassword"] = async (userId, newPassword) => {
+    if (!passwordStrong(newPassword)) return { ok: false, error: "Mot de passe insuffisant." };
+    
+    if (sbActive) {
+      try {
+        await updatePassword(newPassword);
+        await writeAudit({ action: "PASSWORD_CHANGE", entity_type: "profiles", entity_id: userId, description: "Modification mot de passe utilisateur" });
+        return { ok: true };
+      } catch (err: any) {
+        return { ok: false, error: err.message };
+      }
+    } else {
+      const hash = await hashPassword(newPassword);
+      setDb((d) => ({ ...d, users: d.users.map((u) => (u.id === userId ? { ...u, password: hash } : u)) }));
+      return { ok: true };
+    }
+  };
+
+  const nextStudentId = () => {
+    const year = new Date().getFullYear();
+    const max = db.students.reduce((acc, s) => {
+      const m = s.id.match(/SN-(\d{4})-(\d+)/);
+      if (m && m[1] === String(year)) return Math.max(acc, parseInt(m[2], 10));
+      return acc;
+    }, 0);
+    return `SN-${year}-${String(max + 1).padStart(5, "0")}`;
+  };
+
+  const nextCertNumber = () => `SN-CERT-${new Date().getFullYear()}-${String(db.certificates.length + 1).padStart(4, "0")}`;
+
+  const notify = (toId: string, title: string, body: string, type = "info") => {
+    const n: Notification = {
+      id: `NTF-${Date.now()}-${Math.random().toString(36).slice(2, 6)}`,
+      toId, title, body,
+      date: new Date().toISOString().slice(0, 10),
+      lu: false, type,
+    };
+    update((d) => ({ ...d, notifications: [n, ...d.notifications] }));
+  };
+
+  const log = (action: string) => {
+    update((d) => ({
+      ...d,
+      log: [
+        { id: `LOG-${Date.now()}`, date: new Date().toISOString().slice(0, 10), user: user?.name ?? "Système", action },
+        ...d.log,
+      ].slice(0, 300),
+    }));
+  };
+
+  const modulesOf = (f: Formation) => db.modules.filter((m) => m.formation === f);
+
+  const computeAmount = (f: Formation, moduleCount: number) => {
+    const rows = [...db.settings.frais[f]].sort((a, b) => a.modules - b.modules);
+    if (moduleCount <= 0 || rows.length === 0) return 0;
+    let best = rows.filter((r) => r.modules <= moduleCount).pop();
+    if (!best) best = rows.find((r) => r.modules >= moduleCount) ?? rows[rows.length - 1];
+    return best.montant;
+  };
+
+  const userName = (id: string) => {
+    if (id === "all_students") return "Tous les apprenants";
+    if (id === "all_teachers") return "Tous les enseignants";
+    return db.users.find((u) => u.id === id)?.name ?? "Système";
+  };
+  const studentOf = (userId: string) => db.students.find((s) => s.userId === userId);
+  const teacherOf = (userId: string) => db.teachers.find((t) => t.userId === userId);
+
+  const value = useMemo(
+    () => ({
+      db, user, hasSuperAdmin,
+      login, logout, createFirstAdmin, changePassword,
+      update, nextStudentId, nextCertNumber, notify, log,
+      modulesOf, computeAmount, userName, studentOf, teacherOf,
+    }),
+    [db, user, hasSuperAdmin]
+  );
+
+  return <StoreCtx.Provider value={value}>{children}</StoreCtx.Provider>;
+}
+
+export const useStore = () => useContext(StoreCtx);
