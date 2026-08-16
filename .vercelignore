@@ -1,4 +1,4 @@
-# Vercel Ignore
-backend/
-supabase/
+# Vercel Ignore - Seuls les dossiers racine backend/ et supabase/ (cli/migrations) sont ignorés.
+/backend/
+/supabase/
 .git/
