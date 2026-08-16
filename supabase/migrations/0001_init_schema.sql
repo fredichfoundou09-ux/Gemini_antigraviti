@@ -16,6 +16,28 @@ begin
 end;
 $$;
 
+-- ============================================================
+-- A. PROFILES / AUTH LINK
+-- ============================================================
+create table if not exists public.profiles (
+  id uuid primary key references auth.users(id) on delete cascade,
+  username text unique not null,
+  name text not null,
+  email text,
+  phone text,
+  role text not null check (role in ('superadmin','admin','teacher','student','partner','partner_admin')),
+  active boolean not null default true,
+  created_at timestamptz not null default now(),
+  updated_at timestamptz not null default now(),
+  last_login_at timestamptz
+);
+
+create trigger trg_profiles_updated_at
+before update on public.profiles
+for each row execute function public.set_updated_at();
+
+create index if not exists idx_profiles_role on public.profiles(role);
+
 create or replace function public.current_role()
 returns text
 language sql
@@ -45,28 +67,6 @@ set search_path = public
 as $$
   select public.current_role() = 'superadmin';
 $$;
-
--- ============================================================
--- A. PROFILES / AUTH LINK
--- ============================================================
-create table if not exists public.profiles (
-  id uuid primary key references auth.users(id) on delete cascade,
-  username text unique not null,
-  name text not null,
-  email text,
-  phone text,
-  role text not null check (role in ('superadmin','admin','teacher','student','partner','partner_admin')),
-  active boolean not null default true,
-  created_at timestamptz not null default now(),
-  updated_at timestamptz not null default now(),
-  last_login_at timestamptz
-);
-
-create trigger trg_profiles_updated_at
-before update on public.profiles
-for each row execute function public.set_updated_at();
-
-create index if not exists idx_profiles_role on public.profiles(role);
 
 -- Auto-create profile on auth.users insert (role default student; bootstrap can promote)
 create or replace function public.handle_new_user()
