@@ -10,7 +10,7 @@ import {
   signOut,
   isSupabaseConfigured,
   writeAudit,
-} from "@/lib/supabase";
+} from "@/lib/supabase/index";
 
 interface AuthContextValue {
   ready: boolean;
