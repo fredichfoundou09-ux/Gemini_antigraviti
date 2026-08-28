@@ -1,4 +1,5 @@
 project_id = "sentinelles-numeriques"
+# Project verified: CZX (tvcuwhgqhrcvdgwlviju)
 
 [api]
 enabled = true
