@@ -39,25 +39,48 @@ jobs:
           SUPABASE_ACCESS_TOKEN: ${{ secrets.SUPABASE_ACCESS_TOKEN }}
 
       - name: Test Supabase Connection With Token
-        run: supabase projects list
+        run: |
+          TOKEN=$(echo "$SUPABASE_ACCESS_TOKEN" | tr -d '"' | tr -d "'" | tr -d '\r' | xargs)
+          REF=$(echo "$SUPABASE_PROJECT_REF" | tr -d '"' | tr -d "'" | tr -d '\r' | xargs)
+          PASS=$(echo "$SUPABASE_DB_PASSWORD" | tr -d '"' | tr -d "'" | tr -d '\r' | xargs)
+          export SUPABASE_ACCESS_TOKEN="$TOKEN"
+          echo "Test de connexion Supabase CLI avec SUPABASE_ACCESS_TOKEN..."
+          supabase projects list || {
+            echo "❌ Échec de la commande 'supabase projects list'."
+            echo "👉 Vérifiez que le secret SUPABASE_ACCESS_TOKEN dans GitHub correspond bien à un Personal Access Token valide généré sur https://supabase.com/dashboard/account/tokens."
+            exit 1
+          }
         env:
           SUPABASE_ACCESS_TOKEN: ${{ secrets.SUPABASE_ACCESS_TOKEN }}
 
       - name: Link project
-        run: supabase link --project-ref "$SUPABASE_PROJECT_REF" --password "$SUPABASE_DB_PASSWORD"
+        run: |
+          TOKEN=$(echo "$SUPABASE_ACCESS_TOKEN" | tr -d '"' | tr -d "'" | tr -d '\r' | xargs)
+          REF=$(echo "$SUPABASE_PROJECT_REF" | tr -d '"' | tr -d "'" | tr -d '\r' | xargs)
+          PASS=$(echo "$SUPABASE_DB_PASSWORD" | tr -d '"' | tr -d "'" | tr -d '\r' | xargs)
+          export SUPABASE_ACCESS_TOKEN="$TOKEN"
+          supabase link --project-ref "$REF" --password "$PASS"
         env:
           SUPABASE_ACCESS_TOKEN: ${{ secrets.SUPABASE_ACCESS_TOKEN }}
           SUPABASE_PROJECT_REF: ${{ secrets.SUPABASE_PROJECT_REF }}
           SUPABASE_DB_PASSWORD: ${{ secrets.SUPABASE_DB_PASSWORD }}
 
       - name: Push migrations
-        run: supabase db push --password "$SUPABASE_DB_PASSWORD"
+        run: |
+          TOKEN=$(echo "$SUPABASE_ACCESS_TOKEN" | tr -d '"' | tr -d "'" | tr -d '\r' | xargs)
+          PASS=$(echo "$SUPABASE_DB_PASSWORD" | tr -d '"' | tr -d "'" | tr -d '\r' | xargs)
+          export SUPABASE_ACCESS_TOKEN="$TOKEN"
+          supabase db push --password "$PASS"
         env:
           SUPABASE_ACCESS_TOKEN: ${{ secrets.SUPABASE_ACCESS_TOKEN }}
           SUPABASE_DB_PASSWORD: ${{ secrets.SUPABASE_DB_PASSWORD }}
 
       - name: Deploy Edge Functions
         run: |
-          supabase functions deploy create-user
+          TOKEN=$(echo "$SUPABASE_ACCESS_TOKEN" | tr -d '"' | tr -d "'" | tr -d '\r' | xargs)
+          REF=$(echo "$SUPABASE_PROJECT_REF" | tr -d '"' | tr -d "'" | tr -d '\r' | xargs)
+          export SUPABASE_ACCESS_TOKEN="$TOKEN"
+          supabase functions deploy create-user --project-ref "$REF"
         env:
           SUPABASE_ACCESS_TOKEN: ${{ secrets.SUPABASE_ACCESS_TOKEN }}
+          SUPABASE_PROJECT_REF: ${{ secrets.SUPABASE_PROJECT_REF }}
