@@ -28,8 +28,14 @@ jobs:
           SUPABASE_PROJECT_REF: ${{ secrets.SUPABASE_PROJECT_REF }}
           SUPABASE_DB_PASSWORD: ${{ secrets.SUPABASE_DB_PASSWORD }}
 
-      - name: Login to Supabase CLI
-        run: supabase login --token "$SUPABASE_ACCESS_TOKEN"
+      - name: Verify Supabase Access Token
+        run: |
+          if [[ "$SUPABASE_ACCESS_TOKEN" == eyJ* ]]; then
+            echo "❌ ERREUR CRITIQUE : Le secret SUPABASE_ACCESS_TOKEN commence par 'eyJ...'. C'est une clé API de projet (anon/service_role)."
+            echo "👉 Pour GitHub Actions, Supabase CLI a besoin d'un 'Personal Access Token' généré sur votre profil : https://supabase.com/dashboard/account/tokens"
+            exit 1
+          fi
+          supabase projects list
         env:
           SUPABASE_ACCESS_TOKEN: ${{ secrets.SUPABASE_ACCESS_TOKEN }}
 
