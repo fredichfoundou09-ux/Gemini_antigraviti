@@ -37,5 +37,6 @@ if (Get-Command "npx" -ErrorAction SilentlyContinue) {
 Write-Host "`n=================================================" -ForegroundColor Cyan
 Write-Host "📋 Variables d'environnement à configurer sur Vercel :" -ForegroundColor Yellow
 Write-Host "  - VITE_SUPABASE_URL            = https://tvcuwhgqhrcvdgwlviju.supabase.co" -ForegroundColor White
+Write-Host "  - VITE_SUPABASE_PUBLISHABLE_KEY= eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InR2Y3V3aGdxaHJjdmRnd2x2aWp1Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODY4MDUxMDEsImV4cCI6MjEwMjM4MTEwMX0.Wv1hEaaGfmydRPrhNUThZAo85nF9peTi3arNn619AW8" -ForegroundColor White
 Write-Host "  - VITE_USE_SUPABASE            = true" -ForegroundColor White
 Write-Host "=================================================" -ForegroundColor Cyan
