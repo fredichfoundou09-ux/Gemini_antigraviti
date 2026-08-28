@@ -3,7 +3,7 @@ import { Link } from "react-router-dom";
 import { QRCodeSVG } from "qrcode.react";
 import {
   Users, Search, PlusCircle, Eye, EyeOff, Pencil, UserCircle2, Phone, Mail, MapPin, CalendarDays,
-  GraduationCap, ShieldCheck, Trash2, CheckCircle2, XCircle, KeyRound, Clock, Wallet, BadgeDollarSign, Timer,
+  GraduationCap, ShieldCheck, Trash2, CheckCircle2, XCircle, KeyRound, Clock, Wallet, BadgeDollarSign, Timer, MessageCircle,
 } from "lucide-react";
 import { useStore } from "@/lib/store";
 import { cn } from "@/utils/cn";
@@ -68,6 +68,7 @@ export function StudentsPage() {
   const [creating, setCreating] = useState(false);
   const [viewing, setViewing] = useState<Student | null>(null);
   const [form, setForm] = useState<any>(emptyStudent());
+  const [createdCreds, setCreatedCreds] = useState<{ nom: string; identifiant: string; motDePasse: string; phone?: string } | null>(null);
 
   const filtered = db.students.filter((s) => {
     const matchQ = `${s.nom} ${s.prenom} ${s.id}`.toLowerCase().includes(q.toLowerCase());
@@ -151,9 +152,15 @@ export function StudentsPage() {
     const montant = computeAmount(reg.formation, reg.modules.length);
     const insc = db.settings.frais.inscription;
 
+    // Détection et résolution des conflits d'email (évite le blocage si l'email existe déjà dans Supabase Auth)
+    let email = reg.email?.trim();
+    const emailConflict = email && db.users.some(u => u.email?.toLowerCase() === email?.toLowerCase());
+    if (!email || emailConflict) {
+      email = `${uname}@sentinelles.local`;
+    }
+
     if (isSupabaseConfigured) {
       try {
-        const email = reg.email || `${uname}@sentinelles.local`;
         const resolvedFormationId = await resolveFormationId(reg.formation);
         await invokeCreateUser({
           email,
@@ -176,7 +183,13 @@ export function StudentsPage() {
           registrations: d.registrations.map((r) => (r.id === regId ? { ...r, statut: "confirmee" as const } : r))
         }));
 
-        toastMsg.credentials({ nom: `${reg.prenom} ${reg.nom}`, identifiant: uname, motDePasse: tempPassword });
+        setCreatedCreds({
+          nom: `${reg.prenom} ${reg.nom}`,
+          identifiant: uname,
+          motDePasse: tempPassword,
+          phone: reg.whatsapp || reg.telephone,
+        });
+
         toastMsg.success("Inscription confirmée côté serveur ✓");
         log(`Pré-inscription confirmée (Supabase) : ${reg.nom} ${reg.prenom} — compte ${uname}`);
         window.dispatchEvent(new Event("sentinelles:supabase-refresh"));
@@ -351,6 +364,72 @@ export function StudentsPage() {
       <Modal open={!!viewing} onClose={() => setViewing(null)} title={viewing ? `${viewing.prenom} ${viewing.nom}` : ""} wide>
         {viewing && <StudentView s={viewing} />}
       </Modal>
+
+      {/* credentials & whatsapp modal */}
+      {createdCreds && (
+        <Modal open={Boolean(createdCreds)} onClose={() => setCreatedCreds(null)} title="Compte Apprenant Activé" wide={false}>
+          <div className="space-y-4 text-center">
+            <div className="mx-auto flex h-14 w-14 items-center justify-center rounded-2xl bg-emerald-500/10 border border-emerald-400/40 text-emerald-400">
+              <CheckCircle2 size={32} />
+            </div>
+            <div>
+              <h3 className="font-display text-lg font-bold text-white">{createdCreds.nom}</h3>
+              <p className="text-xs text-slate-400 mt-1">L'inscription a été confirmée et le compte utilisateur est activé.</p>
+            </div>
+            
+            <div className="rounded-xl border border-white/10 bg-white/5 p-4 text-left space-y-2 font-mono text-sm">
+              <div>
+                <span className="text-xs text-slate-400 font-sans block">Identifiant :</span>
+                <span className="font-bold text-cyan-300">{createdCreds.identifiant}</span>
+              </div>
+              <div>
+                <span className="text-xs text-slate-400 font-sans block">Mot de passe temporaire :</span>
+                <span className="font-bold text-amber-300">{createdCreds.motDePasse}</span>
+              </div>
+            </div>
+
+            <div className="flex flex-col gap-2 pt-2">
+              {createdCreds.phone && (
+                <a
+                  href={`https://wa.me/242${createdCreds.phone.replace(/[^0-9]/g, "")}?text=${encodeURIComponent(
+                    `Bonjour ${createdCreds.nom},\n\n` +
+                    `Votre inscription à SENTINELLES NUMÉRIQUES a été validée avec succès !\n\n` +
+                    `Voici vos accès pour vous connecter :\n` +
+                    `🌐 Lien : https://code6senti.vercel.app/#/connexion\n` +
+                    `👤 Identifiant : ${createdCreds.identifiant}\n` +
+                    `🔑 Mot de passe : ${createdCreds.motDePasse}\n\n` +
+                    `Veuillez conserver précieusement ces informations pour accéder à votre espace apprenant.`
+                  )}`}
+                  target="_blank"
+                  rel="noreferrer"
+                  className="w-full"
+                >
+                  <Btn variant="green" className="w-full justify-center">
+                    <MessageCircle size={16} /> Envoyer par WhatsApp
+                  </Btn>
+                </a>
+              )}
+              <div className="flex gap-2">
+                <Btn
+                  variant="outline"
+                  className="flex-1 justify-center"
+                  onClick={() => {
+                    navigator.clipboard.writeText(
+                      `Identifiant : ${createdCreds.identifiant}\nMot de passe : ${createdCreds.motDePasse}\nLien : https://code6senti.vercel.app/#/connexion`
+                    );
+                    toastMsg.success("Accès copiés dans le presse-papier !");
+                  }}
+                >
+                  Copier les accès
+                </Btn>
+                <Btn variant="ghost" onClick={() => setCreatedCreds(null)}>
+                  Fermer
+                </Btn>
+              </div>
+            </div>
+          </div>
+        </Modal>
+      )}
     </div>
   );
 }

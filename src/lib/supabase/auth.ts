@@ -159,7 +159,26 @@ export async function invokeCreateUser(payload: {
     body: payload,
   });
   if (error) {
-    throw new Error(error.message || "Erreur réseau avec l'Edge Function");
+    let msg = error.message || "Erreur réseau avec l'Edge Function";
+    if ((error as any).context) {
+      try {
+        const body = await (error as any).context.json();
+        if (body?.error) msg = body.error;
+      } catch {
+        try {
+          const text = await (error as any).context.text();
+          if (text) {
+            try {
+              const p = JSON.parse(text);
+              if (p.error) msg = p.error;
+            } catch {
+              msg = text;
+            }
+          }
+        } catch { /* ignore */ }
+      }
+    }
+    throw new Error(msg);
   }
   if (data?.error) {
     throw new Error(data.error);

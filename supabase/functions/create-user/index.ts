@@ -52,16 +52,36 @@ Deno.serve(async (req) => {
     }
 
     // 1) Auth user
+    let userId: string;
     const { data: created, error: createErr } = await admin.auth.admin.createUser({
       email,
       password,
       email_confirm: true,
       user_metadata: { username, name, role },
     });
-    if (createErr || !created.user) {
-      return new Response(JSON.stringify({ error: createErr?.message || "Création Auth échouée" }), { status: 400, headers: corsHeaders });
+    if (createErr || !created?.user) {
+      if (createErr?.message?.includes("already been registered")) {
+        const { data: { users } } = await admin.auth.admin.listUsers();
+        const existing = (users || []).find((u: any) => u.email?.toLowerCase() === email.toLowerCase());
+        if (existing) {
+          const { data: existingProfile } = await admin.from("profiles").select("role").eq("id", existing.id).maybeSingle();
+          if (existingProfile && existingProfile.role === role) {
+            return new Response(JSON.stringify({ error: `Un compte ${role} existe déjà pour cette adresse (${email}).` }), { status: 400, headers: corsHeaders });
+          }
+          await admin.auth.admin.updateUserById(existing.id, {
+            password,
+            user_metadata: { username, name, role },
+          });
+          userId = existing.id;
+        } else {
+          return new Response(JSON.stringify({ error: "Cette adresse email est déjà enregistrée." }), { status: 400, headers: corsHeaders });
+        }
+      } else {
+        return new Response(JSON.stringify({ error: createErr?.message || "Création Auth échouée" }), { status: 400, headers: corsHeaders });
+      }
+    } else {
+      userId = created.user.id;
     }
-    const userId = created.user.id;
 
     // 2) Profile
     const { error: profErr } = await admin.from("profiles").upsert({
