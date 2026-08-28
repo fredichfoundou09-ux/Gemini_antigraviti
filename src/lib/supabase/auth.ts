@@ -25,12 +25,17 @@ export async function hasAnySuperadmin(): Promise<boolean> {
 
 export async function signInWithPassword(emailOrUsername: string, password: string) {
   const sb = getSupabase();
-  // Supabase Auth attend un email. Si username fourni, on résout via profiles.
+  // Supabase Auth attend un email. Si username fourni, on résout via la fonction RPC sécurisée
   let email = emailOrUsername.trim();
   if (!email.includes("@")) {
-    const { data: profile } = await sb.from("profiles").select("email").eq("username", email.toLowerCase()).maybeSingle();
-    if (!profile?.email) throw new Error("Identifiants incorrects.");
-    email = profile.email;
+    const { data: rpcEmail } = await sb.rpc("get_email_by_username", { p_username: email });
+    if (rpcEmail) {
+      email = rpcEmail;
+    } else {
+      const { data: profile } = await sb.from("profiles").select("email").eq("username", email.toLowerCase()).maybeSingle();
+      if (!profile?.email) throw new Error("Identifiants incorrects.");
+      email = profile.email;
+    }
   }
   const { data, error } = await sb.auth.signInWithPassword({ email, password });
   if (error) throw error;
