@@ -18,7 +18,7 @@ import { resolveFormationId } from "@/lib/supabase/formations";
 import { hashPassword, generateTempPassword, passwordStrong, checkPassword } from "@/lib/auth";
 import { toastMsg } from "@/lib/toast";
 import { invokeCreateUser } from "@/lib/supabase/auth";
-import { isSupabaseConfigured } from "@/lib/supabase/client";
+import { supabase, isSupabaseConfigured } from "@/lib/supabase/client";
 import { financialSummary, statusLabel } from "@/lib/finance";
 import { teacherFinanceSummary } from "@/lib/teacher";
 // lib/access importé via Operations uniquement
@@ -169,6 +169,8 @@ export function StudentsPage() {
           module_ids: reg.modules
         });
         
+        await supabase.from("registrations").update({ statut: "confirmee" }).eq("id", regId);
+
         update((d) => ({
           ...d,
           registrations: d.registrations.map((r) => (r.id === regId ? { ...r, statut: "confirmee" as const } : r))
@@ -201,6 +203,22 @@ export function StudentsPage() {
       toastMsg.info(`Factures générées : ${money(montant + insc)}`);
       log(`Pré-inscription confirmée : ${reg.nom} ${reg.prenom} (${id}) — compte ${uname} — à facturer ${money(montant + insc)}`);
     }
+  };
+
+  const rejectRegistration = async (regId: string) => {
+    if (isSupabaseConfigured) {
+      try {
+        await supabase.from("registrations").update({ statut: "refusee" }).eq("id", regId);
+        window.dispatchEvent(new Event("sentinelles:supabase-refresh"));
+        toastMsg.info("Pré-inscription refusée");
+      } catch (err: any) {
+        toastMsg.error("Erreur", err.message);
+      }
+    }
+    update((d) => ({
+      ...d,
+      registrations: d.registrations.map((x) => (x.id === regId ? { ...x, statut: "refusee" as const } : x)),
+    }));
   };
 
   const removeStudent = (id: string) => {
@@ -310,7 +328,7 @@ export function StudentsPage() {
                   {r.statut === "en_attente" && (
                     <>
                       <Btn variant="green" onClick={() => confirmRegistration(r.id)}><CheckCircle2 size={15} /> Confirmer</Btn>
-                      <Btn variant="ghost" onClick={() => update((d) => ({ ...d, registrations: d.registrations.map((x) => x.id === r.id ? { ...x, statut: "refusee" as const } : x) }))}><XCircle size={15} /></Btn>
+                      <Btn variant="ghost" onClick={() => rejectRegistration(r.id)}><XCircle size={15} /></Btn>
                     </>
                   )}
                 </div>

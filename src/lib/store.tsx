@@ -165,7 +165,8 @@ export function StoreProvider({ children }: { children: React.ReactNode }) {
           teachersRes, teacherModulesRes, coursesRes,
           scheduleRes, attendanceRes, invoicesRes, paymentsRes,
           testsRes, resultsRes, gradesRes, notificationsRes,
-          certificatesRes, scholarshipsRes
+          certificatesRes, scholarshipsRes,
+          registrationsRes, registrationModulesRes
         ] = await Promise.all([
           supabase.from("profiles").select("*"),
           supabase.from("formations").select("*"),
@@ -185,7 +186,9 @@ export function StoreProvider({ children }: { children: React.ReactNode }) {
           supabase.from("grades").select("*"),
           supabase.from("notifications").select("*"),
           supabase.from("certificates").select("*, modules:certificate_modules(*)"),
-          supabase.from("scholarships").select("*")
+          supabase.from("scholarships").select("*"),
+          supabase.from("registrations").select("*").order("created_at", { ascending: false }),
+          supabase.from("registration_modules").select("*")
         ]);
 
         if (profilesRes.error) throw profilesRes.error;
@@ -223,6 +226,13 @@ export function StoreProvider({ children }: { children: React.ReactNode }) {
           chaptersByModule.set(c.module_id, arr);
         });
 
+        const regModulesByRegId = new Map<string, string[]>();
+        (registrationModulesRes.data || []).forEach((rm: any) => {
+          const arr = regModulesByRegId.get(rm.registration_id) || [];
+          arr.push(rm.module_id);
+          regModulesByRegId.set(rm.registration_id, arr);
+        });
+
         setDb((prev) => ({
           ...prev,
           users: updatedUsers,
@@ -258,15 +268,19 @@ export function StoreProvider({ children }: { children: React.ReactNode }) {
             return {
               id: t.id, nom: t.nom, prenom: t.prenom, specialite: t.specialite, email: t.email,
               phone: t.phone, modules: mods, userId: t.user_id, photo: t.photo_url,
-              formations: t.formations || [], infosPro: t.infos_pro, diplomes: t.diplomes, actif: t.actif
+              tarifHoraire: Number(t.tarif_horaire || 0), heuresPrevues: Number(t.heures_prevues || 0),
+              typeContrat: t.type_contrat || "vacataire", diplomes: t.diplomes || "", infosPro: t.infos_pro || "",
+              formations: t.formations || [], actif: t.actif
             };
           }),
           courses: (coursesRes.data || []).map((c: any) => ({
             id: c.id, titre: c.titre, description: c.description || "", moduleId: c.module_id,
-            teacherId: c.teacher_id, type: c.type as any, content: c.content || "", date: c.created_at?.slice(0, 10) || ""
+            teacherId: c.teacher_id, type: c.type as any, datePublication: c.date_publication?.slice(0, 10) || "",
+            audience: c.audience as any, publie: c.publie, content: c.content || "",
+            fichiers: (c.files || []).map((f: any) => ({ id: f.id, nom: f.nom, taille: f.taille, type: f.type, url: f.url }))
           })),
           schedule: (scheduleRes.data || []).map((s: any) => ({
-            id: s.id, jour: s.jour, heureDebut: s.heure_debut, heureFin: s.heure_fin, date: s.date || undefined,
+            id: s.id, jour: s.jour as any, heureDebut: s.heure_debut, heureFin: s.heure_fin, date: s.date || undefined,
             moduleId: s.module_id, teacherId: s.teacher_id, salle: s.salle,
             formation: (formationById.get(s.formation_id) || "informatique") as Formation,
           })),
@@ -294,6 +308,19 @@ export function StoreProvider({ children }: { children: React.ReactNode }) {
           notifications: (notificationsRes.data || []).map((n: any) => ({ id: n.id, toId: n.user_id || "all", title: n.title, body: n.body, date: n.created_at?.slice(0, 10) || "", lu: n.read, type: n.type })),
           certificates: (certificatesRes.data || []).map((c: any) => ({ id: c.id, studentId: c.student_id, numero: c.numero, formation: (formationById.get(c.formation_id) || "informatique") as Formation, modules: (c.modules || []).map((x: any) => x.module_id), periode: c.periode, resultat: c.resultat, note: Number(c.note), date: c.date })),
           scholarships: (scholarshipsRes.data || []).map((s: any) => ({ id: s.id, studentId: s.student_id, statut: s.statut, date: s.date })),
+          registrations: (registrationsRes.data || []).map((r: any) => ({
+            id: r.id,
+            nom: r.nom,
+            prenom: r.prenom,
+            telephone: r.telephone,
+            whatsapp: r.whatsapp,
+            email: r.email || "",
+            niveau: r.niveau || "",
+            formation: (formationById.get(r.formation_id) || "informatique") as Formation,
+            modules: regModulesByRegId.get(r.id) || [],
+            date: r.date || r.created_at?.slice(0, 10) || "",
+            statut: r.statut as any,
+          })),
         }));
       } catch (err) {
         console.error("Erreur de synchronisation Supabase", err);
@@ -303,11 +330,13 @@ export function StoreProvider({ children }: { children: React.ReactNode }) {
     syncTables();
     window.addEventListener("sentinelles:supabase-refresh", syncTables);
 
-    // Abonnement temps réel aux messages et notifications
+    // Abonnement temps réel aux messages, notifications et pré-inscriptions
     const channel = supabase
       .channel("realtime-updates")
       .on("postgres_changes", { event: "*", schema: "public", table: "messages" }, () => syncTables())
       .on("postgres_changes", { event: "*", schema: "public", table: "notifications" }, () => syncTables())
+      .on("postgres_changes", { event: "*", schema: "public", table: "registrations" }, () => syncTables())
+      .on("postgres_changes", { event: "*", schema: "public", table: "registration_modules" }, () => syncTables())
       .subscribe();
 
     return () => {

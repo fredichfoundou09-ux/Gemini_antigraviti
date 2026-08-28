@@ -8,6 +8,7 @@ import { useStore } from "@/lib/store";
 import { cn } from "@/utils/cn";
 import { moduleIcon, money, Btn, Field, Input, Card, SectionTitle, formationLabel } from "@/lib/ui";
 import { Formation } from "@/lib/types";
+import { supabase, isSupabaseConfigured } from "@/lib/supabase/client";
 
 // LoginPage vit désormais dans ./Login.tsx (porte d'entrée sécurisée de production).
 export { LoginPage } from "./Login";
@@ -189,12 +190,41 @@ export function PreInscriptionPage() {
   const toggleMod = (id: string) =>
     setForm((p) => ({ ...p, modules: p.modules.includes(id) ? p.modules.filter((x) => x !== id) : [...p.modules, id] }));
 
-  const submit = (e: React.FormEvent) => {
+  const submit = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!form.nom.trim() || !form.prenom.trim()) return setError("Nom et prénom obligatoires.");
     if (!form.telephone.trim()) return setError("Un numéro de téléphone est requis.");
-    // Les modules restent facultatifs si aucun n'est encore publié
     if (avail.length > 0 && form.modules.length === 0) return setError("Sélectionnez au moins un module.");
+    setError("");
+
+    if (isSupabaseConfigured) {
+      try {
+        const { data, error: rpcErr } = await supabase.rpc("submit_registration", {
+          p_nom: form.nom.trim(),
+          p_prenom: form.prenom.trim(),
+          p_telephone: form.telephone.trim(),
+          p_whatsapp: form.whatsapp.trim() || form.telephone.trim(),
+          p_email: form.email.trim(),
+          p_niveau: form.niveau.trim(),
+          p_formation_code: form.formation,
+          p_module_ids: form.modules,
+        });
+
+        if (rpcErr || !data?.ok) {
+          throw new Error(rpcErr?.message || data?.error || "Erreur lors de l'enregistrement.");
+        }
+
+        const regId = data.id || `REG-${Date.now().toString(36)}`;
+        setDone({ id: regId, nom: `${form.nom} ${form.prenom}` });
+        window.dispatchEvent(new Event("sentinelles:supabase-refresh"));
+        return;
+      } catch (err: any) {
+        setError(err?.message || "Une erreur est survenue. Veuillez réessayer.");
+        return;
+      }
+    }
+
+    // Mode local (fallback)
     const reg = {
       id: `REG-${Date.now().toString(36)}`, ...form, date: new Date().toISOString().slice(0, 10), statut: "en_attente" as const,
     };
