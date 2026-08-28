@@ -94,10 +94,30 @@ const MENU: MenuItem[] = [
   { to: "/app/ma-bourse", label: "Ma bourse", icon: <BadgeDollarSign size={18} />, roles: ["student"] },
 ];
 
+import { useAuth } from "@/contexts/AuthContext";
+
 export default function DashboardLayout() {
-  const { user, logout } = useStore();
+  const { user: storeUser, logout: storeLogout } = useStore();
+  const { profile, logout: authLogout } = useAuth();
   const navigate = useNavigate();
   const [open, setOpen] = useState(false);
+
+  const user = storeUser || (profile ? {
+    id: profile.id,
+    username: profile.username,
+    password: "",
+    role: profile.role,
+    name: profile.name,
+    email: profile.email || "",
+    phone: profile.phone || "",
+    actif: profile.active,
+    createdAt: profile.created_at?.slice(0, 10) || ""
+  } : null);
+
+  const logout = () => {
+    storeLogout();
+    authLogout();
+  };
 
   if (!user) return null;
 

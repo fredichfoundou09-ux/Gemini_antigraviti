@@ -47,11 +47,14 @@ import { BulletinsPage } from "@/pages/admin/BulletinPage";
 import { ImportPage } from "@/pages/admin/ImportPage";
 import { CertificateVerifyPage } from "@/pages/public/CertificateVerify";
 import { ShieldCheck } from "lucide-react";
+import { useAuth } from "@/contexts/AuthContext";
 
 function Gate({ roles, children }: { roles: string[]; children: ReactNode }) {
   const { user } = useStore();
-  if (!user) return <Navigate to="/connexion" replace />;
-  if (!roles.includes(user.role)) {
+  const { profile } = useAuth();
+  const role = user?.role || profile?.role;
+  if (!user && !profile) return <Navigate to="/connexion" replace />;
+  if (role && !roles.includes(role)) {
     return (
       <div className="flex min-h-[60vh] flex-col items-center justify-center px-4 text-center">
         <div className="mb-4 flex h-16 w-16 items-center justify-center rounded-2xl border border-red-500/30 bg-red-500/10">
@@ -69,9 +72,11 @@ function Gate({ roles, children }: { roles: string[]; children: ReactNode }) {
 
 function RoleDashboard() {
   const { user } = useStore();
-  if (user?.role === "teacher") return <TeacherDashboard />;
-  if (user?.role === "student") return <StudentDashboard />;
-  if (user?.role === "partner" || user?.role === "partner_admin") return <PartnerPortal />;
+  const { profile } = useAuth();
+  const role = user?.role || profile?.role;
+  if (role === "teacher") return <TeacherDashboard />;
+  if (role === "student") return <StudentDashboard />;
+  if (role === "partner" || role === "partner_admin") return <PartnerPortal />;
   return <AdminDashboard />;
 }
 

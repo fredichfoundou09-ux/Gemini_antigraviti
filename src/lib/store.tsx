@@ -18,7 +18,7 @@ const DB_KEY = "sn_db_v1";
 const SESSION_KEY = "sn_session_v1";
 const SESSION_TTL_MS = 2 * 60 * 60 * 1000;
 
-const useSb = import.meta.env.VITE_USE_SUPABASE === "true" && isSupabaseConfigured;
+const useSb = isSupabaseConfigured && import.meta.env.VITE_USE_SUPABASE !== "false";
 
 interface StoredSession {
   userId: string;
@@ -203,6 +203,18 @@ export function StoreProvider({ children }: { children: React.ReactNode }) {
           createdAt: p.created_at?.slice(0, 10) || ""
         }));
 
+        // Restauration de l'utilisateur actif depuis la session Supabase
+        setUser((currentUser) => {
+          if (!currentUser) {
+            const me = updatedUsers.find((u) => u.id === session.user.id);
+            if (me) {
+              persistSession(me);
+              return me;
+            }
+          }
+          return currentUser;
+        });
+
         const formationById = new Map((formationsRes.data || []).map((f: any) => [f.id, f.code]));
         const chaptersByModule = new Map<string, any[]>();
         (chaptersRes.data || []).forEach((c: any) => {
@@ -326,9 +338,20 @@ export function StoreProvider({ children }: { children: React.ReactNode }) {
     } catch { /* ignore */ }
   };
 
+  const [sbHasAdmin, setSbHasAdmin] = useState<boolean | null>(null);
+
+  useEffect(() => {
+    if (sbActive) {
+      supabase.rpc("has_any_superadmin").then(({ data }) => {
+        if (typeof data === "boolean") setSbHasAdmin(data);
+      }).catch(() => {});
+    }
+  }, [sbActive]);
+
   const hasSuperAdmin = useMemo(() => {
+    if (sbActive && sbHasAdmin !== null) return sbHasAdmin;
     return db.users.some((u) => u.role === "superadmin");
-  }, [db.users]);
+  }, [db.users, sbActive, sbHasAdmin]);
 
   const login: StoreCtxType["login"] = async (username, password, requestedGroup) => {
     const uname = (username || "").trim();
@@ -338,10 +361,15 @@ export function StoreProvider({ children }: { children: React.ReactNode }) {
       try {
         let email = uname;
         if (!email.includes("@")) {
-          // Résolution de l'identifiant pour Supabase Auth
-          const { data } = await supabase.from("profiles").select("email").eq("username", uname.toLowerCase()).maybeSingle();
-          if (!data?.email) return { ok: false, error: "Identifiants incorrects." };
-          email = data.email;
+          // Résolution de l'identifiant pour Supabase Auth via RPC sécurisée
+          const { data: rpcEmail } = await supabase.rpc("get_email_by_username", { p_username: uname });
+          if (rpcEmail) {
+            email = rpcEmail;
+          } else {
+            const { data } = await supabase.from("profiles").select("email").eq("username", uname.toLowerCase()).maybeSingle();
+            if (!data?.email) return { ok: false, error: "Identifiants incorrects." };
+            email = data.email;
+          }
         }
 
         const { error: authErr } = await supabase.auth.signInWithPassword({ email, password });
@@ -375,6 +403,7 @@ export function StoreProvider({ children }: { children: React.ReactNode }) {
         };
 
         persistSession(mappedUser);
+        setUser(mappedUser);
         await writeAudit({ action: "LOGIN", entity_type: "profiles", entity_id: profile.id, description: `Connexion ${profile.username}` });
         return { ok: true, user: mappedUser };
       } catch (err: any) {
@@ -452,6 +481,8 @@ export function StoreProvider({ children }: { children: React.ReactNode }) {
           actif: p!.active, createdAt: p!.created_at?.slice(0, 10) || ""
         };
         persistSession(mappedUser);
+        setUser(mappedUser);
+        setSbHasAdmin(true);
         return { ok: true, user: mappedUser };
       } catch (err: any) {
         return { ok: false, error: err.message };

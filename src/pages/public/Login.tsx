@@ -95,13 +95,14 @@ export function LoginPage() {
     e.preventDefault();
     setError(""); setBusy(true);
 
-    const res = isSupabaseConfigured
-      ? await auth.login(username, password, group)
-      : await local.login(username, password, group as any);
+    const res = await local.login(username, password, group);
 
     setBusy(false);
     if (res.ok) {
       setPassword("");
+      if (isSupabaseConfigured) {
+        await auth.refresh();
+      }
       navigate("/app/dashboard");
     } else {
       setError(res.error || "Identifiants incorrects.");
