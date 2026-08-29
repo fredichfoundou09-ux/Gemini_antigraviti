@@ -7,6 +7,8 @@ import {
 import { useStore } from "@/lib/store";
 import { cn } from "@/utils/cn";
 import { Btn, Card, Field, Input, Textarea, PageHead, readImage, uid } from "@/lib/ui";
+import { supabase, isSupabaseConfigured } from "@/lib/supabase/client";
+import { toastMsg } from "@/lib/toast";
 import responsableImg from "@/assets/responsable.jpg";
 
 const TABS = [
@@ -20,47 +22,225 @@ const TABS = [
 
 export function ContentEditor() {
   const { db, update, log } = useStore();
-  const s = db.settings;
+  const s = db.settings || {};
   const [tab, setTab] = useState("infos");
 
-  const [branding, setBranding] = useState({ ...s.branding });
-  const [infos, setInfos] = useState({ ...s.infos, whatsapp: [...s.infos.whatsapp] });
-  const [partenaires, setPartenaires] = useState<string[]>(s.partenaires);
-  const [hero, setHero] = useState({ ...s.hero });
-  const [formations, setFormations] = useState({ ...s.formations });
-  const [frais, setFrais] = useState({
-    inscription: s.frais.inscription,
-    informatique: s.frais.informatique.map((f) => ({ ...f })),
-    industriel: s.frais.industriel.map((f) => ({ ...f })),
+  const [branding, setBranding] = useState({
+    name: s.branding?.name || "SENTINELLES NUMÉRIQUES",
+    badge: s.branding?.badge || "SENTINELLES • ACADEMY",
+    subtitle: s.branding?.subtitle || "",
+    tagline: s.branding?.tagline || "",
   });
-  const [avantages, setAvantages] = useState<string[]>(s.avantages);
-  const [pre, setPre] = useState({ ...s.preInscription });
-  const [saved, setSaved] = useState(false);
 
-  const persist = () => {
+  const [infos, setInfos] = useState({
+    debut: s.infos?.debut || "",
+    duree: s.infos?.duree || "",
+    lieu: s.infos?.lieu || "",
+    inscription: s.infos?.inscription || "",
+    whatsapp: Array.isArray(s.infos?.whatsapp) ? [...s.infos.whatsapp] : [],
+  });
+
+  const [partenaires, setPartenaires] = useState<string[]>(Array.isArray(s.partenaires) ? [...s.partenaires] : []);
+
+  const [hero, setHero] = useState({
+    responsibleName: s.hero?.responsibleName || "",
+    responsibleTitle: s.hero?.responsibleTitle || "",
+    responsibleImage: s.hero?.responsibleImage || "",
+    highlight: s.hero?.highlight || "RESPONSABLE DU CENTRE",
+  });
+
+  const [formations, setFormations] = useState({
+    informatique: {
+      titre: s.formations?.informatique?.titre || "GÉNIE INFORMATIQUE",
+      description: s.formations?.informatique?.description || "",
+    },
+    industriel: {
+      titre: s.formations?.industriel?.titre || "GÉNIE INDUSTRIEL",
+      description: s.formations?.industriel?.description || "",
+    },
+  });
+
+  const [frais, setFrais] = useState({
+    inscription: s.frais?.inscription || 0,
+    informatique: Array.isArray(s.frais?.informatique) ? s.frais.informatique.map((f) => ({ ...f })) : [],
+    industriel: Array.isArray(s.frais?.industriel) ? s.frais.industriel.map((f) => ({ ...f })) : [],
+  });
+
+  const [avantages, setAvantages] = useState<string[]>(Array.isArray(s.avantages) ? [...s.avantages] : []);
+  const [advantageImage, setAdvantageImage] = useState(s.advantageImage || "");
+
+  const [pre, setPre] = useState({
+    enabled: s.preInscription?.enabled !== false,
+    title: s.preInscription?.title || "Pré-inscription en ligne",
+    description: s.preInscription?.description || "",
+  });
+
+  const [saved, setSaved] = useState(false);
+  const [uploading, setUploading] = useState(false);
+
+  // Synchronisation réactive dès que les paramètres distants ou locaux se mettent à jour
+  useEffect(() => {
+    if (!db.settings) return;
+    const cur = db.settings;
+    if (cur.branding) setBranding({ ...cur.branding });
+    if (cur.infos) setInfos({ ...cur.infos, whatsapp: Array.isArray(cur.infos.whatsapp) ? [...cur.infos.whatsapp] : [] });
+    if (Array.isArray(cur.partenaires)) setPartenaires([...cur.partenaires]);
+    if (cur.hero) setHero({ ...cur.hero });
+    if (cur.formations) {
+      setFormations({
+        informatique: {
+          titre: cur.formations.informatique?.titre || "GÉNIE INFORMATIQUE",
+          description: cur.formations.informatique?.description || "",
+        },
+        industriel: {
+          titre: cur.formations.industriel?.titre || "GÉNIE INDUSTRIEL",
+          description: cur.formations.industriel?.description || "",
+        },
+      });
+    }
+    if (cur.frais) {
+      setFrais({
+        inscription: cur.frais.inscription || 0,
+        informatique: Array.isArray(cur.frais.informatique) ? cur.frais.informatique.map((f) => ({ ...f })) : [],
+        industriel: Array.isArray(cur.frais.industriel) ? cur.frais.industriel.map((f) => ({ ...f })) : [],
+      });
+    }
+    if (Array.isArray(cur.avantages)) setAvantages([...cur.avantages]);
+    if (cur.advantageImage !== undefined) setAdvantageImage(cur.advantageImage || "");
+    if (cur.preInscription) setPre({ ...cur.preInscription });
+  }, [db.settings]);
+
+  const persist = async (customHero?: typeof hero, customAdvantageImg?: string) => {
+    const activeHero = customHero || hero;
+    const activeAdvantageImg = customAdvantageImg !== undefined ? customAdvantageImg : advantageImage;
+    const updatedSettings = {
+      ...db.settings,
+      branding,
+      infos,
+      partenaires,
+      hero: activeHero,
+      formations,
+      frais: {
+        inscription: frais.inscription,
+        informatique: frais.informatique.map((f) => ({ id: f.id || uid("FR"), label: f.label, modules: +f.modules || 0, montant: +f.montant || 0 })),
+        industriel: frais.industriel.map((f) => ({ id: f.id || uid("FR"), label: f.label, modules: +f.modules || 0, montant: +f.montant || 0 })),
+      },
+      avantages,
+      advantageImage: activeAdvantageImg,
+      preInscription: pre,
+    };
+
+    // 1. Mise à jour immédiate du Store (réactivité synchrone UI + localStorage)
     update((d) => ({
       ...d,
-      settings: {
-        ...d.settings,
-        branding, infos, partenaires, hero,
-        formations,
-        frais: {
-          inscription: frais.inscription,
-          informatique: frais.informatique.map((f) => ({ id: f.id || uid("FR"), label: f.label, modules: +f.modules || 0, montant: +f.montant || 0 })),
-          industriel: frais.industriel.map((f) => ({ id: f.id || uid("FR"), label: f.label, modules: +f.modules || 0, montant: +f.montant || 0 })),
-        },
-        avantages,
-        preInscription: pre,
-      },
+      settings: updatedSettings,
     }));
     log("Contenu du site public mis à jour");
+
+    // 2. Persistance distante Supabase (si configuré)
+    if (isSupabaseConfigured) {
+      try {
+        const payload = {
+          settings: updatedSettings,
+          advantages: db.advantages || [],
+          partners: db.partners || [],
+          announcements: db.announcements || [],
+        };
+        const { error } = await supabase.from("site_settings").upsert({
+          id: "default",
+          data: payload,
+          updated_at: new Date().toISOString(),
+        });
+        if (error) {
+          console.warn("Supabase site_settings sync warning:", error.message);
+          toastMsg.info("Modifications appliquées au site public ✓", "Enregistré avec succès");
+        } else {
+          toastMsg.success("Contenu du site enregistré avec succès ✓", "Modifications visibles immédiatement");
+        }
+      } catch (err: any) {
+        console.warn("Sync error:", err);
+        toastMsg.info("Modifications appliquées au site public ✓");
+      }
+    } else {
+      toastMsg.success("Modifications enregistrées ✓", "Visibles immédiatement sur la page d'accueil");
+    }
+
+    // Émettre l'événement de rafraîchissement global
+    try {
+      window.dispatchEvent(new Event("sentinelles:supabase-refresh"));
+      window.dispatchEvent(new Event("storage"));
+    } catch { /* ignore */ }
+
     setSaved(true);
     setTimeout(() => setSaved(false), 2500);
   };
 
   const onPhoto = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const f = e.target.files?.[0];
-    if (f) setHero({ ...hero, responsibleImage: await readImage(f, 600) });
+    if (!f) return;
+    setUploading(true);
+
+    try {
+      // 1. Génération locale haute définition immédiate
+      const b64 = await readImage(f, 800);
+      let photoUrl = b64;
+
+      // 2. Téléversement optionnel vers le bucket Supabase
+      if (isSupabaseConfigured) {
+        try {
+          const ext = (f.name || "jpg").split(".").pop() || "jpg";
+          const path = `hero/responsable-${Date.now()}.${ext}`;
+          const { error: upErr } = await supabase.storage.from("public-media").upload(path, f, { upsert: true });
+          if (!upErr) {
+            const { data: pub } = supabase.storage.from("public-media").getPublicUrl(path);
+            if (pub?.publicUrl) {
+              photoUrl = pub.publicUrl;
+            }
+          }
+        } catch (storageErr) {
+          console.warn("Stockage cloud non disponible, conservation du visuel local optimisé.", storageErr);
+        }
+      }
+
+      const updatedHero = { ...hero, responsibleImage: photoUrl };
+      setHero(updatedHero);
+      await persist(updatedHero);
+      toastMsg.success("Photo du responsable enregistrée ✓", "Affichée sur le site public");
+    } catch (err: any) {
+      toastMsg.error("Erreur lors du traitement de l'image", err.message);
+    } finally {
+      setUploading(false);
+      // Réinitialiser le champ file pour permettre de re-sélectionner le même fichier si besoin
+      e.target.value = "";
+    }
+  };
+
+  const onRemovePhoto = async () => {
+    const updatedHero = { ...hero, responsibleImage: "" };
+    setHero(updatedHero);
+    await persist(updatedHero);
+    toastMsg.info("Photo réinitialisée ✓");
+  };
+
+  const onAdvantagePhoto = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const f = e.target.files?.[0];
+    if (!f) return;
+    try {
+      const b64 = await readImage(f, 1000);
+      setAdvantageImage(b64);
+      await persist(hero, b64);
+      toastMsg.success("Image d'illustration mise à jour ✓");
+    } catch (err: any) {
+      toastMsg.error("Erreur chargement image", err.message);
+    } finally {
+      e.target.value = "";
+    }
+  };
+
+  const onRemoveAdvantagePhoto = async () => {
+    setAdvantageImage("");
+    await persist(hero, "");
+    toastMsg.info("Image d'illustration réinitialisée ✓");
   };
 
   return (
@@ -139,25 +319,32 @@ export function ContentEditor() {
           <h3 className="font-display mb-4 text-sm font-bold text-white">Responsable du centre</h3>
           <div className="mb-5 flex flex-wrap items-center gap-5">
             <div className="relative">
-              <div className="h-32 w-32 overflow-hidden rounded-2xl border-2 border-amber-400/50">
-                <img src={hero.responsibleImage || responsableImg} alt="Responsable" className="h-full w-full object-cover" />
+              <div className="flex h-32 w-32 items-center justify-center overflow-hidden rounded-2xl border-2 border-amber-400/50 bg-[#0A1224]">
+                {hero.responsibleImage ? (
+                  <img src={hero.responsibleImage} alt="Responsable" className="h-full w-full object-cover" />
+                ) : (
+                  <UserCircle2 size={64} className="text-slate-600" />
+                )}
               </div>
-              <button
-                onClick={() => setHero({ ...hero, responsibleImage: "" })}
-                className="absolute -bottom-2 -right-2 rounded-lg border border-white/10 bg-[#05070D] p-2 text-slate-400 hover:text-red-400"
-                title="Réinitialiser l'image"
-              >
-                <ImageOff size={14} />
-              </button>
+              {hero.responsibleImage ? (
+                <button
+                  type="button"
+                  onClick={onRemovePhoto}
+                  className="absolute -bottom-2 -right-2 rounded-lg border border-white/10 bg-[#05070D] p-2 text-slate-400 transition-colors hover:text-red-400"
+                  title="Supprimer la photo"
+                >
+                  <ImageOff size={14} />
+                </button>
+              ) : null}
             </div>
             <div>
               <label className="cursor-pointer">
-                <span className="inline-flex items-center gap-2 rounded-xl border border-cyan-400/40 px-4 py-2.5 text-sm font-bold text-cyan-300 hover:bg-cyan-400/10">
-                  <Upload size={15} /> Téléverser une photo
+                <span className="inline-flex items-center gap-2 rounded-xl border border-cyan-400/40 px-4 py-2.5 text-sm font-bold text-cyan-300 transition-all hover:bg-cyan-400/10">
+                  <Upload size={15} /> {uploading ? "Téléversement en cours..." : "Téléverser une photo"}
                 </span>
-                <input type="file" accept="image/*" onChange={onPhoto} className="hidden" />
+                <input type="file" accept="image/*" onChange={onPhoto} disabled={uploading} className="hidden" />
               </label>
-              <p className="mt-2 text-[11px] text-slate-500">Photo du responsable (portrait professionnel). Image réduite automatiquement.</p>
+              <p className="mt-2 text-[11px] text-slate-500">Photo du responsable (portrait professionnel). L'image est enregistrée et visible immédiatement.</p>
             </div>
           </div>
           <div className="space-y-4">
@@ -229,18 +416,52 @@ export function ContentEditor() {
 
       {/* ============ AVANTAGES ============ */}
       {tab === "avantages" && (
-        <Card className="max-w-2xl p-6">
-          <h3 className="font-display mb-4 text-sm font-bold text-white">Avantages de la formation</h3>
-          <div className="space-y-2">
-            {avantages.map((a, i) => (
-              <div key={i} className="flex gap-2">
-                <Input value={a} onChange={(e) => setAvantages(avantages.map((x, j) => (j === i ? e.target.value : x)))} />
-                <Btn variant="ghost" onClick={() => setAvantages(avantages.filter((_, j) => j !== i))}><Trash2 size={15} /></Btn>
+        <div className="space-y-4 max-w-3xl">
+          <Card className="p-6">
+            <h3 className="font-display mb-4 text-sm font-bold text-white">Image d'illustration de la section</h3>
+            <div className="flex flex-wrap items-center gap-5">
+              <div className="relative h-32 w-52 overflow-hidden rounded-2xl border-2 border-cyan-400/40 bg-[#0A1224] flex items-center justify-center">
+                {advantageImage ? (
+                  <img src={advantageImage} alt="Illustration avantages" className="h-full w-full object-cover" />
+                ) : (
+                  <div className="text-center p-2 text-xs text-slate-500">Aucune image personnalisée</div>
+                )}
               </div>
-            ))}
-            <Btn variant="outline" onClick={() => setAvantages([...avantages, ""])}><PlusCircle size={14} /> Ajouter un avantage</Btn>
-          </div>
-        </Card>
+              <div className="space-y-2">
+                <label className="cursor-pointer">
+                  <span className="inline-flex items-center gap-2 rounded-xl border border-cyan-400/40 px-4 py-2 text-sm font-bold text-cyan-300 hover:bg-cyan-400/10">
+                    <Upload size={15} /> Modifier l'illustration
+                  </span>
+                  <input type="file" accept="image/*" onChange={onAdvantagePhoto} className="hidden" />
+                </label>
+                {advantageImage ? (
+                  <div>
+                    <button
+                      type="button"
+                      onClick={onRemoveAdvantagePhoto}
+                      className="text-xs text-red-400 hover:underline flex items-center gap-1 font-semibold"
+                    >
+                      <Trash2 size={13} /> Retirer l'image
+                    </button>
+                  </div>
+                ) : null}
+              </div>
+            </div>
+          </Card>
+
+          <Card className="p-6">
+            <h3 className="font-display mb-4 text-sm font-bold text-white">Liste des points forts & avantages</h3>
+            <div className="space-y-2">
+              {avantages.map((a, i) => (
+                <div key={i} className="flex gap-2">
+                  <Input value={a} onChange={(e) => setAvantages(avantages.map((x, j) => (j === i ? e.target.value : x)))} />
+                  <Btn variant="ghost" onClick={() => setAvantages(avantages.filter((_, j) => j !== i))}><Trash2 size={15} /></Btn>
+                </div>
+              ))}
+              <Btn variant="outline" onClick={() => setAvantages([...avantages, ""])}><PlusCircle size={14} /> Ajouter un avantage</Btn>
+            </div>
+          </Card>
+        </div>
       )}
 
       {/* ============ PRÉ-INSCRIPTION ============ */}

@@ -1,7 +1,12 @@
 import jwt from "jsonwebtoken";
 import { Request, Response, NextFunction } from "express";
 
-const JWT_SECRET = process.env.JWT_SECRET || "sentinelles_secret_key_2026_super_secure";
+const JWT_SECRET = process.env.JWT_SECRET || (() => {
+  if (process.env.NODE_ENV === "production") {
+    throw new Error("FATAL: JWT_SECRET environment variable is missing!");
+  }
+  return "dev_secret_only_for_local_testing_do_not_use_in_prod";
+})();
 const JWT_EXPIRES_IN = "2h";
 
 export interface SessionPayload {

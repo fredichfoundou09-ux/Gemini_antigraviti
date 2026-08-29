@@ -23,9 +23,7 @@ export default function Home() {
   const s = db.settings;
   const infos = s.infos;
   const infoModules = db.modules.filter((m) => m.formation === "informatique");
-  const indModules = db.modules.filter((m) => m.formation === "industriel");
-  const respImg = s.hero.responsibleImage || responsableImg;
-  const advantages = [...db.advantages].sort((a, b) => a.ordre - b.ordre);
+  const respImg = s.hero.responsibleImage;
   const activePartners = db.partners.filter((p) => p.actif);
   const activeAnnouncements = db.announcements.filter((a) => a.actif);
 
@@ -130,17 +128,21 @@ export default function Home() {
                 <div className="relative z-10 rounded-2xl border border-cyan-400/30 bg-[#081021]/90 p-4 shadow-[0_0_50px_-12px_rgba(0,229,255,0.5)] backdrop-blur">
                   <div className="flex items-center gap-4">
                     <div className="relative">
-                      <div className="h-24 w-24 overflow-hidden rounded-2xl border-2 border-cyan-400/50">
-                        <img src={respImg} alt="Responsable du centre" className="h-full w-full object-cover" />
+                      <div className="flex h-24 w-24 items-center justify-center overflow-hidden rounded-2xl border-2 border-cyan-400/50 bg-[#0A1224]">
+                        {respImg ? (
+                          <img src={respImg} alt="Responsable du centre" className="h-full w-full object-cover" />
+                        ) : (
+                          <UserCircle2 size={54} className="text-cyan-300/80" />
+                        )}
                       </div>
                       <span className="absolute -bottom-1.5 -right-1.5 flex h-7 w-7 items-center justify-center rounded-full border border-emerald-400/50 bg-[#05070D]">
                         <ShieldCheck size={14} className="text-emerald-300" />
                       </span>
                     </div>
                     <div className="min-w-0">
-                      <p className="text-[10px] font-bold uppercase tracking-[0.25em] text-cyan-300">{s.hero.highlight}</p>
-                      <p className="font-display mt-1 text-lg font-extrabold leading-tight text-amber-300 drop-shadow-[0_0_12px_rgba(255,179,0,0.45)]">{s.hero.responsibleName}</p>
-                      <p className="mt-1 text-xs text-slate-400">{s.hero.responsibleTitle}</p>
+                      <p className="text-[10px] font-bold uppercase tracking-[0.25em] text-cyan-300">{s.hero.highlight || "DIRECTION"}</p>
+                      <p className="font-display mt-1 text-lg font-extrabold leading-tight text-amber-300 drop-shadow-[0_0_12px_rgba(255,179,0,0.45)]">{s.hero.responsibleName || "Direction du Centre"}</p>
+                      <p className="mt-1 text-xs text-slate-400">{s.hero.responsibleTitle || "Sentinelles Numériques"}</p>
                     </div>
                   </div>
                 </div>

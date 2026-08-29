@@ -5,16 +5,25 @@
  */
 import { toast } from "sonner";
 
+const BASE_TOAST_STYLE = {
+  background: "rgba(8, 16, 33, 0.98)",
+  border: "1.5px solid rgba(255, 23, 68, 0.7)",
+  color: "#FF1744",
+  fontWeight: 700,
+  fontSize: "14px",
+  borderRadius: "16px",
+  boxShadow: "0 0 25px -5px rgba(255, 23, 68, 0.4)",
+};
+
 export const toastMsg = {
   success: (msg: string, desc?: string) =>
     toast.success(msg, {
       description: desc,
       duration: 4000,
       style: {
-        background: "rgba(7, 21, 43, 0.97)",
-        border: "1px solid rgba(0, 229, 255, 0.4)",
-        color: "#F5F7FA",
-        borderRadius: "16px",
+        ...BASE_TOAST_STYLE,
+        border: "1.5px solid rgba(255, 23, 68, 0.8)",
+        color: "#FF1744",
       },
     }),
 
@@ -23,10 +32,9 @@ export const toastMsg = {
       description: desc,
       duration: 6000,
       style: {
-        background: "rgba(7, 21, 43, 0.97)",
-        border: "1px solid rgba(255, 23, 68, 0.5)",
-        color: "#F5F7FA",
-        borderRadius: "16px",
+        ...BASE_TOAST_STYLE,
+        border: "2px solid #FF1744",
+        color: "#FF1744",
       },
     }),
 
@@ -35,10 +43,9 @@ export const toastMsg = {
       description: desc,
       duration: 5000,
       style: {
-        background: "rgba(7, 21, 43, 0.97)",
-        border: "1px solid rgba(255, 179, 0, 0.4)",
-        color: "#F5F7FA",
-        borderRadius: "16px",
+        ...BASE_TOAST_STYLE,
+        border: "1.5px solid rgba(255, 82, 82, 0.8)",
+        color: "#FF2A55",
       },
     }),
 
@@ -47,10 +54,9 @@ export const toastMsg = {
       description: desc,
       duration: 4000,
       style: {
-        background: "rgba(7, 21, 43, 0.97)",
-        border: "1px solid rgba(0, 229, 255, 0.25)",
-        color: "#F5F7FA",
-        borderRadius: "16px",
+        ...BASE_TOAST_STYLE,
+        border: "1.5px solid rgba(255, 23, 68, 0.6)",
+        color: "#FF1744",
       },
     }),
 
@@ -61,10 +67,9 @@ export const toastMsg = {
         description: `Identifiant : ${payload.identifiant} · Mot de passe temporaire : ${payload.motDePasse}`,
         duration: 15000,
         style: {
-          background: "rgba(7, 21, 43, 0.97)",
-          border: "1px solid rgba(255, 179, 0, 0.6)",
-          color: "#F5F7FA",
-          borderRadius: "16px",
+          ...BASE_TOAST_STYLE,
+          border: "1.5px solid #FF1744",
+          color: "#FF1744",
         },
         action: {
           label: "Copier",
@@ -78,10 +83,9 @@ export const toastMsg = {
 
   loading: (msg: string) => toast.loading(msg, {
     style: {
-      background: "rgba(7, 21, 43, 0.97)",
-      border: "1px solid rgba(0, 229, 255, 0.25)",
-      color: "#F5F7FA",
-      borderRadius: "16px",
+      ...BASE_TOAST_STYLE,
+      border: "1.5px solid rgba(255, 23, 68, 0.5)",
+      color: "#FF1744",
     },
   }),
 

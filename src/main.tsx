@@ -16,10 +16,14 @@ createRoot(document.getElementById("root")!).render(
       closeButton
       toastOptions={{
         style: {
-          fontFamily: "'Rajdhani', system-ui, sans-serif",
-          fontWeight: 600,
-          fontSize: "13px",
+          fontFamily: "'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif",
+          fontWeight: 800,
+          fontSize: "14px",
+          color: "#FF1744",
+          background: "rgba(8, 16, 33, 0.98)",
+          border: "1.5px solid rgba(255, 23, 68, 0.7)",
         },
+        descriptionClassName: "!text-[#FF5252] !font-bold",
       }}
     />
   </StrictMode>

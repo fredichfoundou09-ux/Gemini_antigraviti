@@ -121,12 +121,10 @@ export function StoreProvider({ children }: { children: React.ReactNode }) {
   const [user, setUser] = useState<User | null>(() => loadSession(db));
   const sbActive = useSb;
 
-  // Synchronisation avec Supabase (quand connecté et configuré)
+  // Sauvegarde locale de sécurité en continu (filet de secours et mise en cache)
   useEffect(() => {
-    if (!sbActive) {
-      try { localStorage.setItem(DB_KEY, JSON.stringify(db)); } catch { /* quota */ }
-    }
-  }, [db, sbActive]);
+    try { localStorage.setItem(DB_KEY, JSON.stringify(db)); } catch { /* quota */ }
+  }, [db]);
 
   // Si le compte de l'utilisateur est désactivé ou supprimé pendant la session, on le déconnecte.
   useEffect(() => {
@@ -166,7 +164,8 @@ export function StoreProvider({ children }: { children: React.ReactNode }) {
           scheduleRes, attendanceRes, invoicesRes, paymentsRes,
           testsRes, resultsRes, gradesRes, notificationsRes,
           certificatesRes, scholarshipsRes,
-          registrationsRes, registrationModulesRes
+          registrationsRes, registrationModulesRes,
+          siteSettingsRes
         ] = await Promise.all([
           supabase.from("profiles").select("*"),
           supabase.from("formations").select("*"),
@@ -188,7 +187,8 @@ export function StoreProvider({ children }: { children: React.ReactNode }) {
           supabase.from("certificates").select("*, modules:certificate_modules(*)"),
           supabase.from("scholarships").select("*"),
           supabase.from("registrations").select("*").order("created_at", { ascending: false }),
-          supabase.from("registration_modules").select("*")
+          supabase.from("registration_modules").select("*"),
+          supabase.from("site_settings").select("data").eq("id", "default").maybeSingle()
         ]);
 
         if (profilesRes.error) throw profilesRes.error;
@@ -233,8 +233,14 @@ export function StoreProvider({ children }: { children: React.ReactNode }) {
           regModulesByRegId.set(rm.registration_id, arr);
         });
 
+        const remoteSettings = siteSettingsRes?.data?.data || null;
+
         setDb((prev) => ({
           ...prev,
+          settings: remoteSettings?.settings ? { ...prev.settings, ...remoteSettings.settings } : prev.settings,
+          advantages: remoteSettings?.advantages || prev.advantages,
+          partners: remoteSettings?.partners || prev.partners,
+          announcements: remoteSettings?.announcements || prev.announcements,
           users: updatedUsers,
           modules: (modulesRes.data || []).map((m: any) => ({
             id: m.id,
@@ -343,6 +349,7 @@ export function StoreProvider({ children }: { children: React.ReactNode }) {
       .on("postgres_changes", { event: "*", schema: "public", table: "courses" }, () => syncTables())
       .on("postgres_changes", { event: "*", schema: "public", table: "teachers" }, () => syncTables())
       .on("postgres_changes", { event: "*", schema: "public", table: "students" }, () => syncTables())
+      .on("postgres_changes", { event: "*", schema: "public", table: "site_settings" }, () => syncTables())
       .subscribe();
 
     return () => {
@@ -356,8 +363,27 @@ export function StoreProvider({ children }: { children: React.ReactNode }) {
     setDb(next);
 
     if (sbActive) {
-      // En production Supabase, les fiches sont persistées de façon transactionnelle par domaine.
-      // On s'assure de l'atomicité et de l'intégrité SQL.
+      if (
+        next.settings !== db.settings ||
+        next.advantages !== db.advantages ||
+        next.partners !== db.partners ||
+        next.announcements !== db.announcements
+      ) {
+        try {
+          await supabase.from("site_settings").upsert({
+            id: "default",
+            data: {
+              settings: next.settings,
+              advantages: next.advantages,
+              partners: next.partners,
+              announcements: next.announcements,
+            },
+            updated_at: new Date().toISOString(),
+          });
+        } catch (e) {
+          console.warn("Auto-sync site_settings error:", e);
+        }
+      }
     }
   };
 
