@@ -79,6 +79,26 @@ export function StudentsPage() {
   const save = async () => {
     if (!form.nom || !form.prenom) return;
     if (editing) {
+      if (isSupabaseConfigured) {
+        try {
+          const resolvedFormationId = await resolveFormationId(form.formation);
+          await supabase.from("students").update({
+            formation_id: resolvedFormationId,
+            nom: form.nom,
+            prenom: form.prenom,
+            telephone: form.telephone,
+            whatsapp: form.whatsapp,
+            email: form.email || null,
+            adresse: form.adresse || null,
+            niveau: form.niveau || null,
+            sexe: form.sexe || null,
+          }).eq("id", editing.id);
+          window.dispatchEvent(new Event("sentinelles:supabase-refresh"));
+          toastMsg.success("Apprenant mis à jour côté serveur ✓");
+        } catch (err: any) {
+          toastMsg.error("Erreur mise à jour", err.message);
+        }
+      }
       update((d) => ({ ...d, students: d.students.map((s) => (s.id === editing.id ? { ...s, ...form } : s)) }));
       log(`Apprenant modifié : ${form.nom} ${form.prenom}`);
     } else {
@@ -246,8 +266,17 @@ export function StudentsPage() {
     }));
   };
 
-  const removeStudent = (id: string) => {
+  const removeStudent = async (id: string) => {
     if (!confirm("Supprimer cet apprenant ?")) return;
+    if (isSupabaseConfigured) {
+      try {
+        await supabase.from("students").delete().eq("id", id);
+        window.dispatchEvent(new Event("sentinelles:supabase-refresh"));
+        toastMsg.info("Apprenant supprimé du serveur");
+      } catch (err: any) {
+        toastMsg.error("Erreur suppression", err.message);
+      }
+    }
     update((d) => ({ ...d, students: d.students.filter((s) => s.id !== id) }));
     log(`Apprenant supprimé : ${id}`);
   };
@@ -454,7 +483,23 @@ function StudentForm({ form, setForm }: { form: any; setForm: (f: any) => void }
 
   const onPhoto = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const f = e.target.files?.[0];
-    if (f) setForm({ ...form, photo: await readImage(f, 300) });
+    if (!f) return;
+    if (isSupabaseConfigured) {
+      try {
+        const ext = (f.name || "jpg").split(".").pop() || "jpg";
+        const path = `avatars/${Date.now()}-${Math.random().toString(36).slice(2)}.${ext}`;
+        const { error } = await supabase.storage.from("avatars").upload(path, f, { upsert: true });
+        if (!error) {
+          const { data: pub } = supabase.storage.from("avatars").getPublicUrl(path);
+          setForm({ ...form, photo: pub.publicUrl });
+          toastMsg.success("Photo téléversée sur le serveur ✓");
+          return;
+        }
+      } catch (err) {
+        console.warn("Storage upload fallback:", err);
+      }
+    }
+    setForm({ ...form, photo: await readImage(f, 300) });
   };
 
   return (
@@ -686,7 +731,27 @@ export function TeachersPage() {
     actif: true, typeContrat: "Prestation", tarifHoraire: 0, heuresPrevues: 0, tarifsParModule: {} as Record<string, number>,
   });
   const [form, setForm] = useState<any>(emptyTeacher());
-  const onPhoto = async (e: React.ChangeEvent<HTMLInputElement>) => { const f = e.target.files?.[0]; if (f) { const img = await readImage(f, 400); setForm((p: any) => ({ ...p, photo: img })); } };
+  const onPhoto = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const f = e.target.files?.[0];
+    if (!f) return;
+    if (isSupabaseConfigured) {
+      try {
+        const ext = (f.name || "jpg").split(".").pop() || "jpg";
+        const path = `avatars/${Date.now()}-${Math.random().toString(36).slice(2)}.${ext}`;
+        const { error } = await supabase.storage.from("avatars").upload(path, f, { upsert: true });
+        if (!error) {
+          const { data: pub } = supabase.storage.from("avatars").getPublicUrl(path);
+          setForm((p: any) => ({ ...p, photo: pub.publicUrl }));
+          toastMsg.success("Photo téléversée sur le serveur ✓");
+          return;
+        }
+      } catch (err) {
+        console.warn("Storage upload fallback:", err);
+      }
+    }
+    const img = await readImage(f, 400);
+    setForm((p: any) => ({ ...p, photo: img }));
+  };
 
   const canEditRate = user?.role === "superadmin" || user?.role === "admin";
 
@@ -705,10 +770,24 @@ export function TeachersPage() {
     if (!form.nom) return;
     if (editing) {
       if (isSupabaseConfigured) {
-        update((d) => ({ ...d, teachers: d.teachers.map((t) => (t.id === editing.id ? { ...t, ...form } : t)) }));
-      } else {
-        update((d) => ({ ...d, teachers: d.teachers.map((t) => (t.id === editing.id ? { ...t, ...form } : t)) }));
+        try {
+          await supabase.from("teachers").update({
+            nom: form.nom,
+            prenom: form.prenom,
+            specialite: form.specialite || "Formateur",
+            email: form.email || "",
+            phone: form.phone || "",
+            type_contrat: form.typeContrat || "Prestation",
+            tarif_horaire: form.tarifHoraire || 0,
+            photo_url: form.photo || null,
+          }).eq("id", editing.id);
+          window.dispatchEvent(new Event("sentinelles:supabase-refresh"));
+          toastMsg.success("Enseignant mis à jour côté serveur ✓");
+        } catch (err: any) {
+          toastMsg.error("Erreur mise à jour enseignant", err.message);
+        }
       }
+      update((d) => ({ ...d, teachers: d.teachers.map((t) => (t.id === editing.id ? { ...t, ...form } : t)) }));
       if (editing.tarifHoraire !== form.tarifHoraire || JSON.stringify(editing.tarifsParModule ?? {}) !== JSON.stringify(form.tarifsParModule ?? {})) {
         log(`Tarif horaire modifié pour ${form.nom} ${form.prenom} : ${money(form.tarifHoraire ?? 0)}/h`);
       } else {

@@ -16,6 +16,8 @@ import { Formation, AttendanceStatus } from "@/lib/types";
 import { ingestFile, fileKind, humanSize, downloadFile } from "@/lib/files";
 import { studentsOfCourse, studentsOfSchedule } from "@/lib/access";
 import { financialSummary, nextReceiptRef, statusLabel } from "@/lib/finance";
+import { supabase, isSupabaseConfigured } from "@/lib/supabase/client";
+import { resolveFormationId } from "@/lib/supabase/formations";
 
 const DAYS = ["Lundi", "Mardi", "Mercredi", "Jeudi", "Vendredi", "Samedi"];
 
@@ -52,15 +54,75 @@ export function ModulesPage() {
     setEditing(m); setCreating(true);
   };
 
-  const save = () => {
-    if (!form.titre) return;
+  const save = async () => {
+    if (!form.titre.trim()) return;
     const notions = form.notions.split("\n").map((s: string) => s.trim()).filter(Boolean);
     const objectifs = form.objectifs.split("\n").map((s: string) => s.trim()).filter(Boolean);
     const payload = {
-      titre: form.titre, icon: form.icon, notions, description: form.description, objectifs,
+      titre: form.titre.trim(), icon: form.icon, notions, description: form.description, objectifs,
       programme: form.programme, duree: form.duree, supports: form.supports, infosSupp: form.infosSupp,
       image: form.image, chapitres: form.chapitres,
     };
+
+    if (isSupabaseConfigured) {
+      try {
+        const formationId = await resolveFormationId(tab);
+        if (editing) {
+          const { error: updErr } = await supabase.from("modules").update({
+            formation_id: formationId,
+            titre: form.titre.trim(),
+            icon: form.icon || "code",
+            description: form.description || "",
+            duree: form.duree || "",
+            supports: form.supports || "",
+            infos_supp: form.infosSupp || "",
+            image_url: form.image || "",
+            active: true
+          }).eq("id", editing.id);
+          if (updErr) throw updErr;
+
+          await supabase.from("chapters").delete().eq("module_id", editing.id);
+          if (form.chapitres?.length) {
+            await supabase.from("chapters").insert(form.chapitres.map((c: any, idx: number) => ({
+              module_id: editing.id,
+              titre: c.titre,
+              contenu: c.contenu || "",
+              ordre: idx + 1
+            })));
+          }
+          toastMsg.success("Module mis à jour côté serveur ✓");
+        } else {
+          const numero = db.modules.filter((m) => m.formation === tab).length + 1;
+          const { data: newMod, error: insErr } = await supabase.from("modules").insert({
+            formation_id: formationId,
+            numero,
+            titre: form.titre.trim(),
+            icon: form.icon || "code",
+            description: form.description || "",
+            duree: form.duree || "",
+            supports: form.supports || "",
+            infos_supp: form.infosSupp || "",
+            image_url: form.image || "",
+            active: true
+          }).select("id").single();
+          if (insErr) throw insErr;
+
+          if (form.chapitres?.length && newMod?.id) {
+            await supabase.from("chapters").insert(form.chapitres.map((c: any, idx: number) => ({
+              module_id: newMod.id,
+              titre: c.titre,
+              contenu: c.contenu || "",
+              ordre: idx + 1
+            })));
+          }
+          toastMsg.success("Nouveau module créé côté serveur ✓");
+        }
+        window.dispatchEvent(new Event("sentinelles:supabase-refresh"));
+      } catch (err: any) {
+        toastMsg.error("Erreur enregistrement module", err.message);
+      }
+    }
+
     if (editing) {
       update((d) => ({ ...d, modules: d.modules.map((m) => (m.id === editing.id ? { ...m, ...payload } : m)) }));
       log(`Module modifié : ${form.titre}`);
@@ -73,12 +135,44 @@ export function ModulesPage() {
     setCreating(false); setEditing(null);
   };
 
+  const deleteModule = async (m: any) => {
+    if (!confirm(`Supprimer le module « ${m.titre} » ?`)) return;
+    if (isSupabaseConfigured) {
+      try {
+        await supabase.from("modules").delete().eq("id", m.id);
+        window.dispatchEvent(new Event("sentinelles:supabase-refresh"));
+        toastMsg.info("Module supprimé du serveur");
+      } catch (err: any) {
+        toastMsg.error("Erreur suppression module", err.message);
+      }
+    }
+    update((d) => ({ ...d, modules: d.modules.filter((x) => x.id !== m.id) }));
+  };
+
   const addChapter = () => setForm((f: any) => ({ ...f, chapitres: [...f.chapitres, { id: uid("CH"), titre: `Chapitre ${f.chapitres.length + 1}`, contenu: "" }] }));
   const updChapter = (id: string, k: string, v: string) => setForm((f: any) => ({ ...f, chapitres: f.chapitres.map((c: any) => (c.id === id ? { ...c, [k]: v } : c)) }));
   const delChapter = (id: string) => setForm((f: any) => ({ ...f, chapitres: f.chapitres.filter((c: any) => c.id !== id) }));
+
   const onImg = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const f = e.target.files?.[0];
-    if (f) { const img = await readImage(f, 700); setForm((p: any) => ({ ...p, image: img })); }
+    if (!f) return;
+    if (isSupabaseConfigured) {
+      try {
+        const ext = (f.name || "jpg").split(".").pop() || "jpg";
+        const path = `modules/${Date.now()}-${Math.random().toString(36).slice(2)}.${ext}`;
+        const { error } = await supabase.storage.from("public-media").upload(path, f, { upsert: true });
+        if (!error) {
+          const { data: pub } = supabase.storage.from("public-media").getPublicUrl(path);
+          setForm((p: any) => ({ ...p, image: pub.publicUrl }));
+          toastMsg.success("Image téléversée sur le serveur ✓");
+          return;
+        }
+      } catch (err) {
+        console.warn("Storage upload fallback:", err);
+      }
+    }
+    const img = await readImage(f, 700);
+    setForm((p: any) => ({ ...p, image: img }));
   };
 
   return (
@@ -113,7 +207,7 @@ export function ModulesPage() {
                 <div className="flex gap-1.5">
                   <button onClick={() => setViewing(m)} className="rounded-lg border border-white/10 p-2 text-slate-300 hover:border-cyan-400/40 hover:text-cyan-300"><Eye size={14} /></button>
                   <button onClick={() => openEdit(m)} className="rounded-lg border border-white/10 p-2 text-slate-300 hover:border-amber-400/40 hover:text-amber-300"><Pencil size={14} /></button>
-                  {!isTeacher && <button onClick={() => { if (confirm("Supprimer ce module ?")) update((d) => ({ ...d, modules: d.modules.filter((x) => x.id !== m.id) })); }}
+                  {!isTeacher && <button onClick={() => deleteModule(m)}
                     className="rounded-lg border border-white/10 p-2 text-slate-300 hover:border-red-500/40 hover:text-red-400"><Trash2 size={14} /></button>}
                 </div>
               </div>
@@ -250,16 +344,55 @@ export function SchedulePage() {
 
   const targetStudents = db.students.filter((s) => (!form.formation || s.formation === form.formation) && (!form.moduleId || s.modules.includes(form.moduleId)));
 
-  const save = () => {
+  const save = async () => {
     if (!form.moduleId) return;
     const payload: any = { jour: form.jour, heureDebut: form.heureDebut, heureFin: form.heureFin, moduleId: form.moduleId, teacherId: form.teacherId, salle: form.salle, formation: form.formation };
     if (form.date) payload.date = form.date;
     if (form.cibleType === "groupe" && form.groupe) payload.groupe = form.groupe;
     if (form.cibleType === "apprenants" && form.studentIds.length) payload.studentIds = form.studentIds;
+
+    if (isSupabaseConfigured) {
+      try {
+        const formationId = await resolveFormationId(form.formation);
+        const isUuid = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(form.moduleId);
+        const { data: modCheck } = isUuid ? await supabase.from("modules").select("id").eq("id", form.moduleId).maybeSingle() : { data: null };
+        const realModuleId = modCheck?.id || null;
+
+        const { error: schErr } = await supabase.from("schedule").insert({
+          formation_id: formationId,
+          module_id: realModuleId,
+          teacher_id: form.teacherId || null,
+          salle: form.salle || "",
+          jour: form.jour,
+          heure_debut: form.heureDebut,
+          heure_fin: form.heureFin,
+          date: form.date || null,
+        });
+        if (schErr) throw schErr;
+        toastMsg.success("Créneau enregistré côté serveur ✓");
+        window.dispatchEvent(new Event("sentinelles:supabase-refresh"));
+      } catch (err: any) {
+        toastMsg.error("Erreur créneau", err.message);
+      }
+    }
+
     update((d) => ({ ...d, schedule: [...d.schedule, { id: uid("SCH"), ...payload }] }));
     log(`Créneau ajouté : ${form.jour} ${form.heureDebut}-${form.heureFin} — ${db.modules.find((m) => m.id === form.moduleId)?.titre ?? ""}`);
     setForm(blankSlot());
     setCreating(false);
+  };
+
+  const deleteSchedule = async (slotId: string) => {
+    if (isSupabaseConfigured) {
+      try {
+        await supabase.from("schedule").delete().eq("id", slotId);
+        window.dispatchEvent(new Event("sentinelles:supabase-refresh"));
+        toastMsg.info("Créneau supprimé du serveur");
+      } catch (err: any) {
+        toastMsg.error("Erreur suppression", err.message);
+      }
+    }
+    update((d) => ({ ...d, schedule: d.schedule.filter((x) => x.id !== slotId) }));
   };
 
   const modName = (id: string) => db.modules.find((m) => m.id === id)?.titre ?? "—";
@@ -293,7 +426,7 @@ export function SchedulePage() {
                           <div className="flex items-center gap-1.5">
                             <button onClick={() => setViewingItem(i)} className="text-slate-500 hover:text-cyan-300" title="Voir les apprenants"><Eye size={12} /></button>
                             {user?.role !== "teacher" && (
-                              <button onClick={() => update((d) => ({ ...d, schedule: d.schedule.filter((x) => x.id !== i.id) }))} className="text-slate-500 hover:text-red-400"><Trash2 size={13} /></button>
+                              <button onClick={() => deleteSchedule(i.id)} className="text-slate-500 hover:text-red-400"><Trash2 size={13} /></button>
                             )}
                           </div>
                         </div>
@@ -584,7 +717,7 @@ export function CoursesPage() {
     setCreating(true);
   };
 
-  const save = () => {
+  const save = async () => {
     if (!form.titre || !form.moduleId) return;
     const t = teacher ?? db.teachers.find((x) => x.modules.includes(form.moduleId)) ?? db.teachers[0];
     const module = db.modules.find((m) => m.id === form.moduleId);
@@ -595,6 +728,66 @@ export function CoursesPage() {
       studentIds: form.audience === "apprenants" ? form.studentIds : undefined,
       files: form.files, publie: form.publie,
     };
+
+    if (isSupabaseConfigured) {
+      try {
+        const isModUuid = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(form.moduleId);
+        const { data: modData } = isModUuid ? await supabase.from("modules").select("id").eq("id", form.moduleId).maybeSingle() : { data: null };
+        const realModuleId = modData?.id || null;
+
+        if (editing) {
+          await supabase.from("courses").update({
+            titre: form.titre.trim(),
+            description: form.description || "",
+            module_id: realModuleId,
+            teacher_id: t?.id || null,
+            type: form.type || "cours",
+            content: form.content || "",
+            audience: form.audience || "module",
+            publie: form.publie ?? true,
+          }).eq("id", editing.id);
+
+          if (form.files?.length) {
+            await supabase.from("course_files").delete().eq("course_id", editing.id);
+            await supabase.from("course_files").insert(form.files.map((f: any) => ({
+              course_id: editing.id,
+              nom: f.name || f.originalName,
+              taille: f.size,
+              type: f.mime,
+              url: f.dataUrl,
+            })));
+          }
+          toastMsg.success("Support mis à jour côté serveur ✓");
+        } else {
+          const { data: newCourse, error: cErr } = await supabase.from("courses").insert({
+            titre: form.titre.trim(),
+            description: form.description || "",
+            module_id: realModuleId,
+            teacher_id: t?.id || null,
+            type: form.type || "cours",
+            content: form.content || "",
+            audience: form.audience || "module",
+            publie: form.publie ?? true,
+          }).select("id").single();
+          if (cErr) throw cErr;
+
+          if (form.files?.length && newCourse?.id) {
+            await supabase.from("course_files").insert(form.files.map((f: any) => ({
+              course_id: newCourse.id,
+              nom: f.name || f.originalName,
+              taille: f.size,
+              type: f.mime,
+              url: f.dataUrl,
+            })));
+          }
+          toastMsg.success("Nouveau support publié côté serveur ✓");
+        }
+        window.dispatchEvent(new Event("sentinelles:supabase-refresh"));
+      } catch (err: any) {
+        toastMsg.error("Erreur enregistrement support", err.message);
+      }
+    }
+
     if (editing) {
       update((d) => ({ ...d, courses: d.courses.map((x) => (x.id === editing.id ? { ...x, ...payload } : x)) }));
       log(`Cours modifié : ${form.titre}`);
@@ -605,6 +798,21 @@ export function CoursesPage() {
       if (form.publie) notifyTargets(payload.audience, module?.id, payload.groupe, payload.studentIds, form.titre);
     }
     setCreating(false); setEditing(null); setForm(blankForm());
+  };
+
+  const deleteCourse = async (courseId: string, courseTitle: string) => {
+    if (!confirm(`Supprimer « ${courseTitle} » ?`)) return;
+    if (isSupabaseConfigured) {
+      try {
+        await supabase.from("courses").delete().eq("id", courseId);
+        window.dispatchEvent(new Event("sentinelles:supabase-refresh"));
+        toastMsg.info("Support supprimé du serveur");
+      } catch (err: any) {
+        toastMsg.error("Erreur suppression", err.message);
+      }
+    }
+    update((d) => ({ ...d, courses: d.courses.filter((x) => x.id !== courseId) }));
+    log(`Cours supprimé : ${courseTitle}`);
   };
 
   const notifyTargets = (audience: string, modId?: string, groupe?: string, studentIds?: string[], title = "") => {
@@ -618,9 +826,16 @@ export function CoursesPage() {
     });
   };
 
-  const togglePublish = (c: any) => {
-    update((d) => ({ ...d, courses: d.courses.map((x) => (x.id === c.id ? { ...x, publie: !(x.publie ?? true) } : x)) }));
-    log(`${c.publie === false ? "Publication" : "Dépublication"} : ${c.titre}`);
+  const togglePublish = async (c: any) => {
+    const newStatus = !(c.publie ?? true);
+    if (isSupabaseConfigured) {
+      try {
+        await supabase.from("courses").update({ publie: newStatus }).eq("id", c.id);
+        window.dispatchEvent(new Event("sentinelles:supabase-refresh"));
+      } catch {}
+    }
+    update((d) => ({ ...d, courses: d.courses.map((x) => (x.id === c.id ? { ...x, publie: newStatus } : x)) }));
+    log(`${newStatus ? "Publication" : "Dépublication"} : ${c.titre}`);
   };
 
   return (
@@ -680,7 +895,7 @@ export function CoursesPage() {
                     <button onClick={() => setViewing(c)} className="rounded-lg border border-white/10 p-1.5 text-slate-300 hover:border-cyan-400/40 hover:text-cyan-300" title="Voir"><Eye size={13} /></button>
                     <button onClick={() => togglePublish(c)} className="rounded-lg border border-white/10 p-1.5 text-slate-300 hover:border-amber-400/40 hover:text-amber-300" title={c.publie === false ? "Publier" : "Dépublier"}>{c.publie === false ? <BookOpen size={13} /> : <FileText size={13} />}</button>
                     <button onClick={() => openEdit(c)} className="rounded-lg border border-white/10 p-1.5 text-slate-300 hover:border-cyan-400/40 hover:text-cyan-300" title="Modifier"><Pencil size={13} /></button>
-                    <button onClick={() => { if (confirm(`Supprimer « ${c.titre} » ?`)) { update((d) => ({ ...d, courses: d.courses.filter((x) => x.id !== c.id) })); log(`Cours supprimé : ${c.titre}`); } }} className="text-slate-500 hover:text-red-400" title="Supprimer"><Trash2 size={13} /></button>
+                    <button onClick={() => deleteCourse(c.id, c.titre)} className="text-slate-500 hover:text-red-400" title="Supprimer"><Trash2 size={13} /></button>
                   </div>
                 </div>
               </Card>

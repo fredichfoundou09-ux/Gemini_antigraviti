@@ -330,13 +330,19 @@ export function StoreProvider({ children }: { children: React.ReactNode }) {
     syncTables();
     window.addEventListener("sentinelles:supabase-refresh", syncTables);
 
-    // Abonnement temps réel aux messages, notifications et pré-inscriptions
+    // Abonnement temps réel aux messages, notifications, pré-inscriptions, modules et plannings
     const channel = supabase
       .channel("realtime-updates")
       .on("postgres_changes", { event: "*", schema: "public", table: "messages" }, () => syncTables())
       .on("postgres_changes", { event: "*", schema: "public", table: "notifications" }, () => syncTables())
       .on("postgres_changes", { event: "*", schema: "public", table: "registrations" }, () => syncTables())
       .on("postgres_changes", { event: "*", schema: "public", table: "registration_modules" }, () => syncTables())
+      .on("postgres_changes", { event: "*", schema: "public", table: "modules" }, () => syncTables())
+      .on("postgres_changes", { event: "*", schema: "public", table: "chapters" }, () => syncTables())
+      .on("postgres_changes", { event: "*", schema: "public", table: "schedule" }, () => syncTables())
+      .on("postgres_changes", { event: "*", schema: "public", table: "courses" }, () => syncTables())
+      .on("postgres_changes", { event: "*", schema: "public", table: "teachers" }, () => syncTables())
+      .on("postgres_changes", { event: "*", schema: "public", table: "students" }, () => syncTables())
       .subscribe();
 
     return () => {

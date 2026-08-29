@@ -36,3 +36,16 @@ export async function removeFile(bucket: BucketName, path: string) {
   const { error } = await sb.storage.from(bucket).remove([path]);
   if (error) throw error;
 }
+
+export async function uploadImageToStorage(file: File, bucket: BucketName = "public-media", folder = "uploads"): Promise<string> {
+  const sb = getSupabase();
+  const ext = (file.name || "image.jpg").split(".").pop() || "jpg";
+  const path = `${folder}/${Date.now()}-${Math.random().toString(36).slice(2)}.${ext}`;
+  const { error } = await sb.storage.from(bucket).upload(path, file, {
+    upsert: true,
+    contentType: file.type || "image/jpeg",
+  });
+  if (error) throw error;
+  const { data } = sb.storage.from(bucket).getPublicUrl(path);
+  return data.publicUrl;
+}

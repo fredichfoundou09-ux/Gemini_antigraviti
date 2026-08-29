@@ -1,4 +1,5 @@
 import { CourseFile } from "./types";
+import { supabase, isSupabaseConfigured } from "./supabase/client";
 
 // Types MIME autorisés pour les supports pédagogiques.
 export const ALLOWED_MIME = new Set<string>([
@@ -64,14 +65,41 @@ export function readFileAsDataUrl(file: File): Promise<string> {
 export async function ingestFile(file: File): Promise<CourseFile> {
   const check = validateFile(file);
   if (!check.ok) throw new Error(check.error);
-  const dataUrl = await readFileAsDataUrl(file);
+
+  const safeName = safeFileName(file.name);
+  const fileId = `F-${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 6)}`;
+  let finalUrl = "";
+
+  if (isSupabaseConfigured) {
+    try {
+      const ext = (file.name || "bin").split(".").pop() || "bin";
+      const storagePath = `courses/${Date.now()}-${fileId}.${ext}`;
+      const { data, error } = await supabase.storage.from("course-files").upload(storagePath, file, {
+        upsert: true,
+        contentType: file.type || undefined,
+      });
+      if (!error && data?.path) {
+        const { data: signed } = await supabase.storage.from("course-files").createSignedUrl(storagePath, 60 * 60 * 24 * 365);
+        if (signed?.signedUrl) {
+          finalUrl = signed.signedUrl;
+        }
+      }
+    } catch (e) {
+      console.warn("Storage upload fallback:", e);
+    }
+  }
+
+  if (!finalUrl) {
+    finalUrl = await readFileAsDataUrl(file);
+  }
+
   return {
-    id: `F-${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 6)}`,
-    name: safeFileName(file.name),
+    id: fileId,
+    name: safeName,
     originalName: file.name,
     mime: file.type || "application/octet-stream",
     size: file.size,
-    dataUrl,
+    dataUrl: finalUrl,
     uploadedAt: new Date().toISOString(),
   };
 }
@@ -87,8 +115,12 @@ export function fileKind(mime: string, name?: string): string {
   return "Fichier";
 }
 
-/** Déclenche le téléchargement d'un CourseFile depuis un dataURL. */
+/** Déclenche le téléchargement d'un CourseFile depuis un dataURL ou une URL de stockage. */
 export function downloadFile(f: CourseFile) {
+  if (f.dataUrl.startsWith("http://") || f.dataUrl.startsWith("https://")) {
+    window.open(f.dataUrl, "_blank");
+    return;
+  }
   const a = document.createElement("a");
   a.href = f.dataUrl;
   a.download = f.originalName || f.name;
