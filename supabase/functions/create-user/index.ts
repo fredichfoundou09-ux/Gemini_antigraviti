@@ -66,6 +66,12 @@ Deno.serve(async (req) => {
       return new Response(JSON.stringify({ error: "Une organisation partenaire est obligatoire." }), { status: 400, headers: corsHeaders });
     }
 
+    // Vérification préalable que l'identifiant (username) n'est pas déjà pris
+    const { data: existingByUsername } = await admin.from("profiles").select("id, role").eq("username", String(username).toLowerCase()).maybeSingle();
+    if (existingByUsername) {
+      return new Response(JSON.stringify({ error: "Cet identifiant (username) est déjà utilisé. Veuillez en choisir un autre." }), { status: 400, headers: corsHeaders });
+    }
+
     // 1) Auth user
     let userId: string;
     const { data: created, error: createErr } = await admin.auth.admin.createUser({
@@ -77,26 +83,14 @@ Deno.serve(async (req) => {
 
     if (createErr || !created.user) {
       if (createErr?.message?.toLowerCase().includes("already") || createErr?.message?.toLowerCase().includes("registered")) {
-        const { data: { users } } = await admin.auth.admin.listUsers();
-        const existing = (users || []).find((u: any) => u.email?.toLowerCase() === email.toLowerCase());
-        if (existing) {
-          userId = existing.id;
-          await admin.auth.admin.updateUserById(userId, {
-            password,
-            user_metadata: { username, name, role },
-          });
-        } else {
-          return new Response(JSON.stringify({ error: createErr.message }), { status: 400, headers: corsHeaders });
-        }
-      } else {
-        return new Response(JSON.stringify({ error: createErr?.message || "Création Auth échouée" }), { status: 400, headers: corsHeaders });
+        return new Response(JSON.stringify({ error: "Cette adresse email est déjà associée à un compte existant. Veuillez utiliser une adresse email unique." }), { status: 400, headers: corsHeaders });
       }
-    } else {
-      userId = created.user.id;
+      return new Response(JSON.stringify({ error: createErr?.message || "Création du compte impossible." }), { status: 400, headers: corsHeaders });
     }
+    userId = created.user.id;
 
-    // 2) Profile
-    const { error: profErr } = await admin.from("profiles").upsert({
+    // 2) Profile (insertion sécurisée sans risque d'écraser un compte tiers)
+    const { error: profErr } = await admin.from("profiles").insert({
       id: userId,
       username: String(username).toLowerCase(),
       name,
