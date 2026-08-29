@@ -1,4 +1,4 @@
-import { useState, useEffect } from "react";
+import { useState, useEffect, useRef } from "react";
 import { Link } from "react-router-dom";
 import {
   Info, UserCircle2, BookOpen, Wallet, Medal, FileText, PlusCircle, Trash2, Save, ExternalLink,
@@ -76,10 +76,12 @@ export function ContentEditor() {
 
   const [saved, setSaved] = useState(false);
   const [uploading, setUploading] = useState(false);
+  const initializedRef = useRef(false);
 
-  // Synchronisation réactive dès que les paramètres distants ou locaux se mettent à jour
+  // Synchronisation initiale dès que les paramètres sont disponibles
   useEffect(() => {
-    if (!db.settings) return;
+    if (!db.settings || initializedRef.current) return;
+    initializedRef.current = true;
     const cur = db.settings;
     if (cur.branding) setBranding({ ...cur.branding });
     if (cur.infos) setInfos({ ...cur.infos, whatsapp: Array.isArray(cur.infos.whatsapp) ? [...cur.infos.whatsapp] : [] });
@@ -144,6 +146,7 @@ export function ContentEditor() {
           advantages: db.advantages || [],
           partners: db.partners || [],
           announcements: db.announcements || [],
+          enia: db.enia || null,
         };
         const { error } = await supabase.from("site_settings").upsert({
           id: "default",

@@ -15,19 +15,34 @@ Deno.serve(async (req) => {
     const serviceKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
     const anonKey = Deno.env.get("SUPABASE_ANON_KEY")!;
 
-    // Vérifie l'appelant (staff)
-    const authHeader = req.headers.get("Authorization") || "";
-    const caller = createClient(supabaseUrl, anonKey, {
-      global: { headers: { Authorization: authHeader } },
-    });
-    const { data: callerUser } = await caller.auth.getUser();
-    if (!callerUser.user) {
-      return new Response(JSON.stringify({ error: "Non authentifié" }), { status: 401, headers: corsHeaders });
-    }
     const admin = createClient(supabaseUrl, serviceKey);
-    const { data: profile } = await admin.from("profiles").select("role,active").eq("id", callerUser.user.id).maybeSingle();
-    if (!profile?.active || !["superadmin", "admin"].includes(profile.role)) {
-      return new Response(JSON.stringify({ error: "Permissions insuffisantes" }), { status: 403, headers: corsHeaders });
+
+    // Vérification de l'appelant (staff) via token Bearer
+    const authHeader = req.headers.get("Authorization") || "";
+    const token = authHeader.replace(/^Bearer\s+/i, "").trim();
+    let callerUserId: string | null = null;
+
+    if (token) {
+      const { data: userData } = await admin.auth.getUser(token);
+      if (userData?.user) {
+        callerUserId = userData.user.id;
+      }
+    }
+
+    if (!callerUserId) {
+      // Cas bootstrap initial : vérifier s'il existe déjà un Super Admin
+      const { data: hasAdmin } = await admin.rpc("has_any_superadmin");
+      const bodyPreview = await req.clone().json().catch(() => ({}));
+      if (!hasAdmin && bodyPreview?.role === "superadmin") {
+        // Autoriser la création initiale du superadmin
+      } else {
+        return new Response(JSON.stringify({ error: "Session expirée ou non authentifié" }), { status: 401, headers: corsHeaders });
+      }
+    } else {
+      const { data: profile } = await admin.from("profiles").select("role,active").eq("id", callerUserId).maybeSingle();
+      if (!profile?.active || !["superadmin", "admin"].includes(profile.role)) {
+        return new Response(JSON.stringify({ error: "Permissions insuffisantes (réservé au personnel administratif)" }), { status: 403, headers: corsHeaders });
+      }
     }
 
     const body = await req.json();
@@ -141,7 +156,14 @@ Deno.serve(async (req) => {
 
     if (role === "teacher" && teacher) {
       const count = (await admin.from("teachers").select("id", { count: "exact", head: true })).count || 0;
-      const tid = `ENS-${String(count + 1).padStart(3, "0")}`;
+      let tid = `ENS-${String(count + 1).padStart(3, "0")}`;
+      const { data: existingTeachers } = await admin.from("teachers").select("id");
+      const existingIds = new Set((existingTeachers || []).map((t: any) => t.id));
+      let c = count + 1;
+      while (existingIds.has(tid)) {
+        c++;
+        tid = `ENS-${String(c).padStart(3, "0")}`;
+      }
       const { error: tErr } = await admin.from("teachers").insert({
         id: tid,
         user_id: userId,
@@ -218,13 +240,15 @@ Deno.serve(async (req) => {
     // Force le changement de mot de passe à la première connexion (mot de passe temporaire).
     await admin.from("profiles").update({ must_change_password: true }).eq("id", userId);
 
-    await admin.from("audit_logs").insert({
-      user_id: callerUser.user.id,
-      action: "CREATE",
-      entity_type: "profiles",
-      entity_id: userId,
-      description: `Création utilisateur ${username} (${role})`,
-    });
+    if (callerUserId) {
+      await admin.from("audit_logs").insert({
+        user_id: callerUserId,
+        action: "CREATE",
+        entity_type: "profiles",
+        entity_id: userId,
+        description: `Création utilisateur ${username} (${role})`,
+      });
+    }
 
     return new Response(JSON.stringify({ ok: true, user_id: userId }), {
       headers: { ...corsHeaders, "Content-Type": "application/json" },

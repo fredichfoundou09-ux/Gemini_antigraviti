@@ -241,6 +241,7 @@ export function StoreProvider({ children }: { children: React.ReactNode }) {
           advantages: remoteSettings?.advantages || prev.advantages,
           partners: remoteSettings?.partners || prev.partners,
           announcements: remoteSettings?.announcements || prev.announcements,
+          enia: remoteSettings?.enia || prev.enia,
           users: updatedUsers,
           modules: (modulesRes.data || []).map((m: any) => ({
             id: m.id,

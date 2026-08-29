@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, useEffect, useRef } from "react";
 import { Link } from "react-router-dom";
 import {
   GraduationCap, ExternalLink, Download, Maximize2, X, Gift, FileText, Wallet,
@@ -11,6 +11,8 @@ import {
 } from "@/lib/ui";
 import { EniaContent, EniaPartner } from "@/lib/types";
 import eniaAfficheDefault from "@/assets/enia-affiche.jpg";
+import { supabase, isSupabaseConfigured } from "@/lib/supabase/client";
+import { toastMsg } from "@/lib/toast";
 
 /* ================= CONSULTATION (tous rôles) ================= */
 export function EniaPage() {
@@ -291,9 +293,37 @@ export function EniaAdminPage() {
   const [saved, setSaved] = useState(false);
   const [tab, setTab] = useState<"general" | "bourse" | "frais" | "pieces" | "affiche" | "lien" | "partenaires">("general");
   const [partnerEdit, setPartnerEdit] = useState<EniaPartner | null>(null);
+  const initializedRef = useRef(false);
 
-  const persist = () => {
-    update((d) => ({ ...d, enia: structuredClone(enia) }));
+  useEffect(() => {
+    if (!db.enia || initializedRef.current) return;
+    initializedRef.current = true;
+    setEnia(structuredClone(db.enia));
+  }, [db.enia]);
+
+  const persist = async (customEnia?: EniaContent) => {
+    const dataToSave = customEnia ? structuredClone(customEnia) : structuredClone(enia);
+    update((d) => ({ ...d, enia: dataToSave }));
+
+    if (isSupabaseConfigured) {
+      try {
+        const { data: existingData } = await supabase.from("site_settings").select("data").eq("id", "default").maybeSingle();
+        const currentData = existingData?.data || {};
+        await supabase.from("site_settings").upsert({
+          id: "default",
+          data: { ...currentData, enia: dataToSave },
+          updated_at: new Date().toISOString(),
+        });
+        window.dispatchEvent(new Event("sentinelles:supabase-refresh"));
+        toastMsg.success("Module ENIA 2.0 enregistré côté serveur ✓", "Modifications visibles immédiatement");
+      } catch (err: any) {
+        console.warn("Sync enia err:", err);
+        toastMsg.info("Modifications appliquées localement ✓");
+      }
+    } else {
+      toastMsg.success("Modifications ENIA enregistrées ✓");
+    }
+
     log("Module ENIA 2.0 mis à jour");
     setSaved(true);
     setTimeout(() => setSaved(false), 2000);
@@ -302,8 +332,28 @@ export function EniaAdminPage() {
   const onAffiche = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const f = e.target.files?.[0];
     if (!f) return;
-    const img = await readImage(f, 1600);
-    setEnia({ ...enia, affiche: img });
+    try {
+      let photoUrl = await readImage(f, 1600);
+      if (isSupabaseConfigured) {
+        try {
+          const ext = (f.name || "jpg").split(".").pop() || "jpg";
+          const path = `public-media/enia-affiche-${Date.now()}.${ext}`;
+          const { error } = await supabase.storage.from("public-media").upload(path, f, { upsert: true });
+          if (!error) {
+            const { data: pub } = supabase.storage.from("public-media").getPublicUrl(path);
+            if (pub?.publicUrl) photoUrl = pub.publicUrl;
+          }
+        } catch { /* fallback */ }
+      }
+      const updated = { ...enia, affiche: photoUrl };
+      setEnia(updated);
+      await persist(updated);
+      toastMsg.success("Affiche ENIA 2.0 mise à jour ✓");
+    } catch (err: any) {
+      toastMsg.error("Erreur chargement affiche", err.message);
+    } finally {
+      e.target.value = "";
+    }
   };
 
   const addFee = () => setEnia({
@@ -319,14 +369,16 @@ export function EniaAdminPage() {
     bourseAvantages: [...enia.bourseAvantages, { id: uid("ea"), titre: "Nouvel avantage", description: "", ordre: enia.bourseAvantages.length + 1 }],
   });
 
-  const savePartner = (p: EniaPartner) => {
+  const savePartner = async (p: EniaPartner) => {
     const exists = enia.partenaires.some((x) => x.id === p.id);
-    setEnia({
+    const updated = {
       ...enia,
       partenaires: exists
         ? enia.partenaires.map((x) => (x.id === p.id ? p : x))
         : [...enia.partenaires, p],
-    });
+    };
+    setEnia(updated);
+    await persist(updated);
     setPartnerEdit(null);
   };
 
@@ -586,8 +638,26 @@ function PartnerForm({
   const onLogo = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const f = e.target.files?.[0];
     if (!f) return;
-    const img = await readImage(f, 400);
-    onChange({ ...value, logoUrl: img });
+    try {
+      let photoUrl = await readImage(f, 400);
+      if (isSupabaseConfigured) {
+        try {
+          const ext = (f.name || "jpg").split(".").pop() || "jpg";
+          const path = `public-media/enia-partner-${Date.now()}.${ext}`;
+          const { error } = await supabase.storage.from("public-media").upload(path, f, { upsert: true });
+          if (!error) {
+            const { data: pub } = supabase.storage.from("public-media").getPublicUrl(path);
+            if (pub?.publicUrl) photoUrl = pub.publicUrl;
+          }
+        } catch { /* fallback */ }
+      }
+      onChange({ ...value, logoUrl: photoUrl });
+      toastMsg.success("Logo partenaire chargé ✓");
+    } catch (err: any) {
+      toastMsg.error("Erreur chargement logo", err.message);
+    } finally {
+      e.target.value = "";
+    }
   };
   return (
     <div className="space-y-4">
