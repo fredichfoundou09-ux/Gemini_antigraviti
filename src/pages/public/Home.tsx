@@ -6,7 +6,6 @@ import {
 } from "lucide-react";
 import { useStore } from "@/lib/store";
 import { moduleIcon, money, Btn, SectionTitle, formationLabel } from "@/lib/ui";
-import responsableImg from "@/assets/responsable.jpg";
 import avantageImg from "@/assets/avantage-etudiants.jpg";
 
 const codeLines = [
@@ -23,7 +22,9 @@ export default function Home() {
   const s = db.settings;
   const infos = s.infos;
   const infoModules = db.modules.filter((m) => m.formation === "informatique");
-  const respImg = s.hero.responsibleImage;
+  const indModules = db.modules.filter((m) => m.formation === "industriel");
+  const respImg = s.hero?.responsibleImage;
+  const advantages = [...db.advantages].sort((a, b) => a.ordre - b.ordre);
   const activePartners = db.partners.filter((p) => p.actif);
   const activeAnnouncements = db.announcements.filter((a) => a.actif);
 

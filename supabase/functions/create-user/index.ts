@@ -115,6 +115,7 @@ Deno.serve(async (req) => {
           adresse: student.adresse ?? null,
           niveau: student.niveau ?? null,
           sexe: student.sexe ?? null,
+          photo_url: student.photo_url ?? student.photo ?? null,
           statut: "actif",
         });
         if (stErr) {
@@ -151,6 +152,7 @@ Deno.serve(async (req) => {
         phone: teacher.phone || "",
         type_contrat: teacher.type_contrat || "Prestation",
         tarif_horaire: teacher.tarif_horaire || 0,
+        photo_url: teacher.photo_url ?? teacher.photo ?? null,
         actif: true,
       });
       if (tErr) {

@@ -69,6 +69,7 @@ export function StudentsPage() {
   const [viewing, setViewing] = useState<Student | null>(null);
   const [form, setForm] = useState<any>(emptyStudent());
   const [createdCreds, setCreatedCreds] = useState<{ nom: string; identifiant: string; motDePasse: string; phone?: string } | null>(null);
+  const [deleteTarget, setDeleteTarget] = useState<Student | null>(null);
 
   const filtered = db.students.filter((s) => {
     const matchQ = `${s.nom} ${s.prenom} ${s.id}`.toLowerCase().includes(q.toLowerCase());
@@ -92,6 +93,7 @@ export function StudentsPage() {
             adresse: form.adresse || null,
             niveau: form.niveau || null,
             sexe: form.sexe || null,
+            photo_url: form.photo || null,
           }).eq("id", editing.id);
           window.dispatchEvent(new Event("sentinelles:supabase-refresh"));
           toastMsg.success("Apprenant mis à jour côté serveur ✓");
@@ -123,7 +125,8 @@ export function StudentsPage() {
             student: {
               formation_id: resolvedFormationId,
               nom: form.nom, prenom: form.prenom, telephone: form.telephone, whatsapp: form.whatsapp,
-              email, adresse: form.adresse, niveau: form.niveau, sexe: form.sexe
+              email, adresse: form.adresse, niveau: form.niveau, sexe: form.sexe,
+              photo_url: form.photo || null,
             },
             module_ids: form.modules
           });
@@ -266,19 +269,29 @@ export function StudentsPage() {
     }));
   };
 
-  const removeStudent = async (id: string) => {
-    if (!confirm("Supprimer cet apprenant ?")) return;
+  const confirmDeleteStudent = async () => {
+    if (!deleteTarget) return;
+    const id = deleteTarget.id;
+    const userId = deleteTarget.userId;
     if (isSupabaseConfigured) {
       try {
         await supabase.from("students").delete().eq("id", id);
+        if (userId) {
+          await supabase.from("profiles").delete().eq("id", userId);
+        }
         window.dispatchEvent(new Event("sentinelles:supabase-refresh"));
-        toastMsg.info("Apprenant supprimé du serveur");
+        toastMsg.success("Apprenant et compte supprimés avec succès ✓");
       } catch (err: any) {
         toastMsg.error("Erreur suppression", err.message);
       }
     }
-    update((d) => ({ ...d, students: d.students.filter((s) => s.id !== id) }));
-    log(`Apprenant supprimé : ${id}`);
+    update((d) => ({
+      ...d,
+      students: d.students.filter((s) => s.id !== id),
+      users: userId ? d.users.filter((u) => u.id !== userId) : d.users,
+    }));
+    log(`Apprenant supprimé : ${deleteTarget.prenom} ${deleteTarget.nom} (${id})`);
+    setDeleteTarget(null);
   };
 
   const statusBadge = (s: Student) => {
@@ -349,7 +362,7 @@ export function StudentsPage() {
                     <div className="flex justify-end gap-1.5">
                       <button onClick={() => setViewing(s)} className="rounded-lg border border-white/10 p-2 text-slate-300 hover:border-cyan-400/40 hover:text-cyan-300" title="Voir"><Eye size={15} /></button>
                       <button onClick={() => { setForm(s); setEditing(s); setCreating(true); }} className="rounded-lg border border-white/10 p-2 text-slate-300 hover:border-amber-400/40 hover:text-amber-300" title="Modifier"><Pencil size={15} /></button>
-                      <button onClick={() => removeStudent(s.id)} className="rounded-lg border border-white/10 p-2 text-slate-300 hover:border-red-500/40 hover:text-red-400" title="Supprimer"><Trash2 size={15} /></button>
+                      <button onClick={() => setDeleteTarget(s)} className="rounded-lg border border-white/10 p-2 text-slate-300 hover:border-red-500/40 hover:text-red-400" title="Supprimer"><Trash2 size={15} /></button>
                     </div>
                   </td>
                 </tr>
@@ -471,6 +484,25 @@ export function StudentsPage() {
           </div>
         </Modal>
       )}
+
+      {/* Modal confirmation suppression apprenant */}
+      <Modal open={!!deleteTarget} onClose={() => setDeleteTarget(null)} title="Confirmation de suppression">
+        <div className="space-y-4">
+          <p className="text-sm text-slate-300">
+            Voulez-vous vraiment supprimer définitivement l'apprenant{" "}
+            <span className="font-bold text-white">{deleteTarget?.prenom} {deleteTarget?.nom}</span> ({deleteTarget?.id}) ainsi que son compte d'accès ?
+          </p>
+          <div className="rounded-xl border border-red-500/30 bg-red-500/10 p-3 text-xs text-red-300">
+            ⚠️ Cette action est irréversible. Les inscriptions associées seront supprimées.
+          </div>
+          <div className="flex justify-end gap-2 pt-2">
+            <Btn variant="ghost" onClick={() => setDeleteTarget(null)}>Annuler</Btn>
+            <Btn variant="red" onClick={confirmDeleteStudent}>
+              <Trash2 size={15} /> Supprimer définitivement
+            </Btn>
+          </div>
+        </div>
+      </Modal>
     </div>
   );
 }
@@ -721,6 +753,7 @@ export function TeachersPage() {
   const [editing, setEditing] = useState<any>(null);
   const [creating, setCreating] = useState(false);
   const [viewing, setViewing] = useState<any>(null);
+  const [deleteTarget, setDeleteTarget] = useState<any>(null);
   const [q, setQ] = useState("");
   const [fFormation, setFFormation] = useState("");
   const [fModule, setFModule] = useState("");
@@ -731,6 +764,31 @@ export function TeachersPage() {
     actif: true, typeContrat: "Prestation", tarifHoraire: 0, heuresPrevues: 0, tarifsParModule: {} as Record<string, number>,
   });
   const [form, setForm] = useState<any>(emptyTeacher());
+
+  const confirmDeleteTeacher = async () => {
+    if (!deleteTarget) return;
+    const id = deleteTarget.id;
+    const userId = deleteTarget.userId;
+    if (isSupabaseConfigured) {
+      try {
+        await supabase.from("teachers").delete().eq("id", id);
+        if (userId) {
+          await supabase.from("profiles").delete().eq("id", userId);
+        }
+        window.dispatchEvent(new Event("sentinelles:supabase-refresh"));
+        toastMsg.success("Enseignant et compte supprimés avec succès ✓");
+      } catch (err: any) {
+        toastMsg.error("Erreur suppression", err.message);
+      }
+    }
+    update((d) => ({
+      ...d,
+      teachers: d.teachers.filter((t) => t.id !== id),
+      users: userId ? d.users.filter((u) => u.id !== userId) : d.users,
+    }));
+    log(`Enseignant supprimé : ${deleteTarget.prenom} ${deleteTarget.nom} (${id})`);
+    setDeleteTarget(null);
+  };
   const onPhoto = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const f = e.target.files?.[0];
     if (!f) return;
@@ -811,7 +869,8 @@ export function TeachersPage() {
             role: "teacher",
             teacher: {
               nom: form.nom, prenom: form.prenom, specialite: form.specialite,
-              email, phone: form.phone, type_contrat: form.typeContrat, tarif_horaire: form.tarifHoraire
+              email, phone: form.phone, type_contrat: form.typeContrat, tarif_horaire: form.tarifHoraire,
+              photo_url: form.photo || null,
             },
             module_ids: form.modules
           });
@@ -913,7 +972,7 @@ export function TeachersPage() {
                   <div className="flex gap-1.5">
                     <button onClick={() => setViewing(t)} className="rounded-lg border border-white/10 p-2 text-slate-300 hover:border-cyan-400/40 hover:text-cyan-300" title="Détails"><Eye size={14} /></button>
                     <button onClick={() => { setForm(t); setEditing(t); setCreating(true); }} className="rounded-lg border border-white/10 p-2 text-slate-300 hover:border-amber-400/40 hover:text-amber-300"><Pencil size={14} /></button>
-                    <button onClick={() => { if (confirm("Supprimer cet enseignant ? Ses heures seront conservées dans le journal.")) update((d) => ({ ...d, teachers: d.teachers.filter((x) => x.id !== t.id) })); }} className="rounded-lg border border-white/10 p-2 text-slate-300 hover:border-red-500/40 hover:text-red-400"><Trash2 size={14} /></button>
+                    <button onClick={() => setDeleteTarget(t)} className="rounded-lg border border-white/10 p-2 text-slate-300 hover:border-red-500/40 hover:text-red-400" title="Supprimer"><Trash2 size={14} /></button>
                   </div>
                 </div>
                 <div className="mt-3 flex flex-wrap gap-1.5">
@@ -1010,6 +1069,25 @@ export function TeachersPage() {
           </div>
         </div>
       </Modal>
+
+      {/* Modal confirmation suppression enseignant */}
+      <Modal open={!!deleteTarget} onClose={() => setDeleteTarget(null)} title="Confirmation de suppression">
+        <div className="space-y-4">
+          <p className="text-sm text-slate-300">
+            Voulez-vous vraiment supprimer définitivement l'enseignant{" "}
+            <span className="font-bold text-white">{deleteTarget?.prenom} {deleteTarget?.nom}</span> ({deleteTarget?.specialite}) ainsi que son compte ?
+          </p>
+          <div className="rounded-xl border border-red-500/30 bg-red-500/10 p-3 text-xs text-red-300">
+            ⚠️ Cette action retirera également le formateur des modules attribués.
+          </div>
+          <div className="flex justify-end gap-2 pt-2">
+            <Btn variant="ghost" onClick={() => setDeleteTarget(null)}>Annuler</Btn>
+            <Btn variant="red" onClick={confirmDeleteTeacher}>
+              <Trash2 size={15} /> Supprimer définitivement
+            </Btn>
+          </div>
+        </div>
+      </Modal>
     </div>
   );
 }
@@ -1101,14 +1179,38 @@ function TeacherDetail({ t }: { t: any }) {
 
 /* ================= USERS ================= */
 export function UsersPage() {
-  const { db, update, log } = useStore();
+  const { db, user, update, log } = useStore();
   const [adding, setAdding] = useState(false);
   const [resetTarget, setResetTarget] = useState<{ id: string; username: string } | null>(null);
+  const [deleteTarget, setDeleteTarget] = useState<User | null>(null);
   const [newPw, setNewPw] = useState("");
   const [newPwBusy, setNewPwBusy] = useState(false);
   const [newPwErr, setNewPwErr] = useState("");
   const emptyUserForm = () => ({ username: "", password: "", role: "student", name: "", email: "", phone: "", organizationName: "", poste: "", accessLevel: "viewer", startDate: today(), endDate: "" });
   const [form, setForm] = useState(emptyUserForm());
+
+  const confirmDeleteUser = async () => {
+    if (!deleteTarget) return;
+    const uid = deleteTarget.id;
+    const username = deleteTarget.username;
+    if (isSupabaseConfigured) {
+      try {
+        await supabase.from("profiles").delete().eq("id", uid);
+        window.dispatchEvent(new Event("sentinelles:supabase-refresh"));
+        toastMsg.success("Compte utilisateur supprimé avec succès ✓");
+      } catch (err: any) {
+        toastMsg.error("Erreur suppression", err.message);
+      }
+    }
+    update((d) => ({
+      ...d,
+      users: d.users.filter((u) => u.id !== uid),
+      students: d.students.filter((s) => s.userId !== uid),
+      teachers: d.teachers.filter((t) => t.userId !== uid),
+    }));
+    log(`Compte utilisateur supprimé : ${deleteTarget.name} (${username})`);
+    setDeleteTarget(null);
+  };
 
   const roleColor = (r: string) => r === "superadmin" ? "red" : r === "admin" ? "gold" : r === "teacher" ? "cyan" : "green";
   const roleLabel = (r: string) => r === "superadmin" ? "Super Admin" : r === "admin" ? "Administration" : r === "partner_admin" ? "Admin partenaire" : r === "teacher" ? "Enseignant" : r === "partner" ? "Partenaire" : "Apprenant";
@@ -1156,9 +1258,14 @@ export function UsersPage() {
                     <button title="Réinitialiser le mot de passe"
                       onClick={() => { setResetTarget({ id: u.id, username: u.username }); setNewPw(""); setNewPwErr(""); }}
                       className="rounded-lg border border-white/10 p-2 text-slate-300 hover:border-cyan-400/40 hover:text-cyan-300"><KeyRound size={14} /></button>
-                    {u.role !== "superadmin" && (
-                      <button onClick={() => { if (confirm("Supprimer cet utilisateur ?")) update((d) => ({ ...d, users: d.users.filter((x) => x.id !== u.id) })); }}
-                        className="rounded-lg border border-white/10 p-2 text-slate-300 hover:border-red-500/40 hover:text-red-400"><Trash2 size={14} /></button>
+                    {user?.id !== u.id && (
+                      <button
+                        title="Supprimer cet utilisateur"
+                        onClick={() => setDeleteTarget(u)}
+                        className="rounded-lg border border-white/10 p-2 text-slate-300 hover:border-red-500/40 hover:text-red-400"
+                      >
+                        <Trash2 size={14} />
+                      </button>
                     )}
                   </div>
                 </td>
@@ -1306,6 +1413,25 @@ export function UsersPage() {
               }
               setAdding(false); setForm(emptyUserForm());
             }}>Créer</Btn>
+          </div>
+        </div>
+      </Modal>
+
+      {/* Modal confirmation suppression utilisateur */}
+      <Modal open={!!deleteTarget} onClose={() => setDeleteTarget(null)} title="Confirmation de suppression">
+        <div className="space-y-4">
+          <p className="text-sm text-slate-300">
+            Voulez-vous vraiment supprimer définitivement le compte de l'utilisateur{" "}
+            <span className="font-bold text-white">{deleteTarget?.name}</span> (Identifiant : <span className="font-mono text-cyan-300">{deleteTarget?.username}</span>, Rôle : <span className="text-amber-300">{deleteTarget && roleLabel(deleteTarget.role)}</span>) ?
+          </p>
+          <div className="rounded-xl border border-red-500/30 bg-red-500/10 p-3 text-xs text-red-300">
+            ⚠️ Attention : Cette action est irréversible et révoquera immédiatement tous ses accès au logiciel.
+          </div>
+          <div className="flex justify-end gap-2 pt-2">
+            <Btn variant="ghost" onClick={() => setDeleteTarget(null)}>Annuler</Btn>
+            <Btn variant="red" onClick={confirmDeleteUser}>
+              <Trash2 size={15} /> Supprimer définitivement
+            </Btn>
           </div>
         </div>
       </Modal>

@@ -264,7 +264,8 @@ export function StoreProvider({ children }: { children: React.ReactNode }) {
               id: s.id, nom: s.nom, prenom: s.prenom, dateNaissance: s.date_naissance || "",
               sexe: s.sexe, telephone: s.telephone, whatsapp: s.whatsapp, email: s.email,
               adresse: s.adresse, niveau: s.niveau, formation: (formationById.get(s.formation_id) || "informatique") as Formation,
-              modules: mods, dateInscription: s.date_inscription || "", statutPaiement: "impaye", statut: s.statut, userId: s.user_id
+              modules: mods, dateInscription: s.date_inscription || "", statutPaiement: "impaye", statut: s.statut, userId: s.user_id,
+              photo: s.photo_url || s.photo || "",
             };
           }),
           teachers: (teachersRes.data || []).map((t: any) => {
@@ -281,9 +282,9 @@ export function StoreProvider({ children }: { children: React.ReactNode }) {
           }),
           courses: (coursesRes.data || []).map((c: any) => ({
             id: c.id, titre: c.titre, description: c.description || "", moduleId: c.module_id,
-            teacherId: c.teacher_id, type: c.type as any, datePublication: c.date_publication?.slice(0, 10) || "",
+            teacherId: c.teacher_id, type: c.type as any, date: c.date_publication?.slice(0, 10) || c.date || "",
             audience: c.audience as any, publie: c.publie, content: c.content || "",
-            fichiers: (c.files || []).map((f: any) => ({ id: f.id, nom: f.nom, taille: f.taille, type: f.type, url: f.url }))
+            files: (c.files || []).map((f: any) => ({ id: f.id, nom: f.nom, taille: f.taille, type: f.type, url: f.url }))
           })),
           schedule: (scheduleRes.data || []).map((s: any) => ({
             id: s.id, jour: s.jour as any, heureDebut: s.heure_debut, heureFin: s.heure_fin, date: s.date || undefined,
@@ -403,9 +404,12 @@ export function StoreProvider({ children }: { children: React.ReactNode }) {
 
   useEffect(() => {
     if (sbActive) {
-      supabase.rpc("has_any_superadmin").then(({ data }) => {
-        if (typeof data === "boolean") setSbHasAdmin(data);
-      }).catch(() => {});
+      (async () => {
+        try {
+          const { data } = await supabase.rpc("has_any_superadmin");
+          if (typeof data === "boolean") setSbHasAdmin(data);
+        } catch { /* ignore */ }
+      })();
     }
   }, [sbActive]);
 

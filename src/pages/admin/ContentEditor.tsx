@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { Link } from "react-router-dom";
 import {
   Info, UserCircle2, BookOpen, Wallet, Medal, FileText, PlusCircle, Trash2, Save, ExternalLink,
@@ -9,7 +9,6 @@ import { cn } from "@/utils/cn";
 import { Btn, Card, Field, Input, Textarea, PageHead, readImage, uid } from "@/lib/ui";
 import { supabase, isSupabaseConfigured } from "@/lib/supabase/client";
 import { toastMsg } from "@/lib/toast";
-import responsableImg from "@/assets/responsable.jpg";
 
 const TABS = [
   { k: "infos", l: "Informations", icon: <Info size={15} /> },
