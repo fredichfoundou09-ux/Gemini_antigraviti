@@ -108,6 +108,12 @@ export function StudentsPage() {
             module_ids: form.modules
           });
           
+          setCreatedCreds({
+            nom: `${form.prenom} ${form.nom}`,
+            identifiant: uname,
+            motDePasse: tempPassword,
+            phone: form.whatsapp || form.telephone,
+          });
           toastMsg.credentials({ nom: `${form.prenom} ${form.nom}`, identifiant: uname, motDePasse: tempPassword });
           toastMsg.success("Apprenant inscrit côté serveur ✓");
           log(`Apprenant inscrit (Supabase) : ${form.nom} ${form.prenom} — compte ${uname}`);
@@ -132,6 +138,12 @@ export function StudentsPage() {
         }));
         notify("all", "Nouvel apprenant inscrit", `${form.nom} ${form.prenom} — ${formationLabel(form.formation)} • À facturer : ${money(montant + insc)}`, "inscription");
         log(`Apprenant inscrit : ${form.nom} ${form.prenom} (${id}) — compte ${uname} — à facturer ${money(montant + insc)}`);
+        setCreatedCreds({
+          nom: `${form.prenom} ${form.nom}`,
+          identifiant: uname,
+          motDePasse: tempPassword,
+          phone: form.whatsapp || form.telephone,
+        });
         toastMsg.credentials({ nom: `${form.prenom} ${form.nom}`, identifiant: uname, motDePasse: tempPassword });
         toastMsg.info(`Factures générées : ${money(montant + insc)}`);
       }
@@ -152,15 +164,9 @@ export function StudentsPage() {
     const montant = computeAmount(reg.formation, reg.modules.length);
     const insc = db.settings.frais.inscription;
 
-    // Détection et résolution des conflits d'email (évite le blocage si l'email existe déjà dans Supabase Auth)
-    let email = reg.email?.trim();
-    const emailConflict = email && db.users.some(u => u.email?.toLowerCase() === email?.toLowerCase());
-    if (!email || emailConflict) {
-      email = `${uname}@sentinelles.local`;
-    }
-
     if (isSupabaseConfigured) {
       try {
+        const email = reg.email || `${uname}@sentinelles.local`;
         const resolvedFormationId = await resolveFormationId(reg.formation);
         await invokeCreateUser({
           email,
@@ -189,7 +195,7 @@ export function StudentsPage() {
           motDePasse: tempPassword,
           phone: reg.whatsapp || reg.telephone,
         });
-
+        toastMsg.credentials({ nom: `${reg.prenom} ${reg.nom}`, identifiant: uname, motDePasse: tempPassword });
         toastMsg.success("Inscription confirmée côté serveur ✓");
         log(`Pré-inscription confirmée (Supabase) : ${reg.nom} ${reg.prenom} — compte ${uname}`);
         window.dispatchEvent(new Event("sentinelles:supabase-refresh"));
@@ -212,6 +218,12 @@ export function StudentsPage() {
         ],
         notifications: [{ id: uid("NTF"), toId: withUser.userId!, title: "Inscription confirmée", body: `Bienvenue ${withUser.prenom} ! Identifiant : ${uname}. Un mot de passe temporaire vous a été communiqué. N° apprenant : ${id}.`, date: today(), lu: false, type: "inscription" }, ...d.notifications],
       }));
+      setCreatedCreds({
+        nom: `${reg.prenom} ${reg.nom}`,
+        identifiant: uname,
+        motDePasse: tempPassword,
+        phone: reg.whatsapp || reg.telephone,
+      });
       toastMsg.credentials({ nom: `${reg.prenom} ${reg.nom}`, identifiant: uname, motDePasse: tempPassword });
       toastMsg.info(`Factures générées : ${money(montant + insc)}`);
       log(`Pré-inscription confirmée : ${reg.nom} ${reg.prenom} (${id}) — compte ${uname} — à facturer ${money(montant + insc)}`);

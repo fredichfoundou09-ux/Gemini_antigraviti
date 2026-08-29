@@ -59,22 +59,19 @@ Deno.serve(async (req) => {
       email_confirm: true,
       user_metadata: { username, name, role },
     });
-    if (createErr || !created?.user) {
-      if (createErr?.message?.includes("already been registered")) {
+
+    if (createErr || !created.user) {
+      if (createErr?.message?.toLowerCase().includes("already") || createErr?.message?.toLowerCase().includes("registered")) {
         const { data: { users } } = await admin.auth.admin.listUsers();
         const existing = (users || []).find((u: any) => u.email?.toLowerCase() === email.toLowerCase());
         if (existing) {
-          const { data: existingProfile } = await admin.from("profiles").select("role").eq("id", existing.id).maybeSingle();
-          if (existingProfile && existingProfile.role === role) {
-            return new Response(JSON.stringify({ error: `Un compte ${role} existe déjà pour cette adresse (${email}).` }), { status: 400, headers: corsHeaders });
-          }
-          await admin.auth.admin.updateUserById(existing.id, {
+          userId = existing.id;
+          await admin.auth.admin.updateUserById(userId, {
             password,
             user_metadata: { username, name, role },
           });
-          userId = existing.id;
         } else {
-          return new Response(JSON.stringify({ error: "Cette adresse email est déjà enregistrée." }), { status: 400, headers: corsHeaders });
+          return new Response(JSON.stringify({ error: createErr.message }), { status: 400, headers: corsHeaders });
         }
       } else {
         return new Response(JSON.stringify({ error: createErr?.message || "Création Auth échouée" }), { status: 400, headers: corsHeaders });
@@ -93,40 +90,50 @@ Deno.serve(async (req) => {
       active: true,
     });
     if (profErr) {
-      await admin.auth.admin.deleteUser(userId);
       return new Response(JSON.stringify({ error: profErr.message }), { status: 400, headers: corsHeaders });
     }
 
     // 3) Fiche métier
     if (role === "student" && student) {
-      const { data: sid, error: sidErr } = await admin.rpc("generate_student_id");
-      if (sidErr) {
-        await admin.auth.admin.deleteUser(userId);
-        return new Response(JSON.stringify({ error: sidErr.message }), { status: 400, headers: corsHeaders });
+      const { data: existingStudent } = await admin.from("students").select("id").eq("user_id", userId).maybeSingle();
+      let sid = existingStudent?.id;
+      if (!sid) {
+        const { data: newSid, error: sidErr } = await admin.rpc("generate_student_id");
+        if (sidErr) {
+          return new Response(JSON.stringify({ error: sidErr.message }), { status: 400, headers: corsHeaders });
+        }
+        sid = newSid;
+        const { error: stErr } = await admin.from("students").insert({
+          id: sid,
+          user_id: userId,
+          formation_id: student.formation_id,
+          nom: student.nom,
+          prenom: student.prenom,
+          telephone: student.telephone,
+          whatsapp: student.whatsapp,
+          email: student.email ?? email,
+          adresse: student.adresse ?? null,
+          niveau: student.niveau ?? null,
+          sexe: student.sexe ?? null,
+          statut: "actif",
+        });
+        if (stErr) {
+          return new Response(JSON.stringify({ error: stErr.message }), { status: 400, headers: corsHeaders });
+        }
       }
-      const { error: stErr } = await admin.from("students").insert({
-        id: sid,
-        user_id: userId,
-        formation_id: student.formation_id,
-        nom: student.nom,
-        prenom: student.prenom,
-        telephone: student.telephone,
-        whatsapp: student.whatsapp,
-        email: student.email ?? email,
-        adresse: student.adresse ?? null,
-        niveau: student.niveau ?? null,
-        sexe: student.sexe ?? null,
-        statut: "actif",
-      });
-      if (stErr) {
-        await admin.auth.admin.deleteUser(userId);
-        return new Response(JSON.stringify({ error: stErr.message }), { status: 400, headers: corsHeaders });
-      }
-      if (module_ids.length) {
-        const { error: smErr } = await admin.from("student_modules").insert(module_ids.map((module_id: string) => ({ student_id: sid, module_id })));
-        if (smErr) {
-          await admin.auth.admin.deleteUser(userId);
-          return new Response(JSON.stringify({ error: smErr.message }), { status: 400, headers: corsHeaders });
+
+      if (Array.isArray(module_ids) && module_ids.length) {
+        const validUuids = module_ids.filter((id: string) =>
+          typeof id === "string" && /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(id)
+        );
+        if (validUuids.length) {
+          const { data: existingMods } = await admin.from("modules").select("id").in("id", validUuids);
+          const existingIds = (existingMods || []).map((m: any) => m.id);
+          if (existingIds.length) {
+            await admin.from("student_modules").insert(
+              existingIds.map((module_id: string) => ({ student_id: sid, module_id }))
+            );
+          }
         }
       }
     }
@@ -147,14 +154,20 @@ Deno.serve(async (req) => {
         actif: true,
       });
       if (tErr) {
-        await admin.auth.admin.deleteUser(userId);
         return new Response(JSON.stringify({ error: tErr.message }), { status: 400, headers: corsHeaders });
       }
-      if (module_ids.length) {
-        const { error: tmErr } = await admin.from("teacher_modules").insert(module_ids.map((module_id: string) => ({ teacher_id: tid, module_id })));
-        if (tmErr) {
-          await admin.auth.admin.deleteUser(userId);
-          return new Response(JSON.stringify({ error: tmErr.message }), { status: 400, headers: corsHeaders });
+      if (Array.isArray(module_ids) && module_ids.length) {
+        const validUuids = module_ids.filter((id: string) =>
+          typeof id === "string" && /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(id)
+        );
+        if (validUuids.length) {
+          const { data: existingMods } = await admin.from("modules").select("id").in("id", validUuids);
+          const existingIds = (existingMods || []).map((m: any) => m.id);
+          if (existingIds.length) {
+            await admin.from("teacher_modules").insert(
+              existingIds.map((module_id: string) => ({ teacher_id: tid, module_id }))
+            );
+          }
         }
       }
     }
