@@ -290,6 +290,7 @@ export function EniaPage() {
 export function EniaAdminPage() {
   const { db, update, log } = useStore();
   const [enia, setEnia] = useState<EniaContent>(() => structuredClone(db.enia));
+  const [highlightsRaw, setHighlightsRaw] = useState(() => (db.enia?.bourseHighlights || []).join("\n"));
   const [saved, setSaved] = useState(false);
   const [tab, setTab] = useState<"general" | "bourse" | "frais" | "pieces" | "affiche" | "lien" | "partenaires">("general");
   const [partnerEdit, setPartnerEdit] = useState<EniaPartner | null>(null);
@@ -299,10 +300,21 @@ export function EniaAdminPage() {
     if (!db.enia || initializedRef.current) return;
     initializedRef.current = true;
     setEnia(structuredClone(db.enia));
+    setHighlightsRaw((db.enia.bourseHighlights || []).join("\n"));
   }, [db.enia]);
 
   const persist = async (customEnia?: EniaContent) => {
-    const dataToSave = customEnia ? structuredClone(customEnia) : structuredClone(enia);
+    const highlights = highlightsRaw.split("\n").map((s) => s.trim()).filter(Boolean);
+    const cleanedPieces = (customEnia?.pieces || enia.pieces || []).map((p) => ({
+      ...p,
+      pieces: (p.pieces || []).map((x) => x.trim()).filter(Boolean),
+    }));
+    const base = customEnia ? structuredClone(customEnia) : structuredClone(enia);
+    const dataToSave: EniaContent = {
+      ...base,
+      bourseHighlights: highlights,
+      pieces: cleanedPieces,
+    };
     update((d) => ({ ...d, enia: dataToSave }));
 
     if (isSupabaseConfigured) {
@@ -439,8 +451,8 @@ export function EniaAdminPage() {
           </Field>
           <Field label="Points forts (un par ligne)">
             <Textarea
-              value={(enia.bourseHighlights || []).join("\n")}
-              onChange={(e) => setEnia({ ...enia, bourseHighlights: e.target.value.split("\n").map((s) => s.trim()).filter(Boolean) })}
+              value={highlightsRaw}
+              onChange={(e) => setHighlightsRaw(e.target.value)}
             />
           </Field>
         </Card>
@@ -525,7 +537,7 @@ export function EniaAdminPage() {
                   value={(g.pieces || []).join("\n")}
                   onChange={(e) => {
                     const list = [...enia.pieces];
-                    list[idx] = { ...g, pieces: e.target.value.split("\n").map((s) => s.trim()).filter(Boolean) };
+                    list[idx] = { ...g, pieces: e.target.value.split("\n") };
                     setEnia({ ...enia, pieces: list });
                   }}
                 />

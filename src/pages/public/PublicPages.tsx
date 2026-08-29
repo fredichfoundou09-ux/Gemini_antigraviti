@@ -239,6 +239,21 @@ export function PreInscriptionPage() {
     }
   };
 
+  if (s.preInscription && s.preInscription.enabled === false) {
+    return (
+      <div className="mx-auto max-w-xl px-4 py-20 text-center">
+        <div className="mx-auto mb-5 flex h-20 w-20 items-center justify-center rounded-full border border-amber-400/40 bg-amber-400/10">
+          <Clock size={36} className="text-amber-300" />
+        </div>
+        <h1 className="font-display text-2xl font-black text-white">{s.preInscription.title || "Inscriptions suspendues"}</h1>
+        <p className="mt-3 text-slate-300">{s.preInscription.description || "Les pré-inscriptions en ligne sont momentanément fermées. Veuillez contacter le centre pour plus d'informations."}</p>
+        <div className="mt-6">
+          <Link to="/"><Btn variant="outline">Retour à l'accueil</Btn></Link>
+        </div>
+      </div>
+    );
+  }
+
   if (done) {
     return (
       <div className="mx-auto max-w-xl px-4 py-20 text-center">

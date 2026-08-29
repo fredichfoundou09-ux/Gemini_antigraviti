@@ -76,6 +76,7 @@ export function ContentEditor() {
 
   const [saved, setSaved] = useState(false);
   const [uploading, setUploading] = useState(false);
+  const [whatsappRaw, setWhatsappRaw] = useState(() => (s.infos?.whatsapp || []).join("\n"));
   const initializedRef = useRef(false);
 
   // Synchronisation initiale dès que les paramètres sont disponibles
@@ -84,7 +85,10 @@ export function ContentEditor() {
     initializedRef.current = true;
     const cur = db.settings;
     if (cur.branding) setBranding({ ...cur.branding });
-    if (cur.infos) setInfos({ ...cur.infos, whatsapp: Array.isArray(cur.infos.whatsapp) ? [...cur.infos.whatsapp] : [] });
+    if (cur.infos) {
+      setInfos({ ...cur.infos, whatsapp: Array.isArray(cur.infos.whatsapp) ? [...cur.infos.whatsapp] : [] });
+      setWhatsappRaw((cur.infos.whatsapp || []).join("\n"));
+    }
     if (Array.isArray(cur.partenaires)) setPartenaires([...cur.partenaires]);
     if (cur.hero) setHero({ ...cur.hero });
     if (cur.formations) {
@@ -114,10 +118,13 @@ export function ContentEditor() {
   const persist = async (customHero?: typeof hero, customAdvantageImg?: string) => {
     const activeHero = customHero || hero;
     const activeAdvantageImg = customAdvantageImg !== undefined ? customAdvantageImg : advantageImage;
+    const finalWhatsapp = whatsappRaw.split("\n").map((s) => s.trim()).filter(Boolean);
+    const activeInfos = { ...infos, whatsapp: finalWhatsapp };
+
     const updatedSettings = {
       ...db.settings,
       branding,
-      infos,
+      infos: activeInfos,
       partenaires,
       hero: activeHero,
       formations,
@@ -295,7 +302,13 @@ export function ContentEditor() {
               </div>
               <Field label="Texte d'inscription"><Input value={infos.inscription} onChange={(e) => setInfos({ ...infos, inscription: e.target.value })} /></Field>
               <Field label="WhatsApp (un par ligne)">
-                <Textarea value={infos.whatsapp.join("\n")} onChange={(e) => setInfos({ ...infos, whatsapp: e.target.value.split("\n").filter(Boolean) })} />
+                <Textarea
+                  value={whatsappRaw}
+                  onChange={(e) => {
+                    setWhatsappRaw(e.target.value);
+                    setInfos({ ...infos, whatsapp: e.target.value.split("\n").map((s) => s.trim()).filter(Boolean) });
+                  }}
+                />
               </Field>
             </div>
           </Card>

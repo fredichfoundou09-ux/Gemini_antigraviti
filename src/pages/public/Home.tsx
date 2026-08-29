@@ -24,8 +24,31 @@ export default function Home() {
   const infoModules = db.modules.filter((m) => m.formation === "informatique");
   const indModules = db.modules.filter((m) => m.formation === "industriel");
   const respImg = s.hero?.responsibleImage;
-  const advantages = [...db.advantages].sort((a, b) => a.ordre - b.ordre);
-  const activePartners = db.partners.filter((p) => p.actif);
+  const displayAdvantages = (s.avantages && s.avantages.length > 0)
+    ? s.avantages.filter(Boolean).map((txt, idx) => {
+        const found = db.advantages?.find((a) => a.titre.toLowerCase() === txt.toLowerCase());
+        return {
+          id: found?.id || `sa-${idx}`,
+          titre: txt,
+          description: found?.description || "",
+          explication: found?.explication || "",
+          image: found?.image || "",
+          ordre: idx,
+        };
+      })
+    : [...db.advantages].sort((a, b) => a.ordre - b.ordre);
+
+  const displayPartners = (s.partenaires && s.partenaires.length > 0)
+    ? s.partenaires.filter(Boolean).map((nom, idx) => {
+        const found = db.partners?.find((p) => p.nom.toLowerCase() === nom.toLowerCase());
+        return {
+          id: found?.id || `sp-${idx}`,
+          nom,
+          logo: found?.logo || "",
+        };
+      })
+    : db.partners.filter((p) => p.actif);
+
   const activeAnnouncements = db.announcements.filter((a) => a.actif);
 
   return (
@@ -62,9 +85,9 @@ export default function Home() {
 
           {/* partner strip */}
           <div className="mb-10 flex flex-wrap items-center justify-center gap-3 sm:gap-5">
-            {activePartners.length === 0 ? (
+            {displayPartners.length === 0 ? (
               <span className="text-xs text-slate-600">Partenaires institutionnels</span>
-            ) : activePartners.map((p) => (
+            ) : displayPartners.map((p) => (
               <div key={p.id} className="flex items-center gap-2.5 rounded-xl border border-white/10 bg-white/[0.04] px-4 py-2.5 text-sm font-bold text-slate-200 backdrop-blur">
                 {p.logo ? <img src={p.logo} alt="" className="h-5 w-5 rounded object-cover" /> : <GraduationCap size={18} />}
                 {p.nom}
@@ -329,9 +352,9 @@ export default function Home() {
             <SectionTitle color="green">Avantages</SectionTitle>
             <div className="overflow-hidden rounded-2xl border border-emerald-400/25 bg-[#07152B]/80">
               <div className="space-y-3 p-6">
-                {advantages.length === 0 ? (
+                {displayAdvantages.length === 0 ? (
                   <p className="text-sm text-slate-500">Aucun avantage enregistré pour le moment.</p>
-                ) : advantages.map((a, i) => {
+                ) : displayAdvantages.map((a, i) => {
                   const colors = ["border-amber-400/30", "border-cyan-400/30", "border-emerald-400/30"];
                   const icons = [<Award size={20} className="text-amber-300" />, <Medal size={20} className="text-cyan-300" />, <TrendingUp size={20} className="text-emerald-300" />];
                   return (
@@ -340,8 +363,8 @@ export default function Home() {
                         {a.image ? <img src={a.image} alt="" className="h-10 w-10 shrink-0 rounded-lg object-cover" /> : <div className="mt-0.5 shrink-0">{icons[i % 3]}</div>}
                         <div>
                           <p className="text-sm font-bold text-white">{a.titre}</p>
-                          <p className="text-sm font-semibold text-slate-300">{a.description}</p>
-                          {a.explication && <p className="mt-1 text-xs text-slate-400">{a.explication}</p>}
+                          {a.description ? <p className="text-sm font-semibold text-slate-300">{a.description}</p> : null}
+                          {a.explication ? <p className="mt-1 text-xs text-slate-400">{a.explication}</p> : null}
                         </div>
                       </div>
                     </div>
