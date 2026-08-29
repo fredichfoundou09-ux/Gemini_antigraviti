@@ -189,7 +189,8 @@ export function StudentsPage() {
 
     if (isSupabaseConfigured) {
       try {
-        const email = reg.email || `${uname}@sentinelles.local`;
+        const emailTaken = db.users.some((u) => u.email?.toLowerCase() === (reg.email || "").toLowerCase().trim());
+        const email = (!reg.email || emailTaken) ? `${uname}@sentinelles.local` : reg.email.trim();
         const resolvedFormationId = await resolveFormationId(reg.formation);
         await invokeCreateUser({
           email,

@@ -19,10 +19,13 @@ export function TeacherSubmissions() {
   const [note, setNote] = useState("");
   const [appr, setAppr] = useState("");
 
-  if (!teacher) return <Empty icon={<ClipboardCheck size={40} />} title="Profil enseignant introuvable" />;
+  const isAdmin = user?.role === "superadmin" || user?.role === "admin";
+  if (!teacher && !isAdmin) return <Empty icon={<ClipboardCheck size={40} />} title="Profil enseignant introuvable" />;
 
-  // Devoirs publiés par ce formateur
-  const devoirs = db.courses.filter((c) => c.type === "devoir" && (c.teacherId === teacher.id || teacher.modules.includes(c.moduleId)));
+  // Devoirs publiés (tous les devoirs pour l'administration, filtrés pour un formateur)
+  const devoirs = db.courses.filter((c) =>
+    c.type === "devoir" && (isAdmin || !teacher || c.teacherId === teacher.id || teacher.modules.includes(c.moduleId))
+  );
   const submissions = db.submissions
     .filter((s) => devoirs.some((c) => c.id === s.courseId))
     .filter((s) => !filterCourse || s.courseId === filterCourse)

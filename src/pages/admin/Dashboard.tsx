@@ -7,6 +7,8 @@ import {
 } from "lucide-react";
 import { useStore } from "@/lib/store";
 import { Card, Stat, PageHead, Badge, Btn, Field, Input, today, money, Empty, formationLabel } from "@/lib/ui";
+import { supabase, isSupabaseConfigured } from "@/lib/supabase/client";
+import { toastMsg } from "@/lib/toast";
 
 /* ---------- helpers ---------- */
 function Bar({ label, value, max, color }: { label: string; value: number; max: number; color: string }) {
@@ -281,7 +283,19 @@ export function ParametresPage() {
             <Field label="Email de contact"><Input value={email} onChange={(e) => setEmail(e.target.value)} /></Field>
             <Field label="Adresse"><Input value={adresse} onChange={(e) => setAdresse(e.target.value)} /></Field>
             <Btn
-              onClick={() => { update((d) => ({ ...d, settings: { ...d.settings, contact: { email, adresse } } })); log("Paramètres de contact mis à jour"); }}
+              onClick={async () => {
+                const nextSettings = { ...db.settings, contact: { email, adresse } };
+                update((d) => ({ ...d, settings: nextSettings }));
+                if (isSupabaseConfigured) {
+                  try {
+                    await supabase.from("site_settings").upsert({ id: "default", payload: nextSettings });
+                  } catch (err) {
+                    console.error("Erreur sauvegarde site_settings:", err);
+                  }
+                }
+                log("Paramètres de contact mis à jour");
+                toastMsg.success("Coordonnées enregistrées avec succès ✓");
+              }}
               className="w-full"
             >
               Enregistrer les coordonnées
