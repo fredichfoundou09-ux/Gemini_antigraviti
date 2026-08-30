@@ -147,30 +147,83 @@ export function StoreProvider({ children }: { children: React.ReactNode }) {
     return () => clearInterval(t);
   }, []);
 
-  // Synchronise les tables depuis Supabase au chargement si authentifié
+  // Synchronise les données Supabase : vitrine publique (sans session) + gestion privée (si authentifié)
   useEffect(() => {
     if (!sbActive) return;
 
-    const syncTables = async () => {
-      const { data: { session } } = await supabase.auth.getSession();
-      if (!session) return;
-
+    // 1. Données publiques : toujours chargées pour les visiteurs du site
+    const syncPublicData = async () => {
       try {
-        // Chargement en parallèle de l'ensemble des données relationnelles PostgreSQL
+        const [formationsRes, modulesRes, chaptersRes, siteSettingsRes] = await Promise.all([
+          supabase.from("formations").select("*"),
+          supabase.from("modules").select("*").order("numero", { ascending: true }),
+          supabase.from("chapters").select("*").order("ordre", { ascending: true }),
+          supabase.from("site_settings").select("data").eq("id", "default").maybeSingle(),
+        ]);
+
+        const formationById = new Map((formationsRes.data || []).map((f: any) => [f.id, f.code]));
+        const chaptersByModule = new Map<string, any[]>();
+        (chaptersRes.data || []).forEach((c: any) => {
+          const arr = chaptersByModule.get(c.module_id) || [];
+          arr.push({ id: c.id, titre: c.titre, contenu: c.contenu || "" });
+          chaptersByModule.set(c.module_id, arr);
+        });
+
+        const remoteSettings = siteSettingsRes?.data?.data || null;
+
+        setDb((prev) => {
+          const loadedModules = (modulesRes.data && modulesRes.data.length > 0)
+            ? modulesRes.data.map((m: any) => {
+                const chs = chaptersByModule.get(m.id) || [];
+                const notionsList = chs.length > 0
+                  ? chs.map((c) => c.titre)
+                  : (Array.isArray(m.notions) && m.notions.length > 0 ? m.notions : []);
+                return {
+                  id: m.id,
+                  formation: (formationById.get(m.formation_id) || "informatique") as Formation,
+                  numero: m.numero,
+                  titre: m.titre,
+                  icon: m.icon || "code",
+                  notions: notionsList,
+                  description: m.description || "",
+                  duree: m.duree || "",
+                  supports: m.supports || "",
+                  infosSupp: m.infos_supp || "",
+                  image: m.image_url || "",
+                  chapitres: chs,
+                };
+              })
+            : prev.modules;
+
+          return {
+            ...prev,
+            settings: remoteSettings?.settings ? { ...prev.settings, ...remoteSettings.settings } : prev.settings,
+            advantages: remoteSettings?.advantages || prev.advantages,
+            partners: remoteSettings?.partners || prev.partners,
+            announcements: remoteSettings?.announcements || prev.announcements,
+            enia: remoteSettings?.enia || prev.enia,
+            modules: loadedModules,
+          };
+        });
+      } catch (err) {
+        console.warn("Erreur chargement vitrine publique Supabase:", err);
+      }
+    };
+
+    // 2. Données privées : chargées uniquement si session active
+    const syncPrivateData = async (sessionUser: any) => {
+      try {
         const [
-          profilesRes, formationsRes, modulesRes, chaptersRes,
+          profilesRes, formationsRes,
           studentsRes, studentModulesRes,
           teachersRes, teacherModulesRes, coursesRes,
           scheduleRes, attendanceRes, invoicesRes, paymentsRes,
           testsRes, resultsRes, gradesRes, notificationsRes,
           certificatesRes, scholarshipsRes,
-          registrationsRes, registrationModulesRes,
-          siteSettingsRes
+          registrationsRes, registrationModulesRes
         ] = await Promise.all([
           supabase.from("profiles").select("*"),
           supabase.from("formations").select("*"),
-          supabase.from("modules").select("*"),
-          supabase.from("chapters").select("*"),
           supabase.from("students").select("*"),
           supabase.from("student_modules").select("*"),
           supabase.from("teachers").select("*"),
@@ -188,16 +241,14 @@ export function StoreProvider({ children }: { children: React.ReactNode }) {
           supabase.from("scholarships").select("*"),
           supabase.from("registrations").select("*").order("created_at", { ascending: false }),
           supabase.from("registration_modules").select("*"),
-          supabase.from("site_settings").select("data").eq("id", "default").maybeSingle()
         ]);
 
-        if (profilesRes.error) throw profilesRes.error;
+        if (profilesRes.error) return;
 
-        // Transformation des relations plates PostgreSQL en structure d'état local réactive
         const updatedUsers: User[] = (profilesRes.data || []).map((p: any) => ({
           id: p.id,
           username: p.username,
-          password: "", // sécurité : aucun mot de passe hashé envoyé au client
+          password: "",
           role: p.role as Role,
           name: p.name,
           email: p.email,
@@ -206,10 +257,9 @@ export function StoreProvider({ children }: { children: React.ReactNode }) {
           createdAt: p.created_at?.slice(0, 10) || ""
         }));
 
-        // Restauration de l'utilisateur actif depuis la session Supabase
         setUser((currentUser) => {
           if (!currentUser) {
-            const me = updatedUsers.find((u) => u.id === session.user.id);
+            const me = updatedUsers.find((u) => u.id === sessionUser.id);
             if (me) {
               persistSession(me);
               return me;
@@ -219,13 +269,6 @@ export function StoreProvider({ children }: { children: React.ReactNode }) {
         });
 
         const formationById = new Map((formationsRes.data || []).map((f: any) => [f.id, f.code]));
-        const chaptersByModule = new Map<string, any[]>();
-        (chaptersRes.data || []).forEach((c: any) => {
-          const arr = chaptersByModule.get(c.module_id) || [];
-          arr.push({ id: c.id, titre: c.titre, contenu: c.contenu || "" });
-          chaptersByModule.set(c.module_id, arr);
-        });
-
         const regModulesByRegId = new Map<string, string[]>();
         (registrationModulesRes.data || []).forEach((rm: any) => {
           const arr = regModulesByRegId.get(rm.registration_id) || [];
@@ -233,30 +276,9 @@ export function StoreProvider({ children }: { children: React.ReactNode }) {
           regModulesByRegId.set(rm.registration_id, arr);
         });
 
-        const remoteSettings = siteSettingsRes?.data?.data || null;
-
         setDb((prev) => ({
           ...prev,
-          settings: remoteSettings?.settings ? { ...prev.settings, ...remoteSettings.settings } : prev.settings,
-          advantages: remoteSettings?.advantages || prev.advantages,
-          partners: remoteSettings?.partners || prev.partners,
-          announcements: remoteSettings?.announcements || prev.announcements,
-          enia: remoteSettings?.enia || prev.enia,
           users: updatedUsers,
-          modules: (modulesRes.data || []).map((m: any) => ({
-            id: m.id,
-            formation: (formationById.get(m.formation_id) || "informatique") as Formation,
-            numero: m.numero,
-            titre: m.titre,
-            icon: m.icon || "code",
-            notions: [],
-            description: m.description || "",
-            duree: m.duree || "",
-            supports: m.supports || "",
-            infosSupp: m.infos_supp || "",
-            image: m.image_url || "",
-            chapitres: chaptersByModule.get(m.id) || [],
-          })),
           students: (studentsRes.data || []).map((s: any) => {
             const mods = (studentModulesRes.data || [])
               .filter((sm: any) => sm.student_id === s.id)
@@ -331,34 +353,46 @@ export function StoreProvider({ children }: { children: React.ReactNode }) {
           })),
         }));
       } catch (err) {
-        console.error("Erreur de synchronisation Supabase", err);
+        console.warn("Erreur chargement données privées Supabase:", err);
       }
     };
 
-    syncTables();
-    window.addEventListener("sentinelles:supabase-refresh", syncTables);
+    const syncAll = async () => {
+      // 1. Toujours synchroniser les données publiques du site
+      await syncPublicData();
 
-    // Abonnement temps réel aux messages, notifications, pré-inscriptions, modules et plannings
+      // 2. Si authentifié, synchroniser les données privées
+      const { data: { session } } = await supabase.auth.getSession();
+      if (session?.user) {
+        await syncPrivateData(session.user);
+      }
+    };
+
+    syncAll();
+    window.addEventListener("sentinelles:supabase-refresh", syncAll);
+
+    // Abonnement temps réel : écoute continue des mises à jour Supabase
     const channel = supabase
       .channel("realtime-updates")
-      .on("postgres_changes", { event: "*", schema: "public", table: "messages" }, () => syncTables())
-      .on("postgres_changes", { event: "*", schema: "public", table: "notifications" }, () => syncTables())
-      .on("postgres_changes", { event: "*", schema: "public", table: "registrations" }, () => syncTables())
-      .on("postgres_changes", { event: "*", schema: "public", table: "registration_modules" }, () => syncTables())
-      .on("postgres_changes", { event: "*", schema: "public", table: "modules" }, () => syncTables())
-      .on("postgres_changes", { event: "*", schema: "public", table: "chapters" }, () => syncTables())
-      .on("postgres_changes", { event: "*", schema: "public", table: "schedule" }, () => syncTables())
-      .on("postgres_changes", { event: "*", schema: "public", table: "courses" }, () => syncTables())
-      .on("postgres_changes", { event: "*", schema: "public", table: "teachers" }, () => syncTables())
-      .on("postgres_changes", { event: "*", schema: "public", table: "students" }, () => syncTables())
-      .on("postgres_changes", { event: "*", schema: "public", table: "site_settings" }, () => syncTables())
+      .on("postgres_changes", { event: "*", schema: "public", table: "site_settings" }, () => syncPublicData())
+      .on("postgres_changes", { event: "*", schema: "public", table: "modules" }, () => syncPublicData())
+      .on("postgres_changes", { event: "*", schema: "public", table: "chapters" }, () => syncPublicData())
+      .on("postgres_changes", { event: "*", schema: "public", table: "formations" }, () => syncPublicData())
+      .on("postgres_changes", { event: "*", schema: "public", table: "messages" }, () => syncAll())
+      .on("postgres_changes", { event: "*", schema: "public", table: "notifications" }, () => syncAll())
+      .on("postgres_changes", { event: "*", schema: "public", table: "registrations" }, () => syncAll())
+      .on("postgres_changes", { event: "*", schema: "public", table: "registration_modules" }, () => syncAll())
+      .on("postgres_changes", { event: "*", schema: "public", table: "schedule" }, () => syncAll())
+      .on("postgres_changes", { event: "*", schema: "public", table: "courses" }, () => syncAll())
+      .on("postgres_changes", { event: "*", schema: "public", table: "teachers" }, () => syncAll())
+      .on("postgres_changes", { event: "*", schema: "public", table: "students" }, () => syncAll())
       .subscribe();
 
     return () => {
-      window.removeEventListener("sentinelles:supabase-refresh", syncTables);
+      window.removeEventListener("sentinelles:supabase-refresh", syncAll);
       channel.unsubscribe();
     };
-  }, [sbActive, user]);
+  }, [sbActive, user?.id]);
 
   const update = async (fn: (d: DB) => DB) => {
     const next = fn(db);
