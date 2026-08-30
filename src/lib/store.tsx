@@ -473,7 +473,15 @@ export function StoreProvider({ children }: { children: React.ReactNode }) {
         }
 
         const { error: authErr } = await supabase.auth.signInWithPassword({ email, password });
-        if (authErr) return { ok: false, error: authErr.message };
+        if (authErr) {
+          if (authErr.message?.toLowerCase().includes("email not confirmed")) {
+            return { ok: false, error: "Email en cours de confirmation. Réactualisez la page et réessayez." };
+          }
+          if (authErr.message?.toLowerCase().includes("invalid login credentials")) {
+            return { ok: false, error: "Identifiant ou mot de passe incorrect." };
+          }
+          return { ok: false, error: authErr.message };
+        }
 
         const profile = await getCurrentProfile();
         if (!profile || !profile.active) {

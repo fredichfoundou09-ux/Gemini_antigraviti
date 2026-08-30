@@ -38,7 +38,15 @@ export async function signInWithPassword(emailOrUsername: string, password: stri
     }
   }
   const { data, error } = await sb.auth.signInWithPassword({ email, password });
-  if (error) throw error;
+  if (error) {
+    if (error.message?.toLowerCase().includes("email not confirmed")) {
+      throw new Error("Email en cours de confirmation. Réactualisez la page et réessayez.");
+    }
+    if (error.message?.toLowerCase().includes("invalid login credentials")) {
+      throw new Error("Identifiant ou mot de passe incorrect.");
+    }
+    throw error;
+  }
   return data;
 }
 
