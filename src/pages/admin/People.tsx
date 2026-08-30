@@ -189,10 +189,9 @@ export function StudentsPage() {
 
     if (isSupabaseConfigured) {
       try {
-        const emailTaken = db.users.some((u) => u.email?.toLowerCase() === (reg.email || "").toLowerCase().trim());
-        const email = (!reg.email || emailTaken) ? `${uname}@sentinelles.local` : reg.email.trim();
         const resolvedFormationId = await resolveFormationId(reg.formation);
-        await invokeCreateUser({
+        const email = reg.email ? reg.email.trim() : `${uname}@sentinelles.local`;
+        const res = await invokeCreateUser({
           email,
           password: tempPassword,
           username: uname,
@@ -205,8 +204,10 @@ export function StudentsPage() {
           },
           module_ids: reg.modules
         });
+
+        const confirmedUname = res?.username || uname;
         
-        await supabase.from("registrations").update({ statut: "confirmee" }).eq("id", regId);
+        await supabase.from("registrations").update({ statut: "confirmee", updated_at: new Date().toISOString() }).eq("id", regId);
 
         update((d) => ({
           ...d,
@@ -215,13 +216,13 @@ export function StudentsPage() {
 
         setCreatedCreds({
           nom: `${reg.prenom} ${reg.nom}`,
-          identifiant: uname,
+          identifiant: confirmedUname,
           motDePasse: tempPassword,
           phone: reg.whatsapp || reg.telephone,
         });
-        toastMsg.credentials({ nom: `${reg.prenom} ${reg.nom}`, identifiant: uname, motDePasse: tempPassword });
-        toastMsg.success("Inscription confirmée côté serveur ✓");
-        log(`Pré-inscription confirmée (Supabase) : ${reg.nom} ${reg.prenom} — compte ${uname}`);
+        toastMsg.credentials({ nom: `${reg.prenom} ${reg.nom}`, identifiant: confirmedUname, motDePasse: tempPassword });
+        toastMsg.success(res?.is_existing ? "Apprenant associé au compte existant et confirmé ✓" : "Inscription confirmée et compte apprenant activé ✓");
+        log(`Pré-inscription confirmée (Supabase) : ${reg.nom} ${reg.prenom} — compte ${confirmedUname}`);
         window.dispatchEvent(new Event("sentinelles:supabase-refresh"));
 
       } catch (err: any) {

@@ -69,37 +69,67 @@ Deno.serve(async (req) => {
       return new Response(JSON.stringify({ error: "Une organisation partenaire est obligatoire." }), { status: 400, headers: corsHeaders });
     }
 
-    // Vérification préalable que l'identifiant (username) n'est pas déjà pris
-    const { data: existingByUsername } = await admin.from("profiles").select("id, role").eq("username", String(username).toLowerCase()).maybeSingle();
-    if (existingByUsername) {
-      return new Response(JSON.stringify({ error: "Cet identifiant (username) est déjà utilisé. Veuillez en choisir un autre." }), { status: 400, headers: corsHeaders });
-    }
-
-    // 1) Auth user
+    const cleanEmail = email.trim().toLowerCase();
     let userId: string;
-    const { data: created, error: createErr } = await admin.auth.admin.createUser({
-      email,
-      password,
-      email_confirm: true,
-      user_metadata: { username, name, role },
-    });
+    let finalUsername = String(username).toLowerCase().trim();
+    let isExistingAccount = false;
 
-    if (createErr || !created.user) {
-      if (createErr?.message?.toLowerCase().includes("already") || createErr?.message?.toLowerCase().includes("registered")) {
-        return new Response(JSON.stringify({ error: "Cette adresse email est déjà associée à un compte existant. Veuillez utiliser une adresse email unique." }), { status: 400, headers: corsHeaders });
+    // A. Vérifier si un compte existe déjà pour cet email (idempotence)
+    const { data: existingProfileByEmail } = await admin
+      .from("profiles")
+      .select("id, role, username, email")
+      .eq("email", cleanEmail)
+      .maybeSingle();
+
+    if (existingProfileByEmail) {
+      userId = existingProfileByEmail.id;
+      finalUsername = existingProfileByEmail.username;
+      isExistingAccount = true;
+      if (password) {
+        try {
+          await admin.auth.admin.updateUserById(userId, { password, email_confirm: true });
+        } catch { /* ignore update password */ }
       }
-      return new Response(JSON.stringify({ error: createErr?.message || "Création du compte impossible." }), { status: 400, headers: corsHeaders });
-    }
-    userId = created.user.id;
+    } else {
+      // B. Résolution automatique d'un username unique garanti disponible
+      const baseUsername = finalUsername;
+      let counter = 1;
+      while (true) {
+        const { data: clash } = await admin
+          .from("profiles")
+          .select("id")
+          .eq("username", finalUsername)
+          .maybeSingle();
+        if (!clash) break;
+        finalUsername = `${baseUsername}${counter++}`;
+      }
 
-    // 2) Profile (insertion sécurisée sans risque d'écraser un compte tiers)
-    const { error: profErr } = await admin.from("profiles").insert({
+      // C. Création de l'utilisateur Auth avec auto-confirmation
+      const { data: created, error: createErr } = await admin.auth.admin.createUser({
+        email: cleanEmail,
+        password,
+        email_confirm: true,
+        user_metadata: { username: finalUsername, name, role },
+      });
+
+      if (createErr || !created.user) {
+        return new Response(
+          JSON.stringify({ error: createErr?.message || "Création du compte impossible." }),
+          { status: 400, headers: corsHeaders }
+        );
+      }
+      userId = created.user.id;
+    }
+
+    // 2) Profile (upsert idempotent pour éliminer tout conflit avec le trigger SQL)
+    const { error: profErr } = await admin.from("profiles").upsert({
       id: userId,
-      username: String(username).toLowerCase(),
+      username: finalUsername,
       name,
-      email,
+      email: cleanEmail,
       role,
       active: true,
+      updated_at: new Date().toISOString(),
     });
     if (profErr) {
       return new Response(JSON.stringify({ error: profErr.message }), { status: 400, headers: corsHeaders });
@@ -240,14 +270,14 @@ Deno.serve(async (req) => {
     if (callerUserId) {
       await admin.from("audit_logs").insert({
         user_id: callerUserId,
-        action: "CREATE",
+        action: isExistingAccount ? "UPDATE" : "CREATE",
         entity_type: "profiles",
         entity_id: userId,
-        description: `Création utilisateur ${username} (${role})`,
+        description: `${isExistingAccount ? "Association" : "Création"} utilisateur ${finalUsername} (${role})`,
       });
     }
 
-    return new Response(JSON.stringify({ ok: true, user_id: userId }), {
+    return new Response(JSON.stringify({ ok: true, user_id: userId, username: finalUsername, is_existing: isExistingAccount }), {
       headers: { ...corsHeaders, "Content-Type": "application/json" },
     });
   } catch (e) {
