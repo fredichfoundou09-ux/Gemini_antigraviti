@@ -14,8 +14,8 @@ import {
 } from "./supabase/auth";
 import { writeAudit } from "./supabase/audit";
 
-const DB_KEY = "sn_db_v1";
-const SESSION_KEY = "sn_session_v1";
+const DB_KEY = "sn_db_v2";
+const SESSION_KEY = "sn_session_v2";
 const SESSION_TTL_MS = 2 * 60 * 60 * 1000;
 
 const useSb = isSupabaseConfigured && import.meta.env.VITE_USE_SUPABASE !== "false";

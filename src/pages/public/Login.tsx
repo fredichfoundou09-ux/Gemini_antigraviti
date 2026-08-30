@@ -56,10 +56,10 @@ export function LoginPage() {
     let alive = true;
     sbHasAnySuperadmin()
       .then((v) => { if (alive) setServerHasAdmin(v); })
-      .catch(() => {
-        // Sécurité : en cas d'erreur réseau on laisse le bouton visible
-        // (l'utilisateur verra "déjà initialisé" si nécessaire dans le modal)
-        if (alive) setServerHasAdmin(false);
+      .catch((err) => {
+        console.warn("Erreur vérification statut superadmin:", err);
+        // Sécurité Fail-Safe : en cas d'incertitude réseau, on verrouille par précaution
+        if (alive) setServerHasAdmin(true);
       });
     return () => { alive = false; };
   // eslint-disable-next-line react-hooks/exhaustive-deps
