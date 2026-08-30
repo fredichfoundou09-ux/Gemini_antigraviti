@@ -21,6 +21,7 @@ Deno.serve(async (req) => {
     const authHeader = req.headers.get("Authorization") || "";
     const token = authHeader.replace(/^Bearer\s+/i, "").trim();
     let callerUserId: string | null = null;
+    let callerProfile: { role: string; active: boolean } | null = null;
 
     if (token) {
       const { data: userData } = await admin.auth.getUser(token);
@@ -34,7 +35,7 @@ Deno.serve(async (req) => {
       const { data: hasAdmin } = await admin.rpc("has_any_superadmin");
       const bodyPreview = await req.clone().json().catch(() => ({}));
       if (!hasAdmin && bodyPreview?.role === "superadmin") {
-        // Autoriser la création initiale du superadmin
+        // Autoriser la création initiale du superadmin (callerProfile reste null)
       } else {
         return new Response(JSON.stringify({ error: "Session expirée ou non authentifié" }), { status: 401, headers: corsHeaders });
       }
@@ -43,6 +44,7 @@ Deno.serve(async (req) => {
       if (!profile?.active || !["superadmin", "admin"].includes(profile.role)) {
         return new Response(JSON.stringify({ error: "Permissions insuffisantes (réservé au personnel administratif)" }), { status: 403, headers: corsHeaders });
       }
+      callerProfile = profile;
     }
 
     const body = await req.json();
@@ -56,10 +58,11 @@ Deno.serve(async (req) => {
       return new Response(JSON.stringify({ error: "Champs requis manquants" }), { status: 400, headers: corsHeaders });
     }
     const allowedRoles = ["admin", "partner_admin", "teacher", "student", "partner"];
-    if (!allowedRoles.includes(role) && !(profile.role === "superadmin" && role === "superadmin")) {
+    const callerRole = callerProfile?.role ?? "superadmin"; // bootstrap = superadmin implicite
+    if (!allowedRoles.includes(role) && !(callerRole === "superadmin" && role === "superadmin")) {
       return new Response(JSON.stringify({ error: "Rôle non autorisé" }), { status: 400, headers: corsHeaders });
     }
-    if ((role === "admin" || role === "superadmin") && profile.role !== "superadmin") {
+    if ((role === "admin" || role === "superadmin") && callerRole !== "superadmin") {
       return new Response(JSON.stringify({ error: "Seul un Super Admin peut créer un administrateur." }), { status: 403, headers: corsHeaders });
     }
     if ((role === "partner" || role === "partner_admin") && !partner?.organization_name && !partner?.organization_id) {

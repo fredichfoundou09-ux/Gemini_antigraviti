@@ -288,7 +288,16 @@ export function ParametresPage() {
                 update((d) => ({ ...d, settings: nextSettings }));
                 if (isSupabaseConfigured) {
                   try {
-                    await supabase.from("site_settings").upsert({ id: "default", payload: nextSettings });
+                    await supabase.from("site_settings").upsert({
+                      id: "default",
+                      data: {
+                        settings: nextSettings,
+                        advantages: db.advantages,
+                        partners: db.partners,
+                        announcements: db.announcements,
+                      },
+                      updated_at: new Date().toISOString(),
+                    });
                   } catch (err) {
                     console.error("Erreur sauvegarde site_settings:", err);
                   }

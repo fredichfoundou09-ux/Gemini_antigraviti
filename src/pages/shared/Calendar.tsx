@@ -1,3 +1,4 @@
+import React from "react";
 import { useMemo, useState } from "react";
 import { ChevronLeft, ChevronRight, Clock, MapPin, GraduationCap, Calendar } from "lucide-react";
 import { useStore } from "@/lib/store";
@@ -101,8 +102,8 @@ export function VisualCalendar() {
 
             {/* Slots horaires 07h-20h */}
             {Array.from({ length: 13 }, (_, h) => h + 7).map((hour) => (
-              <>
-                <div key={`h-${hour}`} className="border-b border-white/5 p-2 text-right">
+              <React.Fragment key={`h-${hour}`}>
+                <div className="border-b border-white/5 p-2 text-right">
                   <span className="font-mono text-[10px] text-slate-600">{String(hour).padStart(2, "0")}:00</span>
                 </div>
                 {weekDays.map((day, di) => {
@@ -128,7 +129,7 @@ export function VisualCalendar() {
                     </div>
                   );
                 })}
-              </>
+              </React.Fragment>
             ))}
           </div>
         </div>
