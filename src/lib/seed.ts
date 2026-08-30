@@ -48,22 +48,52 @@ export function emptySettings(): DB["settings"] {
       tagline: "Formons aujourd'hui les talents numériques et industriels qui construiront l'avenir.",
       badge: "SENTINELLES • ACADEMY",
     },
-    hero: { responsibleName: "", responsibleTitle: "", responsibleImage: "", highlight: "RESPONSABLE DU CENTRE" },
-    infos: { debut: "", lieu: "", duree: "", whatsapp: [], inscription: "" },
-    frais: { inscription: 0, informatique: [], industriel: [] },
-    formations: {
-      informatique: { titre: "GÉNIE INFORMATIQUE", description: "" },
-      industriel: { titre: "GÉNIE INDUSTRIEL", description: "" },
+    hero: {
+      responsibleName: "Coach Fredich FOUNDOU",
+      responsibleTitle: "Étudiant-chercheur en Génie Informatique à ENIA 2.0",
+      responsibleImage: "https://tvcuwhgqhrcvdgwlviju.supabase.co/storage/v1/object/public/public-media/hero/responsable-1788000712264.jpeg",
+      highlight: "RESPONSABLE DU CENTRE",
     },
-    avantages: [],
+    infos: {
+      debut: "10 août",
+      lieu: "Institut de Jeunes Sourds (ENIA 2.0), Brazzaville",
+      duree: "3 mois intensifs",
+      whatsapp: ["06 63 28 87 4", "06 53 67 40 3"],
+      inscription: "Ouverte — 5 000 FCFA",
+    },
+    frais: {
+      inscription: 5000,
+      informatique: [
+        { id: "fr-inf-1", label: "1 module", modules: 1, montant: 3500 },
+        { id: "fr-inf-2", label: "Inscription + 1 module", modules: 1, montant: 8500 },
+      ],
+      industriel: [
+        { id: "fr-ind-1", label: "3 modules", modules: 3, montant: 5000 },
+        { id: "fr-ind-2", label: "6 modules", modules: 6, montant: 10000 },
+        { id: "fr-ind-3", label: "Programme complet (12 modules)", modules: 12, montant: 20000 },
+      ],
+    },
+    formations: {
+      informatique: { titre: "GÉNIE INFORMATIQUE", description: "Formation intensive et pratique en développement web, cybersécurité et réseaux." },
+      industriel: { titre: "GÉNIE INDUSTRIEL", description: "Formation pratique en électrotechnique, automatismes, électronique et maintenance." },
+    },
+    avantages: [
+      "Formation 100% pratique avec ateliers et laboratoires technologiques dédiés",
+      "Accompagnement et mentorat personnalisé vers l’emploi et l’entrepreneuriat",
+      "Préparation aux certifications internationales et réseau d’entreprises partenaires",
+      "Possibilité d’accès direct à la Bourse d’excellence ENIA 2.0 (100% financée pendant 3 ans)",
+    ],
     bourse: { title: "3 ANS D'ÉTUDES", subtitle: "100% GRATUITES À ENIA 2.0.", button: "BOURSE MON AVENIR" },
-    partenaires: [],
+    partenaires: [
+      "ENIA 2.0 — École du Numérique et de l’Intelligence Artificielle",
+      "FSH Company",
+    ],
     preInscription: {
       enabled: true,
       title: "Pré-inscription en ligne",
       description: "Réservez votre place dès maintenant.",
     },
-    contact: { email: "", adresse: "" },
+    contact: { email: "contact@sentinelles-numeriques.cg", adresse: "Institut de Jeunes Sourds (ENIA 2.0), Brazzaville" },
   };
 }
 
