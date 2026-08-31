@@ -41,14 +41,26 @@ export async function createConversation(subject: string, memberIds: string[]) {
 
 export async function startConversation(subject: string, memberIds: string[], initialMessage?: string) {
   const sb = getSupabase();
-  // 1. Essai via la fonction RPC sécurisée (atomique)
+  // 1. Essai via la fonction RPC create_conversation (atomique)
+  try {
+    const { data, error } = await sb.rpc("create_conversation", {
+      p_subject: subject,
+      p_member_ids: memberIds,
+      p_initial_message: initialMessage || null,
+    });
+    if (!error && (data?.success || data?.ok)) {
+      return { id: data.conversation_id, messageId: data.message_id };
+    }
+  } catch { /* fallback */ }
+
+  // 1b. Essai via start_conversation
   try {
     const { data, error } = await sb.rpc("start_conversation", {
       p_subject: subject,
       p_member_ids: memberIds,
       p_initial_message: initialMessage || null,
     });
-    if (!error && data?.ok) {
+    if (!error && (data?.ok || data?.success)) {
       return { id: data.conversation_id, messageId: data.message_id };
     }
   } catch { /* fallback direct */ }

@@ -57,9 +57,19 @@ export function InitializationPage() {
     formations: db.settings.frais.informatique.length + db.settings.frais.industriel.length,
   }), [db]);
 
-  const execute = () => {
+  const execute = async () => {
+    if (isSupabaseConfigured) {
+      try {
+        await supabase.from("audit_logs").insert({
+          user_id: user?.id || null,
+          action: "DATABASE_RESET",
+          entity_type: "system",
+          description: `Réinitialisation effectuée par ${user?.name} (${user?.role}) : catégories [${Array.from(selected).join(", ")}]`,
+        });
+      } catch { /* ignore audit */ }
+    }
     update((d) => resetCategories(d, Array.from(selected)));
-    log(`Initialisation exécutée : ${Array.from(selected).join(", ")}`);
+    log(`Initialisation exécutée par ${user?.name} : ${Array.from(selected).join(", ")}`);
     setDone(true);
   };
 
@@ -186,9 +196,9 @@ export function InitializationPage() {
             <h2 className="font-display text-lg font-black text-white">Confirmation finale</h2>
           </div>
           <p className="text-sm text-slate-400">
-            Pour confirmer la suppression définitive, saisissez le mot <span className="font-mono font-bold text-red-400">INITIALISER</span> ci-dessous.
+            Pour confirmer la suppression définitive, saisissez le mot <span className="font-mono font-bold text-red-400">CONFIRMER</span> ci-dessous.
           </p>
-          <Input className="mt-4" value={confirmText} onChange={(e) => setConfirmText(e.target.value)} placeholder="Tapez INITIALISER" />
+          <Input className="mt-4" value={confirmText} onChange={(e) => setConfirmText(e.target.value)} placeholder="Tapez CONFIRMER" />
 
           <div className="mt-4 rounded-xl border border-emerald-400/20 bg-emerald-400/5 p-3 text-xs text-slate-300">
             <p className="flex items-center gap-1.5 font-bold text-emerald-300"><ShieldCheck size={13} /> Ce qui est conservé</p>
@@ -197,7 +207,7 @@ export function InitializationPage() {
 
           <div className="mt-5 flex justify-between gap-2">
             <Btn variant="ghost" onClick={() => setStep("warn")}><ArrowLeft size={15} /> Retour</Btn>
-            <Btn variant="red" disabled={confirmText.trim().toUpperCase() !== "INITIALISER"} onClick={execute}>
+            <Btn variant="red" disabled={confirmText.trim().toUpperCase() !== "CONFIRMER" && confirmText.trim().toUpperCase() !== "INITIALISER"} onClick={execute}>
               <Trash2 size={15} /> Confirmer la suppression
             </Btn>
           </div>

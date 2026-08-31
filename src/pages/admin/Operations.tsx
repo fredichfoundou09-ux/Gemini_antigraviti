@@ -1,9 +1,9 @@
-import { useState } from "react";
+import { useState, useMemo } from "react";
 import { QRCodeSVG } from "qrcode.react";
 import {
   PlusCircle, Trash2, Pencil, CalendarDays, Clock, MapPin, ClipboardCheck, FileText, TestTube2,
   PenLine, Wallet, Award, BadgeDollarSign, Printer, CheckCircle2, XCircle, Timer, BookOpen,
-  GraduationCap, Eye, Save, ShieldCheck, ReceiptText, Upload, ImageOff, Users,
+  GraduationCap, Eye, Save, ShieldCheck, ReceiptText, Upload, ImageOff, Users, Search, Download, Ban, AlertTriangle,
 } from "lucide-react";
 import { useStore } from "@/lib/store";
 import { toastMsg } from "@/lib/toast";
@@ -1457,6 +1457,11 @@ export function PaymentsPage() {
   const [editingInv, setEditingInv] = useState<any>(null);
   const [deletingInv, setDeletingInv] = useState<any>(null);
 
+  const [qPay, setQPay] = useState("");
+  const [fMode, setFMode] = useState("");
+  const [fDate, setFDate] = useState("");
+  const [cancellingPay, setCancellingPay] = useState<any>(null);
+
   const blankPay = () => ({ invoiceId: "", type: "formation" as "inscription" | "formation", libelle: "", montant: 0, mode: "Espèces", observation: "" });
   const blankInv = () => ({ type: "formation" as "inscription" | "formation", libelle: "", montant: 0, dueDate: "" });
   const [payForm, setPayForm] = useState<any>(blankPay());
@@ -1466,6 +1471,105 @@ export function PaymentsPage() {
   const summary = studentId ? financialSummary(db, studentId) : null;
   const payments = summary ? [...summary.payments].sort((a, b) => (b.date + (b.heure ?? "")).localeCompare(a.date + (a.heure ?? ""))) : [];
   const invoices = summary?.invoices ?? [];
+
+  const allPayments = useMemo(() => {
+    return [...db.payments].sort((a, b) => (b.date + (b.heure ?? "")).localeCompare(a.date + (a.heure ?? "")));
+  }, [db.payments]);
+
+  const activePayments = useMemo(() => {
+    return allPayments.filter((p) => !p.observation?.includes("[ANNULÉ]"));
+  }, [allPayments]);
+
+  const globalEncaisse = useMemo(() => {
+    return activePayments.reduce((a, p) => a + p.montant, 0);
+  }, [activePayments]);
+
+  const allStudentSummaries = useMemo(() => {
+    return db.students.map((s) => financialSummary(db, s.id));
+  }, [db]);
+
+  const globalDu = useMemo(() => {
+    return allStudentSummaries.reduce((a, s) => a + s.totalDu, 0);
+  }, [allStudentSummaries]);
+
+  const globalSolde = useMemo(() => {
+    return allStudentSummaries.reduce((a, s) => a + s.solde, 0);
+  }, [allStudentSummaries]);
+
+  const globalRetards = useMemo(() => {
+    return allStudentSummaries.filter((s) => s.statut === "retard" || s.statut === "impaye").length;
+  }, [allStudentSummaries]);
+
+  const filteredGlobalPayments = useMemo(() => {
+    return allPayments.filter((p) => {
+      const s = db.students.find((x) => x.id === p.studentId);
+      const str = `${p.reference || ""} ${p.libelle} ${p.studentId} ${s?.nom || ""} ${s?.prenom || ""}`.toLowerCase();
+      if (qPay && !str.includes(qPay.toLowerCase())) return false;
+      if (fMode && p.mode !== fMode) return false;
+      if (fDate && p.date !== fDate) return false;
+      return true;
+    });
+  }, [allPayments, db.students, qPay, fMode, fDate]);
+
+  const confirmCancelPayment = async () => {
+    if (!cancellingPay) return;
+    const p = cancellingPay;
+    const obs = `[ANNULÉ le ${today()} par ${user?.name || "Admin"}] ${p.observation || ""}`.trim();
+    if (isSupabaseConfigured) {
+      try {
+        await supabase.from("payments").update({ observation: obs }).eq("id", p.id);
+        await supabase.from("audit_logs").insert({
+          user_id: user?.id || null,
+          action: "CANCEL_PAYMENT",
+          entity_type: "payments",
+          entity_id: p.id,
+          description: `Annulation du paiement ${p.reference || p.id} de ${money(p.montant)}`,
+        });
+        toastMsg.success("Paiement neutralisé et annulé avec succès ✓");
+        window.dispatchEvent(new Event("sentinelles:supabase-refresh"));
+      } catch (err: any) {
+        toastMsg.error("Erreur d'annulation", err.message);
+        return;
+      }
+    } else {
+      toastMsg.success("Paiement annulé en local ✓");
+    }
+
+    update((d) => ({
+      ...d,
+      payments: d.payments.map((x) => (x.id === p.id ? { ...x, observation: obs } : x)),
+    }));
+    log(`Paiement annulé : ${p.reference || p.id} (${money(p.montant)})`);
+    setCancellingPay(null);
+  };
+
+  const exportTreasuryCSV = () => {
+    const headers = ["Référence", "Apprenant ID", "Apprenant Nom", "Libellé", "Montant", "Mode", "Date", "Heure", "Encaissé par", "Statut / Observation"];
+    const rows = filteredGlobalPayments.map((p) => {
+      const s = db.students.find((x) => x.id === p.studentId);
+      const isCancelled = p.observation?.includes("[ANNULÉ]");
+      return [
+        p.reference || p.id,
+        p.studentId,
+        s ? `${s.prenom} ${s.nom}` : "Inconnu",
+        p.libelle,
+        p.montant,
+        p.mode,
+        p.date,
+        p.heure || "",
+        p.createdByName || "",
+        isCancelled ? "ANNULÉ" : "VALIDE",
+      ];
+    });
+    const csv = [headers.join(";"), ...rows.map((r) => r.map((c) => `"${String(c).replace(/"/g, '""')}"`).join(";"))].join("\n");
+    const blob = new Blob(["\ufeff" + csv], { type: "text/csv;charset=utf-8;" });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement("a");
+    a.href = url;
+    a.download = `tresorerie_sentinelles_${today()}.csv`;
+    a.click();
+    toastMsg.success("Export trésorerie CSV téléchargé ✓");
+  };
 
   const savePayment = async () => {
     if (!studentId || !payForm.montant || payForm.montant <= 0) {
@@ -1763,20 +1867,152 @@ export function PaymentsPage() {
 
   return (
     <div>
-      <PageHead title="Finances & Paiements" subtitle="Factures, encaissements et suivi automatique"
-        actions={<div className="flex gap-2">
-          <Btn variant="outline" onClick={() => setCreatingInv(true)} disabled={!studentId}><FileText size={15} /> Ajouter une facture</Btn>
-          <Btn onClick={() => setCreatingPay(true)} disabled={!studentId}><PlusCircle size={16} /> Enregistrer un paiement</Btn>
-        </div>} />
+      <PageHead
+        title="Finances & Paiements"
+        subtitle="Factures, encaissements, trésorerie et suivi automatique"
+        actions={
+          <div className="flex flex-wrap gap-2">
+            <Btn variant="outline" onClick={exportTreasuryCSV}><Download size={15} /> Exporter trésorerie CSV</Btn>
+            <Btn variant="outline" onClick={() => setCreatingInv(true)} disabled={!studentId}><FileText size={15} /> Ajouter une facture</Btn>
+            <Btn onClick={() => setCreatingPay(true)} disabled={!studentId}><PlusCircle size={16} /> Enregistrer un paiement</Btn>
+          </div>
+        }
+      />
+
       <Card className="mb-5 p-5">
-        <Field label="Apprenant">
-          <Select value={studentId} onChange={(e) => setStudentId(e.target.value)}>
-            <option value="">— Sélectionner un apprenant —</option>
-            {db.students.map((s) => <option key={s.id} value={s.id}>{s.id} — {s.prenom} {s.nom}</option>)}
-          </Select>
-        </Field>
+        <div className="flex flex-wrap items-center justify-between gap-3">
+          <div className="flex-1 min-w-[280px]">
+            <Field label="Sélectionner un apprenant spécifique (ou laisser vide pour la trésorerie globale)">
+              <Select value={studentId} onChange={(e) => setStudentId(e.target.value)}>
+                <option value="">— Tous les apprenants (Vue Trésorerie Globale) —</option>
+                {db.students.map((s) => <option key={s.id} value={s.id}>{s.id} — {s.prenom} {s.nom}</option>)}
+              </Select>
+            </Field>
+          </div>
+          {studentId && (
+            <div className="flex items-end">
+              <button onClick={() => setStudentId("")} className="text-xs font-bold text-cyan-300 hover:underline">
+                ← Retour à la vue globale
+              </button>
+            </div>
+          )}
+        </div>
       </Card>
 
+      {/* VUE TRÉSORERIE GLOBALE (SI AUCUN APPRENANT SÉLECTIONNÉ) */}
+      {!student && (
+        <div className="space-y-6">
+          <div className="grid gap-3 sm:grid-cols-4">
+            <div className="rounded-xl border border-emerald-400/25 bg-emerald-950/20 p-4">
+              <p className="text-[10px] uppercase tracking-wider text-slate-400">Total encaissé net</p>
+              <p className="font-display text-2xl font-black text-emerald-300">{money(globalEncaisse)}</p>
+            </div>
+            <div className="rounded-xl border border-amber-400/25 bg-amber-950/20 p-4">
+              <p className="text-[10px] uppercase tracking-wider text-slate-400">Total restant à recouvrer</p>
+              <p className="font-display text-2xl font-black text-amber-300">{money(globalSolde)}</p>
+            </div>
+            <div className="rounded-xl border border-red-500/25 bg-red-950/20 p-4">
+              <p className="text-[10px] uppercase tracking-wider text-slate-400">Apprenants en retard</p>
+              <p className="font-display text-2xl font-black text-red-400">{globalRetards}</p>
+            </div>
+            <div className="rounded-xl border border-cyan-400/25 bg-cyan-950/20 p-4">
+              <p className="text-[10px] uppercase tracking-wider text-slate-400">Règlements enregistrés</p>
+              <p className="font-display text-2xl font-black text-cyan-300">{activePayments.length}</p>
+            </div>
+          </div>
+
+          <Card className="p-4">
+            <div className="grid gap-3 sm:grid-cols-4">
+              <div className="relative sm:col-span-2">
+                <Search size={15} className="pointer-events-none absolute left-3.5 top-1/2 -translate-y-1/2 text-slate-500" />
+                <Input
+                  placeholder="Rechercher par apprenant, référence, libellé..."
+                  value={qPay}
+                  onChange={(e) => setQPay(e.target.value)}
+                  className="pl-9"
+                />
+              </div>
+              <Select value={fMode} onChange={(e) => setFMode(e.target.value)}>
+                <option value="">Tous les modes</option>
+                <option>Espèces</option>
+                <option>Mobile Money</option>
+                <option>Virement</option>
+                <option>Chèque</option>
+              </Select>
+              <Input type="date" value={fDate} onChange={(e) => setFDate(e.target.value)} placeholder="Filtrer par date" />
+            </div>
+          </Card>
+
+          <div className="flex items-center justify-between">
+            <h3 className="font-display text-sm font-bold text-white">Journal global des transactions ({filteredGlobalPayments.length})</h3>
+          </div>
+
+          {filteredGlobalPayments.length === 0 ? (
+            <Empty icon={<Wallet size={40} />} title="Aucune transaction trouvée" sub="Aucun paiement ne correspond aux filtres de recherche." />
+          ) : (
+            <Card className="overflow-x-auto">
+              <table className="w-full min-w-[850px] text-left text-sm">
+                <thead>
+                  <tr className="border-b border-white/5 text-[10px] uppercase tracking-[0.2em] text-slate-500">
+                    <th className="px-4 py-3">Réf.</th>
+                    <th className="px-4 py-3">Apprenant</th>
+                    <th className="px-4 py-3">Libellé</th>
+                    <th className="px-4 py-3">Montant</th>
+                    <th className="px-4 py-3">Mode</th>
+                    <th className="px-4 py-3">Date</th>
+                    <th className="px-4 py-3">Statut</th>
+                    <th className="px-4 py-3 text-right">Actions</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {filteredGlobalPayments.map((p) => {
+                    const st = db.students.find((s) => s.id === p.studentId);
+                    const isCancelled = p.observation?.includes("[ANNULÉ]");
+                    return (
+                      <tr key={p.id} className={cn("border-b border-white/5 last:border-0 hover:bg-white/[0.02]", isCancelled && "opacity-50")}>
+                        <td className="px-4 py-3 font-mono text-xs text-cyan-300">{p.reference ?? p.id}</td>
+                        <td className="px-4 py-3">
+                          <button
+                            onClick={() => setStudentId(p.studentId)}
+                            className="font-bold text-white hover:text-cyan-300 hover:underline text-left block"
+                          >
+                            {st ? `${st.prenom} ${st.nom}` : p.studentId}
+                          </button>
+                          <span className="font-mono text-[10px] text-slate-500">{p.studentId}</span>
+                        </td>
+                        <td className="px-4 py-3">
+                          <p className="font-semibold text-slate-200">{p.libelle}</p>
+                          {p.observation && <p className="text-[11px] text-slate-500">{p.observation}</p>}
+                        </td>
+                        <td className={cn("px-4 py-3 font-mono", isCancelled ? "line-through text-slate-500" : "text-white")}>{money(p.montant)}</td>
+                        <td className="px-4 py-3 text-xs text-slate-400">{p.mode}</td>
+                        <td className="px-4 py-3 text-xs text-slate-400">{p.date}{p.heure ? ` • ${p.heure}` : ""}</td>
+                        <td className="px-4 py-3">
+                          {isCancelled ? (
+                            <Badge color="red">Annulé</Badge>
+                          ) : (
+                            <Badge color="green">Encaissé</Badge>
+                          )}
+                        </td>
+                        <td className="px-4 py-3 text-right">
+                          <div className="inline-flex items-center gap-1">
+                            <button onClick={() => receipt(p)} className="rounded-lg border border-white/10 p-1.5 text-slate-300 hover:border-cyan-400/40 hover:text-cyan-300" title="Imprimer le reçu"><ReceiptText size={14} /></button>
+                            {!isCancelled && (
+                              <button onClick={() => setCancellingPay(p)} className="rounded-lg border border-white/10 p-1.5 text-amber-400 hover:border-amber-400/40 hover:bg-amber-500/10" title="Annulation contrôlée"><Ban size={14} /></button>
+                            )}
+                          </div>
+                        </td>
+                      </tr>
+                    );
+                  })}
+                </tbody>
+              </table>
+            </Card>
+          )}
+        </div>
+      )}
+
+      {/* VUE SPÉCIFIQUE À L'APPRENANT */}
       {student && summary && (
         <>
           <div className="mb-5 grid gap-3 sm:grid-cols-4">
@@ -1847,35 +2083,36 @@ export function PaymentsPage() {
           )}
 
           {/* Factures */}
-          <div className="mb-3 flex items-center justify-between">
-            <h3 className="font-display text-sm font-bold text-white">Factures ({invoices.length})</h3>
-            <Btn variant="outline" size="sm" onClick={() => setCreatingInv(true)}><PlusCircle size={14} /> Nouvelle facture</Btn>
-          </div>
-          {invoices.length === 0 ? (
-            <Empty icon={<FileText size={32} />} title="Aucune facture" sub="Ajoutez une facture pour enregistrer ce qui est dû (inscription, formation)." />
-          ) : (
-            <Card className="mb-6 overflow-x-auto">
-              <table className="w-full min-w-[700px] text-left text-sm">
+          {invoices.length > 0 && (
+            <Card className="mb-5 overflow-x-auto">
+              <div className="p-4 border-b border-white/5 flex justify-between items-center">
+                <h3 className="font-display text-sm font-bold text-white">Factures associées ({invoices.length})</h3>
+                <Btn size="sm" variant="outline" onClick={() => setCreatingInv(true)}><FileText size={14} /> Nouvelle facture</Btn>
+              </div>
+              <table className="w-full min-w-[650px] text-left text-sm">
                 <thead>
                   <tr className="border-b border-white/5 text-[10px] uppercase tracking-[0.2em] text-slate-500">
-                    <th className="px-4 py-3">Libellé</th><th className="px-4 py-3">Type</th><th className="px-4 py-3">Émise</th><th className="px-4 py-3">Échéance</th><th className="px-4 py-3">Montant</th><th className="px-4 py-3">Payé</th><th className="px-4 py-3">Reste</th><th className="px-4 py-3 text-right">Actions</th>
+                    <th className="px-4 py-3">Réf.</th>
+                    <th className="px-4 py-3">Libellé</th>
+                    <th className="px-4 py-3">Montant</th>
+                    <th className="px-4 py-3">Payé</th>
+                    <th className="px-4 py-3">Reste</th>
+                    <th className="px-4 py-3">Échéance</th>
+                    <th className="px-4 py-3 text-right">Actions</th>
                   </tr>
                 </thead>
                 <tbody>
                   {invoices.map((i) => {
-                    const paid = db.payments.filter((p) => p.invoiceId === i.id).reduce((a, p) => a + p.montant, 0);
+                    const paid = db.payments.filter((p) => p.invoiceId === i.id && !p.observation?.includes("[ANNULÉ]")).reduce((a, p) => a + p.montant, 0);
                     const rest = Math.max(0, i.montant - paid);
                     return (
                       <tr key={i.id} className="border-b border-white/5 last:border-0 hover:bg-white/[0.02]">
+                        <td className="px-4 py-3 font-mono text-xs text-slate-400">{i.id}</td>
                         <td className="px-4 py-3 font-semibold text-slate-200">{i.libelle}</td>
-                        <td className="px-4 py-3"><Badge color={i.type === "inscription" ? "cyan" : "blue"}>{i.type}</Badge></td>
-                        <td className="px-4 py-3 text-xs text-slate-400">{i.date}</td>
-                        <td className="px-4 py-3 text-xs text-slate-400">{i.dueDate ?? "—"}</td>
                         <td className="px-4 py-3 font-mono text-white">{money(i.montant)}</td>
                         <td className="px-4 py-3 font-mono text-emerald-300">{money(paid)}</td>
-                        <td className="px-4 py-3 font-mono">
-                          {rest === 0 ? <Badge color="green">Soldé</Badge> : <span className="text-amber-300">{money(rest)}</span>}
-                        </td>
+                        <td className="px-4 py-3 font-mono">{rest === 0 ? <Badge color="green">Soldé</Badge> : <span className="text-amber-300 font-bold">{money(rest)}</span>}</td>
+                        <td className="px-4 py-3 text-xs text-slate-400">{i.dueDate ?? "—"}</td>
                         <td className="px-4 py-3 text-right">
                           <div className="inline-flex items-center gap-1">
                             <button onClick={() => setEditingInv({ ...i })} className="rounded-lg border border-white/10 p-1.5 text-slate-300 hover:border-cyan-400/40 hover:text-cyan-300" title="Modifier la facture"><Pencil size={14} /></button>
@@ -1890,9 +2127,9 @@ export function PaymentsPage() {
             </Card>
           )}
 
-          {/* Historique paiements */}
+          {/* Historique paiements apprenant */}
           <div className="mb-3 flex items-center justify-between">
-            <h3 className="font-display text-sm font-bold text-white">Historique des paiements ({payments.length})</h3>
+            <h3 className="font-display text-sm font-bold text-white">Historique des paiements de l'apprenant ({payments.length})</h3>
             <Btn size="sm" onClick={() => setCreatingPay(true)}><PlusCircle size={14} /> Nouveau paiement</Btn>
           </div>
           {payments.length === 0 ? (
@@ -1906,26 +2143,32 @@ export function PaymentsPage() {
                   </tr>
                 </thead>
                 <tbody>
-                  {payments.map((p) => (
-                    <tr key={p.id} className="border-b border-white/5 last:border-0 hover:bg-white/[0.02]">
-                      <td className="px-4 py-3 font-mono text-xs text-cyan-300">{p.reference ?? p.id}</td>
-                      <td className="px-4 py-3">
-                        <p className="font-semibold text-slate-200">{p.libelle}</p>
-                        {p.observation && <p className="text-[11px] text-slate-500">{p.observation}</p>}
-                      </td>
-                      <td className="px-4 py-3 font-mono text-white">{money(p.montant)}</td>
-                      <td className="px-4 py-3 text-xs text-slate-400">{p.mode}</td>
-                      <td className="px-4 py-3 text-xs text-slate-400">{p.date}{p.heure ? ` • ${p.heure}` : ""}</td>
-                      <td className="px-4 py-3 text-xs text-slate-400">{p.createdByName ?? "—"}</td>
-                      <td className="px-4 py-3 text-right">
-                        <div className="inline-flex items-center gap-1">
-                          <button onClick={() => receipt(p)} className="rounded-lg border border-white/10 p-1.5 text-slate-300 hover:border-cyan-400/40 hover:text-cyan-300" title="Imprimer le reçu"><ReceiptText size={14} /></button>
-                          <button onClick={() => setEditingPay({ ...p })} className="rounded-lg border border-white/10 p-1.5 text-slate-300 hover:border-cyan-400/40 hover:text-cyan-300" title="Modifier le paiement"><Pencil size={14} /></button>
-                          <button onClick={() => setDeletingPay(p)} className="rounded-lg border border-white/10 p-1.5 text-slate-400 hover:border-rose-500/40 hover:text-rose-400" title="Supprimer le paiement"><Trash2 size={14} /></button>
-                        </div>
-                      </td>
-                    </tr>
-                  ))}
+                  {payments.map((p) => {
+                    const isCancelled = p.observation?.includes("[ANNULÉ]");
+                    return (
+                      <tr key={p.id} className={cn("border-b border-white/5 last:border-0 hover:bg-white/[0.02]", isCancelled && "opacity-50")}>
+                        <td className="px-4 py-3 font-mono text-xs text-cyan-300">{p.reference ?? p.id}</td>
+                        <td className="px-4 py-3">
+                          <p className="font-semibold text-slate-200">{p.libelle}</p>
+                          {p.observation && <p className="text-[11px] text-slate-500">{p.observation}</p>}
+                        </td>
+                        <td className={cn("px-4 py-3 font-mono", isCancelled ? "line-through text-slate-500" : "text-white")}>{money(p.montant)}</td>
+                        <td className="px-4 py-3 text-xs text-slate-400">{p.mode}</td>
+                        <td className="px-4 py-3 text-xs text-slate-400">{p.date}{p.heure ? ` • ${p.heure}` : ""}</td>
+                        <td className="px-4 py-3 text-xs text-slate-400">{p.createdByName ?? "—"}</td>
+                        <td className="px-4 py-3 text-right">
+                          <div className="inline-flex items-center gap-1">
+                            <button onClick={() => receipt(p)} className="rounded-lg border border-white/10 p-1.5 text-slate-300 hover:border-cyan-400/40 hover:text-cyan-300" title="Imprimer le reçu"><ReceiptText size={14} /></button>
+                            {!isCancelled && (
+                              <button onClick={() => setCancellingPay(p)} className="rounded-lg border border-white/10 p-1.5 text-amber-400 hover:border-amber-400/40 hover:bg-amber-500/10" title="Annulation contrôlée"><Ban size={14} /></button>
+                            )}
+                            <button onClick={() => setEditingPay({ ...p })} className="rounded-lg border border-white/10 p-1.5 text-slate-300 hover:border-cyan-400/40 hover:text-cyan-300" title="Modifier le paiement"><Pencil size={14} /></button>
+                            <button onClick={() => setDeletingPay(p)} className="rounded-lg border border-white/10 p-1.5 text-slate-400 hover:border-rose-500/40 hover:text-rose-400" title="Supprimer le paiement"><Trash2 size={14} /></button>
+                          </div>
+                        </td>
+                      </tr>
+                    );
+                  })}
                 </tbody>
               </table>
             </Card>

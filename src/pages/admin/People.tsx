@@ -3,7 +3,7 @@ import { Link } from "react-router-dom";
 import { QRCodeSVG } from "qrcode.react";
 import {
   Users, Search, PlusCircle, Eye, EyeOff, Pencil, UserCircle2, Phone, Mail, MapPin, CalendarDays,
-  GraduationCap, ShieldCheck, Trash2, CheckCircle2, XCircle, KeyRound, Clock, Wallet, BadgeDollarSign, Timer, MessageCircle,
+  GraduationCap, ShieldCheck, Trash2, CheckCircle2, XCircle, KeyRound, Clock, Wallet, BadgeDollarSign, Timer, MessageCircle, Download,
 } from "lucide-react";
 import { useStore } from "@/lib/store";
 import { cn } from "@/utils/cn";
@@ -64,6 +64,8 @@ export function StudentsPage() {
   const { db, update, nextStudentId, notify, log, computeAmount } = useStore();
   const [q, setQ] = useState("");
   const [tab, setTab] = useState<"tous" | Formation>("tous");
+  const [fPay, setFPay] = useState("");
+  const [fActif, setFActif] = useState("");
   const [editing, setEditing] = useState<Student | null>(null);
   const [creating, setCreating] = useState(false);
   const [viewing, setViewing] = useState<Student | null>(null);
@@ -74,8 +76,60 @@ export function StudentsPage() {
   const filtered = db.students.filter((s) => {
     const matchQ = `${s.nom} ${s.prenom} ${s.id}`.toLowerCase().includes(q.toLowerCase());
     const matchT = tab === "tous" || s.formation === tab;
-    return matchQ && matchT;
+    if (!matchQ || !matchT) return false;
+    if (fPay) {
+      const st = financialSummary(db, s.id).statut;
+      if (st !== fPay) return false;
+    }
+    if (fActif === "actif" && s.actif === false) return false;
+    if (fActif === "inactif" && s.actif !== false) return false;
+    return true;
   });
+
+  const exportStudentsCSV = () => {
+    const headers = ["N° Apprenant", "Nom", "Prénom", "Formation", "Téléphone", "WhatsApp", "Email", "Modules", "Paiement", "Statut Compte"];
+    const rows = filtered.map((s) => {
+      const fin = financialSummary(db, s.id);
+      return [
+        s.id,
+        s.nom,
+        s.prenom,
+        formationLabel(s.formation),
+        s.telephone || "",
+        s.whatsapp || "",
+        s.email || "",
+        s.modules.length,
+        fin.statut,
+        s.actif !== false ? "Actif" : "Inactif",
+      ];
+    });
+    const csv = [headers.join(";"), ...rows.map((r) => r.map((c) => `"${String(c).replace(/"/g, '""')}"`).join(";"))].join("\n");
+    const blob = new Blob(["\ufeff" + csv], { type: "text/csv;charset=utf-8;" });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement("a");
+    a.href = url;
+    a.download = `apprenants_sentinelles_${today()}.csv`;
+    a.click();
+    toastMsg.success("Export apprenants CSV téléchargé ✓");
+  };
+
+  const toggleActiveStudent = async (s: Student) => {
+    const newStatus = s.actif === false ? true : false;
+    if (isSupabaseConfigured) {
+      try {
+        await supabase.from("students").update({ actif: newStatus }).eq("id", s.id);
+        toastMsg.success(newStatus ? "Apprenant réactivé ✓" : "Apprenant désactivé ✓");
+        window.dispatchEvent(new Event("sentinelles:supabase-refresh"));
+      } catch (err: any) {
+        toastMsg.error("Erreur statut apprenant", err.message);
+        return;
+      }
+    }
+    update((d) => ({
+      ...d,
+      students: d.students.map((x) => (x.id === s.id ? { ...x, actif: newStatus } : x)),
+    }));
+  };
 
   const save = async () => {
     if (!form.nom || !form.prenom) return;
@@ -417,26 +471,66 @@ export function StudentsPage() {
       <PageHead
         title="Gestion des apprenants"
         subtitle={`${db.students.length} apprenants • ${db.registrations.length} pré-inscription(s) en attente`}
-        actions={<Btn onClick={() => { setForm(emptyStudent()); setEditing(null); setCreating(true); }}><PlusCircle size={16} /> Ajouter un apprenant</Btn>}
+        actions={
+          <div className="flex flex-wrap gap-2">
+            <Btn variant="outline" onClick={exportStudentsCSV}><Download size={15} /> Exporter CSV</Btn>
+            <Btn onClick={() => { setForm(emptyStudent()); setEditing(null); setCreating(true); }}><PlusCircle size={16} /> Ajouter un apprenant</Btn>
+          </div>
+        }
       />
 
-      <div className="mb-5 flex flex-wrap items-center gap-3">
-        <div className="relative flex-1 min-w-52">
-          <Search size={16} className="absolute left-3.5 top-1/2 -translate-y-1/2 text-slate-500" />
-          <Input placeholder="Rechercher par nom, prénom ou n° d'apprenant..." value={q} onChange={(e) => setQ(e.target.value)} className="pl-10" />
+      <div className="mb-5 space-y-3">
+        <div className="flex flex-wrap items-center gap-3">
+          <div className="relative flex-1 min-w-52">
+            <Search size={16} className="pointer-events-none absolute left-3.5 top-1/2 -translate-y-1/2 text-slate-500" />
+            <Input placeholder="Rechercher par nom, prénom ou n° d'apprenant..." value={q} onChange={(e) => setQ(e.target.value)} className="pl-10" />
+          </div>
+          <div className="flex gap-2">
+            {([["tous", "Tous"], ["informatique", "Génie Info"], ["industriel", "Génie Ind."]] as const).map(([k, l]) => (
+              <button key={k} onClick={() => setTab(k)} className={cn(
+                "rounded-xl border px-4 py-2 text-sm font-bold transition-all",
+                tab === k ? "border-cyan-400/50 bg-cyan-400/10 text-cyan-300" : "border-white/10 text-slate-400 hover:bg-white/5"
+              )}>{l}</button>
+            ))}
+          </div>
         </div>
-        <div className="flex gap-2">
-          {([["tous", "Tous"], ["informatique", "Génie Info"], ["industriel", "Génie Ind."]] as const).map(([k, l]) => (
-            <button key={k} onClick={() => setTab(k)} className={cn(
-              "rounded-xl border px-4 py-2.5 text-sm font-bold transition-all",
-              tab === k ? "border-cyan-400/50 bg-cyan-400/10 text-cyan-300" : "border-white/10 text-slate-400 hover:bg-white/5"
-            )}>{l}</button>
+
+        <div className="flex flex-wrap items-center gap-2 text-xs">
+          <span className="text-slate-500 font-medium">Paiement :</span>
+          {(["", "paye", "partiel", "impaye", "retard"] as const).map((st) => (
+            <button
+              key={st}
+              onClick={() => setFPay(st)}
+              className={cn("rounded-lg border px-3 py-1 font-bold", fPay === st ? "border-cyan-400/50 bg-cyan-400/10 text-cyan-300" : "border-white/10 text-slate-400")}
+            >
+              {st === "" ? "Tous" : st === "paye" ? "Soldé" : st === "partiel" ? "Partiel" : st === "retard" ? "En retard" : "Impayé"}
+            </button>
           ))}
+
+          <span className="text-slate-500 font-medium ml-3">Statut :</span>
+          {(["", "actif", "inactif"] as const).map((a) => (
+            <button
+              key={a}
+              onClick={() => setFActif(a)}
+              className={cn("rounded-lg border px-3 py-1 font-bold", fActif === a ? "border-cyan-400/50 bg-cyan-400/10 text-cyan-300" : "border-white/10 text-slate-400")}
+            >
+              {a === "" ? "Tous" : a === "actif" ? "Actifs" : "Inactifs"}
+            </button>
+          ))}
+
+          {(q || tab !== "tous" || fPay || fActif) && (
+            <button
+              onClick={() => { setQ(""); setTab("tous"); setFPay(""); setFActif(""); }}
+              className="ml-auto text-xs font-bold text-red-400 hover:underline"
+            >
+              Réinitialiser les filtres
+            </button>
+          )}
         </div>
       </div>
 
       {filtered.length === 0 ? (
-        <Empty icon={<Users size={40} />} title="Aucun apprenant trouvé" />
+        <Empty icon={<Users size={40} />} title="Aucun apprenant trouvé" sub="Essayez de modifier vos critères de recherche ou de filtres." />
       ) : (
         <Card className="overflow-x-auto">
           <table className="w-full min-w-[820px] text-left">
@@ -453,7 +547,7 @@ export function StudentsPage() {
             </thead>
             <tbody>
               {filtered.map((s) => (
-                <tr key={s.id} className="border-b border-white/5 last:border-0 hover:bg-white/[0.02]">
+                <tr key={s.id} className={cn("border-b border-white/5 last:border-0 hover:bg-white/[0.02]", s.actif === false && "opacity-60")}>
                   <td className="px-4 py-3 font-mono text-xs font-bold text-cyan-300">{s.id}</td>
                   <td className="px-4 py-3">
                     <div className="flex items-center gap-2.5">
@@ -467,10 +561,17 @@ export function StudentsPage() {
                   <td className="px-4 py-3 text-xs font-semibold text-slate-300">{formationLabel(s.formation)}</td>
                   <td className="px-4 py-3 text-xs text-slate-400">{s.modules.length} module(s)</td>
                   <td className="px-4 py-3">{statusBadge(s)}</td>
-                  <td className="px-4 py-3"><Badge color={s.statut === "actif" ? "cyan" : "gray"}>{s.statut}</Badge></td>
+                  <td className="px-4 py-3">
+                    <Badge color={s.actif !== false ? "cyan" : "gray"}>
+                      {s.actif !== false ? "Actif" : "Inactif"}
+                    </Badge>
+                  </td>
                   <td className="px-4 py-3">
                     <div className="flex justify-end gap-1.5">
-                      <button onClick={() => setViewing(s)} className="rounded-lg border border-white/10 p-2 text-slate-300 hover:border-cyan-400/40 hover:text-cyan-300" title="Voir"><Eye size={15} /></button>
+                      <button onClick={() => setViewing(s)} className="rounded-lg border border-white/10 p-2 text-slate-300 hover:border-cyan-400/40 hover:text-cyan-300" title="Voir fiche"><Eye size={15} /></button>
+                      <button onClick={() => toggleActiveStudent(s)} className="rounded-lg border border-white/10 p-2 text-slate-300 hover:border-amber-400/40 hover:text-amber-300" title={s.actif !== false ? "Désactiver l'apprenant" : "Réactiver l'apprenant"}>
+                        {s.actif !== false ? <EyeOff size={15} /> : <CheckCircle2 size={15} className="text-emerald-400" />}
+                      </button>
                       <button onClick={() => { setForm(s); setEditing(s); setCreating(true); }} className="rounded-lg border border-white/10 p-2 text-slate-300 hover:border-amber-400/40 hover:text-amber-300" title="Modifier"><Pencil size={15} /></button>
                       <button onClick={() => setDeleteTarget(s)} className="rounded-lg border border-white/10 p-2 text-slate-300 hover:border-red-500/40 hover:text-red-400" title="Supprimer"><Trash2 size={15} /></button>
                     </div>
@@ -1079,12 +1180,62 @@ export function TeachersPage() {
     setEditing(null);
   };
 
+  const exportTeachersCSV = () => {
+    const headers = ["ID", "Nom", "Prénom", "Spécialité", "Email", "Téléphone", "Type Contrat", "Tarif Horaire", "Statut", "Compte Utilisateur"];
+    const rows = filtered.map((t) => [
+      t.id,
+      t.nom,
+      t.prenom,
+      t.specialite || "",
+      t.email || "",
+      t.phone || "",
+      t.typeContrat || "",
+      t.tarifHoraire || 0,
+      t.actif !== false ? "Actif" : "Inactif",
+      t.userId ? "Oui" : "Non",
+    ]);
+    const csv = [headers.join(";"), ...rows.map((r) => r.map((c) => `"${String(c).replace(/"/g, '""')}"`).join(";"))].join("\n");
+    const blob = new Blob(["\ufeff" + csv], { type: "text/csv;charset=utf-8;" });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement("a");
+    a.href = url;
+    a.download = `enseignants_sentinelles_${today()}.csv`;
+    a.click();
+    toastMsg.success("Export enseignants CSV téléchargé ✓");
+  };
+
+  const toggleActiveTeacher = async (t: any) => {
+    const newStatus = t.actif === false ? true : false;
+    if (isSupabaseConfigured) {
+      try {
+        await supabase.from("teachers").update({ actif: newStatus }).eq("id", t.id);
+        toastMsg.success(newStatus ? "Formateur réactivé ✓" : "Formateur désactivé ✓");
+        window.dispatchEvent(new Event("sentinelles:supabase-refresh"));
+      } catch (err: any) {
+        toastMsg.error("Erreur statut formateur", err.message);
+        return;
+      }
+    }
+    update((d) => ({
+      ...d,
+      teachers: d.teachers.map((x) => (x.id === t.id ? { ...x, actif: newStatus } : x)),
+    }));
+  };
+
   const contractTypes = Array.from(new Set(db.teachers.map((t) => t.typeContrat).filter(Boolean) as string[]));
 
   return (
     <div>
-      <PageHead title="Enseignants" subtitle={`${db.teachers.length} formateurs`}
-        actions={<Btn onClick={() => { setForm(emptyTeacher()); setEditing(null); setCreateAccount(true); setAccountEmail(""); setCustomPassword(""); setCreating(true); }}><PlusCircle size={16} /> Ajouter</Btn>} />
+      <PageHead
+        title="Enseignants"
+        subtitle={`${db.teachers.length} formateurs`}
+        actions={
+          <div className="flex flex-wrap gap-2">
+            <Btn variant="outline" onClick={exportTeachersCSV}><Download size={15} /> Exporter CSV</Btn>
+            <Btn onClick={() => { setForm(emptyTeacher()); setEditing(null); setCreateAccount(true); setAccountEmail(""); setCustomPassword(""); setCreating(true); }}><PlusCircle size={16} /> Ajouter un formateur</Btn>
+          </div>
+        }
+      />
 
       {/* Recherche + filtres */}
       <Card className="mb-5 p-4">
@@ -1127,7 +1278,7 @@ export function TeachersPage() {
       </Card>
 
       {filtered.length === 0 ? (
-        <Empty icon={<GraduationCap size={40} />} title="Aucun enseignant trouvé" />
+        <Empty icon={<GraduationCap size={40} />} title="Aucun enseignant trouvé" sub="Modifiez vos critères de recherche ou ajoutez un nouveau formateur." />
       ) : (
         <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-3">
           {filtered.map((t) => {
@@ -1152,11 +1303,15 @@ export function TeachersPage() {
                   </div>
                   <div className="flex gap-1.5">
                     <button onClick={() => setViewing(t)} className="rounded-lg border border-white/10 p-2 text-slate-300 hover:border-cyan-400/40 hover:text-cyan-300" title="Détails"><Eye size={14} /></button>
-                    <button onClick={() => { setForm(t); setEditing(t); setCreating(true); }} className="rounded-lg border border-white/10 p-2 text-slate-300 hover:border-amber-400/40 hover:text-amber-300"><Pencil size={14} /></button>
+                    <button onClick={() => toggleActiveTeacher(t)} className="rounded-lg border border-white/10 p-2 text-slate-300 hover:border-amber-400/40 hover:text-amber-300" title={t.actif !== false ? "Désactiver le formateur" : "Réactiver le formateur"}>
+                      {t.actif !== false ? <EyeOff size={14} /> : <CheckCircle2 size={14} className="text-emerald-400" />}
+                    </button>
+                    <button onClick={() => { setForm(t); setEditing(t); setCreating(true); }} className="rounded-lg border border-white/10 p-2 text-slate-300 hover:border-amber-400/40 hover:text-amber-300" title="Modifier"><Pencil size={14} /></button>
                     <button onClick={() => setDeleteTarget(t)} className="rounded-lg border border-white/10 p-2 text-slate-300 hover:border-red-500/40 hover:text-red-400" title="Supprimer"><Trash2 size={14} /></button>
                   </div>
                 </div>
                 <div className="mt-3 flex flex-wrap gap-1.5">
+                  {t.userId ? <Badge color="green">Compte actif</Badge> : <Badge color="gray">Fiche seule</Badge>}
                   {t.actif === false && <Badge color="red">Inactif</Badge>}
                   {t.typeContrat && <Badge color="gold">{t.typeContrat}</Badge>}
                   {mods.slice(0, 3).map((m) => <span key={m.id} className="rounded-md border border-white/10 bg-white/[0.03] px-2 py-0.5 text-[10px] text-slate-400">{m.numero}. {m.titre}</span>)}
