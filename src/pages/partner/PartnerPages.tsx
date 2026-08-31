@@ -1,4 +1,4 @@
-import { useMemo, useState, type ReactNode } from "react";
+import { useEffect, useMemo, useState, type ReactNode } from "react";
 import { Link } from "react-router-dom";
 import {
   BookOpen, ClipboardCheck, Download, FileText,
@@ -8,6 +8,8 @@ import { useStore } from "@/lib/store";
 import { Card, Empty, Input, PageHead, Stat, Badge, Btn, moduleIcon, formationLabel } from "@/lib/ui";
 import { cn } from "@/utils/cn";
 import { exportCsv, exportJsonAsExcel } from "@/lib/export";
+import { isSupabaseConfigured } from "@/lib/supabase/client";
+import { getPartnerDashboard, getPartnerStudents } from "@/lib/supabase/partner";
 
 function ReadOnlyBanner() {
   return (
@@ -28,27 +30,40 @@ function SearchBox({ value, onChange, placeholder = "Rechercher..." }: { value: 
 
 export function PartnerDashboard() {
   const { db } = useStore();
+  const [counts, setCounts] = useState<any>(null);
+
+  useEffect(() => {
+    if (isSupabaseConfigured) {
+      getPartnerDashboard().then(setCounts).catch(() => {});
+    }
+  }, []);
+
   const presenceTotal = db.attendance.length || 1;
   const present = db.attendance.filter((a) => a.statut === "present").length;
   const presenceRate = Math.round((present / presenceTotal) * 100);
+
+  const studentCount = counts?.students ?? db.students.length;
+  const teacherCount = counts?.teachers ?? db.teachers.length;
+  const moduleCount = counts?.modules ?? db.modules.length;
+
   return (
     <div className="space-y-5">
       <PageHead title="Dashboard Partenaire" subtitle="Indicateurs institutionnels autorisés" />
       <ReadOnlyBanner />
       <div className="grid grid-cols-2 gap-4 md:grid-cols-4">
-        <Stat icon={<Users size={20} />} label="Apprenants" value={db.students.length} color="cyan" />
-        <Stat icon={<GraduationCap size={20} />} label="Enseignants" value={db.teachers.length} color="blue" />
-        <Stat icon={<BookOpen size={20} />} label="Modules" value={db.modules.length} color="green" />
+        <Stat icon={<Users size={20} />} label="Apprenants" value={studentCount} color="cyan" />
+        <Stat icon={<GraduationCap size={20} />} label="Enseignants" value={teacherCount} color="blue" />
+        <Stat icon={<BookOpen size={20} />} label="Modules" value={moduleCount} color="green" />
         <Stat icon={<ClipboardCheck size={20} />} label="Taux présence" value={`${presenceRate}%`} color="gold" />
       </div>
       <div className="grid gap-4 lg:grid-cols-2">
         <Card className="p-5">
           <h3 className="font-display mb-3 text-sm font-bold text-white">Activités pédagogiques</h3>
           <div className="grid grid-cols-2 gap-2 text-center text-sm">
-            <Info label="Cours publiés" value={db.courses.filter((c) => c.publie !== false).length} />
+            <Info label="Cours publiés" value={counts?.courses ?? db.courses.filter((c) => c.publie !== false).length} />
             <Info label="Tests" value={db.tests.length} />
-            <Info label="Certificats" value={db.certificates.length} />
-            <Info label="Bourses" value={db.scholarships.length} />
+            <Info label="Certificats" value={counts?.certificates ?? db.certificates.length} />
+            <Info label="Bourses" value={counts?.scholarships ?? db.scholarships.length} />
           </div>
         </Card>
         <Card className="p-5">
@@ -66,7 +81,12 @@ export function PartnerDashboard() {
 }
 
 function LinkBtn({ to, label }: { to: string; label: string }) {
-  return <Link to={to} className="rounded-xl border border-white/10 bg-white/[0.02] px-3 py-2 text-center text-xs font-bold text-slate-300 hover:border-cyan-400/40 hover:text-cyan-300">{label}</Link>;
+  return (
+    <Link to={to} className="flex items-center justify-between rounded-xl border border-white/10 bg-white/[0.02] p-3 text-xs font-bold text-slate-300 transition-colors hover:border-cyan-400/40 hover:bg-cyan-400/5 hover:text-cyan-300">
+      <span>{label}</span>
+      <span className="text-slate-500">→</span>
+    </Link>
+  );
 }
 
 function Info({ label, value }: { label: string; value: any }) {
@@ -75,12 +95,23 @@ function Info({ label, value }: { label: string; value: any }) {
 
 export function PartnerStudents() {
   const { db } = useStore();
+  const [remoteStudents, setRemoteStudents] = useState<any[] | null>(null);
   const [q, setQ] = useState("");
-  const rows = db.students.filter((s) => `${s.id} ${s.nom} ${s.prenom} ${s.formation}`.toLowerCase().includes(q.toLowerCase()));
+
+  useEffect(() => {
+    if (isSupabaseConfigured) {
+      getPartnerStudents().then((data) => {
+        if (data && data.length > 0) setRemoteStudents(data);
+      }).catch(() => {});
+    }
+  }, []);
+
+  const sourceStudents = remoteStudents || db.students;
+  const rows = sourceStudents.filter((s: any) => `${s.id} ${s.nom} ${s.prenom} ${s.formation || ""}`.toLowerCase().includes(q.toLowerCase()));
   return (
-    <ReadOnlyList title="Apprenants" subtitle="Données partenaires filtrées" q={q} setQ={setQ} onCsv={() => exportCsv("apprenants-partenaire", rows.map((s) => ({ id: s.id, nom: s.nom, prenom: s.prenom, formation: s.formation, statut: s.statut })))}>
+    <ReadOnlyList title="Apprenants" subtitle="Données partenaires filtrées" q={q} setQ={setQ} onCsv={() => exportCsv("apprenants-partenaire", rows.map((s: any) => ({ id: s.id, nom: s.nom, prenom: s.prenom, formation: s.formation, statut: s.statut })))}>
       <div className="grid gap-3 md:grid-cols-2 xl:grid-cols-3">
-        {rows.map((s) => <Card key={s.id} className="p-4"><p className="font-display text-sm font-bold text-white">{s.prenom} {s.nom}</p><p className="font-mono text-[10px] text-cyan-300">{s.id}</p><p className="mt-1 text-xs text-slate-400">{formationLabel(s.formation)} · {s.statut}</p><p className="mt-2 text-[11px] text-slate-600">Téléphone, adresse et email masqués (PRIVATE).</p></Card>)}
+        {rows.map((s: any) => <Card key={s.id} className="p-4"><p className="font-display text-sm font-bold text-white">{s.prenom} {s.nom}</p><p className="font-mono text-[10px] text-cyan-300">{s.id}</p><p className="mt-1 text-xs text-slate-400">{formationLabel(s.formation)} · {s.statut}</p><p className="mt-2 text-[11px] text-slate-600">Téléphone, adresse et email masqués (PRIVATE).</p></Card>)}
       </div>
     </ReadOnlyList>
   );

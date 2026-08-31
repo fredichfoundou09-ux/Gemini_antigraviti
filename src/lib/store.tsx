@@ -319,7 +319,7 @@ export function StoreProvider({ children }: { children: React.ReactNode }) {
             statut: a.statut as any, heure: a.heure, salle: a.salle, teacherId: a.teacher_id
           })),
           invoices: (invoicesRes.data || []).map((i: any) => ({
-            id: i.id, studentId: i.student_id, type: i.type as any, libelle: i.libelle, montant: Number(i.montant), date: i.date
+            id: i.id, studentId: i.student_id, type: i.type as any, libelle: i.libelle, montant: Number(i.montant), date: i.date, dueDate: i.due_date || undefined, createdBy: i.created_by || undefined
           })),
           payments: (paymentsRes.data || []).map((p: any) => ({
             id: p.id, studentId: p.student_id, invoiceId: p.invoice_id, type: p.type as any, libelle: p.libelle,
@@ -378,6 +378,9 @@ export function StoreProvider({ children }: { children: React.ReactNode }) {
       .on("postgres_changes", { event: "*", schema: "public", table: "modules" }, () => syncPublicData())
       .on("postgres_changes", { event: "*", schema: "public", table: "chapters" }, () => syncPublicData())
       .on("postgres_changes", { event: "*", schema: "public", table: "formations" }, () => syncPublicData())
+      .on("postgres_changes", { event: "*", schema: "public", table: "invoices" }, () => syncAll())
+      .on("postgres_changes", { event: "*", schema: "public", table: "payments" }, () => syncAll())
+      .on("postgres_changes", { event: "*", schema: "public", table: "conversations" }, () => syncAll())
       .on("postgres_changes", { event: "*", schema: "public", table: "messages" }, () => syncAll())
       .on("postgres_changes", { event: "*", schema: "public", table: "notifications" }, () => syncAll())
       .on("postgres_changes", { event: "*", schema: "public", table: "registrations" }, () => syncAll())
@@ -674,11 +677,25 @@ export function StoreProvider({ children }: { children: React.ReactNode }) {
   const modulesOf = (f: Formation) => db.modules.filter((m) => m.formation === f);
 
   const computeAmount = (f: Formation, moduleCount: number) => {
+    if (moduleCount <= 0) return 0;
     const rows = [...db.settings.frais[f]].sort((a, b) => a.modules - b.modules);
-    if (moduleCount <= 0 || rows.length === 0) return 0;
+    if (rows.length === 0) return 0;
+
+    // 1. Chercher un palier exact pour ce nombre de modules
+    const exact = rows.find((r) => r.modules === moduleCount);
+    if (exact && exact.montant > 0) return exact.montant;
+
+    // 2. Chercher si un tarif unitaire (1 module) est configuré
+    const unitRow = rows.find((r) => r.modules === 1 && r.montant > 0);
+    if (unitRow) return unitRow.montant * moduleCount;
+
+    // 3. Calcul proportionnel basé sur le palier le plus proche
     let best = rows.filter((r) => r.modules <= moduleCount).pop();
+    if (best && best.modules > 0) {
+      return Math.round((best.montant / best.modules) * moduleCount);
+    }
     if (!best) best = rows.find((r) => r.modules >= moduleCount) ?? rows[rows.length - 1];
-    return best.montant;
+    return best ? best.montant : 0;
   };
 
   const userName = (id: string) => {

@@ -129,9 +129,13 @@ export function ContentEditor() {
       hero: activeHero,
       formations,
       frais: {
-        inscription: frais.inscription,
-        informatique: frais.informatique.map((f) => ({ id: f.id || uid("FR"), label: f.label, modules: +f.modules || 0, montant: +f.montant || 0 })),
-        industriel: frais.industriel.map((f) => ({ id: f.id || uid("FR"), label: f.label, modules: +f.modules || 0, montant: +f.montant || 0 })),
+        inscription: Math.max(0, +frais.inscription || 0),
+        informatique: frais.informatique
+          .filter((f) => f.label.trim() || f.montant > 0)
+          .map((f) => ({ id: f.id || uid("FR"), label: f.label.trim() || `${f.modules} module(s)`, modules: Math.max(1, +f.modules || 1), montant: Math.max(0, +f.montant || 0) })),
+        industriel: frais.industriel
+          .filter((f) => f.label.trim() || f.montant > 0)
+          .map((f) => ({ id: f.id || uid("FR"), label: f.label.trim() || `${f.modules} module(s)`, modules: Math.max(1, +f.modules || 1), montant: Math.max(0, +f.montant || 0) })),
       },
       avantages,
       advantageImage: activeAdvantageImg,
@@ -161,14 +165,14 @@ export function ContentEditor() {
           updated_at: new Date().toISOString(),
         });
         if (error) {
-          console.warn("Supabase site_settings sync warning:", error.message);
-          toastMsg.info("Modifications appliquées au site public ✓", "Enregistré avec succès");
+          console.error("Supabase site_settings sync error:", error.message);
+          toastMsg.error("Échec de l'enregistrement en base de données", error.message);
         } else {
           toastMsg.success("Contenu du site enregistré avec succès ✓", "Modifications visibles immédiatement");
         }
       } catch (err: any) {
-        console.warn("Sync error:", err);
-        toastMsg.info("Modifications appliquées au site public ✓");
+        console.error("Sync error:", err);
+        toastMsg.error("Erreur de sauvegarde", err.message || "Erreur de connexion");
       }
     } else {
       toastMsg.success("Modifications enregistrées ✓", "Visibles immédiatement sur la page d'accueil");

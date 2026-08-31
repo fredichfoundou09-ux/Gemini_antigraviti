@@ -1,8 +1,11 @@
-import { useMemo, useState } from "react";
-import { Send, Mail, Bell, CheckCheck, Users, UserCircle2, Inbox, ChevronRight } from "lucide-react";
+import { useEffect, useMemo, useState } from "react";
+import { Send, Mail, Bell, CheckCheck, Users, UserCircle2, Inbox, ChevronRight, MessageSquare, Reply, CornerDownRight } from "lucide-react";
 import { useStore } from "@/lib/store";
 import { cn } from "@/utils/cn";
 import { Btn, Card, Field, Input, Textarea, Empty, PageHead, Badge, uid, today } from "@/lib/ui";
+import { isSupabaseConfigured } from "@/lib/supabase/client";
+import { fetchMyConversations, startConversation, replyToConversation, subscribeToAllMessages } from "@/lib/supabase/communication";
+import { toastMsg } from "@/lib/toast";
 
 const notifColor: Record<string, string> = {
   info: "border-cyan-400/30 text-cyan-300",
@@ -19,28 +22,142 @@ export function MessageCenter() {
   const [to, setTo] = useState("all_students");
   const [subject, setSubject] = useState("");
   const [body, setBody] = useState("");
+  const [sending, setSending] = useState(false);
+  const [remoteConvs, setRemoteConvs] = useState<any[]>([]);
+  const [replyingTo, setReplyingTo] = useState<string | null>(null);
+  const [replyBody, setReplyBody] = useState("");
+  const [sendingReply, setSendingReply] = useState(false);
 
-  const mine = db.messages
-    .filter((m) => m.toId === user!.id || m.fromId === user!.id)
+  // Charger les conversations Supabase
+  const loadConversations = async () => {
+    if (!isSupabaseConfigured || !user?.id) return;
+    try {
+      const convs = await fetchMyConversations();
+      setRemoteConvs(convs);
+    } catch (err: any) {
+      console.warn("Impossible de charger les conversations Supabase:", err.message);
+    }
+  };
+
+  useEffect(() => {
+    loadConversations();
+    if (isSupabaseConfigured) {
+      const sub = subscribeToAllMessages(() => {
+        loadConversations();
+      });
+      const refreshHandler = () => loadConversations();
+      window.addEventListener("sentinelles:supabase-refresh", refreshHandler);
+      return () => {
+        sub.unsubscribe();
+        window.removeEventListener("sentinelles:supabase-refresh", refreshHandler);
+      };
+    }
+  }, [user?.id]);
+
+  // Messages locaux (fallback ou mix)
+  const localMessages = db.messages
+    .filter((m) => m.toId === user!.id || m.fromId === user!.id || m.toId === "all_students" || m.toId === "all_teachers")
     .sort((a, b) => b.date.localeCompare(a.date));
 
-  const send = (e: React.FormEvent) => {
+  // Fusionner les conversations distantes et locales
+  const displayItems = useMemo(() => {
+    if (isSupabaseConfigured && remoteConvs.length > 0) {
+      return remoteConvs.map((c) => {
+        const msgs = (c.messages || []).sort((a: any, b: any) =>
+          (a.created_at || "").localeCompare(b.created_at || "")
+        );
+        const lastMsg = msgs[msgs.length - 1];
+        const isFromMe = lastMsg?.sender_id === user?.id;
+        const sender = db.users.find((u) => u.id === lastMsg?.sender_id);
+        return {
+          id: c.id,
+          isRemote: true,
+          subject: c.subject || "Discussion",
+          date: lastMsg?.created_at ? new Date(lastMsg.created_at).toLocaleString("fr-FR", { dateStyle: "short", timeStyle: "short" }) : "",
+          lastSenderName: sender?.name || (isFromMe ? "Moi" : "Expéditeur inconnu"),
+          messages: msgs,
+          isFromMe,
+        };
+      });
+    }
+    return localMessages.map((m) => ({
+      id: m.id,
+      isRemote: false,
+      subject: m.subject,
+      date: m.date,
+      lastSenderName: m.fromName,
+      messages: [{ id: m.id, sender_id: m.fromId, body: m.body, created_at: m.date }],
+      isFromMe: m.fromId === user?.id,
+      localMsg: m,
+    }));
+  }, [remoteConvs, localMessages, isSupabaseConfigured, user?.id, db.users]);
+
+  const send = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!subject.trim() || !body.trim()) return;
-    const msg = { id: uid("MSG"), fromId: user!.id, fromName: user!.name, toId: to, subject, body, date: today(), lu: false };
-    update((d) => ({ ...d, messages: [msg, ...d.messages] }));
-    if (to !== "all_students" && to !== "all_teachers") {
-      update((d) => ({ ...d, notifications: [{ id: uid("NTF"), toId: to, title: `Nouveau message : ${subject}`, body, date: today(), lu: false, type: "info" }, ...d.notifications] }));
+    setSending(true);
+
+    try {
+      if (isSupabaseConfigured) {
+        let memberIds: string[] = [];
+        if (to === "all_students") {
+          memberIds = db.users.filter((u) => u.role === "student").map((u) => u.id);
+        } else if (to === "all_teachers") {
+          memberIds = db.users.filter((u) => u.role === "teacher").map((u) => u.id);
+        } else {
+          memberIds = [to];
+        }
+
+        await startConversation(subject.trim(), memberIds, body.trim());
+        await loadConversations();
+        toastMsg.success("Message transmis avec succès ✓", "Visible immédiatement par le destinataire");
+      } else {
+        const msg = { id: uid("MSG"), fromId: user!.id, fromName: user!.name, toId: to, subject, body, date: today(), lu: false };
+        update((d) => ({ ...d, messages: [msg, ...d.messages] }));
+        if (to !== "all_students" && to !== "all_teachers") {
+          update((d) => ({ ...d, notifications: [{ id: uid("NTF"), toId: to, title: `Nouveau message : ${subject}`, body, date: today(), lu: false, type: "info" }, ...d.notifications] }));
+        }
+        toastMsg.success("Message envoyé en local ✓");
+      }
+
+      log(`Message envoyé à ${userName(to)} : ${subject}`);
+      setSubject(""); setBody(""); setMode("inbox");
+    } catch (err: any) {
+      console.error("Erreur envoi message:", err);
+      toastMsg.error("Échec d'envoi du message", err.message || "Erreur réseau");
+    } finally {
+      setSending(false);
     }
-    log(`Message envoyé à ${userName(to)} : ${subject}`);
-    setSubject(""); setBody(""); setMode("inbox");
+  };
+
+  const handleReply = async (convId: string) => {
+    if (!replyBody.trim() || !user?.id) return;
+    setSendingReply(true);
+    try {
+      if (isSupabaseConfigured) {
+        await replyToConversation(convId, user.id, replyBody.trim());
+        await loadConversations();
+        toastMsg.success("Réponse envoyée ✓");
+      } else {
+        const msg = { id: uid("MSG"), fromId: user.id, fromName: user.name, toId: "dest", subject: "Re: Message", body: replyBody.trim(), date: today(), lu: false };
+        update((d) => ({ ...d, messages: [msg, ...d.messages] }));
+        toastMsg.success("Réponse ajoutée en local ✓");
+      }
+      setReplyBody("");
+      setReplyingTo(null);
+    } catch (err: any) {
+      console.error("Erreur réponse message:", err);
+      toastMsg.error("Échec de transmission de la réponse", err.message);
+    } finally {
+      setSendingReply(false);
+    }
   };
 
   const targets = useMemo(() => {
     const opts: { id: string; label: string; icon: React.ReactNode }[] = [];
     if (["superadmin", "admin", "teacher"].includes(user!.role)) opts.push({ id: "all_students", label: "Tous les apprenants", icon: <Users size={14} /> });
     if (["superadmin", "admin"].includes(user!.role)) opts.push({ id: "all_teachers", label: "Tous les enseignants", icon: <UserCircle2 size={14} /> });
-    db.users.filter((u) => u.id !== user!.id).forEach((u) => opts.push({ id: u.id, label: u.name, icon: <UserCircle2 size={14} /> }));
+    db.users.filter((u) => u.id !== user!.id).forEach((u) => opts.push({ id: u.id, label: `${u.name} (${u.role})`, icon: <UserCircle2 size={14} /> }));
     return opts;
   }, [db.users, user]);
 
@@ -48,7 +165,7 @@ export function MessageCenter() {
     <div>
       <PageHead
         title="Messagerie interne"
-        subtitle="Messages privés, groupes et annonces"
+        subtitle="Conversations instantanées et annonces multi-espaces"
         actions={
           <Btn onClick={() => setMode(mode === "inbox" ? "new" : "inbox")}>
             {mode === "inbox" ? <><Send size={16} /> Nouveau message</> : <><Inbox size={16} /> Boîte de réception</>}
@@ -72,39 +189,73 @@ export function MessageCenter() {
                 ))}
               </div>
             </Field>
-            <Field label="Objet"><Input required value={subject} onChange={(e) => setSubject(e.target.value)} placeholder="Objet du message" /></Field>
+            <Field label="Objet"><Input required value={subject} onChange={(e) => setSubject(e.target.value)} placeholder="Objet de la discussion" /></Field>
             <Field label="Message"><Textarea required value={body} onChange={(e) => setBody(e.target.value)} placeholder="Rédigez votre message..." /></Field>
-            <Btn type="submit" className="w-full py-3"><Send size={16} /> Envoyer</Btn>
+            <Btn type="submit" disabled={sending} className="w-full py-3">
+              <Send size={16} /> {sending ? "Envoi en cours..." : "Envoyer le message"}
+            </Btn>
           </form>
         </Card>
-      ) : mine.length === 0 ? (
+      ) : displayItems.length === 0 ? (
         <Empty icon={<Mail size={40} />} title="Aucun message" sub="Vos conversations apparaîtront ici." />
       ) : (
-        <div className="space-y-3">
-          {mine.map((m) => {
-            const incoming = m.fromId !== user!.id;
-            const isBroadcast = m.toId === "all_students" || m.toId === "all_teachers";
+        <div className="space-y-4">
+          {displayItems.map((item) => {
+            const incoming = !item.isFromMe;
             return (
-              <Card key={m.id} className="p-5" glow={incoming ? "cyan" : "green"}>
-                <div className="flex flex-wrap items-center justify-between gap-2">
+              <Card key={item.id} className="p-5" glow={incoming ? "cyan" : "green"}>
+                <div className="flex flex-wrap items-center justify-between gap-2 border-b border-white/5 pb-3">
                   <div className="flex items-center gap-2.5">
                     {incoming ? <Mail size={16} className="text-cyan-300" /> : <Send size={16} className="text-emerald-300" />}
-                    <p className="text-sm font-bold text-white">{m.subject}</p>
-                    {!m.lu && incoming && <Badge color="red">Nouveau</Badge>}
+                    <p className="text-sm font-bold text-white">{item.subject}</p>
                   </div>
-                  <p className="text-[11px] text-slate-500">{m.date}</p>
+                  <span className="text-[11px] text-slate-500">{item.date}</span>
                 </div>
-                <p className="mt-1 text-xs text-slate-400">
-                  {incoming ? <>De <span className="font-bold text-slate-300">{m.fromName}</span></> : <>À <span className="font-bold text-slate-300">{isBroadcast ? userName(m.toId) : userName(m.toId)}</span></>}
-                </p>
-                <p className="mt-2.5 whitespace-pre-wrap text-sm text-slate-200">{m.body}</p>
-                {incoming && !m.lu && (
-                  <button
-                    onClick={() => update((d) => ({ ...d, messages: d.messages.map((x) => x.id === m.id ? { ...x, lu: true } : x) }))}
-                    className="mt-3 inline-flex items-center gap-1 text-xs font-bold text-cyan-300 hover:underline"
-                  >
-                    <CheckCheck size={14} /> Marquer comme lu
-                  </button>
+
+                {/* Fil des échanges */}
+                <div className="my-3 space-y-2">
+                  {item.messages.map((m: any, idx: number) => {
+                    const fromMe = m.sender_id === user?.id;
+                    const senderObj = db.users.find((u) => u.id === m.sender_id);
+                    const authorName = senderObj?.name || (fromMe ? "Moi" : "Correspondant");
+                    return (
+                      <div key={m.id || idx} className={cn("rounded-xl p-3 text-sm", fromMe ? "bg-white/[0.04] border border-white/10 ml-6" : "bg-cyan-950/20 border border-cyan-400/20 mr-6")}>
+                        <div className="flex justify-between items-center mb-1 text-[11px] text-slate-400">
+                          <span className={cn("font-semibold", fromMe ? "text-slate-300" : "text-cyan-300")}>{authorName}</span>
+                          {m.created_at && <span>{new Date(m.created_at).toLocaleTimeString("fr-FR", { hour: "2-digit", minute: "2-digit" })}</span>}
+                        </div>
+                        <p className="whitespace-pre-wrap text-slate-200">{m.body}</p>
+                      </div>
+                    );
+                  })}
+                </div>
+
+                {/* Action répondre */}
+                {replyingTo === item.id ? (
+                  <div className="mt-3 rounded-xl border border-white/10 bg-white/[0.02] p-3">
+                    <div className="flex gap-2">
+                      <Input
+                        value={replyBody}
+                        onChange={(e) => setReplyBody(e.target.value)}
+                        placeholder="Écrivez votre réponse..."
+                        className="flex-1"
+                        onKeyDown={(e) => { if (e.key === "Enter" && !e.shiftKey) { e.preventDefault(); handleReply(item.id); } }}
+                      />
+                      <Btn size="sm" onClick={() => handleReply(item.id)} disabled={sendingReply || !replyBody.trim()}>
+                        <Send size={14} /> {sendingReply ? "..." : "Envoyer"}
+                      </Btn>
+                      <Btn variant="ghost" size="sm" onClick={() => { setReplyingTo(null); setReplyBody(""); }}>Annuler</Btn>
+                    </div>
+                  </div>
+                ) : (
+                  <div className="mt-2 flex justify-end">
+                    <button
+                      onClick={() => { setReplyingTo(item.id); setReplyBody(""); }}
+                      className="inline-flex items-center gap-1 text-xs font-bold text-cyan-300 hover:text-cyan-200 hover:underline"
+                    >
+                      <Reply size={14} /> Répondre
+                    </button>
+                  </div>
                 )}
               </Card>
             );
@@ -166,11 +317,36 @@ export function NotificationsPage() {
 
 export function RecentMessages({ limit = 3 }: { limit?: number }) {
   const { db, user } = useStore();
-  const mine = db.messages.filter((m) => m.toId === user!.id).sort((a, b) => b.date.localeCompare(a.date)).slice(0, limit);
-  if (mine.length === 0) return <p className="text-sm text-slate-500">Aucun message reçu.</p>;
+  const [remoteList, setRemoteList] = useState<any[]>([]);
+
+  useEffect(() => {
+    if (isSupabaseConfigured && user?.id) {
+      fetchMyConversations().then((convs) => {
+        const items = convs.map((c: any) => {
+          const msgs = (c.messages || []).sort((a: any, b: any) => (a.created_at || "").localeCompare(b.created_at || ""));
+          const lastMsg = msgs[msgs.length - 1];
+          const sender = db.users.find((u) => u.id === lastMsg?.sender_id);
+          return {
+            id: c.id,
+            subject: c.subject || "Discussion",
+            fromName: sender?.name || "Correspondant",
+            date: lastMsg?.created_at ? new Date(lastMsg.created_at).toLocaleDateString("fr-FR") : "",
+            lu: true,
+          };
+        });
+        setRemoteList(items);
+      }).catch(() => {});
+    }
+  }, [user?.id, db.users]);
+
+  const list = isSupabaseConfigured && remoteList.length > 0
+    ? remoteList.slice(0, limit)
+    : db.messages.filter((m) => m.toId === user!.id).sort((a, b) => b.date.localeCompare(a.date)).slice(0, limit);
+
+  if (list.length === 0) return <p className="text-sm text-slate-500">Aucun message reçu.</p>;
   return (
     <div className="space-y-2.5">
-      {mine.map((m) => (
+      {list.map((m) => (
         <div key={m.id} className="flex items-start gap-3 rounded-xl border border-white/5 bg-white/[0.02] p-3">
           <Mail size={15} className="mt-0.5 shrink-0 text-cyan-300" />
           <div className="min-w-0">

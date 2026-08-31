@@ -116,7 +116,7 @@ export function StudentsPage() {
         try {
           const email = form.email || `${uname}@sentinelles.local`;
           const resolvedFormationId = await resolveFormationId(form.formation);
-          await invokeCreateUser({
+          const res = await invokeCreateUser({
             email,
             password: tempPassword,
             username: uname,
@@ -128,8 +128,59 @@ export function StudentsPage() {
               email, adresse: form.adresse, niveau: form.niveau, sexe: form.sexe,
               photo_url: form.photo || null,
             },
-            module_ids: form.modules
+            module_ids: form.modules,
+            frais: {
+              inscription: insc,
+              formation: montant,
+              libelle: `Formation — ${form.modules.length} module(s) (${formationLabel(form.formation)})`,
+            },
           });
+
+          // Génération garantie des factures en base pour l'apprenant
+          let createdStudentId = res?.student_id;
+          if (!createdStudentId && res?.user_id) {
+            const { data: stRow } = await supabase.from("students").select("id").eq("user_id", res.user_id).maybeSingle();
+            createdStudentId = stRow?.id;
+          }
+          if (!createdStudentId) {
+            const { data: stRow } = await supabase.from("students").select("id").eq("nom", form.nom).eq("prenom", form.prenom).order("id", { ascending: false }).limit(1).maybeSingle();
+            createdStudentId = stRow?.id;
+          }
+
+          if (createdStudentId) {
+            const { data: existingInvs } = await supabase.from("invoices").select("type").eq("student_id", createdStudentId);
+            const hasInsc = existingInvs?.some((i: any) => i.type === "inscription");
+            const hasForm = existingInvs?.some((i: any) => i.type === "formation");
+            const newInvs: any[] = [];
+            if (!hasInsc && insc > 0) {
+              newInvs.push({
+                student_id: createdStudentId,
+                type: "inscription",
+                libelle: "Frais d'inscription",
+                montant: insc,
+                date: today(),
+                created_by: user?.id || null,
+              });
+            }
+            if (!hasForm && montant > 0) {
+              newInvs.push({
+                student_id: createdStudentId,
+                type: "formation",
+                libelle: `Formation — ${form.modules.length} module(s) (${formationLabel(form.formation)})`,
+                montant: montant,
+                date: today(),
+                created_by: user?.id || null,
+              });
+            }
+            if (newInvs.length > 0) {
+              const { error: invErr } = await supabase.from("invoices").insert(newInvs);
+              if (invErr) {
+                console.warn("Erreur insertion factures:", invErr);
+              } else {
+                log(`Factures créées pour ${form.nom} ${form.prenom} (${createdStudentId}) : ${money(montant + insc)}`);
+              }
+            }
+          }
           
           setCreatedCreds({
             nom: `${form.prenom} ${form.nom}`,
@@ -138,7 +189,10 @@ export function StudentsPage() {
             phone: form.whatsapp || form.telephone,
           });
           toastMsg.credentials({ nom: `${form.prenom} ${form.nom}`, identifiant: uname, motDePasse: tempPassword });
-          toastMsg.success("Apprenant inscrit côté serveur ✓");
+          toastMsg.success("Apprenant inscrit avec facturation automatique ✓");
+          if (montant + insc > 0) {
+            toastMsg.info(`Factures générées : ${money(montant + insc)}`);
+          }
           log(`Apprenant inscrit (Supabase) : ${form.nom} ${form.prenom} — compte ${uname}`);
           window.dispatchEvent(new Event("sentinelles:supabase-refresh"));
           
@@ -202,10 +256,61 @@ export function StudentsPage() {
             nom: reg.nom, prenom: reg.prenom, telephone: reg.telephone, whatsapp: reg.whatsapp,
             email: email, niveau: reg.niveau
           },
-          module_ids: reg.modules
+          module_ids: reg.modules,
+          frais: {
+            inscription: insc,
+            formation: montant,
+            libelle: `Formation — ${reg.modules.length} module(s) (${formationLabel(reg.formation)})`,
+          },
         });
 
         const confirmedUname = res?.username || uname;
+
+        // Génération garantie des factures en base pour l'apprenant confirmé
+        let confirmedStudentId = res?.student_id;
+        if (!confirmedStudentId && res?.user_id) {
+          const { data: stRow } = await supabase.from("students").select("id").eq("user_id", res.user_id).maybeSingle();
+          confirmedStudentId = stRow?.id;
+        }
+        if (!confirmedStudentId) {
+          const { data: stRow } = await supabase.from("students").select("id").eq("nom", reg.nom).eq("prenom", reg.prenom).order("id", { ascending: false }).limit(1).maybeSingle();
+          confirmedStudentId = stRow?.id;
+        }
+
+        if (confirmedStudentId) {
+          const { data: existingInvs } = await supabase.from("invoices").select("type").eq("student_id", confirmedStudentId);
+          const hasInsc = existingInvs?.some((i: any) => i.type === "inscription");
+          const hasForm = existingInvs?.some((i: any) => i.type === "formation");
+          const newInvs: any[] = [];
+          if (!hasInsc && insc > 0) {
+            newInvs.push({
+              student_id: confirmedStudentId,
+              type: "inscription",
+              libelle: "Frais d'inscription",
+              montant: insc,
+              date: today(),
+              created_by: user?.id || null,
+            });
+          }
+          if (!hasForm && montant > 0) {
+            newInvs.push({
+              student_id: confirmedStudentId,
+              type: "formation",
+              libelle: `Formation — ${reg.modules.length} module(s) (${formationLabel(reg.formation)})`,
+              montant: montant,
+              date: today(),
+              created_by: user?.id || null,
+            });
+          }
+          if (newInvs.length > 0) {
+            const { error: invErr } = await supabase.from("invoices").insert(newInvs);
+            if (invErr) {
+              console.warn("Erreur insertion factures confirmation:", invErr);
+            } else {
+              log(`Factures créées suite confirmation pour ${reg.nom} ${reg.prenom} (${confirmedStudentId}) : ${money(montant + insc)}`);
+            }
+          }
+        }
         
         await supabase.from("registrations").update({ statut: "confirmee", updated_at: new Date().toISOString() }).eq("id", regId);
 
@@ -222,6 +327,9 @@ export function StudentsPage() {
         });
         toastMsg.credentials({ nom: `${reg.prenom} ${reg.nom}`, identifiant: confirmedUname, motDePasse: tempPassword });
         toastMsg.success(res?.is_existing ? "Apprenant associé au compte existant et confirmé ✓" : "Inscription confirmée et compte apprenant activé ✓");
+        if (montant + insc > 0) {
+          toastMsg.info(`Factures générées : ${money(montant + insc)}`);
+        }
         log(`Pré-inscription confirmée (Supabase) : ${reg.nom} ${reg.prenom} — compte ${confirmedUname}`);
         window.dispatchEvent(new Event("sentinelles:supabase-refresh"));
 

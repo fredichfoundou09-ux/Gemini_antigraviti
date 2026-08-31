@@ -47,12 +47,12 @@ Deno.serve(async (req) => {
       callerProfile = profile;
     }
 
-    const body = await req.json();
     const {
       email, password, username, name, role,
       // optionnels métier
-      student, teacher, partner, module_ids = [],
+      student, teacher, partner, module_ids = [], frais,
     } = body;
+    let studentIdCreated: string | null = null;
 
     if (!email || !password || !username || !name || !role) {
       return new Response(JSON.stringify({ error: "Champs requis manquants" }), { status: 400, headers: corsHeaders });
@@ -179,6 +179,40 @@ Deno.serve(async (req) => {
           }
         }
       }
+      studentIdCreated = sid;
+
+      if (frais && sid) {
+        const invList: any[] = [];
+        if (frais.inscription && Number(frais.inscription) > 0) {
+          invList.push({
+            student_id: sid,
+            type: "inscription",
+            libelle: "Frais d'inscription",
+            montant: Number(frais.inscription),
+            date: new Date().toISOString().slice(0, 10),
+            created_by: callerUserId,
+          });
+        }
+        if (frais.formation && Number(frais.formation) > 0) {
+          invList.push({
+            student_id: sid,
+            type: "formation",
+            libelle: frais.libelle || `Formation (${(module_ids || []).length} modules)`,
+            montant: Number(frais.formation),
+            date: new Date().toISOString().slice(0, 10),
+            created_by: callerUserId,
+          });
+        }
+        if (invList.length) {
+          const { data: existingInvs } = await admin.from("invoices").select("type").eq("student_id", sid);
+          const hasInsc = (existingInvs || []).some((i: any) => i.type === "inscription");
+          const hasForm = (existingInvs || []).some((i: any) => i.type === "formation");
+          const toInsert = invList.filter((i) => (i.type === "inscription" && !hasInsc) || (i.type === "formation" && !hasForm));
+          if (toInsert.length) {
+            await admin.from("invoices").insert(toInsert);
+          }
+        }
+      }
     }
 
     if (role === "teacher" && teacher) {
@@ -277,7 +311,13 @@ Deno.serve(async (req) => {
       });
     }
 
-    return new Response(JSON.stringify({ ok: true, user_id: userId, username: finalUsername, is_existing: isExistingAccount }), {
+    return new Response(JSON.stringify({
+      ok: true,
+      user_id: userId,
+      username: finalUsername,
+      is_existing: isExistingAccount,
+      student_id: studentIdCreated || null,
+    }), {
       headers: { ...corsHeaders, "Content-Type": "application/json" },
     });
   } catch (e) {

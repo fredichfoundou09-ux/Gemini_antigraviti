@@ -1362,6 +1362,11 @@ export function PaymentsPage() {
   const [studentId, setStudentId] = useState("");
   const [creatingPay, setCreatingPay] = useState(false);
   const [creatingInv, setCreatingInv] = useState(false);
+  const [editingPay, setEditingPay] = useState<any>(null);
+  const [deletingPay, setDeletingPay] = useState<any>(null);
+  const [editingInv, setEditingInv] = useState<any>(null);
+  const [deletingInv, setDeletingInv] = useState<any>(null);
+
   const blankPay = () => ({ invoiceId: "", type: "formation" as "inscription" | "formation", libelle: "", montant: 0, mode: "Espèces", observation: "" });
   const blankInv = () => ({ type: "formation" as "inscription" | "formation", libelle: "", montant: 0, dueDate: "" });
   const [payForm, setPayForm] = useState<any>(blankPay());
@@ -1372,33 +1377,275 @@ export function PaymentsPage() {
   const payments = summary ? [...summary.payments].sort((a, b) => (b.date + (b.heure ?? "")).localeCompare(a.date + (a.heure ?? ""))) : [];
   const invoices = summary?.invoices ?? [];
 
-  const savePayment = () => {
-    if (!studentId || !payForm.montant || payForm.montant <= 0) return;
+  const savePayment = async () => {
+    if (!studentId || !payForm.montant || payForm.montant <= 0) {
+      toastMsg.error("Montant invalide", "Veuillez saisir un montant supérieur à 0.");
+      return;
+    }
     const now = new Date();
     const inv = payForm.invoiceId ? invoices.find((i) => i.id === payForm.invoiceId) : undefined;
     const libelle = payForm.libelle || (inv ? inv.libelle : payForm.type === "inscription" ? "Frais d'inscription" : "Paiement formation");
     const ref = nextReceiptRef(db);
+    let newPaymentId = uid("PAY");
+
+    if (isSupabaseConfigured) {
+      try {
+        const isUuidInvoice = inv?.id && /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(inv.id);
+        const { data, error } = await supabase.from("payments").insert({
+          student_id: studentId,
+          invoice_id: isUuidInvoice ? inv.id : null,
+          type: (inv?.type ?? payForm.type),
+          libelle,
+          montant: +payForm.montant,
+          date: today(),
+          heure: now.toTimeString().slice(0, 5),
+          mode: payForm.mode,
+          reference: ref,
+          observation: payForm.observation || null,
+          created_by: user?.id || null,
+          created_by_name: user?.name || null,
+        }).select("id").single();
+
+        if (error) throw error;
+        if (data?.id) newPaymentId = data.id;
+
+        try {
+          await supabase.from("audit_logs").insert({
+            user_id: user?.id || null,
+            action: "CREATE",
+            entity_type: "payments",
+            entity_id: newPaymentId,
+            description: `Paiement enregistré ${ref} : ${student?.prenom} ${student?.nom} — ${money(+payForm.montant)} (${payForm.mode})`,
+          });
+        } catch { /* ignore audit failure */ }
+
+        toastMsg.success("Paiement enregistré en base de données ✓");
+      } catch (err: any) {
+        console.error("Erreur enregistrement paiement:", err);
+        toastMsg.error("Erreur enregistrement paiement", err.message || "Échec d'enregistrement");
+        return;
+      }
+    } else {
+      toastMsg.success("Paiement enregistré en local ✓");
+    }
+
     const p = {
-      id: uid("PAY"), studentId, invoiceId: inv?.id, type: (inv?.type ?? payForm.type),
+      id: newPaymentId, studentId, invoiceId: inv?.id, type: (inv?.type ?? payForm.type),
       libelle, montant: +payForm.montant, date: today(), heure: now.toTimeString().slice(0, 5),
       mode: payForm.mode, reference: ref, observation: payForm.observation || undefined,
       createdBy: user?.id, createdByName: user?.name,
     };
-    update((d) => ({ ...d, payments: [p, ...d.payments] }));
-    // Statut recalculé automatiquement (utilisé pour rétro-compat sur student.statutPaiement).
+    update((d) => ({ ...d, payments: [p, ...d.payments.filter((x) => x.id !== p.id)] }));
     const newSummary = financialSummary({ ...db, payments: [p, ...db.payments] }, studentId);
     update((d) => ({ ...d, students: d.students.map((s) => (s.id === studentId ? { ...s, statutPaiement: (newSummary.statut === "retard" ? "partiel" : newSummary.statut) as any } : s)) }));
     if (student?.userId) update((d) => ({ ...d, notifications: [{ id: uid("NTF"), toId: student.userId!, title: "Paiement enregistré", body: `${money(p.montant)} • ${p.mode} • Réf. ${ref}. Solde : ${money(newSummary.solde)}.`, date: today(), lu: false, type: "paiement" }, ...d.notifications] }));
     log(`Paiement enregistré ${ref} : ${student?.prenom} ${student?.nom} — ${money(p.montant)} (${p.mode})`);
+    window.dispatchEvent(new Event("sentinelles:supabase-refresh"));
     setPayForm(blankPay()); setCreatingPay(false);
   };
 
-  const saveInvoice = () => {
-    if (!studentId || !invForm.libelle || !invForm.montant) return;
-    const inv = { id: uid("INV"), studentId, type: invForm.type, libelle: invForm.libelle, montant: +invForm.montant, date: today(), dueDate: invForm.dueDate || undefined, createdBy: user?.id };
-    update((d) => ({ ...d, invoices: [inv, ...d.invoices] }));
+  const updatePayment = async () => {
+    if (!editingPay || !editingPay.montant || editingPay.montant <= 0) {
+      toastMsg.error("Montant invalide");
+      return;
+    }
+    const p = editingPay;
+    if (isSupabaseConfigured) {
+      try {
+        const { error } = await supabase.from("payments").update({
+          libelle: p.libelle,
+          montant: +p.montant,
+          mode: p.mode,
+          observation: p.observation || null,
+        }).eq("id", p.id);
+        if (error) throw error;
+
+        try {
+          await supabase.from("audit_logs").insert({
+            user_id: user?.id || null,
+            action: "UPDATE",
+            entity_type: "payments",
+            entity_id: p.id,
+            description: `Modification paiement Réf. ${p.reference ?? p.id} : nouveau montant ${money(+p.montant)} (${p.mode})`,
+          });
+        } catch { /* ignore audit */ }
+        toastMsg.success("Paiement mis à jour ✓");
+      } catch (err: any) {
+        console.error("Erreur modification paiement:", err);
+        toastMsg.error("Erreur de modification", err.message);
+        return;
+      }
+    } else {
+      toastMsg.success("Paiement mis à jour en local ✓");
+    }
+
+    const updatedPayments = db.payments.map((x) => (x.id === p.id ? { ...x, ...p, montant: +p.montant } : x));
+    update((d) => ({ ...d, payments: updatedPayments }));
+    const newSummary = financialSummary({ ...db, payments: updatedPayments }, studentId);
+    update((d) => ({ ...d, students: d.students.map((s) => (s.id === studentId ? { ...s, statutPaiement: (newSummary.statut === "retard" ? "partiel" : newSummary.statut) as any } : s)) }));
+    log(`Paiement modifié ${p.reference ?? p.id} : ${money(+p.montant)}`);
+    window.dispatchEvent(new Event("sentinelles:supabase-refresh"));
+    setEditingPay(null);
+  };
+
+  const confirmDeletePayment = async () => {
+    if (!deletingPay) return;
+    const p = deletingPay;
+    if (isSupabaseConfigured) {
+      try {
+        const { error } = await supabase.from("payments").delete().eq("id", p.id);
+        if (error) throw error;
+
+        try {
+          await supabase.from("audit_logs").insert({
+            user_id: user?.id || null,
+            action: "DELETE",
+            entity_type: "payments",
+            entity_id: p.id,
+            description: `Suppression paiement Réf. ${p.reference ?? p.id} : ${student?.prenom} ${student?.nom} — ${money(p.montant)}`,
+          });
+        } catch { /* ignore audit */ }
+        toastMsg.success("Paiement supprimé ✓");
+      } catch (err: any) {
+        console.error("Erreur suppression paiement:", err);
+        toastMsg.error("Erreur de suppression", err.message);
+        return;
+      }
+    } else {
+      toastMsg.success("Paiement supprimé en local ✓");
+    }
+
+    const updatedPayments = db.payments.filter((x) => x.id !== p.id);
+    update((d) => ({ ...d, payments: updatedPayments }));
+    const newSummary = financialSummary({ ...db, payments: updatedPayments }, studentId);
+    update((d) => ({ ...d, students: d.students.map((s) => (s.id === studentId ? { ...s, statutPaiement: (newSummary.statut === "retard" ? "partiel" : newSummary.statut) as any } : s)) }));
+    log(`Paiement supprimé ${p.reference ?? p.id} : ${student?.prenom} ${student?.nom} — ${money(p.montant)}`);
+    window.dispatchEvent(new Event("sentinelles:supabase-refresh"));
+    setDeletingPay(null);
+  };
+
+  const saveInvoice = async () => {
+    if (!studentId || !invForm.libelle || !invForm.montant || +invForm.montant <= 0) {
+      toastMsg.error("Facture invalide", "Veuillez indiquer un libellé et un montant positif.");
+      return;
+    }
+    let newInvoiceId = uid("INV");
+
+    if (isSupabaseConfigured) {
+      try {
+        const { data, error } = await supabase.from("invoices").insert({
+          student_id: studentId,
+          type: invForm.type,
+          libelle: invForm.libelle,
+          montant: +invForm.montant,
+          date: today(),
+          due_date: invForm.dueDate || null,
+          created_by: user?.id || null,
+        }).select("id").single();
+
+        if (error) throw error;
+        if (data?.id) newInvoiceId = data.id;
+
+        try {
+          await supabase.from("audit_logs").insert({
+            user_id: user?.id || null,
+            action: "CREATE",
+            entity_type: "invoices",
+            entity_id: newInvoiceId,
+            description: `Facture ajoutée pour ${student?.prenom} ${student?.nom} — ${money(+invForm.montant)} (${invForm.libelle})`,
+          });
+        } catch { /* ignore audit */ }
+
+        toastMsg.success("Facture ajoutée en base de données ✓");
+      } catch (err: any) {
+        console.error("Erreur enregistrement facture:", err);
+        toastMsg.error("Erreur ajout facture", err.message || "Échec d'enregistrement");
+        return;
+      }
+    } else {
+      toastMsg.success("Facture ajoutée en local ✓");
+    }
+
+    const inv = { id: newInvoiceId, studentId, type: invForm.type, libelle: invForm.libelle, montant: +invForm.montant, date: today(), dueDate: invForm.dueDate || undefined, createdBy: user?.id };
+    update((d) => ({ ...d, invoices: [inv, ...d.invoices.filter((x) => x.id !== inv.id)] }));
     log(`Facture ajoutée : ${student?.prenom} ${student?.nom} — ${money(inv.montant)} (${inv.libelle})`);
+    window.dispatchEvent(new Event("sentinelles:supabase-refresh"));
     setInvForm(blankInv()); setCreatingInv(false);
+  };
+
+  const updateInvoice = async () => {
+    if (!editingInv || !editingInv.montant || editingInv.montant <= 0 || !editingInv.libelle) {
+      toastMsg.error("Facture invalide");
+      return;
+    }
+    const i = editingInv;
+    if (isSupabaseConfigured) {
+      try {
+        const { error } = await supabase.from("invoices").update({
+          libelle: i.libelle,
+          montant: +i.montant,
+          due_date: i.dueDate || null,
+        }).eq("id", i.id);
+        if (error) throw error;
+
+        try {
+          await supabase.from("audit_logs").insert({
+            user_id: user?.id || null,
+            action: "UPDATE",
+            entity_type: "invoices",
+            entity_id: i.id,
+            description: `Modification facture ${i.id} : ${i.libelle} — ${money(+i.montant)}`,
+          });
+        } catch { /* ignore audit */ }
+        toastMsg.success("Facture mise à jour ✓");
+      } catch (err: any) {
+        console.error("Erreur modification facture:", err);
+        toastMsg.error("Erreur de modification", err.message);
+        return;
+      }
+    } else {
+      toastMsg.success("Facture mise à jour en local ✓");
+    }
+
+    const updatedInvoices = db.invoices.map((x) => (x.id === i.id ? { ...x, ...i, montant: +i.montant } : x));
+    update((d) => ({ ...d, invoices: updatedInvoices }));
+    log(`Facture modifiée : ${i.libelle}`);
+    window.dispatchEvent(new Event("sentinelles:supabase-refresh"));
+    setEditingInv(null);
+  };
+
+  const confirmDeleteInvoice = async () => {
+    if (!deletingInv) return;
+    const i = deletingInv;
+    if (isSupabaseConfigured) {
+      try {
+        const { error } = await supabase.from("invoices").delete().eq("id", i.id);
+        if (error) throw error;
+
+        try {
+          await supabase.from("audit_logs").insert({
+            user_id: user?.id || null,
+            action: "DELETE",
+            entity_type: "invoices",
+            entity_id: i.id,
+            description: `Suppression facture ${i.libelle} : ${student?.prenom} ${student?.nom} — ${money(i.montant)}`,
+          });
+        } catch { /* ignore audit */ }
+        toastMsg.success("Facture supprimée ✓");
+      } catch (err: any) {
+        console.error("Erreur suppression facture:", err);
+        toastMsg.error("Erreur de suppression", err.message);
+        return;
+      }
+    } else {
+      toastMsg.success("Facture supprimée en local ✓");
+    }
+
+    const updatedInvoices = db.invoices.filter((x) => x.id !== i.id);
+    update((d) => ({ ...d, invoices: updatedInvoices }));
+    log(`Facture supprimée ${i.id} : ${i.libelle}`);
+    window.dispatchEvent(new Event("sentinelles:supabase-refresh"));
+    setDeletingInv(null);
   };
 
   const receipt = (p: any) => {
@@ -1462,15 +1709,18 @@ export function PaymentsPage() {
           </div>
 
           {/* Factures */}
-          <h3 className="font-display mb-3 text-sm font-bold text-white">Factures</h3>
+          <div className="mb-3 flex items-center justify-between">
+            <h3 className="font-display text-sm font-bold text-white">Factures ({invoices.length})</h3>
+            <Btn variant="outline" size="sm" onClick={() => setCreatingInv(true)}><PlusCircle size={14} /> Nouvelle facture</Btn>
+          </div>
           {invoices.length === 0 ? (
             <Empty icon={<FileText size={32} />} title="Aucune facture" sub="Ajoutez une facture pour enregistrer ce qui est dû (inscription, formation)." />
           ) : (
             <Card className="mb-6 overflow-x-auto">
-              <table className="w-full min-w-[640px] text-left text-sm">
+              <table className="w-full min-w-[700px] text-left text-sm">
                 <thead>
                   <tr className="border-b border-white/5 text-[10px] uppercase tracking-[0.2em] text-slate-500">
-                    <th className="px-4 py-3">Libellé</th><th className="px-4 py-3">Type</th><th className="px-4 py-3">Émise</th><th className="px-4 py-3">Échéance</th><th className="px-4 py-3">Montant</th><th className="px-4 py-3">Payé</th><th className="px-4 py-3">Reste</th>
+                    <th className="px-4 py-3">Libellé</th><th className="px-4 py-3">Type</th><th className="px-4 py-3">Émise</th><th className="px-4 py-3">Échéance</th><th className="px-4 py-3">Montant</th><th className="px-4 py-3">Payé</th><th className="px-4 py-3">Reste</th><th className="px-4 py-3 text-right">Actions</th>
                   </tr>
                 </thead>
                 <tbody>
@@ -1478,7 +1728,7 @@ export function PaymentsPage() {
                     const paid = db.payments.filter((p) => p.invoiceId === i.id).reduce((a, p) => a + p.montant, 0);
                     const rest = Math.max(0, i.montant - paid);
                     return (
-                      <tr key={i.id} className="border-b border-white/5 last:border-0">
+                      <tr key={i.id} className="border-b border-white/5 last:border-0 hover:bg-white/[0.02]">
                         <td className="px-4 py-3 font-semibold text-slate-200">{i.libelle}</td>
                         <td className="px-4 py-3"><Badge color={i.type === "inscription" ? "cyan" : "blue"}>{i.type}</Badge></td>
                         <td className="px-4 py-3 text-xs text-slate-400">{i.date}</td>
@@ -1487,6 +1737,12 @@ export function PaymentsPage() {
                         <td className="px-4 py-3 font-mono text-emerald-300">{money(paid)}</td>
                         <td className="px-4 py-3 font-mono">
                           {rest === 0 ? <Badge color="green">Soldé</Badge> : <span className="text-amber-300">{money(rest)}</span>}
+                        </td>
+                        <td className="px-4 py-3 text-right">
+                          <div className="inline-flex items-center gap-1">
+                            <button onClick={() => setEditingInv({ ...i })} className="rounded-lg border border-white/10 p-1.5 text-slate-300 hover:border-cyan-400/40 hover:text-cyan-300" title="Modifier la facture"><Pencil size={14} /></button>
+                            <button onClick={() => setDeletingInv(i)} className="rounded-lg border border-white/10 p-1.5 text-slate-400 hover:border-rose-500/40 hover:text-rose-400" title="Supprimer la facture"><Trash2 size={14} /></button>
+                          </div>
                         </td>
                       </tr>
                     );
@@ -1497,15 +1753,18 @@ export function PaymentsPage() {
           )}
 
           {/* Historique paiements */}
-          <h3 className="font-display mb-3 text-sm font-bold text-white">Historique des paiements</h3>
+          <div className="mb-3 flex items-center justify-between">
+            <h3 className="font-display text-sm font-bold text-white">Historique des paiements ({payments.length})</h3>
+            <Btn size="sm" onClick={() => setCreatingPay(true)}><PlusCircle size={14} /> Nouveau paiement</Btn>
+          </div>
           {payments.length === 0 ? (
             <Empty icon={<Wallet size={40} />} title="Aucun paiement enregistré" />
           ) : (
             <Card className="overflow-x-auto">
-              <table className="w-full min-w-[820px] text-left text-sm">
+              <table className="w-full min-w-[850px] text-left text-sm">
                 <thead>
                   <tr className="border-b border-white/5 text-[10px] uppercase tracking-[0.2em] text-slate-500">
-                    <th className="px-4 py-3">Réf.</th><th className="px-4 py-3">Libellé</th><th className="px-4 py-3">Montant</th><th className="px-4 py-3">Mode</th><th className="px-4 py-3">Date / heure</th><th className="px-4 py-3">Encaissé par</th><th className="px-4 py-3 text-right">Reçu</th>
+                    <th className="px-4 py-3">Réf.</th><th className="px-4 py-3">Libellé</th><th className="px-4 py-3">Montant</th><th className="px-4 py-3">Mode</th><th className="px-4 py-3">Date / heure</th><th className="px-4 py-3">Encaissé par</th><th className="px-4 py-3 text-right">Actions</th>
                   </tr>
                 </thead>
                 <tbody>
@@ -1521,7 +1780,11 @@ export function PaymentsPage() {
                       <td className="px-4 py-3 text-xs text-slate-400">{p.date}{p.heure ? ` • ${p.heure}` : ""}</td>
                       <td className="px-4 py-3 text-xs text-slate-400">{p.createdByName ?? "—"}</td>
                       <td className="px-4 py-3 text-right">
-                        <button onClick={() => receipt(p)} className="rounded-lg border border-white/10 p-2 text-slate-300 hover:border-cyan-400/40 hover:text-cyan-300" title="Reçu"><ReceiptText size={15} /></button>
+                        <div className="inline-flex items-center gap-1">
+                          <button onClick={() => receipt(p)} className="rounded-lg border border-white/10 p-1.5 text-slate-300 hover:border-cyan-400/40 hover:text-cyan-300" title="Imprimer le reçu"><ReceiptText size={14} /></button>
+                          <button onClick={() => setEditingPay({ ...p })} className="rounded-lg border border-white/10 p-1.5 text-slate-300 hover:border-cyan-400/40 hover:text-cyan-300" title="Modifier le paiement"><Pencil size={14} /></button>
+                          <button onClick={() => setDeletingPay(p)} className="rounded-lg border border-white/10 p-1.5 text-slate-400 hover:border-rose-500/40 hover:text-rose-400" title="Supprimer le paiement"><Trash2 size={14} /></button>
+                        </div>
                       </td>
                     </tr>
                   ))}
@@ -1529,7 +1792,7 @@ export function PaymentsPage() {
               </table>
             </Card>
           )}
-          <p className="mt-3 text-[11px] text-slate-500">Chaque transaction est traçable. La suppression d'un paiement est journalisée pour préserver l'intégrité financière.</p>
+          <p className="mt-3 text-[11px] text-slate-500">Chaque transaction est traçable et persistée. Les modifications et suppressions sont automatiquement journalisées dans l'audit financier.</p>
         </>
       )}
 
@@ -1562,13 +1825,53 @@ export function PaymentsPage() {
           <Field label="Montant encaissé (FCFA)"><Input type="number" min={1} value={payForm.montant} onChange={(e) => setPayForm({ ...payForm, montant: +e.target.value })} /></Field>
           <Field label="Observation (facultatif)"><Textarea value={payForm.observation} onChange={(e) => setPayForm({ ...payForm, observation: e.target.value })} placeholder="Précisions éventuelles..." /></Field>
           <div className="rounded-lg border border-cyan-400/25 bg-cyan-400/5 p-3 text-xs text-slate-300">
-            La référence de reçu et le solde sont générés automatiquement. Le total payé et le statut du compte sont recalculés à partir de l'ensemble des transactions.
+            La référence de reçu et le solde sont générés automatiquement. Le paiement sera immédiatement enregistré en base Supabase et visible par l'apprenant.
           </div>
           <div className="flex justify-end gap-2">
             <Btn variant="ghost" onClick={() => setCreatingPay(false)}>Annuler</Btn>
             <Btn onClick={savePayment}><Wallet size={15} /> Enregistrer le paiement</Btn>
           </div>
         </div>
+      </Modal>
+
+      {/* Modal modification paiement */}
+      <Modal open={!!editingPay} onClose={() => setEditingPay(null)} title={`Modifier le paiement — ${editingPay?.reference ?? ""}`}>
+        {editingPay && (
+          <div className="space-y-4">
+            <Field label="Libellé"><Input value={editingPay.libelle} onChange={(e) => setEditingPay({ ...editingPay, libelle: e.target.value })} /></Field>
+            <div className="grid gap-4 sm:grid-cols-2">
+              <Field label="Montant (FCFA)"><Input type="number" min={1} value={editingPay.montant} onChange={(e) => setEditingPay({ ...editingPay, montant: +e.target.value })} /></Field>
+              <Field label="Mode">
+                <Select value={editingPay.mode} onChange={(e) => setEditingPay({ ...editingPay, mode: e.target.value })}>
+                  <option>Espèces</option><option>Mobile Money</option><option>Virement</option><option>Chèque</option><option>Autre</option>
+                </Select>
+              </Field>
+            </div>
+            <Field label="Observation"><Textarea value={editingPay.observation || ""} onChange={(e) => setEditingPay({ ...editingPay, observation: e.target.value })} /></Field>
+            <div className="flex justify-end gap-2">
+              <Btn variant="ghost" onClick={() => setEditingPay(null)}>Annuler</Btn>
+              <Btn onClick={updatePayment}><Save size={15} /> Mettre à jour</Btn>
+            </div>
+          </div>
+        )}
+      </Modal>
+
+      {/* Modal suppression paiement */}
+      <Modal open={!!deletingPay} onClose={() => setDeletingPay(null)} title="Confirmer la suppression du paiement">
+        {deletingPay && (
+          <div className="space-y-4">
+            <p className="text-sm text-slate-300">
+              Êtes-vous sûr de vouloir supprimer le paiement <strong className="text-cyan-300">{deletingPay.reference ?? deletingPay.id}</strong> d'un montant de <strong className="text-emerald-300">{money(deletingPay.montant)}</strong> ?
+            </p>
+            <div className="rounded-lg border border-amber-400/30 bg-amber-400/10 p-3 text-xs text-amber-300">
+              ⚠️ Cette action recalculera le solde dû de l'apprenant et sera inscrite dans le journal d'audit administratif.
+            </div>
+            <div className="flex justify-end gap-2">
+              <Btn variant="ghost" onClick={() => setDeletingPay(null)}>Annuler</Btn>
+              <Btn variant="danger" onClick={confirmDeletePayment}><Trash2 size={15} /> Confirmer la suppression</Btn>
+            </div>
+          </div>
+        )}
       </Modal>
 
       {/* Modal facture */}
@@ -1589,6 +1892,41 @@ export function PaymentsPage() {
             <Btn onClick={saveInvoice}><FileText size={15} /> Ajouter la facture</Btn>
           </div>
         </div>
+      </Modal>
+
+      {/* Modal modification facture */}
+      <Modal open={!!editingInv} onClose={() => setEditingInv(null)} title={`Modifier la facture`}>
+        {editingInv && (
+          <div className="space-y-4">
+            <Field label="Libellé"><Input value={editingInv.libelle} onChange={(e) => setEditingInv({ ...editingInv, libelle: e.target.value })} /></Field>
+            <div className="grid gap-4 sm:grid-cols-2">
+              <Field label="Montant (FCFA)"><Input type="number" min={1} value={editingInv.montant} onChange={(e) => setEditingInv({ ...editingInv, montant: +e.target.value })} /></Field>
+              <Field label="Échéance"><Input type="date" value={editingInv.dueDate || ""} onChange={(e) => setEditingInv({ ...editingInv, dueDate: e.target.value })} /></Field>
+            </div>
+            <div className="flex justify-end gap-2">
+              <Btn variant="ghost" onClick={() => setEditingInv(null)}>Annuler</Btn>
+              <Btn onClick={updateInvoice}><Save size={15} /> Mettre à jour</Btn>
+            </div>
+          </div>
+        )}
+      </Modal>
+
+      {/* Modal suppression facture */}
+      <Modal open={!!deletingInv} onClose={() => setDeletingInv(null)} title="Confirmer la suppression de la facture">
+        {deletingInv && (
+          <div className="space-y-4">
+            <p className="text-sm text-slate-300">
+              Êtes-vous sûr de vouloir supprimer la facture <strong className="text-cyan-300">{deletingInv.libelle}</strong> d'un montant de <strong className="text-amber-300">{money(deletingInv.montant)}</strong> ?
+            </p>
+            <div className="rounded-lg border border-amber-400/30 bg-amber-400/10 p-3 text-xs text-amber-300">
+              ⚠️ La suppression de cette facture réduira le montant total dû par l'apprenant.
+            </div>
+            <div className="flex justify-end gap-2">
+              <Btn variant="ghost" onClick={() => setDeletingInv(null)}>Annuler</Btn>
+              <Btn variant="danger" onClick={confirmDeleteInvoice}><Trash2 size={15} /> Confirmer la suppression</Btn>
+            </div>
+          </div>
+        )}
       </Modal>
     </div>
   );
