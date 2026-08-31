@@ -869,6 +869,10 @@ export function TeachersPage() {
   const [fModule, setFModule] = useState("");
   const [fContrat, setFContrat] = useState("");
   const [fStatut, setFStatut] = useState("");
+  const [createAccount, setCreateAccount] = useState(true);
+  const [accountEmail, setAccountEmail] = useState("");
+  const [customPassword, setCustomPassword] = useState("");
+  const [savingTeacher, setSavingTeacher] = useState(false);
   const emptyTeacher = () => ({
     nom: "", prenom: "", specialite: "", email: "", phone: "", modules: [], photo: "", infosPro: "", diplomes: "",
     actif: true, typeContrat: "Prestation", tarifHoraire: 0, heuresPrevues: 0, tarifsParModule: {} as Record<string, number>,
@@ -935,7 +939,12 @@ export function TeachersPage() {
   });
 
   const save = async () => {
-    if (!form.nom) return;
+    if (!form.nom || !form.prenom) {
+      toastMsg.error("Nom et prénom requis", "Veuillez renseigner le nom et le prénom du formateur.");
+      return;
+    }
+    setSavingTeacher(true);
+
     if (editing) {
       if (isSupabaseConfigured) {
         try {
@@ -962,50 +971,112 @@ export function TeachersPage() {
         log(`Enseignant modifié : ${form.nom} ${form.prenom}`);
       }
     } else {
-      const baseUname = slugify(`${form.prenom}.${form.nom}`) || `teacher${Math.floor(Math.random() * 10000)}`;
-      let uname = baseUname;
-      let i = 1;
-      while (db.users.some(u => u.username === uname)) { uname = `${baseUname}${i++}`; }
-      const tempPassword = generateTempPassword();
+      if (createAccount) {
+        const baseUname = slugify(`${form.prenom}.${form.nom}`) || `teacher${Math.floor(Math.random() * 10000)}`;
+        let uname = baseUname;
+        let i = 1;
+        while (db.users.some(u => u.username === uname)) { uname = `${baseUname}${i++}`; }
+        const tempPassword = customPassword.trim() || generateTempPassword();
 
-      if (isSupabaseConfigured) {
-        try {
-          const email = form.email || `${uname}@sentinelles.local`;
-          await invokeCreateUser({
-            email,
-            password: tempPassword,
-            username: uname,
-            name: `${form.prenom} ${form.nom}`,
-            role: "teacher",
-            teacher: {
-              nom: form.nom, prenom: form.prenom, specialite: form.specialite,
-              email, phone: form.phone, type_contrat: form.typeContrat, tarif_horaire: form.tarifHoraire,
-              photo_url: form.photo || null,
-            },
-            module_ids: form.modules
-          });
-          
+        if (isSupabaseConfigured) {
+          try {
+            const email = accountEmail.trim() || form.email || `${uname}@sentinelles.local`;
+            await invokeCreateUser({
+              email,
+              password: tempPassword,
+              username: uname,
+              name: `${form.prenom} ${form.nom}`,
+              role: "teacher",
+              teacher: {
+                nom: form.nom, prenom: form.prenom, specialite: form.specialite || "Formateur",
+                email, phone: form.phone, type_contrat: form.typeContrat, tarif_horaire: form.tarifHoraire,
+                photo_url: form.photo || null,
+              },
+              module_ids: form.modules
+            });
+            
+            toastMsg.credentials({ nom: `${form.prenom} ${form.nom}`, identifiant: uname, motDePasse: tempPassword });
+            toastMsg.success("Formateur et compte utilisateur créés ✓");
+            log(`Enseignant avec compte ajouté : ${form.nom} ${form.prenom} — compte ${uname}`);
+            window.dispatchEvent(new Event("sentinelles:supabase-refresh"));
+          } catch (err: any) {
+            toastMsg.error("Erreur lors de la création", (err as Error).message);
+            setSavingTeacher(false);
+            return;
+          }
+        } else {
+          const id = `ENS-${String(db.teachers.length + 1).padStart(3, "0")}`;
+          const teacher = { ...form, id };
+          const { users, student } = await makeAccount(db, { ...emptyStudent(), id, nom: form.nom, prenom: form.prenom, email: form.email, phone: form.phone, modules: form.modules } as Student, "teacher");
+          update((d) => ({
+            ...d, users,
+            teachers: [...d.teachers, { ...teacher, userId: student.userId }],
+          }));
+          log(`Enseignant ajouté : ${form.nom} ${form.prenom} — compte ${uname}`);
           toastMsg.credentials({ nom: `${form.prenom} ${form.nom}`, identifiant: uname, motDePasse: tempPassword });
-          toastMsg.success("Formateur créé côté serveur ✓");
-          log(`Enseignant ajouté (Supabase) : ${form.nom} ${form.prenom} — compte ${uname}`);
-          window.dispatchEvent(new Event("sentinelles:supabase-refresh"));
-        } catch (err: any) {
-          toastMsg.error("Erreur lors de la création", (err as Error).message);
-          return;
         }
       } else {
+        // Enseignant créé sans compte utilisateur
         const id = `ENS-${String(db.teachers.length + 1).padStart(3, "0")}`;
-        const teacher = { ...form, id };
-        const { users, student } = await makeAccount(db, { ...emptyStudent(), id, nom: form.nom, prenom: form.prenom, email: form.email, phone: form.phone, modules: form.modules } as Student, "teacher");
+        const teacher = { ...form, id, userId: undefined };
+
+        if (isSupabaseConfigured) {
+          try {
+            const { data: insertedTeacher, error: tErr } = await supabase.from("teachers").insert({
+              id,
+              nom: form.nom,
+              prenom: form.prenom,
+              specialite: form.specialite || "Formateur",
+              email: form.email || null,
+              phone: form.phone || null,
+              type_contrat: form.typeContrat || "Prestation",
+              tarif_horaire: form.tarifHoraire || 0,
+              photo_url: form.photo || null,
+              user_id: null,
+            }).select("id").single();
+
+            if (tErr) throw tErr;
+
+            if (form.modules && form.modules.length > 0) {
+              const modRows = form.modules.map((mid: string) => ({
+                teacher_id: insertedTeacher?.id || id,
+                module_id: mid,
+              }));
+              await supabase.from("teacher_modules").insert(modRows);
+            }
+
+            try {
+              await supabase.from("audit_logs").insert({
+                user_id: user?.id || null,
+                action: "CREATE_TEACHER_PROFILE",
+                entity_type: "teachers",
+                entity_id: id,
+                description: `Création fiche enseignant (sans compte) : ${form.prenom} ${form.nom}`,
+              });
+            } catch { /* ignore audit */ }
+
+            window.dispatchEvent(new Event("sentinelles:supabase-refresh"));
+            toastMsg.success("Fiche formateur créée avec succès (sans compte) ✓");
+            log(`Enseignant sans compte créé : ${form.nom} ${form.prenom} (${id})`);
+          } catch (err: any) {
+            toastMsg.error("Erreur création enseignant", err.message);
+            setSavingTeacher(false);
+            return;
+          }
+        } else {
+          toastMsg.success("Fiche formateur créée en local (sans compte) ✓");
+        }
+
         update((d) => ({
-          ...d, users,
-          teachers: [...d.teachers, { ...teacher, userId: student.userId }],
+          ...d,
+          teachers: [...d.teachers, teacher],
         }));
-        log(`Enseignant ajouté : ${form.nom} ${form.prenom} — compte ${uname}`);
-        toastMsg.credentials({ nom: `${form.prenom} ${form.nom}`, identifiant: uname, motDePasse: tempPassword });
       }
     }
-    setCreating(false); setEditing(null);
+
+    setSavingTeacher(false);
+    setCreating(false);
+    setEditing(null);
   };
 
   const contractTypes = Array.from(new Set(db.teachers.map((t) => t.typeContrat).filter(Boolean) as string[]));
@@ -1013,7 +1084,7 @@ export function TeachersPage() {
   return (
     <div>
       <PageHead title="Enseignants" subtitle={`${db.teachers.length} formateurs`}
-        actions={<Btn onClick={() => { setForm(emptyTeacher()); setEditing(null); setCreating(true); }}><PlusCircle size={16} /> Ajouter</Btn>} />
+        actions={<Btn onClick={() => { setForm(emptyTeacher()); setEditing(null); setCreateAccount(true); setAccountEmail(""); setCustomPassword(""); setCreating(true); }}><PlusCircle size={16} /> Ajouter</Btn>} />
 
       {/* Recherche + filtres */}
       <Card className="mb-5 p-4">
@@ -1173,9 +1244,52 @@ export function TeachersPage() {
               </div>
             </Field>
           )}
-          <div className="flex justify-end gap-2">
-            <Btn variant="ghost" onClick={() => setCreating(false)}>Annuler</Btn>
-            <Btn onClick={save}>Enregistrer</Btn>
+
+          {!editing && (
+            <div className="rounded-xl border border-cyan-400/20 bg-cyan-950/20 p-4">
+              <div className="flex items-center justify-between">
+                <div>
+                  <p className="text-xs font-bold uppercase tracking-wider text-cyan-300">Compte utilisateur formateur</p>
+                  <p className="text-[11px] text-slate-400">Permet à l'enseignant de se connecter à son espace</p>
+                </div>
+                <label className="flex items-center gap-2 cursor-pointer">
+                  <input
+                    type="checkbox"
+                    checked={createAccount}
+                    onChange={(e) => setCreateAccount(e.target.checked)}
+                    className="h-4 w-4 rounded border-white/20 bg-black/40 text-cyan-400 focus:ring-cyan-400"
+                  />
+                  <span className="text-xs font-semibold text-white">Créer également le compte utilisateur</span>
+                </label>
+              </div>
+
+              {createAccount && (
+                <div className="mt-3 grid gap-3 border-t border-white/5 pt-3 sm:grid-cols-2">
+                  <Field label="Email de connexion (identifiant)" hint="Utilisé pour se connecter">
+                    <Input
+                      type="email"
+                      value={accountEmail || form.email}
+                      onChange={(e) => setAccountEmail(e.target.value)}
+                      placeholder="email@exemple.com"
+                    />
+                  </Field>
+                  <Field label="Mot de passe temporaire" hint="Laisser vide pour génération automatique">
+                    <Input
+                      value={customPassword}
+                      onChange={(e) => setCustomPassword(e.target.value)}
+                      placeholder="ex: Temp#2026! (ou automatique)"
+                    />
+                  </Field>
+                </div>
+              )}
+            </div>
+          )}
+
+          <div className="flex justify-end gap-2 pt-2">
+            <Btn variant="ghost" onClick={() => setCreating(false)} disabled={savingTeacher}>Annuler</Btn>
+            <Btn onClick={save} disabled={savingTeacher}>
+              {savingTeacher ? "Création en cours..." : editing ? "Enregistrer les modifications" : createAccount ? "Créer l'enseignant et son compte" : "Créer l'enseignant (sans compte)"}
+            </Btn>
           </div>
         </div>
       </Modal>

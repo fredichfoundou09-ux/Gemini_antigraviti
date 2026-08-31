@@ -17,7 +17,7 @@ import { InitializationPage } from "@/pages/admin/Initialization";
 import { TeacherHoursPage } from "@/pages/admin/TeacherHours";
 import { TeacherSubmissions, StudentSubmission } from "@/pages/shared/Submissions";
 import { EniaPage, EniaAdminPage } from "@/pages/shared/Enia";
-import { TeacherDashboard, TeacherClasses, TeacherStudents } from "@/pages/teacher/TeacherPages";
+import { TeacherDashboard, TeacherClasses, TeacherStudents, TeacherProfile } from "@/pages/teacher/TeacherPages";
 import { PartnerPortal } from "@/pages/partner/PartnerPortal";
 import {
   PartnerAttendance,
@@ -166,6 +166,7 @@ export default function App() {
             <Route path="parametres" element={<Gate roles={["superadmin", "admin"]}><ParametresPage /></Gate>} />
             <Route path="mes-classes" element={<Gate roles={["teacher"]}><TeacherClasses /></Gate>} />
             <Route path="mes-apprenants" element={<Gate roles={["teacher"]}><TeacherStudents /></Gate>} />
+            <Route path="mon-profil-formateur" element={<Gate roles={["teacher"]}><TeacherProfile /></Gate>} />
             <Route path="mon-profil" element={<Gate roles={["student"]}><StudentProfile /></Gate>} />
             <Route path="ma-formation" element={<Gate roles={["student"]}><MyFormation /></Gate>} />
             <Route path="mes-modules" element={<Gate roles={["student"]}><MyModules /></Gate>} />

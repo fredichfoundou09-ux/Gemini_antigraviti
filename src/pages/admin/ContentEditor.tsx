@@ -9,6 +9,7 @@ import { cn } from "@/utils/cn";
 import { Btn, Card, Field, Input, Textarea, PageHead, readImage, uid } from "@/lib/ui";
 import { supabase, isSupabaseConfigured } from "@/lib/supabase/client";
 import { toastMsg } from "@/lib/toast";
+import { sanitizeJsonPayload } from "@/lib/validation/jsonPayload";
 
 const TABS = [
   { k: "infos", l: "Informations", icon: <Info size={15} /> },
@@ -115,17 +116,21 @@ export function ContentEditor() {
     if (cur.preInscription) setPre({ ...cur.preInscription });
   }, [db.settings]);
 
-  const persist = async (customHero?: typeof hero, customAdvantageImg?: string) => {
-    const activeHero = customHero || hero;
+  const [saving, setSaving] = useState(false);
+
+  const persist = async (customHero?: any, customAdvantageImg?: string) => {
+    // Éviter qu'un événement React de type SyntheticEvent/MouseEvent soit pris pour customHero
+    const isEvent = customHero && (typeof customHero !== "object" || "nativeEvent" in customHero || "target" in customHero || "__reactFiber$" in customHero);
+    const activeHero = (customHero && !isEvent) ? customHero : hero;
     const activeAdvantageImg = customAdvantageImg !== undefined ? customAdvantageImg : advantageImage;
     const finalWhatsapp = whatsappRaw.split("\n").map((s) => s.trim()).filter(Boolean);
     const activeInfos = { ...infos, whatsapp: finalWhatsapp };
 
-    const updatedSettings = {
+    const rawSettings = {
       ...db.settings,
       branding,
       infos: activeInfos,
-      partenaires,
+      partenaires: partenaires.filter((p) => typeof p === "string" && p.trim().length > 0),
       hero: activeHero,
       formations,
       frais: {
@@ -137,10 +142,13 @@ export function ContentEditor() {
           .filter((f) => f.label.trim() || f.montant > 0)
           .map((f) => ({ id: f.id || uid("FR"), label: f.label.trim() || `${f.modules} module(s)`, modules: Math.max(1, +f.modules || 1), montant: Math.max(0, +f.montant || 0) })),
       },
-      avantages,
+      avantages: avantages.filter((a) => typeof a === "string" && a.trim().length > 0),
       advantageImage: activeAdvantageImg,
       preInscription: pre,
     };
+
+    const updatedSettings = sanitizeJsonPayload(rawSettings);
+    setSaving(true);
 
     // 1. Mise à jour immédiate du Store (réactivité synchrone UI + localStorage)
     update((d) => ({
@@ -152,13 +160,14 @@ export function ContentEditor() {
     // 2. Persistance distante Supabase (si configuré)
     if (isSupabaseConfigured) {
       try {
-        const payload = {
+        const payload = sanitizeJsonPayload({
           settings: updatedSettings,
           advantages: db.advantages || [],
           partners: db.partners || [],
           announcements: db.announcements || [],
           enia: db.enia || null,
-        };
+        });
+
         const { error } = await supabase.from("site_settings").upsert({
           id: "default",
           data: payload,
@@ -173,8 +182,11 @@ export function ContentEditor() {
       } catch (err: any) {
         console.error("Sync error:", err);
         toastMsg.error("Erreur de sauvegarde", err.message || "Erreur de connexion");
+      } finally {
+        setSaving(false);
       }
     } else {
+      setSaving(false);
       toastMsg.success("Modifications enregistrées ✓", "Visibles immédiatement sur la page d'accueil");
     }
 
@@ -515,7 +527,9 @@ export function ContentEditor() {
         </div>
         <div className="flex gap-2">
           <Link to="/"><Btn variant="ghost">Aperçu</Btn></Link>
-          <Btn onClick={persist} variant={saved ? "green" : "primary"}><Save size={15} /> {saved ? "Enregistré ✓" : "Enregistrer les modifications"}</Btn>
+          <Btn onClick={() => persist()} disabled={saving} variant={saved ? "green" : "primary"}>
+            <Save size={15} /> {saving ? "Enregistrement en cours..." : saved ? "Enregistré ✓" : "Enregistrer les modifications"}
+          </Btn>
         </div>
       </div>
     </div>

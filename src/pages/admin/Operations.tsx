@@ -345,12 +345,74 @@ export function SchedulePage() {
 
   const targetStudents = db.students.filter((s) => (!form.formation || s.formation === form.formation) && (!form.moduleId || s.modules.includes(form.moduleId)));
 
+  const [savingSlot, setSavingSlot] = useState(false);
+
   const save = async () => {
-    if (!form.moduleId) return;
-    const payload: any = { jour: form.jour, heureDebut: form.heureDebut, heureFin: form.heureFin, moduleId: form.moduleId, teacherId: form.teacherId, salle: form.salle, formation: form.formation };
+    // 1. Validations frontend obligatoires
+    if (!form.formation) {
+      toastMsg.error("Formation requise", "Veuillez sélectionner une formation.");
+      return;
+    }
+    if (!form.moduleId) {
+      toastMsg.error("Module requis", "Veuillez sélectionner un module d'enseignement.");
+      return;
+    }
+    if (!form.teacherId) {
+      toastMsg.error("Enseignant requis", "Veuillez obligatoirement sélectionner un enseignant.");
+      return;
+    }
+    if (!form.jour) {
+      toastMsg.error("Jour requis", "Veuillez sélectionner un jour de cours.");
+      return;
+    }
+    if (!form.heureDebut || !form.heureFin || form.heureDebut >= form.heureFin) {
+      toastMsg.error("Horaires invalides", "L'heure de début doit être strictement antérieure à l'heure de fin.");
+      return;
+    }
+
+    // 2. Détection des conflits pour l'enseignant
+    const teacherConflict = db.schedule.find((s) =>
+      s.jour === form.jour &&
+      s.teacherId === form.teacherId &&
+      ((!form.date && !s.date) || (form.date && s.date === form.date)) &&
+      form.heureDebut < s.heureFin &&
+      form.heureFin > s.heureDebut
+    );
+    if (teacherConflict) {
+      toastMsg.error("Conflit d'emploi du temps", "Cet enseignant a déjà un cours programmé sur cette plage horaire.");
+      return;
+    }
+
+    // 3. Détection des conflits de salle (si spécifiée)
+    if (form.salle && form.salle.trim()) {
+      const roomConflict = db.schedule.find((s) =>
+        s.jour === form.jour &&
+        s.salle && s.salle.trim().toLowerCase() === form.salle.trim().toLowerCase() &&
+        ((!form.date && !s.date) || (form.date && s.date === form.date)) &&
+        form.heureDebut < s.heureFin &&
+        form.heureFin > s.heureDebut
+      );
+      if (roomConflict) {
+        toastMsg.error("Salle occupée", `La salle "${form.salle.trim()}" est déjà occupée sur ce créneau horaire.`);
+        return;
+      }
+    }
+
+    const payload: any = {
+      jour: form.jour,
+      heureDebut: form.heureDebut,
+      heureFin: form.heureFin,
+      moduleId: form.moduleId,
+      teacherId: form.teacherId,
+      salle: form.salle || "",
+      formation: form.formation,
+    };
     if (form.date) payload.date = form.date;
     if (form.cibleType === "groupe" && form.groupe) payload.groupe = form.groupe;
     if (form.cibleType === "apprenants" && form.studentIds.length) payload.studentIds = form.studentIds;
+
+    let slotId = uid("SCH");
+    setSavingSlot(true);
 
     if (isSupabaseConfigured) {
       try {
@@ -359,28 +421,55 @@ export function SchedulePage() {
         const { data: modCheck } = isUuid ? await supabase.from("modules").select("id").eq("id", form.moduleId).maybeSingle() : { data: null };
         const realModuleId = modCheck?.id || null;
 
-        const { error: schErr } = await supabase.from("schedule").insert({
-          formation_id: formationId,
-          module_id: realModuleId,
-          teacher_id: form.teacherId || null,
-          salle: form.salle || "",
-          jour: form.jour,
-          heure_debut: form.heureDebut,
-          heure_fin: form.heureFin,
-          date: form.date || null,
+        // Appel de la RPC create_schedule_slot
+        const { data: rpcRes, error: rpcErr } = await supabase.rpc("create_schedule_slot", {
+          p_formation_id: formationId,
+          p_module_id: realModuleId,
+          p_teacher_id: form.teacherId,
+          p_jour: form.jour,
+          p_heure_debut: form.heureDebut,
+          p_heure_fin: form.heureFin,
+          p_salle: form.salle?.trim() || null,
+          p_date: form.date || null,
         });
-        if (schErr) throw schErr;
+
+        if (rpcErr) {
+          // Fallback sur insert direct si la RPC n'a pas encore été appliquée
+          const { data: insData, error: insErr } = await supabase.from("schedule").insert({
+            formation_id: formationId,
+            module_id: realModuleId,
+            teacher_id: form.teacherId,
+            salle: form.salle?.trim() || "",
+            jour: form.jour,
+            heure_debut: form.heureDebut,
+            heure_fin: form.heureFin,
+            date: form.date || null,
+          }).select("id").single();
+
+          if (insErr) throw insErr;
+          if (insData?.id) slotId = insData.id;
+        } else if (rpcRes && !rpcRes.success) {
+          toastMsg.error("Créneau refusé", rpcRes.message || "Erreur de validation");
+          setSavingSlot(false);
+          return;
+        } else if (rpcRes?.schedule_id) {
+          slotId = rpcRes.schedule_id;
+        }
+
         toastMsg.success("Créneau enregistré côté serveur ✓");
         window.dispatchEvent(new Event("sentinelles:supabase-refresh"));
       } catch (err: any) {
-        toastMsg.error("Erreur créneau", err.message);
+        toastMsg.error("Erreur créneau", formatSupabaseError(err));
+        setSavingSlot(false);
+        return;
       }
     }
 
-    update((d) => ({ ...d, schedule: [...d.schedule, { id: uid("SCH"), ...payload }] }));
+    update((d) => ({ ...d, schedule: [...d.schedule, { id: slotId, ...payload }] }));
     log(`Créneau ajouté : ${form.jour} ${form.heureDebut}-${form.heureFin} — ${db.modules.find((m) => m.id === form.moduleId)?.titre ?? ""}`);
     setForm(blankSlot());
     setCreating(false);
+    setSavingSlot(false);
   };
 
   const deleteSchedule = async (slotId: string) => {
@@ -390,7 +479,7 @@ export function SchedulePage() {
         window.dispatchEvent(new Event("sentinelles:supabase-refresh"));
         toastMsg.info("Créneau supprimé du serveur");
       } catch (err: any) {
-        toastMsg.error("Erreur suppression", err.message);
+        toastMsg.error("Erreur suppression", formatSupabaseError(err));
       }
     }
     update((d) => ({ ...d, schedule: d.schedule.filter((x) => x.id !== slotId) }));
@@ -519,8 +608,8 @@ export function SchedulePage() {
             </div>
 
             <div className="flex justify-end gap-2">
-              <Btn variant="ghost" onClick={() => setCreating(false)}>Annuler</Btn>
-              <Btn onClick={save}>Ajouter</Btn>
+              <Btn variant="ghost" onClick={() => setCreating(false)} disabled={savingSlot}>Annuler</Btn>
+              <Btn onClick={save} disabled={savingSlot}>{savingSlot ? "Enregistrement en cours..." : "Ajouter le créneau"}</Btn>
             </div>
           </div>
         </Modal>

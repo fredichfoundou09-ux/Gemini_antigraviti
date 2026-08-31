@@ -15,6 +15,9 @@ import { Test } from "@/lib/types";
 import { financialSummary, statusLabel } from "@/lib/finance";
 import { studentCanSeeCourse, scheduleFor } from "@/lib/access";
 import { fileKind, humanSize, downloadFile } from "@/lib/files";
+import { supabase, isSupabaseConfigured } from "@/lib/supabase/client";
+import { toastMsg } from "@/lib/toast";
+import { PasswordChangeCard } from "@/pages/shared/PasswordChangeCard";
 
 export function StudentDashboard() {
   const { db, user } = useStore();
@@ -163,27 +166,72 @@ export function StudentProfile() {
           <p className="mt-2 text-center text-[10px] uppercase tracking-[0.25em] text-slate-500">Présentez ce QR Code en salle</p>
         </Card>
 
-        <Card className="p-6">
-          <h3 className="font-display mb-4 text-sm font-bold text-white">Modifier mes coordonnées</h3>
-          <div className="grid gap-4 sm:grid-cols-2">
-            <Field label="Téléphone"><Input value={form.telephone} onChange={(e) => setForm({ ...form, telephone: e.target.value })} /></Field>
-            <Field label="WhatsApp"><Input value={form.whatsapp} onChange={(e) => setForm({ ...form, whatsapp: e.target.value })} /></Field>
-            <Field label="Email"><Input type="email" value={form.email} onChange={(e) => setForm({ ...form, email: e.target.value })} /></Field>
-            <Field label="Adresse"><Input value={form.adresse} onChange={(e) => setForm({ ...form, adresse: e.target.value })} /></Field>
-          </div>
-          <Btn className="mt-5" onClick={() => { update((d) => ({ ...d, students: d.students.map((s) => (s.id === student.id ? { ...s, ...form } : s)) })); log(`Profil mis à jour par ${student.prenom} ${student.nom}`); }}>
-            Enregistrer
-          </Btn>
-          <div className="mt-6 border-t border-white/5 pt-4">
-            <h4 className="mb-3 text-xs font-bold uppercase tracking-wider text-cyan-300">Mes statistiques</h4>
-            <div className="grid grid-cols-2 gap-2 text-sm">
-              <div className="rounded-xl border border-white/10 bg-white/[0.02] p-3"><p className="text-[10px] uppercase text-slate-500">Présences</p><p className="font-display text-lg font-black text-emerald-300">{att.filter((a) => a.statut === "present").length}</p></div>
-              <div className="rounded-xl border border-white/10 bg-white/[0.02] p-3"><p className="text-[10px] uppercase text-slate-500">Absences</p><p className="font-display text-lg font-black text-red-400">{att.filter((a) => a.statut === "absent").length}</p></div>
-              <div className="rounded-xl border border-white/10 bg-white/[0.02] p-3"><p className="text-[10px] uppercase text-slate-500">Retards</p><p className="font-display text-lg font-black text-amber-300">{att.filter((a) => a.statut === "retard").length}</p></div>
-              <div className="rounded-xl border border-white/10 bg-white/[0.02] p-3"><p className="text-[10px] uppercase text-slate-500">Modules</p><p className="font-display text-lg font-black text-cyan-300">{student.modules.length}</p></div>
+        <div className="space-y-6">
+          <Card className="p-6">
+            <h3 className="font-display mb-4 text-sm font-bold text-white">Modifier mes coordonnées</h3>
+            <div className="grid gap-4 sm:grid-cols-2">
+              <Field label="Téléphone"><Input value={form.telephone} onChange={(e) => setForm({ ...form, telephone: e.target.value })} /></Field>
+              <Field label="WhatsApp"><Input value={form.whatsapp} onChange={(e) => setForm({ ...form, whatsapp: e.target.value })} /></Field>
+              <Field label="Email"><Input type="email" value={form.email} onChange={(e) => setForm({ ...form, email: e.target.value })} /></Field>
+              <Field label="Adresse"><Input value={form.adresse} onChange={(e) => setForm({ ...form, adresse: e.target.value })} /></Field>
             </div>
-          </div>
-        </Card>
+            <Btn
+              className="mt-5"
+              onClick={async () => {
+                if (isSupabaseConfigured) {
+                  try {
+                    const { error: sErr } = await supabase.from("students").update({
+                      telephone: form.telephone,
+                      whatsapp: form.whatsapp,
+                      email: form.email,
+                      adresse: form.adresse,
+                    }).eq("id", student.id);
+                    if (sErr) throw sErr;
+
+                    if (user?.id) {
+                      await supabase.from("profiles").update({
+                        phone: form.telephone,
+                        email: form.email,
+                      }).eq("id", user.id);
+
+                      await supabase.from("audit_logs").insert({
+                        user_id: user.id,
+                        action: "PROFILE_UPDATED",
+                        entity_type: "students",
+                        entity_id: student.id,
+                        description: "Mise à jour des coordonnées apprenant",
+                      });
+                    }
+                    toastMsg.success("Coordonnées enregistrées côté serveur ✓");
+                    window.dispatchEvent(new Event("sentinelles:supabase-refresh"));
+                  } catch (err: any) {
+                    toastMsg.error("Erreur d'enregistrement", err.message);
+                    return;
+                  }
+                } else {
+                  toastMsg.success("Coordonnées enregistrées en local ✓");
+                }
+
+                update((d) => ({ ...d, students: d.students.map((s) => (s.id === student.id ? { ...s, ...form } : s)) }));
+                log(`Profil mis à jour par ${student.prenom} ${student.nom}`);
+              }}
+            >
+              Enregistrer mes coordonnées
+            </Btn>
+            <div className="mt-6 border-t border-white/5 pt-4">
+              <h4 className="mb-3 text-xs font-bold uppercase tracking-wider text-cyan-300">Mes statistiques</h4>
+              <div className="grid grid-cols-2 gap-2 text-sm">
+                <div className="rounded-xl border border-white/10 bg-white/[0.02] p-3"><p className="text-[10px] uppercase text-slate-500">Présences</p><p className="font-display text-lg font-black text-emerald-300">{att.filter((a) => a.statut === "present").length}</p></div>
+                <div className="rounded-xl border border-white/10 bg-white/[0.02] p-3"><p className="text-[10px] uppercase text-slate-500">Absences</p><p className="font-display text-lg font-black text-red-400">{att.filter((a) => a.statut === "absent").length}</p></div>
+                <div className="rounded-xl border border-white/10 bg-white/[0.02] p-3"><p className="text-[10px] uppercase text-slate-500">Retards</p><p className="font-display text-lg font-black text-amber-300">{att.filter((a) => a.statut === "retard").length}</p></div>
+                <div className="rounded-xl border border-white/10 bg-white/[0.02] p-3"><p className="text-[10px] uppercase text-slate-500">Modules</p><p className="font-display text-lg font-black text-cyan-300">{student.modules.length}</p></div>
+              </div>
+            </div>
+          </Card>
+
+          {/* Sécurité et mot de passe */}
+          <PasswordChangeCard />
+        </div>
       </div>
     </div>
   );
@@ -723,26 +771,97 @@ export function MyPayments() {
       </div>`);
   };
 
+  const inscriptionInv = summary.invoices.find((i) => i.type === "inscription" || i.libelle.toLowerCase().includes("inscription"));
+  const inscPaid = inscriptionInv ? db.payments.filter((p) => p.invoiceId === inscriptionInv.id || p.type === "inscription").reduce((a, p) => a + p.montant, 0) : 0;
+  const inscRest = inscriptionInv ? Math.max(0, inscriptionInv.montant - inscPaid) : 0;
+  const inscStatus = !inscriptionInv ? "paye" : inscRest === 0 ? "paye" : inscPaid > 0 ? "partiel" : "impaye";
+
+  const nextSchedule = (summary.schedules || []).find((s) => s.status !== "paye" && s.paidAmount < s.amount);
+
   return (
-    <div>
-      <PageHead title="Mes paiements" subtitle="Suivi automatique de vos règlements" />
-      <div className="mb-5 grid gap-4 sm:grid-cols-4">
-        <Card className="p-4"><p className="text-[10px] uppercase tracking-wider text-slate-500">Montant à payer</p><p className="font-display text-2xl font-black text-white">{money(summary.totalDu)}</p></Card>
-        <Card className="p-4"><p className="text-[10px] uppercase tracking-wider text-slate-500">Total payé</p><p className="font-display text-2xl font-black text-emerald-300">{money(summary.totalPaye)}</p></Card>
-        <Card className="p-4"><p className="text-[10px] uppercase tracking-wider text-slate-500">Solde restant</p><p className={cn("font-display text-2xl font-black", summary.solde === 0 ? "text-emerald-300" : "text-amber-300")}>{money(summary.solde)}</p></Card>
-        <Card className="p-4"><p className="text-[10px] uppercase tracking-wider text-slate-500">Statut</p><p className="mt-1.5"><Badge color={summary.statut === "paye" ? "green" : summary.statut === "partiel" ? "gold" : "red"}>{statusLabel(summary.statut)}</Badge></p></Card>
+    <div className="space-y-6">
+      <PageHead title="Mes paiements" subtitle="Suivi transparent et gestion financière de votre formation" />
+
+      {/* BLOC 3 — SYNTHÈSE FINANCIÈRE GLOBALE */}
+      <div className="rounded-2xl border border-white/10 bg-[#081021]/80 p-5">
+        <div className="flex flex-wrap items-center justify-between mb-4 gap-2">
+          <h3 className="font-display text-sm font-bold text-white flex items-center gap-2">
+            <span>📊 Synthèse financière globale</span>
+          </h3>
+          {nextSchedule && (
+            <span className="text-xs text-amber-300 font-medium">
+              Prochaine échéance : <b>{nextSchedule.label}</b> avant le <b>{nextSchedule.dueDate}</b>
+            </span>
+          )}
+        </div>
+        <div className="grid gap-3 sm:grid-cols-4">
+          <div className="rounded-xl border border-white/10 bg-white/[0.02] p-4">
+            <p className="text-[10px] uppercase tracking-wider text-slate-400">Total formation</p>
+            <p className="font-display text-2xl font-black text-white">{money(summary.totalDu)}</p>
+          </div>
+          <div className="rounded-xl border border-emerald-400/25 bg-emerald-400/5 p-4">
+            <p className="text-[10px] uppercase tracking-wider text-slate-400">Total payé</p>
+            <p className="font-display text-2xl font-black text-emerald-300">{money(summary.totalPaye)}</p>
+          </div>
+          <div className={cn("rounded-xl border p-4", summary.solde === 0 ? "border-emerald-400/25 bg-emerald-400/5" : "border-amber-400/25 bg-amber-400/5")}>
+            <p className="text-[10px] uppercase tracking-wider text-slate-400">Solde restant</p>
+            <p className={cn("font-display text-2xl font-black", summary.solde === 0 ? "text-emerald-300" : "text-amber-300")}>{money(summary.solde)}</p>
+          </div>
+          <div className="rounded-xl border border-white/10 bg-white/[0.02] p-4">
+            <p className="text-[10px] uppercase tracking-wider text-slate-400">Statut financier</p>
+            <p className="mt-1"><Badge color={summary.statut === "paye" ? "green" : summary.statut === "partiel" ? "gold" : "red"}>{statusLabel(summary.statut)}</Badge></p>
+          </div>
+        </div>
       </div>
 
-      {/* Échéancier officiel en 2 tranches */}
-      {summary.schedules && summary.schedules.length > 0 && (
-        <div className="mb-5 rounded-2xl border border-white/10 bg-[#0A1224]/70 p-4">
-          <div className="flex items-center justify-between mb-3">
-            <h3 className="font-display text-sm font-bold text-white flex items-center gap-2">
-              <span>📅 Mon échéancier de formation (2 tranches)</span>
+      {/* BLOC 1 — FRAIS D'INSCRIPTION */}
+      <Card className="p-5">
+        <div className="flex items-center justify-between mb-3 border-b border-white/5 pb-3">
+          <div>
+            <h3 className="font-display text-sm font-bold text-amber-300 flex items-center gap-2">
+              <span>📝 Bloc 1 — Frais d'inscription</span>
             </h3>
-            <span className="text-xs text-slate-400">Durée 3 mois</span>
+            <p className="text-xs text-slate-400">Frais obligatoires d'ouverture de dossier et badge apprenant</p>
           </div>
-          <div className="grid gap-3 sm:grid-cols-2">
+          <Badge color={inscStatus === "paye" ? "green" : inscStatus === "partiel" ? "gold" : "red"}>
+            {inscStatus === "paye" ? "Payé ✓" : inscStatus === "partiel" ? "Partiellement payé" : "À payer"}
+          </Badge>
+        </div>
+
+        <div className="grid gap-3 sm:grid-cols-4 text-sm">
+          <div className="rounded-xl border border-white/5 bg-white/[0.02] p-3">
+            <p className="text-[10px] uppercase text-slate-500">Montant d'inscription</p>
+            <p className="font-display text-lg font-bold text-white">{money(inscriptionInv?.montant || 5000)}</p>
+          </div>
+          <div className="rounded-xl border border-white/5 bg-white/[0.02] p-3">
+            <p className="text-[10px] uppercase text-slate-500">Montant réglé</p>
+            <p className="font-display text-lg font-bold text-emerald-300">{money(inscPaid)}</p>
+          </div>
+          <div className="rounded-xl border border-white/5 bg-white/[0.02] p-3">
+            <p className="text-[10px] uppercase text-slate-500">Reste à payer</p>
+            <p className={cn("font-display text-lg font-bold", inscRest === 0 ? "text-emerald-300" : "text-amber-300")}>{money(inscRest)}</p>
+          </div>
+          <div className="rounded-xl border border-white/5 bg-white/[0.02] p-3">
+            <p className="text-[10px] uppercase text-slate-500">Date d'inscription</p>
+            <p className="font-bold text-slate-200">{student.dateInscription || "—"}</p>
+          </div>
+        </div>
+      </Card>
+
+      {/* BLOC 2 — FRAIS DE FORMATION & ÉCHÉANCIER EN 2 TRANCHES */}
+      <div className="rounded-2xl border border-cyan-400/20 bg-[#081021]/80 p-5">
+        <div className="flex flex-wrap items-center justify-between mb-4 gap-2">
+          <div>
+            <h3 className="font-display text-sm font-bold text-cyan-300 flex items-center gap-2">
+              <span>📅 Bloc 2 — Frais de formation (Échéancier en 2 tranches)</span>
+            </h3>
+            <p className="text-xs text-slate-400">Paiement échelonné sur 3 mois : Tranche 1 (inscription) et Tranche 2 (J+30)</p>
+          </div>
+          <Badge color="cyan">Formation 3 mois</Badge>
+        </div>
+
+        {summary.schedules && summary.schedules.length > 0 ? (
+          <div className="grid gap-4 sm:grid-cols-2">
             {summary.schedules.map((sch) => {
               const isPaid = sch.status === "paye" || sch.paidAmount >= sch.amount;
               const isLate = sch.status === "retard" || (!isPaid && sch.dueDate < today());
@@ -751,7 +870,7 @@ export function MyPayments() {
                 <div
                   key={sch.id}
                   className={cn(
-                    "rounded-xl border p-3.5 transition-all",
+                    "rounded-xl border p-4 transition-all",
                     isPaid
                       ? "border-emerald-400/30 bg-emerald-950/20"
                       : isLate
@@ -762,24 +881,30 @@ export function MyPayments() {
                   <div className="flex justify-between items-start">
                     <div>
                       <p className="font-bold text-sm text-white">{sch.label}</p>
-                      <p className="text-[11px] text-slate-400">Date limite : <span className={cn(isLate && !isPaid ? "text-red-400 font-bold" : "text-slate-300")}>{sch.dueDate}</span></p>
+                      <p className="text-[11px] text-slate-400 mt-0.5">
+                        Date limite : <span className={cn(isLate && !isPaid ? "text-red-400 font-bold" : "text-slate-300")}>{sch.dueDate}</span>
+                      </p>
                     </div>
                     <Badge color={isPaid ? "green" : isLate ? "red" : "cyan"}>
-                      {isPaid ? "Réglé" : isLate ? "En retard" : "En cours"}
+                      {isPaid ? "Réglé ✓" : isLate ? "En retard" : "En attente"}
                     </Badge>
                   </div>
                   <div className="mt-3 flex justify-between items-baseline border-t border-white/5 pt-2 text-xs">
-                    <span className="text-slate-400">Montant de la tranche : <b className="text-white">{money(sch.amount)}</b></span>
+                    <span className="text-slate-400">Montant dû : <b className="text-white">{money(sch.amount)}</b></span>
                     <span className={cn("font-bold", isPaid ? "text-emerald-300" : "text-amber-300")}>
-                      {isPaid ? "Payé en totalité ✓" : `Reste à payer : ${money(remaining)}`}
+                      {isPaid ? "Payé en totalité ✓" : `Reste : ${money(remaining)}`}
                     </span>
                   </div>
                 </div>
               );
             })}
           </div>
-        </div>
-      )}
+        ) : (
+          <div className="rounded-xl border border-white/5 bg-white/[0.02] p-4 text-xs text-slate-400">
+            Aucun échéancier généré pour le moment. Votre dossier est en cours de validation par l'administration.
+          </div>
+        )}
+      </div>
 
       {summary.invoices.length > 0 && (
         <>

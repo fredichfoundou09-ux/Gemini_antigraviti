@@ -13,6 +13,7 @@ import {
   updatePassword,
 } from "./supabase/auth";
 import { writeAudit } from "./supabase/audit";
+import { sanitizeJsonPayload } from "./validation/jsonPayload";
 
 const DB_KEY = "sn_db_v2";
 const SESSION_KEY = "sn_session_v2";
@@ -433,12 +434,12 @@ export function StoreProvider({ children }: { children: React.ReactNode }) {
         try {
           await supabase.from("site_settings").upsert({
             id: "default",
-            data: {
+            data: sanitizeJsonPayload({
               settings: next.settings,
               advantages: next.advantages,
               partners: next.partners,
               announcements: next.announcements,
-            },
+            }),
             updated_at: new Date().toISOString(),
           });
         } catch (e) {
