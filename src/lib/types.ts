@@ -218,6 +218,19 @@ export interface FinancialSummary {
   statut: FinancialStatus;
   invoices: Invoice[];
   payments: Payment[];
+  schedules?: PaymentSchedule[];
+}
+
+export interface PaymentSchedule {
+  id: string;
+  studentId: string;
+  invoiceId?: string;
+  installmentNumber: number;
+  label: string;
+  amount: number;
+  paidAmount: number;
+  dueDate: string;
+  status: "impaye" | "partiel" | "paye" | "retard";
 }
 
 export interface Question {
@@ -438,6 +451,7 @@ export interface DB {
   attendance: AttendanceRecord[];
   invoices: Invoice[];
   payments: Payment[];
+  paymentSchedules: PaymentSchedule[];
   teacherHours: TeacherHour[];
   teacherPayments: TeacherPayment[];
   submissions: Submission[];

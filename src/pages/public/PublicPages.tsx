@@ -175,7 +175,7 @@ export function TarifsPage() {
 
 /* ================= PRE-INSCRIPTION ================= */
 export function PreInscriptionPage() {
-  const { db, update, log, notify, computeAmount } = useStore();
+  const { db, update, log, notify, computeAmount, calculatePricingBreakdown } = useStore();
   const s = db.settings;
   const [form, setForm] = useState({
     nom: "", prenom: "", telephone: "", whatsapp: "", email: "", niveau: "",
@@ -183,6 +183,7 @@ export function PreInscriptionPage() {
   });
   const [done, setDone] = useState<{ id: string; nom: string } | null>(null);
   const [error, setError] = useState("");
+  const [submitting, setSubmitting] = useState(false);
 
   const avail = db.modules.filter((m) => m.formation === form.formation);
   const f = s.frais;
@@ -196,6 +197,7 @@ export function PreInscriptionPage() {
     if (!form.telephone.trim()) return setError("Un numéro de téléphone est requis.");
     if (avail.length > 0 && form.modules.length === 0) return setError("Sélectionnez au moins un module.");
     setError("");
+    setSubmitting(true);
 
     if (isSupabaseConfigured) {
       try {
@@ -210,17 +212,19 @@ export function PreInscriptionPage() {
           p_module_ids: form.modules,
         });
 
-        if (rpcErr || !data?.ok) {
-          throw new Error(rpcErr?.message || data?.error || "Erreur lors de l'enregistrement.");
+        if (rpcErr) {
+          throw new Error(rpcErr.message || "Erreur lors de l'enregistrement.");
         }
 
-        const regId = data.id || `REG-${Date.now().toString(36)}`;
+        const regId = data?.id || `REG-${Date.now().toString(36)}`;
         setDone({ id: regId, nom: `${form.nom} ${form.prenom}` });
         window.dispatchEvent(new Event("sentinelles:supabase-refresh"));
         return;
       } catch (err: any) {
         setError(err?.message || "Une erreur est survenue. Veuillez réessayer.");
         return;
+      } finally {
+        setSubmitting(false);
       }
     }
 
@@ -348,22 +352,47 @@ export function PreInscriptionPage() {
 
           {error && <p className="rounded-lg border border-red-500/30 bg-red-500/10 px-3 py-2 text-xs font-semibold text-red-400">{error}</p>}
 
-          <div className="rounded-xl border border-cyan-400/25 bg-cyan-400/5 p-4">
-            <p className="mb-2 text-xs font-bold uppercase tracking-wider text-cyan-300">💰 Calcul automatique du montant</p>
-            <div className="flex flex-wrap items-center justify-between gap-2 text-sm text-slate-300">
-              <span>Formation : <b className="text-white">{formationLabel(form.formation)}</b> — {form.modules.length} module(s) sélectionné(s)</span>
-              <span className="font-display text-xl font-black text-cyan-300">{money(computeAmount(form.formation, form.modules.length))}</span>
-            </div>
-            <p className="mt-1.5 text-[11px] text-slate-500">Le montant est calculé automatiquement selon la formule tarifaire correspondant à vos modules.</p>
-          </div>
-          <div className="rounded-xl border border-amber-400/25 bg-amber-400/5 p-4 text-sm text-slate-300">
-            💡 Frais d'inscription : <span className="font-black text-amber-300">{money(f.inscription)}</span> — à régler lors de la confirmation au centre.
-            {s.infos.whatsapp.length > 0 && (
-              <> Contact WhatsApp : <span className="font-bold text-emerald-300">{s.infos.whatsapp.join(" / ")}</span></>
-            )}
-          </div>
+          {(() => {
+            const pb = calculatePricingBreakdown(form.formation, form.modules.length);
+            return (
+              <div className="space-y-3">
+                <div className="rounded-xl border border-cyan-400/25 bg-cyan-400/5 p-4">
+                  <div className="flex items-center justify-between border-b border-white/10 pb-2">
+                    <span className="text-xs font-bold uppercase tracking-wider text-cyan-300">💰 Détail certifié des frais</span>
+                    <span className="font-display text-xl font-black text-cyan-300">{money(pb.total)}</span>
+                  </div>
+                  <div className="mt-3 space-y-1.5 text-xs text-slate-300">
+                    <div className="flex justify-between">
+                      <span>Frais d'inscription (unique) :</span>
+                      <span className="font-bold text-white">{money(pb.registrationFee)}</span>
+                    </div>
+                    <div className="flex justify-between">
+                      <span>Formation ({form.modules.length} module(s)) :</span>
+                      <span className="font-bold text-white">{money(pb.moduleTotal)}</span>
+                    </div>
+                  </div>
+                </div>
 
-          <Btn type="submit" variant="green" className="w-full py-3.5 text-base"><Send size={17} /> Envoyer ma pré-inscription</Btn>
+                <div className="rounded-xl border border-white/10 bg-white/[0.02] p-4 text-xs text-slate-300">
+                  <p className="mb-2 font-bold uppercase tracking-wider text-slate-400">📅 Échéancier en 2 tranches</p>
+                  <div className="grid grid-cols-2 gap-3">
+                    <div className="rounded-lg border border-cyan-400/20 bg-cyan-950/20 p-2.5">
+                      <p className="text-[10px] text-slate-400">Tranche 1 (à l'inscription)</p>
+                      <p className="text-sm font-bold text-cyan-300">{money(pb.installment1)}</p>
+                    </div>
+                    <div className="rounded-lg border border-white/10 bg-white/[0.02] p-2.5">
+                      <p className="text-[10px] text-slate-400">Tranche 2 (à 1 mois)</p>
+                      <p className="text-sm font-bold text-slate-200">{money(pb.installment2)}</p>
+                    </div>
+                  </div>
+                </div>
+              </div>
+            );
+          })()}
+
+          <Btn type="submit" variant="green" disabled={submitting} className="w-full py-3.5 text-base">
+            <Send size={17} /> {submitting ? "Enregistrement en cours..." : "Envoyer ma pré-inscription"}
+          </Btn>
         </form>
       </Card>
 

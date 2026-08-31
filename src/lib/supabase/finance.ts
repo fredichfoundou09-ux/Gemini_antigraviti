@@ -65,3 +65,34 @@ export async function recordTeacherPayment(payload: Record<string, unknown>) {
   if (error) throw error;
   return data;
 }
+
+/* ---------- Échéances de paiement en 2 tranches ---------- */
+export async function fetchPaymentSchedules(studentId?: string) {
+  const sb = getSupabase();
+  let q = sb.from("payment_schedules").select("*").order("installment_number", { ascending: true });
+  if (studentId) q = q.eq("student_id", studentId);
+  const { data, error } = await q;
+  if (error) throw error;
+  return data || [];
+}
+
+export async function recordStudentPaymentV2(payload: {
+  studentId: string;
+  amount: number;
+  method: string;
+  reference?: string;
+  invoiceId?: string;
+  notes?: string;
+}) {
+  const sb = getSupabase();
+  const { data, error } = await sb.rpc("record_student_payment_v2", {
+    p_student_id: payload.studentId,
+    p_amount: payload.amount,
+    p_method: payload.method,
+    p_reference: payload.reference || "",
+    p_invoice_id: payload.invoiceId || null,
+    p_notes: payload.notes || null,
+  });
+  if (error) throw error;
+  return data;
+}

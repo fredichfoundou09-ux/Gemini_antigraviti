@@ -1307,13 +1307,24 @@ export function UsersPage() {
       try {
         const { error } = await supabase.rpc("admin_delete_user", { target_user_id: uid });
         if (error) {
-          // Fallback suppression directe si RPC non disponible
-          await supabase.from("profiles").delete().eq("id", uid);
+          throw error;
         }
+
+        try {
+          await supabase.from("audit_logs").insert({
+            user_id: user?.id || null,
+            action: "DELETE_USER",
+            entity_type: "profiles",
+            entity_id: uid,
+            description: `Suppression du compte utilisateur ${deleteTarget.name} (${username})`,
+          });
+        } catch { /* audit fallback */ }
+
         window.dispatchEvent(new Event("sentinelles:supabase-refresh"));
         toastMsg.success("Compte utilisateur supprimé avec succès ✓");
       } catch (err: any) {
-        toastMsg.error("Erreur suppression", err.message);
+        toastMsg.error("Erreur suppression", err.message || "Impossible de supprimer ce compte.");
+        return;
       }
     }
     update((d) => ({

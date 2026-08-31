@@ -733,6 +733,54 @@ export function MyPayments() {
         <Card className="p-4"><p className="text-[10px] uppercase tracking-wider text-slate-500">Statut</p><p className="mt-1.5"><Badge color={summary.statut === "paye" ? "green" : summary.statut === "partiel" ? "gold" : "red"}>{statusLabel(summary.statut)}</Badge></p></Card>
       </div>
 
+      {/* Échéancier officiel en 2 tranches */}
+      {summary.schedules && summary.schedules.length > 0 && (
+        <div className="mb-5 rounded-2xl border border-white/10 bg-[#0A1224]/70 p-4">
+          <div className="flex items-center justify-between mb-3">
+            <h3 className="font-display text-sm font-bold text-white flex items-center gap-2">
+              <span>📅 Mon échéancier de formation (2 tranches)</span>
+            </h3>
+            <span className="text-xs text-slate-400">Durée 3 mois</span>
+          </div>
+          <div className="grid gap-3 sm:grid-cols-2">
+            {summary.schedules.map((sch) => {
+              const isPaid = sch.status === "paye" || sch.paidAmount >= sch.amount;
+              const isLate = sch.status === "retard" || (!isPaid && sch.dueDate < today());
+              const remaining = Math.max(0, sch.amount - sch.paidAmount);
+              return (
+                <div
+                  key={sch.id}
+                  className={cn(
+                    "rounded-xl border p-3.5 transition-all",
+                    isPaid
+                      ? "border-emerald-400/30 bg-emerald-950/20"
+                      : isLate
+                      ? "border-red-400/30 bg-red-950/20"
+                      : "border-cyan-400/20 bg-cyan-950/10"
+                  )}
+                >
+                  <div className="flex justify-between items-start">
+                    <div>
+                      <p className="font-bold text-sm text-white">{sch.label}</p>
+                      <p className="text-[11px] text-slate-400">Date limite : <span className={cn(isLate && !isPaid ? "text-red-400 font-bold" : "text-slate-300")}>{sch.dueDate}</span></p>
+                    </div>
+                    <Badge color={isPaid ? "green" : isLate ? "red" : "cyan"}>
+                      {isPaid ? "Réglé" : isLate ? "En retard" : "En cours"}
+                    </Badge>
+                  </div>
+                  <div className="mt-3 flex justify-between items-baseline border-t border-white/5 pt-2 text-xs">
+                    <span className="text-slate-400">Montant de la tranche : <b className="text-white">{money(sch.amount)}</b></span>
+                    <span className={cn("font-bold", isPaid ? "text-emerald-300" : "text-amber-300")}>
+                      {isPaid ? "Payé en totalité ✓" : `Reste à payer : ${money(remaining)}`}
+                    </span>
+                  </div>
+                </div>
+              );
+            })}
+          </div>
+        </div>
+      )}
+
       {summary.invoices.length > 0 && (
         <>
           <h3 className="font-display mb-2 text-sm font-bold text-white">Mes factures</h3>

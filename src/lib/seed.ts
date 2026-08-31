@@ -112,6 +112,7 @@ export function emptyDB(preserveUsers?: DB["users"]): DB {
     attendance: [],
     invoices: [],
     payments: [],
+    paymentSchedules: [],
     teacherHours: [],
     teacherPayments: [],
     submissions: [],

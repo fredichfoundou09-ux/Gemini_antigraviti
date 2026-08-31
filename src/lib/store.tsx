@@ -36,6 +36,7 @@ function migrateDB(parsed: DB): DB {
   if (!parsed.enia.bourseHighlights) parsed.enia.bourseHighlights = fresh.bourseHighlights;
   if (!parsed.enia.partenaires) parsed.enia.partenaires = [];
   if (!parsed.invoices) parsed.invoices = [];
+  if (!parsed.paymentSchedules) parsed.paymentSchedules = [];
   if (!parsed.teacherHours) parsed.teacherHours = [];
   if (!parsed.teacherPayments) parsed.teacherPayments = [];
   if (!parsed.submissions) parsed.submissions = [];
@@ -108,7 +109,14 @@ interface StoreCtxType {
   notify: (toId: string, title: string, body: string, type?: string) => void;
   log: (action: string) => void;
   modulesOf: (f: Formation) => DB["modules"];
-  computeAmount: (f: Formation, moduleCount: number) => number;
+  computeAmount: (f: Formation, moduleCount: number, includeRegistration?: boolean) => number;
+  calculatePricingBreakdown: (f: Formation, moduleCount: number) => {
+    registrationFee: number;
+    moduleTotal: number;
+    total: number;
+    installment1: number;
+    installment2: number;
+  };
   userName: (id: string) => string;
   studentOf: (userId: string) => DB["students"][number] | undefined;
   teacherOf: (userId: string) => DB["teachers"][number] | undefined;
@@ -220,7 +228,8 @@ export function StoreProvider({ children }: { children: React.ReactNode }) {
           scheduleRes, attendanceRes, invoicesRes, paymentsRes,
           testsRes, resultsRes, gradesRes, notificationsRes,
           certificatesRes, scholarshipsRes,
-          registrationsRes, registrationModulesRes
+          registrationsRes, registrationModulesRes,
+          schedulesRes
         ] = await Promise.all([
           supabase.from("profiles").select("*"),
           supabase.from("formations").select("*"),
@@ -241,6 +250,7 @@ export function StoreProvider({ children }: { children: React.ReactNode }) {
           supabase.from("scholarships").select("*"),
           supabase.from("registrations").select("*").order("created_at", { ascending: false }),
           supabase.from("registration_modules").select("*"),
+          supabase.from("payment_schedules").select("*"),
         ]);
 
         if (profilesRes.error) return;
@@ -326,6 +336,17 @@ export function StoreProvider({ children }: { children: React.ReactNode }) {
             montant: Number(p.montant), date: p.date, heure: p.heure, mode: p.mode, reference: p.reference, observation: p.observation,
             createdBy: p.created_by, createdByName: p.created_by_name
           })),
+          paymentSchedules: (schedulesRes.data || []).map((s: any) => ({
+            id: s.id,
+            studentId: s.student_id,
+            invoiceId: s.invoice_id || undefined,
+            installmentNumber: Number(s.installment_number),
+            label: s.label,
+            amount: Number(s.amount),
+            paidAmount: Number(s.paid_amount || 0),
+            dueDate: s.due_date,
+            status: s.status as any,
+          })),
           tests: (testsRes.data || []).map((t: any) => ({
             id: t.id, titre: t.titre, moduleId: t.module_id, chapitreId: t.chapitre_id || undefined,
             teacherId: t.teacher_id, questions: t.questions || [], date: t.date?.slice(0, 10) || "",
@@ -380,6 +401,7 @@ export function StoreProvider({ children }: { children: React.ReactNode }) {
       .on("postgres_changes", { event: "*", schema: "public", table: "formations" }, () => syncPublicData())
       .on("postgres_changes", { event: "*", schema: "public", table: "invoices" }, () => syncAll())
       .on("postgres_changes", { event: "*", schema: "public", table: "payments" }, () => syncAll())
+      .on("postgres_changes", { event: "*", schema: "public", table: "payment_schedules" }, () => syncAll())
       .on("postgres_changes", { event: "*", schema: "public", table: "conversations" }, () => syncAll())
       .on("postgres_changes", { event: "*", schema: "public", table: "messages" }, () => syncAll())
       .on("postgres_changes", { event: "*", schema: "public", table: "notifications" }, () => syncAll())
@@ -676,26 +698,46 @@ export function StoreProvider({ children }: { children: React.ReactNode }) {
 
   const modulesOf = (f: Formation) => db.modules.filter((m) => m.formation === f);
 
-  const computeAmount = (f: Formation, moduleCount: number) => {
-    if (moduleCount <= 0) return 0;
-    const rows = [...db.settings.frais[f]].sort((a, b) => a.modules - b.modules);
-    if (rows.length === 0) return 0;
+  const computeAmount = (f: Formation, moduleCount: number, includeRegistration: boolean = true) => {
+    const regFee = Number(db.settings.frais?.inscription || 5000);
+    let moduleTotal = 0;
 
-    // 1. Chercher un palier exact pour ce nombre de modules
-    const exact = rows.find((r) => r.modules === moduleCount);
-    if (exact && exact.montant > 0) return exact.montant;
-
-    // 2. Chercher si un tarif unitaire (1 module) est configuré
-    const unitRow = rows.find((r) => r.modules === 1 && r.montant > 0);
-    if (unitRow) return unitRow.montant * moduleCount;
-
-    // 3. Calcul proportionnel basé sur le palier le plus proche
-    let best = rows.filter((r) => r.modules <= moduleCount).pop();
-    if (best && best.modules > 0) {
-      return Math.round((best.montant / best.modules) * moduleCount);
+    if (f === "informatique") {
+      // Règle officielle Audit Section 5 : 3 500 FCFA par module
+      moduleTotal = Math.max(0, moduleCount) * 3500;
+    } else if (f === "industriel") {
+      // Règle officielle Audit Section 5 : forfaits 3 mod = 5000, 6 mod = 10000, 12 mod = 20000
+      if (moduleCount <= 0) {
+        moduleTotal = 0;
+      } else if (moduleCount <= 3) {
+        moduleTotal = 5000;
+      } else if (moduleCount <= 6) {
+        moduleTotal = 10000;
+      } else if (moduleCount <= 12) {
+        moduleTotal = 20000;
+      } else {
+        moduleTotal = Math.round((20000 / 12) * moduleCount);
+      }
+    } else {
+      moduleTotal = Math.max(0, moduleCount) * 3500;
     }
-    if (!best) best = rows.find((r) => r.modules >= moduleCount) ?? rows[rows.length - 1];
-    return best ? best.montant : 0;
+
+    return includeRegistration ? regFee + moduleTotal : moduleTotal;
+  };
+
+  const calculatePricingBreakdown = (f: Formation, moduleCount: number) => {
+    const regFee = Number(db.settings.frais?.inscription || 5000);
+    const moduleTotal = computeAmount(f, moduleCount, false);
+    const total = regFee + moduleTotal;
+    const installment1 = regFee + Math.round(moduleTotal / 2);
+    const installment2 = total - installment1;
+    return {
+      registrationFee: regFee,
+      moduleTotal,
+      total,
+      installment1,
+      installment2,
+    };
   };
 
   const userName = (id: string) => {
@@ -711,7 +753,7 @@ export function StoreProvider({ children }: { children: React.ReactNode }) {
       db, user, hasSuperAdmin,
       login, logout, createFirstAdmin, changePassword,
       update, nextStudentId, nextCertNumber, notify, log,
-      modulesOf, computeAmount, userName, studentOf, teacherOf,
+      modulesOf, computeAmount, calculatePricingBreakdown, userName, studentOf, teacherOf,
     }),
     [db, user, hasSuperAdmin]
   );

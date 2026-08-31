@@ -4,6 +4,7 @@ import { DB, FinancialStatus, FinancialSummary, Invoice, Payment } from "./types
 export function financialSummary(db: DB, studentId: string): FinancialSummary {
   const invoices = db.invoices.filter((i) => i.studentId === studentId).sort((a, b) => a.date.localeCompare(b.date));
   const payments = db.payments.filter((p) => p.studentId === studentId).sort((a, b) => a.date.localeCompare(b.date));
+  const schedules = (db.paymentSchedules || []).filter((s) => s.studentId === studentId).sort((a, b) => a.installmentNumber - b.installmentNumber);
   const totalDu = invoices.reduce((a, i) => a + (i.montant || 0), 0);
   const totalPaye = payments.reduce((a, p) => a + (p.montant || 0), 0);
   const solde = Math.max(0, totalDu - totalPaye);
@@ -12,13 +13,13 @@ export function financialSummary(db: DB, studentId: string): FinancialSummary {
   else if (totalPaye <= 0) statut = "impaye";
   else if (totalPaye >= totalDu && totalDu > 0) statut = "paye";
   else statut = "partiel";
-  // "retard" si une facture avec dueDate dépassée n'est pas totalement couverte
+  // "retard" si une facture ou tranche avec dueDate dépassée n'est pas totalement couverte
   const today = new Date().toISOString().slice(0, 10);
   if (statut !== "paye") {
-    const overdue = invoices.some((i) => i.dueDate && i.dueDate < today);
+    const overdue = invoices.some((i) => i.dueDate && i.dueDate < today) || schedules.some((s) => s.status !== "paye" && s.dueDate < today);
     if (overdue) statut = "retard";
   }
-  return { totalDu, totalPaye, solde, statut, invoices, payments };
+  return { totalDu, totalPaye, solde, statut, invoices, payments, schedules };
 }
 
 /** Répartit un paiement sur la facture ouverte la plus ancienne. Retourne l'invoiceId choisi. */
