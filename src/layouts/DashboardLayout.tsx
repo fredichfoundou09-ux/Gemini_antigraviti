@@ -284,7 +284,7 @@ export default function DashboardLayout() {
             </div>
           </div>
 
-          {/* Barre de Recherche Globale Interactive (Clic direct + focus immédiat) */}
+          {/* Barre de Recherche Globale Interactive (Saisie directe ultra-fluide) */}
           <div className="relative flex-1 max-w-md mx-2 sm:mx-4" ref={searchContainerRef}>
             <div className="relative flex items-center">
               <Search size={15} className="pointer-events-none absolute left-3.5 top-1/2 -translate-y-1/2 text-cyan-400 shrink-0" />
@@ -296,10 +296,11 @@ export default function DashboardLayout() {
                   setSearchQuery(e.target.value);
                   setSearchOpen(true);
                 }}
-                onFocus={() => setSearchOpen(true)}
-                onClick={() => setSearchOpen(true)}
+                onFocus={() => {
+                  if (searchQuery.trim().length > 0) setSearchOpen(true);
+                }}
                 placeholder="Rechercher apprenants, cours, documents…"
-                className="w-full rounded-xl border border-white/10 bg-white/[0.04] py-2 pl-9 pr-9 text-xs text-white placeholder:text-slate-400 hover:border-cyan-400/40 focus:border-cyan-400 focus:bg-[#07102B] focus:outline-none focus:ring-1 focus:ring-cyan-400 transition"
+                className="w-full rounded-xl border border-white/15 bg-[#091124] py-2 pl-9 pr-9 text-xs font-medium text-white placeholder:text-slate-400 hover:border-cyan-400/40 focus:border-cyan-400 focus:bg-[#07102B] focus:outline-none focus:ring-2 focus:ring-cyan-400/40 caret-cyan-400 shadow-inner transition"
               />
               {searchQuery ? (
                 <button
@@ -308,6 +309,7 @@ export default function DashboardLayout() {
                     e.stopPropagation();
                     setSearchQuery("");
                     setSearchOpen(false);
+                    searchInputRef.current?.focus();
                   }}
                   className="absolute right-2.5 top-1/2 -translate-y-1/2 text-slate-400 hover:text-white p-1"
                   aria-label="Effacer la recherche"
@@ -321,20 +323,16 @@ export default function DashboardLayout() {
               )}
             </div>
 
-            {/* Dropdown de Résultats Instantanés ancré sous la barre */}
-            {searchOpen && (
+            {/* Dropdown de Résultats Instantanés (Affiché uniquement lorsqu'un terme est saisi) */}
+            {searchOpen && searchQuery.trim().length > 0 && (
               <div
-                className="absolute left-0 right-0 top-full mt-2 z-50 max-h-[75vh] sm:max-h-96 overflow-y-auto rounded-2xl border border-cyan-400/40 bg-[#07102B]/95 p-3 shadow-[0_10px_35px_rgba(0,0,0,0.8)] backdrop-blur-xl space-y-3"
+                className="absolute left-0 right-0 top-full mt-2 z-50 max-h-[75vh] sm:max-h-96 overflow-y-auto rounded-2xl border border-cyan-400/50 bg-[#0A1329] p-3.5 shadow-[0_12px_40px_rgba(0,0,0,0.9)] backdrop-blur-2xl space-y-3"
                 onClick={(e) => e.stopPropagation()}
               >
-                {!searchQuery.trim() ? (
-                  <div className="py-6 text-center text-xs text-slate-400">
-                    <p className="font-semibold text-slate-200">Recherche instantanée Sentinelle Numérique</p>
-                    <p className="mt-1 text-slate-400">Tapez un mot-clé (nom, matricule, module, cours) pour explorer.</p>
-                  </div>
-                ) : searchResults && searchResults.total === 0 ? (
-                  <div className="py-6 text-center text-xs text-slate-400">
-                    <p>Aucun résultat trouvé pour « <span className="text-white font-semibold">{searchQuery}</span> »</p>
+                {searchResults && searchResults.total === 0 ? (
+                  <div className="py-5 text-center text-xs text-slate-300">
+                    <p>Aucun résultat trouvé pour « <span className="text-cyan-300 font-bold">{searchQuery}</span> »</p>
+                    <p className="mt-1 text-[11px] text-slate-500">Essayez avec un nom, prénom, code de module ou titre de cours.</p>
                   </div>
                 ) : (
                   searchResults && (

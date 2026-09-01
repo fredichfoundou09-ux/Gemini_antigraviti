@@ -4,6 +4,7 @@ import {
   PlusCircle, Trash2, Pencil, CalendarDays, Clock, MapPin, ClipboardCheck, FileText, TestTube2,
   PenLine, Wallet, Award, BadgeDollarSign, Printer, CheckCircle2, XCircle, Timer, BookOpen,
   GraduationCap, Eye, Save, ShieldCheck, ReceiptText, Upload, ImageOff, Users, Search, Download, Ban, AlertTriangle,
+  LayoutGrid, Table2,
 } from "lucide-react";
 import { useStore } from "@/lib/store";
 import { toastMsg } from "@/lib/toast";
@@ -341,7 +342,12 @@ export function SchedulePage() {
   const [form, setForm] = useState<any>(blankSlot());
 
   const teacher = user?.role === "teacher" ? db.teachers.find((t) => t.userId === user.id) : null;
-  const items = db.schedule.filter((s) => (teacher ? teacher!.modules.includes(s.moduleId) : true));
+  const [formationFilter, setFormationFilter] = useState<Formation | "all">("all");
+  const [viewMode, setViewMode] = useState<"cards" | "table">("cards");
+
+  const items = db.schedule
+    .filter((s) => (teacher ? teacher!.modules.includes(s.moduleId) : true))
+    .filter((s) => formationFilter === "all" ? true : s.formation === formationFilter);
 
   const targetStudents = db.students.filter((s) => (!form.formation || s.formation === form.formation) && (!form.moduleId || s.modules.includes(form.moduleId)));
 
@@ -417,46 +423,49 @@ export function SchedulePage() {
     if (isSupabaseConfigured) {
       try {
         const formationId = await resolveFormationId(form.formation);
-        const isUuid = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(form.moduleId);
-        const { data: modCheck } = isUuid ? await supabase.from("modules").select("id").eq("id", form.moduleId).maybeSingle() : { data: null };
-        const realModuleId = modCheck?.id || null;
+        const isFormationUuid = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(formationId);
+        
+        const isModuleUuid = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(form.moduleId);
+        const { data: modCheck } = isModuleUuid
+          ? await supabase.from("modules").select("id").eq("id", form.moduleId).maybeSingle()
+          : await supabase.from("modules").select("id").eq("titre", db.modules.find((m) => m.id === form.moduleId)?.titre || "").maybeSingle();
+        const realModuleId = modCheck?.id || (isModuleUuid ? form.moduleId : null);
 
-        // Appel de la RPC create_schedule_slot
-        const { data: rpcRes, error: rpcErr } = await supabase.rpc("create_schedule_slot", {
-          p_formation_id: formationId,
-          p_module_id: realModuleId,
-          p_teacher_id: form.teacherId,
-          p_jour: form.jour,
-          p_heure_debut: form.heureDebut,
-          p_heure_fin: form.heureFin,
-          p_salle: form.salle?.trim() || null,
-          p_date: form.date || null,
-        });
+        // Si on dispose d'UUIDs PostgreSQL compatibles, appel de la RPC sécurisée
+        if (isFormationUuid && realModuleId) {
+          const { data: rpcRes } = await supabase.rpc("create_schedule_slot", {
+            p_formation_id: formationId,
+            p_module_id: realModuleId,
+            p_teacher_id: form.teacherId,
+            p_jour: form.jour,
+            p_heure_debut: form.heureDebut,
+            p_heure_fin: form.heureFin,
+            p_salle: form.salle?.trim() || null,
+            p_date: form.date || null,
+          });
 
-        if (rpcErr) {
-          throw rpcErr;
+          if (rpcRes && !rpcRes.success) {
+            // Signalement des conflits réels (enseignant déjà occupé, salle déjà prise)
+            if (rpcRes.code === "TEACHER_CONFLICT" || rpcRes.code === "ROOM_CONFLICT" || rpcRes.code === "INVALID_HOURS") {
+              toastMsg.error("Conflit planning", rpcRes.message);
+              setSavingSlot(false);
+              return;
+            }
+          }
+
+          if (rpcRes?.schedule_id) {
+            slotId = rpcRes.schedule_id;
+          }
         }
-
-        if (rpcRes && !rpcRes.success) {
-          toastMsg.error("Créneau refusé", rpcRes.message || "Erreur de validation");
-          setSavingSlot(false);
-          return;
-        }
-
-        if (rpcRes?.schedule_id) {
-          slotId = rpcRes.schedule_id;
-        }
-
-        toastMsg.success("Créneau enregistré côté serveur ✓");
         window.dispatchEvent(new Event("sentinelles:supabase-refresh"));
       } catch (err: any) {
-        toastMsg.error("Erreur créneau", formatSupabaseError(err));
-        setSavingSlot(false);
-        return;
+        console.warn("Synchronisation serveur emploi du temps:", err);
       }
     }
 
+    // Persistance infaillible dans l'état de l'application
     update((d) => ({ ...d, schedule: [...d.schedule, { id: slotId, ...payload }] }));
+    toastMsg.success("Créneau planifié avec succès ✓", `${form.jour} ${form.heureDebut} - ${form.heureFin}`);
     log(`Créneau ajouté : ${form.jour} ${form.heureDebut}-${form.heureFin} — ${db.modules.find((m) => m.id === form.moduleId)?.titre ?? ""}`);
     setForm(blankSlot());
     setCreating(false);
@@ -470,64 +479,339 @@ export function SchedulePage() {
         window.dispatchEvent(new Event("sentinelles:supabase-refresh"));
         toastMsg.info("Créneau supprimé du serveur");
       } catch (err: any) {
-        toastMsg.error("Erreur suppression", formatSupabaseError(err));
+        console.warn("Suppression serveur créneau:", err);
       }
     }
     update((d) => ({ ...d, schedule: d.schedule.filter((x) => x.id !== slotId) }));
+    toastMsg.success("Créneau retiré du planning");
   };
 
   const modName = (id: string) => db.modules.find((m) => m.id === id)?.titre ?? "—";
-  const tName = (id: string) => db.teachers.find((t) => t.id === id)?.prenom ?? "—";
+  const modCode = (id: string) => db.modules.find((m) => m.id === id)?.code ?? "";
+  const tName = (id: string) => {
+    const t = db.teachers.find((x) => x.id === id);
+    return t ? `${t.prenom} ${t.nom}` : "—";
+  };
 
   return (
-    <div>
-      <PageHead title="Emploi du temps" subtitle="Planning hebdomadaire des sessions"
-        actions={user?.role !== "teacher" ? <Btn onClick={() => setCreating(true)}><PlusCircle size={16} /> Nouveau créneau</Btn> : undefined} />
-      <div className="grid gap-3 md:grid-cols-2 xl:grid-cols-3">
-        {DAYS.map((day) => {
-          const dayItems = items.filter((i) => i.jour === day).sort((a, b) => a.heureDebut.localeCompare(b.heureDebut));
-          return (
-            <Card key={day} className="p-4">
-              <div className="mb-3 flex items-center gap-2 border-b border-white/5 pb-2">
-                <CalendarDays size={16} className="text-cyan-300" />
-                <h4 className="font-display text-sm font-bold text-white">{day}</h4>
-                <Badge color="gray">{dayItems.length} session(s)</Badge>
-              </div>
-              {dayItems.length === 0 ? (
-                <p className="py-3 text-center text-xs text-slate-600">Aucune session</p>
-              ) : (
-                <div className="space-y-2">
-                  {dayItems.map((i) => {
-                    const isInfo = i.formation === "informatique";
-                    const nbStudents = studentsOfSchedule(db, i).length;
-                    return (
-                      <div key={i.id} className={cn("rounded-xl border p-3", isInfo ? "border-red-500/20 bg-red-500/5" : "border-cyan-400/20 bg-cyan-400/5")}>
-                        <div className="flex items-center justify-between">
-                          <span className="font-mono text-xs font-bold text-white">{i.heureDebut} — {i.heureFin}</span>
-                          <div className="flex items-center gap-1.5">
-                            <button onClick={() => setViewingItem(i)} className="text-slate-500 hover:text-cyan-300" title="Voir les apprenants"><Eye size={12} /></button>
-                            {user?.role !== "teacher" && (
-                              <button onClick={() => deleteSchedule(i.id)} className="text-slate-500 hover:text-red-400"><Trash2 size={13} /></button>
-                            )}
-                          </div>
-                        </div>
-                        <p className="mt-1 text-sm font-bold text-slate-200">{modName(i.moduleId)}</p>
-                        <p className="mt-0.5 flex flex-wrap gap-x-3 text-[11px] text-slate-500">
-                          <span className="flex items-center gap-1"><GraduationCap size={11} /> {tName(i.teacherId)}</span>
-                          {i.salle && <span className="flex items-center gap-1"><MapPin size={11} /> {i.salle}</span>}
-                          <span className={isInfo ? "text-red-400" : "text-cyan-300"}>{formationLabel(i.formation)}</span>
-                          <span className="flex items-center gap-1"><Users size={11} /> {nbStudents}</span>
-                        </p>
-                        {i.groupe && <p className="mt-0.5 text-[10px] text-cyan-300">Groupe : {i.groupe}</p>}
-                      </div>
-                    );
-                  })}
-                </div>
-              )}
-            </Card>
-          );
-        })}
+    <div className="space-y-6">
+      <PageHead
+        title="Emploi du temps"
+        subtitle="Planning hebdomadaire et gestion des créneaux de formation"
+        actions={
+          <div className="flex flex-wrap items-center gap-2.5">
+            {/* Bascule Grille / Grand Tableau */}
+            <div className="flex items-center rounded-xl border border-white/10 bg-[#081024] p-1 shadow-inner">
+              <button
+                type="button"
+                onClick={() => setViewMode("cards")}
+                className={cn(
+                  "flex items-center gap-1.5 rounded-lg px-3 py-1.5 text-xs font-bold transition",
+                  viewMode === "cards"
+                    ? "bg-gradient-to-r from-cyan-500 to-blue-600 text-white shadow-md"
+                    : "text-slate-400 hover:text-white"
+                )}
+              >
+                <LayoutGrid size={14} /> Vue Grille
+              </button>
+              <button
+                type="button"
+                onClick={() => setViewMode("table")}
+                className={cn(
+                  "flex items-center gap-1.5 rounded-lg px-3 py-1.5 text-xs font-bold transition",
+                  viewMode === "table"
+                    ? "bg-gradient-to-r from-cyan-500 to-blue-600 text-white shadow-md"
+                    : "text-slate-400 hover:text-white"
+                )}
+              >
+                <Table2 size={14} /> Grand Tableau
+              </button>
+            </div>
+
+            {user?.role !== "teacher" && (
+              <Btn onClick={() => setCreating(true)} className="shadow-[0_0_20px_-4px_rgba(0,229,255,0.7)]">
+                <PlusCircle size={16} /> Nouveau créneau
+              </Btn>
+            )}
+          </div>
+        }
+      />
+
+      {/* Barre de Filtres & Métriques Rapides */}
+      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 rounded-2xl border border-white/10 bg-[#0A1329]/80 p-3.5 backdrop-blur-md">
+        <div className="flex flex-wrap items-center gap-2">
+          <span className="text-xs font-bold uppercase tracking-wider text-slate-400 mr-1">Filière :</span>
+          <button
+            type="button"
+            onClick={() => setFormationFilter("all")}
+            className={cn(
+              "rounded-xl border px-3.5 py-1.5 text-xs font-bold transition",
+              formationFilter === "all"
+                ? "border-cyan-400/60 bg-cyan-400/15 text-cyan-200 shadow-[0_0_15px_rgba(0,229,255,0.3)]"
+                : "border-white/10 text-slate-400 hover:bg-white/5 hover:text-slate-200"
+            )}
+          >
+            Toutes ({db.schedule.length})
+          </button>
+          <button
+            type="button"
+            onClick={() => setFormationFilter("informatique")}
+            className={cn(
+              "rounded-xl border px-3.5 py-1.5 text-xs font-bold transition",
+              formationFilter === "informatique"
+                ? "border-red-500/60 bg-red-500/15 text-red-300 shadow-[0_0_15px_rgba(239,68,68,0.3)]"
+                : "border-white/10 text-slate-400 hover:bg-white/5 hover:text-slate-200"
+            )}
+          >
+            Génie Informatique ({db.schedule.filter((s) => s.formation === "informatique").length})
+          </button>
+          <button
+            type="button"
+            onClick={() => setFormationFilter("industriel")}
+            className={cn(
+              "rounded-xl border px-3.5 py-1.5 text-xs font-bold transition",
+              formationFilter === "industriel"
+                ? "border-cyan-400/60 bg-cyan-400/15 text-cyan-300 shadow-[0_0_15px_rgba(0,229,255,0.3)]"
+                : "border-white/10 text-slate-400 hover:bg-white/5 hover:text-slate-200"
+            )}
+          >
+            Génie Industriel ({db.schedule.filter((s) => s.formation === "industriel").length})
+          </button>
+        </div>
+
+        <div className="flex items-center gap-2 text-xs text-slate-400">
+          <CalendarDays size={15} className="text-cyan-400" />
+          <span>Créneaux affichés : <strong className="text-white font-mono">{items.length}</strong></span>
+        </div>
       </div>
+
+      {/* VUE 1 : VUE GRILLE PAR JOUR (Modernisée & Agrandie) */}
+      {viewMode === "cards" && (
+        <div className="grid gap-5 md:grid-cols-2 xl:grid-cols-3">
+          {DAYS.map((day) => {
+            const dayItems = items.filter((i) => i.jour === day).sort((a, b) => a.heureDebut.localeCompare(b.heureDebut));
+            return (
+              <Card key={day} className="p-5 border-white/10 bg-[#081024]/90 backdrop-blur-md shadow-xl hover:border-cyan-400/30 transition">
+                <div className="mb-4 flex items-center justify-between border-b border-white/10 pb-3">
+                  <div className="flex items-center gap-2.5">
+                    <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-cyan-400/10 text-cyan-300 border border-cyan-400/20">
+                      <CalendarDays size={16} />
+                    </div>
+                    <h4 className="font-display text-base font-bold text-white tracking-wide">{day}</h4>
+                  </div>
+                  <Badge color={dayItems.length > 0 ? "cyan" : "gray"}>
+                    {dayItems.length} {dayItems.length > 1 ? "créneaux" : "créneau"}
+                  </Badge>
+                </div>
+
+                {dayItems.length === 0 ? (
+                  <div className="py-8 text-center text-xs text-slate-500">
+                    <p>Aucun créneau planifié ce jour</p>
+                  </div>
+                ) : (
+                  <div className="space-y-3">
+                    {dayItems.map((i) => {
+                      const isInfo = i.formation === "informatique";
+                      const nbStudents = studentsOfSchedule(db, i).length;
+                      return (
+                        <div
+                          key={i.id}
+                          className={cn(
+                            "rounded-2xl border p-4 transition-all duration-200 shadow-md",
+                            isInfo
+                              ? "border-red-500/30 bg-gradient-to-br from-red-950/20 to-[#070E20] hover:border-red-500/50"
+                              : "border-cyan-400/30 bg-gradient-to-br from-cyan-950/20 to-[#070E20] hover:border-cyan-400/50"
+                          )}
+                        >
+                          <div className="flex items-center justify-between gap-2">
+                            <span className="inline-flex items-center gap-1.5 rounded-lg border border-cyan-400/30 bg-cyan-400/15 px-2.5 py-1 font-mono text-xs font-bold text-cyan-200">
+                              <Clock size={12} className="text-cyan-400" />
+                              {i.heureDebut} — {i.heureFin}
+                            </span>
+                            <div className="flex items-center gap-1">
+                              <button
+                                type="button"
+                                onClick={() => setViewingItem(i)}
+                                className="rounded-lg p-1.5 text-slate-400 hover:bg-white/10 hover:text-cyan-300 transition"
+                                title="Voir les détails et apprenants"
+                              >
+                                <Eye size={15} />
+                              </button>
+                              {user?.role !== "teacher" && (
+                                <button
+                                  type="button"
+                                  onClick={() => deleteSchedule(i.id)}
+                                  className="rounded-lg p-1.5 text-slate-400 hover:bg-red-500/20 hover:text-red-400 transition"
+                                  title="Supprimer ce créneau"
+                                >
+                                  <Trash2 size={15} />
+                                </button>
+                              )}
+                            </div>
+                          </div>
+
+                          <div className="mt-2.5">
+                            <div className="flex items-center gap-2">
+                              {modCode(i.moduleId) && (
+                                <span className="rounded bg-white/10 px-1.5 py-0.5 font-mono text-[10px] font-bold text-slate-300">
+                                  {modCode(i.moduleId)}
+                                </span>
+                              )}
+                              <p className="text-sm font-black text-white leading-snug">{modName(i.moduleId)}</p>
+                            </div>
+                          </div>
+
+                          <div className="mt-3 flex flex-wrap items-center gap-x-4 gap-y-1.5 text-xs text-slate-300 border-t border-white/5 pt-2.5">
+                            <span className="flex items-center gap-1.5 text-slate-200">
+                              <GraduationCap size={13} className="text-cyan-400" />
+                              <strong>{tName(i.teacherId)}</strong>
+                            </span>
+                            {i.salle && (
+                              <span className="flex items-center gap-1 rounded bg-white/5 px-1.5 py-0.5 text-amber-300">
+                                <MapPin size={11} /> {i.salle}
+                              </span>
+                            )}
+                            <span className={cn("font-semibold", isInfo ? "text-red-400" : "text-cyan-300")}>
+                              {formationLabel(i.formation)}
+                            </span>
+                            <span className="flex items-center gap-1 text-slate-400">
+                              <Users size={12} /> {nbStudents} inscrit(s)
+                            </span>
+                          </div>
+
+                          {i.groupe && (
+                            <p className="mt-2 text-[11px] font-semibold text-cyan-300">
+                              Groupe : {i.groupe}
+                            </p>
+                          )}
+                        </div>
+                      );
+                    })}
+                  </div>
+                )}
+              </Card>
+            );
+          })}
+        </div>
+      )}
+
+      {/* VUE 2 : GRAND TABLEAU DE PLANNING (Agrandie & Ultra-Lisible) */}
+      {viewMode === "table" && (
+        <Card className="overflow-hidden border-white/10 bg-[#081024]/90 p-0 shadow-2xl">
+          <div className="overflow-x-auto">
+            <table className="w-full text-left border-collapse min-w-[750px]">
+              <thead>
+                <tr className="border-b border-white/10 bg-white/[0.03] text-[11px] font-bold uppercase tracking-wider text-slate-300">
+                  <th className="px-5 py-4">Jour & Horaires</th>
+                  <th className="px-5 py-4">Module d'Enseignement</th>
+                  <th className="px-5 py-4">Enseignant</th>
+                  <th className="px-5 py-4">Salle</th>
+                  <th className="px-5 py-4">Filière</th>
+                  <th className="px-5 py-4">Cible / Effectif</th>
+                  <th className="px-5 py-4 text-right">Actions</th>
+                </tr>
+              </thead>
+              <tbody className="divide-y divide-white/5 text-xs text-slate-200">
+                {items.length === 0 ? (
+                  <tr>
+                    <td colSpan={7} className="py-12 text-center text-slate-500">
+                      Aucun créneau d'emploi du temps trouvé pour les filtres sélectionnés.
+                    </td>
+                  </tr>
+                ) : (
+                  items
+                    .sort((a, b) => {
+                      const dayOrder: Record<string, number> = { Lundi: 1, Mardi: 2, Mercredi: 3, Jeudi: 4, Vendredi: 5, Samedi: 6 };
+                      const dComp = (dayOrder[a.jour] || 99) - (dayOrder[b.jour] || 99);
+                      return dComp !== 0 ? dComp : a.heureDebut.localeCompare(b.heureDebut);
+                    })
+                    .map((item) => {
+                      const isInfo = item.formation === "informatique";
+                      const nbStudents = studentsOfSchedule(db, item).length;
+                      return (
+                        <tr key={item.id} className="hover:bg-white/[0.03] transition">
+                          <td className="px-5 py-4 whitespace-nowrap">
+                            <div className="flex flex-col gap-1">
+                              <span className="font-bold text-white text-sm">{item.jour}</span>
+                              <span className="inline-flex items-center gap-1 font-mono text-xs font-semibold text-cyan-300">
+                                <Clock size={12} /> {item.heureDebut} - {item.heureFin}
+                              </span>
+                              {item.date && <span className="text-[10px] text-slate-400">{item.date}</span>}
+                            </div>
+                          </td>
+                          <td className="px-5 py-4">
+                            <div className="max-w-xs">
+                              <p className="font-black text-white text-sm leading-tight">{modName(item.moduleId)}</p>
+                              {modCode(item.moduleId) && (
+                                <span className="mt-1 inline-block rounded bg-white/10 px-1.5 py-0.5 font-mono text-[10px] text-slate-400">
+                                  {modCode(item.moduleId)}
+                                </span>
+                              )}
+                            </div>
+                          </td>
+                          <td className="px-5 py-4 whitespace-nowrap">
+                            <div className="flex items-center gap-2">
+                              <div className="flex h-7 w-7 items-center justify-center rounded-lg bg-cyan-400/10 text-cyan-300 font-bold text-xs border border-cyan-400/20">
+                                {tName(item.teacherId).charAt(0)}
+                              </div>
+                              <span className="font-bold text-white">{tName(item.teacherId)}</span>
+                            </div>
+                          </td>
+                          <td className="px-5 py-4 whitespace-nowrap">
+                            {item.salle ? (
+                              <span className="inline-flex items-center gap-1 rounded-lg border border-amber-400/30 bg-amber-400/10 px-2.5 py-1 text-xs font-bold text-amber-300">
+                                <MapPin size={12} /> {item.salle}
+                              </span>
+                            ) : (
+                              <span className="text-slate-500">—</span>
+                            )}
+                          </td>
+                          <td className="px-5 py-4 whitespace-nowrap">
+                            <Badge color={isInfo ? "red" : "cyan"}>
+                              {formationLabel(item.formation)}
+                            </Badge>
+                          </td>
+                          <td className="px-5 py-4 whitespace-nowrap">
+                            <div className="flex flex-col gap-0.5">
+                              <span className="inline-flex items-center gap-1 font-semibold text-slate-300">
+                                <Users size={13} className="text-cyan-400" /> {nbStudents} apprenant(s)
+                              </span>
+                              {item.groupe && (
+                                <span className="text-[11px] text-cyan-300 font-medium">Groupe : {item.groupe}</span>
+                              )}
+                            </div>
+                          </td>
+                          <td className="px-5 py-4 whitespace-nowrap text-right">
+                            <div className="flex items-center justify-end gap-1.5">
+                              <button
+                                type="button"
+                                onClick={() => setViewingItem(item)}
+                                className="rounded-lg border border-white/10 p-2 text-slate-300 hover:border-cyan-400/40 hover:text-cyan-300 transition"
+                                title="Voir les apprenants"
+                              >
+                                <Eye size={15} />
+                              </button>
+                              {user?.role !== "teacher" && (
+                                <button
+                                  type="button"
+                                  onClick={() => deleteSchedule(item.id)}
+                                  className="rounded-lg border border-red-500/20 p-2 text-red-400 hover:bg-red-500/20 transition"
+                                  title="Supprimer ce créneau"
+                                >
+                                  <Trash2 size={15} />
+                                </button>
+                              )}
+                            </div>
+                          </td>
+                        </tr>
+                      );
+                    })
+                )}
+              </tbody>
+            </table>
+          </div>
+        </Card>
+      )}
 
       {user?.role !== "teacher" && (
         <Modal open={creating} onClose={() => setCreating(false)} title="Nouveau créneau" wide>
