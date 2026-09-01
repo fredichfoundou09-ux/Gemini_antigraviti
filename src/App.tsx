@@ -5,6 +5,7 @@ import PublicLayout from "@/layouts/PublicLayout";
 import DashboardLayout from "@/layouts/DashboardLayout";
 import Home from "@/pages/public/Home";
 import { LoginPage, FormationsPage, TarifsPage, PreInscriptionPage } from "@/pages/public/PublicPages";
+import { AccountActivationPage } from "@/pages/public/AccountActivation";
 import { AdminDashboard, JournalPage, ParametresPage } from "@/pages/admin/Dashboard";
 import { StudentsPage, TeachersPage, UsersPage } from "@/pages/admin/People";
 import {
@@ -17,6 +18,7 @@ import { InitializationPage } from "@/pages/admin/Initialization";
 import { TeacherHoursPage } from "@/pages/admin/TeacherHours";
 import { TeacherSubmissions, StudentSubmission } from "@/pages/shared/Submissions";
 import { EniaPage, EniaAdminPage } from "@/pages/shared/Enia";
+import { UnifiedProfilePage } from "@/pages/shared/UserProfile";
 import { TeacherDashboard, TeacherClasses, TeacherStudents, TeacherProfile } from "@/pages/teacher/TeacherPages";
 import { PartnerPortal } from "@/pages/partner/PartnerPortal";
 import {
@@ -102,6 +104,7 @@ export default function App() {
             <Route path="/tarifs" element={<TarifsPage />} />
             <Route path="/pre-inscription" element={<PreInscriptionPage />} />
             <Route path="/connexion" element={<LoginPage />} />
+            <Route path="/activer-compte" element={<AccountActivationPage />} />
             <Route path="/verifier-certificat" element={<CertificateVerifyPage />} />
           </Route>
 
@@ -166,6 +169,7 @@ export default function App() {
             <Route path="parametres" element={<Gate roles={["superadmin", "admin"]}><ParametresPage /></Gate>} />
             <Route path="mes-classes" element={<Gate roles={["teacher"]}><TeacherClasses /></Gate>} />
             <Route path="mes-apprenants" element={<Gate roles={["teacher"]}><TeacherStudents /></Gate>} />
+            <Route path="profil" element={<UnifiedProfilePage />} />
             <Route path="mon-profil-formateur" element={<Gate roles={["teacher"]}><TeacherProfile /></Gate>} />
             <Route path="mon-profil" element={<Gate roles={["student"]}><StudentProfile /></Gate>} />
             <Route path="ma-formation" element={<Gate roles={["student"]}><MyFormation /></Gate>} />

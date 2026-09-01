@@ -77,6 +77,7 @@ const MENU: MenuItem[] = [
   { to: "/app/journal", label: "Journal d'activité", icon: <Activity size={18} />, roles: ["superadmin", "admin"] },
   { to: "/app/rapports", label: "Rapports", icon: <Activity size={18} />, roles: ["superadmin", "admin", "partner_admin"] },
   { to: "/app/parametres", label: "Paramètres", icon: <Settings size={18} />, roles: ["superadmin", "admin"] },
+  { to: "/app/profil", label: "Mon profil", icon: <UserCircle size={18} />, roles: ["superadmin", "admin"] },
   { to: "/app/initialisation", label: "Initialiser le logiciel", icon: <RotateCcw size={18} />, roles: ["superadmin"] },
   // Teacher
   { to: "/app/mon-profil-formateur", label: "Mon profil", icon: <UserCircle size={18} />, roles: ["teacher"] },
@@ -539,7 +540,7 @@ export default function DashboardLayout() {
         </NavLink>
 
         <NavLink
-          to={user.role === "student" ? "/app/mon-profil" : user.role === "teacher" ? "/app/mon-profil-formateur" : "/app/parametres"}
+          to="/app/profil"
           className={({ isActive }) =>
             cn(
               "flex flex-col items-center gap-1 rounded-lg px-3 py-1 text-[10px] font-bold transition",

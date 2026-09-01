@@ -1517,6 +1517,49 @@ function TeacherDetail({ t }: { t: any }) {
         </div>
       )}
 
+      {/* Accès sécurisé & Invitation WhatsApp (Point 4.3 de l'audit) */}
+      <div className="rounded-xl border border-emerald-500/20 bg-emerald-500/5 p-4">
+        <div className="flex flex-wrap items-center justify-between gap-3">
+          <div>
+            <p className="text-xs font-bold uppercase tracking-wider text-emerald-300">Invitation & Accès Formateur</p>
+            <p className="text-[11px] text-slate-400">Générer un lien temporaire sécurisé (48h) sans transmission de mot de passe en clair</p>
+          </div>
+          <Btn
+            variant="outline"
+            className="border-emerald-500/40 text-emerald-300 hover:bg-emerald-500/10"
+            onClick={async () => {
+              const token = "ACT_" + uid("T") + "_" + Math.random().toString(36).slice(2, 10);
+              if (isSupabaseConfigured) {
+                try {
+                  await supabase.from("account_invitations").insert({
+                    token,
+                    email: t.email || null,
+                    phone: t.phone || null,
+                    role: "teacher",
+                    target_id: t.id,
+                  });
+                } catch (e: any) {
+                  console.warn("Invitation token save notice:", e.message);
+                }
+              }
+              const link = `${window.location.origin}/#/activer-compte?token=${token}`;
+              const cleanPhone = (t.phone || "").replace(/[^0-9]/g, "");
+              const message = `Bonjour ${t.prenom} ${t.nom},\nVotre espace formateur SENTINELLE NUMÉRIQUE (ENIA 2.0) est prêt.\nPour activer votre compte et définir votre mot de passe en toute sécurité, cliquez sur votre lien personnel (valable 48h) :\n${link}\n\nÀ très bientôt !`;
+
+              if (cleanPhone) {
+                window.open(`https://wa.me/${cleanPhone}?text=${encodeURIComponent(message)}`, "_blank");
+                toastMsg.success("Lien WhatsApp ouvert ✓", "L'invitation a été pré-remplie.");
+              } else {
+                navigator.clipboard.writeText(link);
+                toastMsg.success("Lien d'activation copié ✓", "Partagez ce lien sécurisé (valable 48h) avec l'enseignant.");
+              }
+            }}
+          >
+            <MessageCircle size={15} /> Inviter via WhatsApp (48h)
+          </Btn>
+        </div>
+      </div>
+
       <div>
         <p className="mb-2 text-xs font-bold uppercase tracking-wider text-cyan-300">Modules enseignés ({mods.length})</p>
         <div className="flex flex-wrap gap-1.5">

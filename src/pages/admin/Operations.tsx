@@ -434,25 +434,16 @@ export function SchedulePage() {
         });
 
         if (rpcErr) {
-          // Fallback sur insert direct si la RPC n'a pas encore été appliquée
-          const { data: insData, error: insErr } = await supabase.from("schedule").insert({
-            formation_id: formationId,
-            module_id: realModuleId,
-            teacher_id: form.teacherId,
-            salle: form.salle?.trim() || "",
-            jour: form.jour,
-            heure_debut: form.heureDebut,
-            heure_fin: form.heureFin,
-            date: form.date || null,
-          }).select("id").single();
+          throw rpcErr;
+        }
 
-          if (insErr) throw insErr;
-          if (insData?.id) slotId = insData.id;
-        } else if (rpcRes && !rpcRes.success) {
+        if (rpcRes && !rpcRes.success) {
           toastMsg.error("Créneau refusé", rpcRes.message || "Erreur de validation");
           setSavingSlot(false);
           return;
-        } else if (rpcRes?.schedule_id) {
+        }
+
+        if (rpcRes?.schedule_id) {
           slotId = rpcRes.schedule_id;
         }
 

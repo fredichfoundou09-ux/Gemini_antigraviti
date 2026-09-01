@@ -100,6 +100,15 @@ export function checkPassword(pwd: string): PasswordChecks {
   };
 }
 
+export function validatePassword(pwd: string): { valid: boolean; error?: string } {
+  const p = pwd || "";
+  if (p.length < 8) return { valid: false, error: "Le mot de passe doit contenir au moins 8 caractères." };
+  const c = checkPassword(p);
+  if (!c.notCommon) return { valid: false, error: "Ce mot de passe est trop simple ou courant." };
+  if (!c.upper && !c.digit && !c.special) return { valid: false, error: "Ajoutez au moins une majuscule, un chiffre ou un caractère spécial." };
+  return { valid: true };
+}
+
 export function passwordStrong(pwd: string): boolean {
   const c = checkPassword(pwd);
   return c.length && c.upper && c.lower && c.digit && c.special && c.notCommon;
