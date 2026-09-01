@@ -13,6 +13,7 @@ import { EniaContent, EniaPartner } from "@/lib/types";
 import eniaAfficheDefault from "@/assets/enia-affiche.jpg";
 import { supabase, isSupabaseConfigured } from "@/lib/supabase/client";
 import { toastMsg } from "@/lib/toast";
+import { sanitizeJsonPayload } from "@/lib/validation/jsonPayload";
 
 /* ================= CONSULTATION (tous rôles) ================= */
 export function EniaPage() {
@@ -294,46 +295,77 @@ export function EniaAdminPage() {
   const [saved, setSaved] = useState(false);
   const [tab, setTab] = useState<"general" | "bourse" | "frais" | "pieces" | "affiche" | "lien" | "partenaires">("general");
   const [partnerEdit, setPartnerEdit] = useState<EniaPartner | null>(null);
-  const initializedRef = useRef(false);
 
+  // Synchronisation avec db.enia lorsqu'il change depuis Supabase
   useEffect(() => {
-    if (!db.enia || initializedRef.current) return;
-    initializedRef.current = true;
-    setEnia(structuredClone(db.enia));
-    setHighlightsRaw((db.enia.bourseHighlights || []).join("\n"));
+    if (db.enia) {
+      setEnia(structuredClone(db.enia));
+      setHighlightsRaw((db.enia.bourseHighlights || []).join("\n"));
+    }
   }, [db.enia]);
 
-  const persist = async (customEnia?: EniaContent) => {
+  const persist = async (customEnia?: unknown) => {
+    // Si un MouseEvent ou événement React a été passé accidentellement, on l'ignore
+    const validCustomEnia = (customEnia && typeof customEnia === "object" && "titre" in customEnia && !("nativeEvent" in customEnia))
+      ? (customEnia as EniaContent)
+      : undefined;
+
     const highlights = highlightsRaw.split("\n").map((s) => s.trim()).filter(Boolean);
-    const cleanedPieces = (customEnia?.pieces || enia.pieces || []).map((p) => ({
+    const targetSource = validCustomEnia || enia;
+    const cleanedPieces = (targetSource.pieces || []).map((p) => ({
       ...p,
       pieces: (p.pieces || []).map((x) => x.trim()).filter(Boolean),
     }));
-    const base = customEnia ? structuredClone(customEnia) : structuredClone(enia);
-    const dataToSave: EniaContent = {
-      ...base,
+
+    const dataToSave: EniaContent = sanitizeJsonPayload({
+      ...targetSource,
       bourseHighlights: highlights,
       pieces: cleanedPieces,
-    };
+    });
+
     update((d) => ({ ...d, enia: dataToSave }));
 
     if (isSupabaseConfigured) {
       try {
-        const { data: existingData } = await supabase.from("site_settings").select("data").eq("id", "default").maybeSingle();
-        const currentData = existingData?.data || {};
-        await supabase.from("site_settings").upsert({
+        const { data: existingRow, error: selErr } = await supabase
+          .from("site_settings")
+          .select("data")
+          .eq("id", "default")
+          .maybeSingle();
+
+        if (selErr) {
+          console.warn("Select site_settings warning:", selErr.message);
+        }
+
+        const currentData = existingRow?.data || {};
+        const mergedPayload = sanitizeJsonPayload({
+          ...currentData,
+          settings: currentData.settings || db.settings,
+          advantages: currentData.advantages || db.advantages || [],
+          partners: currentData.partners || db.partners || [],
+          announcements: currentData.announcements || db.announcements || [],
+          enia: dataToSave,
+        });
+
+        const { error: upsertErr } = await supabase.from("site_settings").upsert({
           id: "default",
-          data: { ...currentData, enia: dataToSave },
+          data: mergedPayload,
           updated_at: new Date().toISOString(),
         });
+
+        if (upsertErr) {
+          throw upsertErr;
+        }
+
         window.dispatchEvent(new Event("sentinelles:supabase-refresh"));
         toastMsg.success("Module ENIA 2.0 enregistré côté serveur ✓", "Modifications visibles immédiatement");
       } catch (err: any) {
-        console.warn("Sync enia err:", err);
-        toastMsg.info("Modifications appliquées localement ✓");
+        console.error("Sync enia err:", err);
+        toastMsg.error("Échec de sauvegarde distante", err.message || "Erreur Supabase");
+        return;
       }
     } else {
-      toastMsg.success("Modifications ENIA enregistrées ✓");
+      toastMsg.success("Modifications ENIA enregistrées localement ✓");
     }
 
     log("Module ENIA 2.0 mis à jour");
@@ -412,7 +444,7 @@ export function EniaAdminPage() {
         actions={
           <div className="flex gap-2">
             <Link to="/app/enia"><Btn variant="outline"><Eye size={14} /> Aperçu</Btn></Link>
-            <Btn onClick={persist}><Save size={14} /> {saved ? "Enregistré ✓" : "Enregistrer"}</Btn>
+            <Btn onClick={() => persist()}><Save size={14} /> {saved ? "Enregistré ✓" : "Enregistrer"}</Btn>
           </div>
         }
       />
@@ -622,7 +654,7 @@ export function EniaAdminPage() {
 
       <div className="mt-6 flex justify-end gap-2">
         <Link to="/app/enia"><Btn variant="outline">Voir le module</Btn></Link>
-        <Btn onClick={persist}><Save size={14} /> {saved ? "Enregistré ✓" : "Enregistrer les modifications"}</Btn>
+        <Btn onClick={() => persist()}><Save size={14} /> {saved ? "Enregistré ✓" : "Enregistrer les modifications"}</Btn>
       </div>
 
       <Modal open={!!partnerEdit} onClose={() => setPartnerEdit(null)} title={partnerEdit?.nom ? `Modifier ${partnerEdit.nom}` : "Nouveau partenaire"} wide>

@@ -276,7 +276,7 @@ export function ContentEditor() {
         actions={
           <>
             <Link to="/" target="_blank"><Btn variant="outline"><ExternalLink size={15} /> Voir le site</Btn></Link>
-            <Btn onClick={persist} variant={saved ? "green" : "primary"}><Save size={15} /> {saved ? "Enregistré ✓" : "Enregistrer"}</Btn>
+            <Btn onClick={() => persist()} variant={saved ? "green" : "primary"}><Save size={15} /> {saved ? "Enregistré ✓" : "Enregistrer"}</Btn>
           </>
         }
       />

@@ -177,7 +177,7 @@ begin
         on conflict do nothing;
 
         -- Notification interne
-        insert into public.notifications (to_id, title, body, type)
+        insert into public.notifications (user_id, title, body, type)
         values (
           v_member_id,
           'Nouveau message : ' || coalesce(trim(p_subject), 'Discussion'),
@@ -208,11 +208,12 @@ grant execute on function public.create_conversation(text, uuid[], text) to auth
 -- 5. RLS sur notifications
 drop policy if exists "notifications_read" on public.notifications;
 drop policy if exists "notifications_write" on public.notifications;
+drop policy if exists "notifications_update" on public.notifications;
 
 create policy "notifications_read" on public.notifications
 for select to authenticated
 using (
-  to_id = auth.uid() or public.is_staff()
+  user_id = auth.uid() or public.is_staff()
 );
 
 create policy "notifications_write" on public.notifications
@@ -221,5 +222,5 @@ with check (true);
 
 create policy "notifications_update" on public.notifications
 for update to authenticated
-using (to_id = auth.uid() or public.is_staff())
+using (user_id = auth.uid() or public.is_staff())
 with check (true);

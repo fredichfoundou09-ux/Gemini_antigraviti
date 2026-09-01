@@ -295,7 +295,7 @@ export function TeacherProfile() {
         for (const adm of adminUsers) {
           try {
             await supabase.from("notifications").insert({
-              to_id: adm.id,
+              user_id: adm.id,
               title: "Modification de profil formateur",
               body: `L'enseignant ${teacher.prenom} ${teacher.nom} (${teacher.id}) a mis à jour ses coordonnées (${changedFields.join(", ")}).`,
               type: "teacher_profile_updated",
