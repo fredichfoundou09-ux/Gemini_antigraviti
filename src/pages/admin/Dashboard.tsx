@@ -132,70 +132,70 @@ export function AdminDashboard() {
       />
 
       {/* Cartes statistiques principales (Inspirées de la maquette officielle) */}
-      <div className="grid grid-cols-2 gap-4 lg:grid-cols-4">
+      <div className="grid grid-cols-2 gap-3 sm:gap-4 lg:grid-cols-4">
         {/* Apprenants */}
-        <Card className="relative overflow-hidden p-5 border-cyan-400/20 bg-gradient-to-br from-[#0B1733] to-[#070D1E]">
+        <Card className="relative overflow-hidden p-3.5 sm:p-5 border-cyan-400/20 bg-gradient-to-br from-[#0B1733] to-[#070D1E]">
           <div className="flex items-center justify-between">
-            <span className="text-xs font-bold uppercase tracking-wider text-slate-400">Apprenants</span>
-            <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-cyan-400/10 text-cyan-300">
-              <Users size={20} />
+            <span className="text-[11px] sm:text-xs font-bold uppercase tracking-wider text-slate-400">Apprenants</span>
+            <div className="flex h-8 w-8 sm:h-10 sm:w-10 items-center justify-center rounded-xl bg-cyan-400/10 text-cyan-300">
+              <Users size={18} />
             </div>
           </div>
-          <p className="font-display mt-2 text-3xl font-black text-white">{students.length.toLocaleString()}</p>
-          <div className="mt-2 flex items-center justify-between text-xs">
+          <p className="font-display mt-1.5 sm:mt-2 text-2xl sm:text-3xl font-black text-white">{students.length.toLocaleString()}</p>
+          <div className="mt-1.5 sm:mt-2 flex flex-wrap items-center justify-between gap-1 text-[11px] sm:text-xs">
             <span className="inline-flex items-center gap-1 font-bold text-emerald-400">
-              <TrendingUp size={13} /> +12% actifs
+              <TrendingUp size={13} /> +12%
             </span>
             <span className="text-slate-400">{infoCount} Info · {indCount} Ind.</span>
           </div>
         </Card>
 
         {/* Formateurs */}
-        <Card className="relative overflow-hidden p-5 border-blue-500/20 bg-gradient-to-br from-[#0D1938] to-[#070D1E]">
+        <Card className="relative overflow-hidden p-3.5 sm:p-5 border-blue-500/20 bg-gradient-to-br from-[#0D1938] to-[#070D1E]">
           <div className="flex items-center justify-between">
-            <span className="text-xs font-bold uppercase tracking-wider text-slate-400">Formateurs</span>
-            <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-blue-400/10 text-blue-300">
-              <GraduationCap size={20} />
+            <span className="text-[11px] sm:text-xs font-bold uppercase tracking-wider text-slate-400">Formateurs</span>
+            <div className="flex h-8 w-8 sm:h-10 sm:w-10 items-center justify-center rounded-xl bg-blue-400/10 text-blue-300">
+              <GraduationCap size={18} />
             </div>
           </div>
-          <p className="font-display mt-2 text-3xl font-black text-white">{db.teachers.length.toLocaleString()}</p>
-          <div className="mt-2 flex items-center justify-between text-xs">
+          <p className="font-display mt-1.5 sm:mt-2 text-2xl sm:text-3xl font-black text-white">{db.teachers.length.toLocaleString()}</p>
+          <div className="mt-1.5 sm:mt-2 flex flex-wrap items-center justify-between gap-1 text-[11px] sm:text-xs">
             <span className="inline-flex items-center gap-1 font-bold text-emerald-400">
-              <TrendingUp size={13} /> +5% corps enseignant
+              <TrendingUp size={13} /> +5%
             </span>
             <span className="text-slate-400">Pédagogie active</span>
           </div>
         </Card>
 
         {/* Présences Aujourd'hui */}
-        <Card className="relative overflow-hidden p-5 border-emerald-500/20 bg-gradient-to-br from-[#0A1F26] to-[#070D1E]">
+        <Card className="relative overflow-hidden p-3.5 sm:p-5 border-emerald-500/20 bg-gradient-to-br from-[#0A1F26] to-[#070D1E]">
           <div className="flex items-center justify-between">
-            <span className="text-xs font-bold uppercase tracking-wider text-slate-400">Présences aujourd'hui</span>
-            <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-emerald-400/10 text-emerald-300">
-              <ClipboardCheck size={20} />
+            <span className="text-[11px] sm:text-xs font-bold uppercase tracking-wider text-slate-400">Présences aujourd'hui</span>
+            <div className="flex h-8 w-8 sm:h-10 sm:w-10 items-center justify-center rounded-xl bg-emerald-400/10 text-emerald-300">
+              <ClipboardCheck size={18} />
             </div>
           </div>
-          <p className="font-display mt-2 text-3xl font-black text-white">
+          <p className="font-display mt-1.5 sm:mt-2 text-2xl sm:text-3xl font-black text-white">
             {attToday.filter((a) => a.statut === "present").length.toLocaleString()}
           </p>
-          <div className="mt-2 flex items-center justify-between text-xs">
+          <div className="mt-1.5 sm:mt-2 flex flex-wrap items-center justify-between gap-1 text-[11px] sm:text-xs">
             <span className="inline-flex items-center gap-1 font-bold text-emerald-400">
-              <TrendingUp size={13} /> {attToday.length > 0 ? `${Math.round((attToday.filter((a) => a.statut === "present").length / attToday.length) * 100)}% d'assiduité` : "Aucun appel"}
+              <TrendingUp size={13} /> {attToday.length > 0 ? `${Math.round((attToday.filter((a) => a.statut === "present").length / attToday.length) * 100)}%` : "0%"}
             </span>
-            <span className="text-slate-400">{attToday.filter((a) => a.statut === "absent").length} absents</span>
+            <span className="text-slate-400">{attToday.filter((a) => a.statut === "absent").length} abs.</span>
           </div>
         </Card>
 
         {/* Modules Actifs */}
-        <Card className="relative overflow-hidden p-5 border-red-500/20 bg-gradient-to-br from-[#1E0F1E] to-[#070D1E]">
+        <Card className="relative overflow-hidden p-3.5 sm:p-5 border-red-500/20 bg-gradient-to-br from-[#1E0F1E] to-[#070D1E]">
           <div className="flex items-center justify-between">
-            <span className="text-xs font-bold uppercase tracking-wider text-slate-400">Modules actifs</span>
-            <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-red-400/10 text-red-400">
-              <BookOpen size={20} />
+            <span className="text-[11px] sm:text-xs font-bold uppercase tracking-wider text-slate-400">Modules actifs</span>
+            <div className="flex h-8 w-8 sm:h-10 sm:w-10 items-center justify-center rounded-xl bg-red-400/10 text-red-400">
+              <BookOpen size={18} />
             </div>
           </div>
-          <p className="font-display mt-2 text-3xl font-black text-white">{db.modules.length.toLocaleString()}</p>
-          <div className="mt-2 flex items-center justify-between text-xs">
+          <p className="font-display mt-1.5 sm:mt-2 text-2xl sm:text-3xl font-black text-white">{db.modules.length.toLocaleString()}</p>
+          <div className="mt-1.5 sm:mt-2 flex flex-wrap items-center justify-between gap-1 text-[11px] sm:text-xs">
             <span className="inline-flex items-center gap-1 font-bold text-cyan-400">
               <TrendingUp size={13} /> 2 filières
             </span>
@@ -207,13 +207,13 @@ export function AdminDashboard() {
       {/* Graphiques et statistiques avancées (Section 6) */}
       <div className="grid gap-6 lg:grid-cols-3">
         {/* Présences sur les 7 derniers jours */}
-        <Card className="p-5 lg:col-span-2">
-          <div className="mb-4 flex items-center justify-between">
+        <Card className="p-4 sm:p-5 lg:col-span-2">
+          <div className="mb-4 flex flex-col sm:flex-row sm:items-center justify-between gap-2">
             <div>
               <h3 className="font-display text-sm font-bold text-white">Présences sur les 7 derniers jours</h3>
               <p className="text-xs text-slate-400">Assiduité journalière et variations d'effectifs</p>
             </div>
-            <div className="flex items-center gap-3 text-xs">
+            <div className="flex flex-wrap items-center gap-3 text-xs">
               <span className="flex items-center gap-1.5"><span className="h-2.5 w-2.5 rounded-full bg-cyan-400" /> Présents</span>
               <span className="flex items-center gap-1.5"><span className="h-2.5 w-2.5 rounded-full bg-red-500" /> Absents</span>
               <span className="flex items-center gap-1.5"><span className="h-2.5 w-2.5 rounded-full bg-amber-400" /> Retards</span>
@@ -270,7 +270,7 @@ export function AdminDashboard() {
             <h3 className="font-display text-sm font-bold text-white">Répartition des présences</h3>
             <p className="text-xs text-slate-400">Statistiques cumulées d'assiduité</p>
 
-            <div className="my-6 flex items-center justify-center gap-6">
+            <div className="my-4 sm:my-6 flex flex-col sm:flex-row items-center justify-center gap-4 sm:gap-6">
               <div
                 className="relative h-32 w-32 rounded-full"
                 style={{

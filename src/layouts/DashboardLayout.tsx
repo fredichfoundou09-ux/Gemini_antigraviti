@@ -106,6 +106,7 @@ export default function DashboardLayout() {
   const [searchOpen, setSearchOpen] = useState(false);
   const [searchQuery, setSearchQuery] = useState("");
   const searchInputRef = useRef<HTMLInputElement>(null);
+  const searchContainerRef = useRef<HTMLDivElement>(null);
 
   const user = storeUser || (profile ? {
     id: profile.id,
@@ -124,23 +125,28 @@ export default function DashboardLayout() {
     const handleKeyDown = (e: KeyboardEvent) => {
       if ((e.ctrlKey || e.metaKey) && e.key === "k") {
         e.preventDefault();
-        setSearchOpen((v) => !v);
+        setSearchOpen(true);
+        setTimeout(() => searchInputRef.current?.focus(), 30);
       }
       if (e.key === "Escape") {
         setSearchOpen(false);
+        searchInputRef.current?.blur();
       }
     };
     window.addEventListener("keydown", handleKeyDown);
     return () => window.removeEventListener("keydown", handleKeyDown);
   }, []);
 
+  // Fermeture automatique de la recherche au clic à l'extérieur
   useEffect(() => {
-    if (searchOpen) {
-      setTimeout(() => searchInputRef.current?.focus(), 50);
-    } else {
-      setSearchQuery("");
-    }
-  }, [searchOpen]);
+    const handleClickOutside = (e: MouseEvent) => {
+      if (searchContainerRef.current && !searchContainerRef.current.contains(e.target as Node)) {
+        setSearchOpen(false);
+      }
+    };
+    document.addEventListener("mousedown", handleClickOutside);
+    return () => document.removeEventListener("mousedown", handleClickOutside);
+  }, []);
 
   const logout = () => {
     storeLogout();
@@ -278,109 +284,70 @@ export default function DashboardLayout() {
             </div>
           </div>
 
-          {/* Barre de Recherche Globale */}
-          <div className="flex-1 max-w-md mx-2 sm:mx-4">
-            <button
-              onClick={() => setSearchOpen(true)}
-              className="w-full flex items-center justify-between gap-2 rounded-xl border border-white/10 bg-white/[0.03] px-3.5 py-2 text-xs text-slate-400 hover:border-cyan-400/40 hover:text-slate-200 transition"
-            >
-              <div className="flex items-center gap-2 truncate">
-                <Search size={15} className="text-cyan-400 shrink-0" />
-                <span className="truncate">Rechercher apprenants, cours, documents…</span>
-              </div>
-              <kbd className="hidden sm:inline-flex items-center gap-0.5 rounded border border-white/20 bg-white/5 px-1.5 py-0.5 text-[10px] font-mono text-slate-400">
-                Ctrl K
-              </kbd>
-            </button>
-          </div>
-
-          {/* Actions Header : Messages, Notifications, Site public, Déconnexion */}
-          <div className="flex items-center gap-1.5 sm:gap-2">
-            <NavLink
-              to="/app/messages"
-              className="relative rounded-xl border border-white/10 p-2.5 text-slate-300 transition hover:border-cyan-400/40 hover:text-cyan-300"
-              title="Messagerie interne"
-            >
-              <MessagesSquare size={18} />
-              {unreadMessages > 0 && (
-                <span className="absolute -right-1 -top-1 flex h-4 min-w-4 items-center justify-center rounded-full bg-cyan-500 px-1 text-[9px] font-bold text-white shadow-[0_0_10px_#00E5FF]">
-                  {unreadMessages}
-                </span>
-              )}
-            </NavLink>
-
-            <NavLink
-              to="/app/notifications"
-              className="relative rounded-xl border border-white/10 p-2.5 text-slate-300 transition hover:border-cyan-400/40 hover:text-cyan-300"
-              title="Notifications"
-            >
-              <Bell size={18} />
-              {unreadNotifications > 0 && (
-                <span className="absolute -right-1 -top-1 flex h-4 min-w-4 items-center justify-center rounded-full bg-red-500 px-1 text-[9px] font-bold text-white shadow-[0_0_10px_#EF4444]">
-                  {unreadNotifications}
-                </span>
-              )}
-            </NavLink>
-
-            <NavLink
-              to="/"
-              className="hidden rounded-xl border border-white/10 px-3.5 py-2.5 text-sm font-semibold text-slate-300 transition hover:border-cyan-400/40 hover:text-cyan-300 sm:block"
-            >
-              Site public
-            </NavLink>
-
-            <button
-              onClick={() => {
-                logout();
-                try { window.history.replaceState(null, "", "/#/connexion"); } catch { /* ignore */ }
-                navigate("/connexion", { replace: true });
-                setTimeout(() => window.location.reload(), 50);
-              }}
-              className="rounded-xl border border-red-500/30 p-2.5 text-red-400 transition hover:bg-red-500/10"
-              title="Déconnexion"
-            >
-              <LogOut size={18} />
-            </button>
-          </div>
-        </header>
-
-        {/* Modal de Recherche Globale */}
-        {searchOpen && (
-          <div className="fixed inset-0 z-50 flex items-start justify-center bg-black/75 p-4 pt-16 backdrop-blur-sm" onClick={() => setSearchOpen(false)}>
-            <div className="w-full max-w-2xl rounded-2xl border border-cyan-400/30 bg-[#07102B] shadow-2xl overflow-hidden" onClick={(e) => e.stopPropagation()}>
-              <div className="flex items-center gap-3 border-b border-white/10 px-4 py-3 bg-white/[0.02]">
-                <Search size={18} className="text-cyan-400" />
-                <input
-                  ref={searchInputRef}
-                  value={searchQuery}
-                  onChange={(e) => setSearchQuery(e.target.value)}
-                  placeholder="Rechercher apprenants, formateurs, cours, documents, messages…"
-                  className="w-full bg-transparent text-sm text-white placeholder:text-slate-500 focus:outline-none"
-                />
-                <button onClick={() => setSearchOpen(false)} className="rounded-lg p-1 text-slate-400 hover:text-white">
-                  <X size={18} />
+          {/* Barre de Recherche Globale Interactive (Clic direct + focus immédiat) */}
+          <div className="relative flex-1 max-w-md mx-2 sm:mx-4" ref={searchContainerRef}>
+            <div className="relative flex items-center">
+              <Search size={15} className="pointer-events-none absolute left-3.5 top-1/2 -translate-y-1/2 text-cyan-400 shrink-0" />
+              <input
+                ref={searchInputRef}
+                type="text"
+                value={searchQuery}
+                onChange={(e) => {
+                  setSearchQuery(e.target.value);
+                  setSearchOpen(true);
+                }}
+                onFocus={() => setSearchOpen(true)}
+                onClick={() => setSearchOpen(true)}
+                placeholder="Rechercher apprenants, cours, documents…"
+                className="w-full rounded-xl border border-white/10 bg-white/[0.04] py-2 pl-9 pr-9 text-xs text-white placeholder:text-slate-400 hover:border-cyan-400/40 focus:border-cyan-400 focus:bg-[#07102B] focus:outline-none focus:ring-1 focus:ring-cyan-400 transition"
+              />
+              {searchQuery ? (
+                <button
+                  type="button"
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    setSearchQuery("");
+                    setSearchOpen(false);
+                  }}
+                  className="absolute right-2.5 top-1/2 -translate-y-1/2 text-slate-400 hover:text-white p-1"
+                  aria-label="Effacer la recherche"
+                >
+                  <X size={14} />
                 </button>
-              </div>
+              ) : (
+                <kbd className="hidden sm:inline-flex pointer-events-none absolute right-2.5 top-1/2 -translate-y-1/2 items-center gap-0.5 rounded border border-white/20 bg-white/5 px-1.5 py-0.5 text-[9px] font-mono text-slate-400">
+                  Ctrl K
+                </kbd>
+              )}
+            </div>
 
-              <div className="max-h-96 overflow-y-auto p-4 space-y-4">
+            {/* Dropdown de Résultats Instantanés ancré sous la barre */}
+            {searchOpen && (
+              <div
+                className="absolute left-0 right-0 top-full mt-2 z-50 max-h-[75vh] sm:max-h-96 overflow-y-auto rounded-2xl border border-cyan-400/40 bg-[#07102B]/95 p-3 shadow-[0_10px_35px_rgba(0,0,0,0.8)] backdrop-blur-xl space-y-3"
+                onClick={(e) => e.stopPropagation()}
+              >
                 {!searchQuery.trim() ? (
-                  <div className="py-8 text-center text-xs text-slate-400">
-                    <p className="font-semibold text-slate-300">Recherche universelle Sentinelle Numérique</p>
-                    <p className="mt-1 text-slate-500">Tapez un mot-clé pour explorer les apprenants, modules, documents et messages.</p>
+                  <div className="py-6 text-center text-xs text-slate-400">
+                    <p className="font-semibold text-slate-200">Recherche instantanée Sentinelle Numérique</p>
+                    <p className="mt-1 text-slate-400">Tapez un mot-clé (nom, matricule, module, cours) pour explorer.</p>
                   </div>
                 ) : searchResults && searchResults.total === 0 ? (
-                  <p className="py-8 text-center text-xs text-slate-400">Aucun résultat trouvé pour « {searchQuery} »</p>
+                  <div className="py-6 text-center text-xs text-slate-400">
+                    <p>Aucun résultat trouvé pour « <span className="text-white font-semibold">{searchQuery}</span> »</p>
+                  </div>
                 ) : (
                   searchResults && (
-                    <div className="space-y-4">
+                    <div className="space-y-3">
                       {/* Apprenants */}
                       {searchResults.students.length > 0 && (
                         <div>
-                          <p className="mb-2 text-[10px] font-bold uppercase tracking-wider text-cyan-300">Apprenants ({searchResults.students.length})</p>
+                          <p className="mb-1.5 text-[10px] font-bold uppercase tracking-wider text-cyan-300">Apprenants ({searchResults.students.length})</p>
                           <div className="space-y-1">
                             {searchResults.students.map((s) => (
                               <button
                                 key={s.id}
+                                type="button"
                                 onClick={() => { setSearchOpen(false); navigate("/app/etudiants"); }}
                                 className="w-full flex items-center justify-between rounded-xl border border-white/5 bg-white/[0.02] p-2.5 text-left text-xs hover:border-cyan-400/30 hover:bg-white/5 transition"
                               >
@@ -398,11 +365,12 @@ export default function DashboardLayout() {
                       {/* Formateurs */}
                       {searchResults.teachers.length > 0 && (
                         <div>
-                          <p className="mb-2 text-[10px] font-bold uppercase tracking-wider text-amber-300">Formateurs ({searchResults.teachers.length})</p>
+                          <p className="mb-1.5 text-[10px] font-bold uppercase tracking-wider text-amber-300">Formateurs ({searchResults.teachers.length})</p>
                           <div className="space-y-1">
                             {searchResults.teachers.map((t) => (
                               <button
                                 key={t.id}
+                                type="button"
                                 onClick={() => { setSearchOpen(false); navigate("/app/enseignants"); }}
                                 className="w-full flex items-center justify-between rounded-xl border border-white/5 bg-white/[0.02] p-2.5 text-left text-xs hover:border-amber-400/30 hover:bg-white/5 transition"
                               >
@@ -420,11 +388,12 @@ export default function DashboardLayout() {
                       {/* Modules & Cours */}
                       {(searchResults.modules.length > 0 || searchResults.courses.length > 0) && (
                         <div>
-                          <p className="mb-2 text-[10px] font-bold uppercase tracking-wider text-emerald-300">Pédagogie ({searchResults.modules.length + searchResults.courses.length})</p>
+                          <p className="mb-1.5 text-[10px] font-bold uppercase tracking-wider text-emerald-300">Pédagogie ({searchResults.modules.length + searchResults.courses.length})</p>
                           <div className="space-y-1">
                             {searchResults.modules.map((m) => (
                               <button
                                 key={m.id}
+                                type="button"
                                 onClick={() => { setSearchOpen(false); navigate("/app/modules"); }}
                                 className="w-full flex items-center justify-between rounded-xl border border-white/5 bg-white/[0.02] p-2.5 text-left text-xs hover:border-emerald-400/30 hover:bg-white/5 transition"
                               >
@@ -438,6 +407,7 @@ export default function DashboardLayout() {
                             {searchResults.courses.map((c) => (
                               <button
                                 key={c.id}
+                                type="button"
                                 onClick={() => { setSearchOpen(false); navigate("/app/cours"); }}
                                 className="w-full flex items-center justify-between rounded-xl border border-white/5 bg-white/[0.02] p-2.5 text-left text-xs hover:border-emerald-400/30 hover:bg-white/5 transition"
                               >
@@ -452,11 +422,12 @@ export default function DashboardLayout() {
                       {/* Documents */}
                       {searchResults.documents.length > 0 && (
                         <div>
-                          <p className="mb-2 text-[10px] font-bold uppercase tracking-wider text-purple-300">Documents ({searchResults.documents.length})</p>
+                          <p className="mb-1.5 text-[10px] font-bold uppercase tracking-wider text-purple-300">Documents ({searchResults.documents.length})</p>
                           <div className="space-y-1">
                             {searchResults.documents.map((d) => (
                               <button
                                 key={d.id}
+                                type="button"
                                 onClick={() => { setSearchOpen(false); navigate(user.role === "student" ? "/app/mes-documents" : "/app/cours"); }}
                                 className="w-full flex items-center justify-between rounded-xl border border-white/5 bg-white/[0.02] p-2.5 text-left text-xs hover:border-purple-400/30 hover:bg-white/5 transition"
                               >
@@ -467,13 +438,82 @@ export default function DashboardLayout() {
                           </div>
                         </div>
                       )}
+
+                      {/* Messages */}
+                      {searchResults.messages.length > 0 && (
+                        <div>
+                          <p className="mb-1.5 text-[10px] font-bold uppercase tracking-wider text-blue-300">Messages ({searchResults.messages.length})</p>
+                          <div className="space-y-1">
+                            {searchResults.messages.map((msg) => (
+                              <button
+                                key={msg.id}
+                                type="button"
+                                onClick={() => { setSearchOpen(false); navigate("/app/messages"); }}
+                                className="w-full flex items-center justify-between rounded-xl border border-white/5 bg-white/[0.02] p-2.5 text-left text-xs hover:border-blue-400/30 hover:bg-white/5 transition"
+                              >
+                                <span className="font-bold text-white truncate">{msg.subject}</span>
+                                <ArrowRight size={14} className="text-blue-400 shrink-0" />
+                              </button>
+                            ))}
+                          </div>
+                        </div>
+                      )}
                     </div>
                   )
                 )}
               </div>
-            </div>
+            )}
           </div>
-        )}
+
+          {/* Actions Header : Messages, Notifications, Site public, Déconnexion */}
+          <div className="flex items-center gap-1.5 sm:gap-2">
+            <NavLink
+              to="/app/messages"
+              className="relative rounded-xl border border-white/10 p-2 sm:p-2.5 text-slate-300 transition hover:border-cyan-400/40 hover:text-cyan-300 shrink-0"
+              title="Messagerie interne"
+            >
+              <MessagesSquare size={18} />
+              {unreadMessages > 0 && (
+                <span className="absolute -right-1 -top-1 flex h-4 min-w-4 items-center justify-center rounded-full bg-cyan-500 px-1 text-[9px] font-bold text-white shadow-[0_0_10px_#00E5FF]">
+                  {unreadMessages}
+                </span>
+              )}
+            </NavLink>
+
+            <NavLink
+              to="/app/notifications"
+              className="relative rounded-xl border border-white/10 p-2 sm:p-2.5 text-slate-300 transition hover:border-cyan-400/40 hover:text-cyan-300 shrink-0"
+              title="Notifications"
+            >
+              <Bell size={18} />
+              {unreadNotifications > 0 && (
+                <span className="absolute -right-1 -top-1 flex h-4 min-w-4 items-center justify-center rounded-full bg-red-500 px-1 text-[9px] font-bold text-white shadow-[0_0_10px_#EF4444]">
+                  {unreadNotifications}
+                </span>
+              )}
+            </NavLink>
+
+            <NavLink
+              to="/"
+              className="hidden rounded-xl border border-white/10 px-3.5 py-2 text-xs font-semibold text-slate-300 transition hover:border-cyan-400/40 hover:text-cyan-300 sm:block"
+            >
+              Site public
+            </NavLink>
+
+            <button
+              onClick={() => {
+                logout();
+                try { window.history.replaceState(null, "", "/#/connexion"); } catch { /* ignore */ }
+                navigate("/connexion", { replace: true });
+                setTimeout(() => window.location.reload(), 50);
+              }}
+              className="rounded-xl border border-red-500/30 p-2 sm:p-2.5 text-red-400 transition hover:bg-red-500/10 shrink-0"
+              title="Déconnexion"
+            >
+              <LogOut size={18} />
+            </button>
+          </div>
+        </header>
 
         {/* Body Content */}
         <main className="min-h-[calc(100vh-65px)] p-4 lg:p-8">
@@ -484,7 +524,7 @@ export default function DashboardLayout() {
       {/* ================= BOTTOM NAVIGATION MOBILE (Section 15) ================= */}
       <nav className="no-print fixed bottom-0 inset-x-0 z-40 flex items-center justify-around border-t border-white/10 bg-[#07102B]/95 px-2 py-2 backdrop-blur-lg lg:hidden">
         <NavLink
-          to="/app/dashboard"
+          to="/app"
           end
           className={({ isActive }) =>
             cn(

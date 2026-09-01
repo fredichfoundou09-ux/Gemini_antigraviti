@@ -117,6 +117,7 @@ export default function App() {
               </Gate>
             }
           >
+            <Route index element={<RoleDashboard />} />
             <Route path="dashboard" element={<RoleDashboard />} />
             <Route path="vitrine" element={<Gate roles={["superadmin", "admin", "partner_admin", "partner"]}><PartnerPortal /></Gate>} />
             <Route path="partner/dashboard" element={<Gate roles={["partner", "partner_admin"]}><PartnerDashboard /></Gate>} />
