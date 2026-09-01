@@ -1,9 +1,8 @@
 {
-  "name": "Sentinelle Numérique",
-  "short_name": "Sentinelle",
-  "description": "Plateforme officielle de gestion et d'encadrement des apprenants — Sentinelle Numérique",
-  "start_url": "https://sentinelle-numerique.vercel.app/",
-  "scope": "/",
+  "name": "SENTINELLES NUMÉRIQUES",
+  "short_name": "Sentinelles",
+  "description": "Plateforme de gestion et d'encadrement des apprenants",
+  "start_url": "/",
   "display": "standalone",
   "background_color": "#05070D",
   "theme_color": "#00E5FF",
@@ -11,18 +10,6 @@
     {
       "src": "/icon-192.png",
       "sizes": "192x192",
-      "type": "image/png",
-      "purpose": "any maskable"
-    },
-    {
-      "src": "/icon-512.png",
-      "sizes": "512x512",
-      "type": "image/png",
-      "purpose": "any maskable"
-    },
-    {
-      "src": "/icon-1024.png",
-      "sizes": "1024x1024",
       "type": "image/png",
       "purpose": "any maskable"
     }

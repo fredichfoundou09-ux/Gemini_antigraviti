@@ -43,10 +43,10 @@ export function defaultEniaContent(): EniaContent {
 export function emptySettings(): DB["settings"] {
   return {
     branding: {
-      name: "SENTINELLE NUMÉRIQUE",
+      name: "SENTINELLES NUMÉRIQUES",
       subtitle: "Centre de Formation en Génie Informatique et Génie Industriel",
       tagline: "Formons aujourd'hui les talents numériques et industriels qui construiront l'avenir.",
-      badge: "SENTINELLE • ACADEMY",
+      badge: "SENTINELLES • ACADEMY",
     },
     hero: {
       responsibleName: "Coach Fredich FOUNDOU",

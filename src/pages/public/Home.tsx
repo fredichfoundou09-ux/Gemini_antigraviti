@@ -166,7 +166,7 @@ export default function Home() {
                     <div className="min-w-0">
                       <p className="text-[10px] font-bold uppercase tracking-[0.25em] text-cyan-300">{s.hero.highlight || "DIRECTION"}</p>
                       <p className="font-display mt-1 text-lg font-extrabold leading-tight text-amber-300 drop-shadow-[0_0_12px_rgba(255,179,0,0.45)]">{s.hero.responsibleName || "Direction du Centre"}</p>
-                      <p className="mt-1 text-xs text-slate-400">{s.hero.responsibleTitle || "Sentinelle Numérique"}</p>
+                      <p className="mt-1 text-xs text-slate-400">{s.hero.responsibleTitle || "Sentinelles Numériques"}</p>
                     </div>
                   </div>
                 </div>
@@ -178,7 +178,7 @@ export default function Home() {
                       <span className="h-2.5 w-2.5 rounded-full bg-red-500/80" />
                       <span className="h-2.5 w-2.5 rounded-full bg-amber-400/80" />
                       <span className="h-2.5 w-2.5 rounded-full bg-emerald-400/80" />
-                      <span className="ml-2 flex items-center gap-1 rounded-md bg-white/5 px-2 py-0.5 text-[9px] font-bold text-slate-400"><Terminal size={9} /> sentinelle@academy:~</span>
+                      <span className="ml-2 flex items-center gap-1 rounded-md bg-white/5 px-2 py-0.5 text-[9px] font-bold text-slate-400"><Terminal size={9} /> sentinelles@academy:~</span>
                     </div>
                     <div className="space-y-1 font-mono text-[10px] leading-relaxed sm:text-[11px]">
                       {codeLines.map((l, i) => (
