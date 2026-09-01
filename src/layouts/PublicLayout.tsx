@@ -24,11 +24,15 @@ export default function PublicLayout() {
       <header className="sticky top-0 z-40 border-b border-white/5 bg-[#05070D]/90 backdrop-blur-md">
         <div className="mx-auto flex max-w-7xl items-center justify-between gap-4 px-4 py-3 sm:px-6">
           <Link to="/" className="flex items-center gap-3">
-            <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-gradient-to-br from-cyan-400 to-blue-600 shadow-[0_0_20px_-4px_rgba(0,229,255,0.9)]">
-              <ShieldCheck size={20} className="text-white" />
-            </div>
+            <img
+              src="/shield-emblem.png"
+              alt="Sentinelle Numérique"
+              className="h-10 w-10 object-contain drop-shadow-[0_0_15px_rgba(0,229,255,0.7)]"
+            />
             <div>
-              <p className="font-display text-sm font-extrabold tracking-wide text-white sm:text-base">{s.branding.name}</p>
+              <p className="font-display text-sm font-extrabold tracking-wide text-white sm:text-base">
+                SENTINELLE <span className="text-red-400 font-black">NUMÉRIQUE</span>
+              </p>
               <p className="hidden text-[10px] uppercase tracking-[0.25em] text-cyan-300 sm:block">{s.branding.badge}</p>
             </div>
           </Link>

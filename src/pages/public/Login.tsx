@@ -118,10 +118,14 @@ export function LoginPage() {
 
         {/* En-tête */}
         <div className="mb-6 text-center">
-          <div className="mx-auto mb-3 flex h-14 w-14 items-center justify-center rounded-2xl bg-gradient-to-br from-cyan-400 to-blue-600 shadow-[0_0_30px_-6px_rgba(0,229,255,0.9)]">
-            <ShieldCheck size={26} className="text-white" />
-          </div>
-          <p className="font-display text-[10px] font-black uppercase tracking-[0.35em] text-cyan-300">SENTINELLES NUMÉRIQUES</p>
+          <img
+            src="/shield-emblem.png"
+            alt="Sentinelle Numérique"
+            className="mx-auto mb-3 h-16 w-16 object-contain drop-shadow-[0_0_24px_rgba(0,229,255,0.8)]"
+          />
+          <p className="font-display text-[11px] font-black uppercase tracking-[0.35em] text-white">
+            SENTINELLE <span className="text-red-400">NUMÉRIQUE</span>
+          </p>
           <h1 className="font-display mt-1 text-2xl font-black text-white">Espace sécurisé</h1>
         </div>
 

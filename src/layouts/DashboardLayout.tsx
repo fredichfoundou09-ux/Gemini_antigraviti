@@ -128,12 +128,14 @@ export default function DashboardLayout() {
   const sidebar = (
     <div className="flex h-full flex-col">
       <div className="flex items-center gap-3 border-b border-white/5 px-5 py-4">
-        <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-gradient-to-br from-cyan-400 to-blue-600 shadow-[0_0_18px_-4px_rgba(0,229,255,0.8)]">
-          <ShieldCheck size={20} className="text-white" />
-        </div>
+        <img
+          src="/shield-emblem.png"
+          alt="Sentinelle Numérique"
+          className="h-10 w-10 object-contain drop-shadow-[0_0_12px_rgba(0,229,255,0.6)]"
+        />
         <div className="min-w-0">
-          <p className="font-display truncate text-[13px] font-bold tracking-wide text-white">SENTINELLES</p>
-          <p className="truncate text-[10px] uppercase tracking-[0.25em] text-cyan-300">Numériques</p>
+          <p className="font-display truncate text-[13px] font-bold tracking-wide text-white">SENTINELLE</p>
+          <p className="truncate text-[10px] uppercase tracking-[0.25em] font-extrabold text-red-400">NUMÉRIQUE</p>
         </div>
       </div>
       <nav className="flex-1 space-y-0.5 overflow-y-auto px-3 py-4">
