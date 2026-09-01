@@ -58,6 +58,30 @@ export function printHTML(title: string, body: string) {
   w.document.close();
 }
 
+export function officialPrintDoc(title: string, contentHTML: string, docType = "DOCUMENT OFFICIEL") {
+  return `
+    <div class="receipt">
+      <div style="display:flex;align-items:center;justify-content:space-between;border-bottom:2px solid #00E5FF;padding-bottom:16px;margin-bottom:20px">
+        <div style="display:flex;align-items:center;gap:12px">
+          <img src="/logo.png" style="height:56px;width:56px;object-fit:contain" alt="Logo" />
+          <div>
+            <h2 style="margin:0;font-size:16px;font-weight:900;letter-spacing:1px;color:#fff">SENTINELLE NUMÉRIQUE</h2>
+            <p style="margin:2px 0 0;font-size:10px;color:#00E5FF;text-transform:uppercase;letter-spacing:1px">ENIA 2.0 · CONGO BRAZZAVILLE</p>
+          </div>
+        </div>
+        <div style="text-align:right">
+          <span style="display:inline-block;padding:4px 8px;border-radius:6px;background:rgba(0,229,255,0.1);border:1px solid #00E5FF;font-size:10px;font-weight:bold;color:#00E5FF">${docType}</span>
+          <p style="margin:4px 0 0;font-size:11px;color:#8A94A6">${new Date().toLocaleDateString('fr-FR')}</p>
+        </div>
+      </div>
+      ${contentHTML}
+      <div style="margin-top:30px;border-top:1px dashed #1d2b45;padding-top:12px;text-align:center;font-size:9px;color:#8A94A6;letter-spacing:2px">
+        APPRENDRE • INNOVER • CRÉER • CODER • SÉCURISER — SENTINELLE NUMÉRIQUE
+      </div>
+    </div>
+  `;
+}
+
 export const moduleIcon = (key: string, className = "h-5 w-5") => {
   const map: Record<string, ReactNode> = {
     code: <Code2 className={className} />,

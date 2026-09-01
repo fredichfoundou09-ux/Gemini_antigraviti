@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, useMemo } from "react";
 import { Link } from "react-router-dom";
 import {
   Users, GraduationCap, BookOpen, Wallet, ClipboardCheck, UserX, Timer,
@@ -81,95 +81,234 @@ export function AdminDashboard() {
     );
   }
 
+  // Calcul des présences sur les 7 derniers jours (Lundi à Dimanche)
+  const last7Days = useMemo(() => {
+    const days = ["Lun", "Mar", "Mer", "Jeu", "Ven", "Sam", "Dim"];
+    const now = new Date();
+    const result = [];
+    for (let i = 6; i >= 0; i--) {
+      const target = new Date(now);
+      target.setDate(now.getDate() - i);
+      const dateStr = target.toISOString().slice(0, 10);
+      const dayName = days[(target.getDay() + 6) % 7];
+      const dayAtt = db.attendance.filter((a) => a.date === dateStr);
+      const presents = dayAtt.filter((a) => a.statut === "present").length;
+      const absents = dayAtt.filter((a) => a.statut === "absent").length;
+      const retards = dayAtt.filter((a) => a.statut === "retard").length;
+      result.push({ date: dateStr, label: dayName, presents, absents, retards, total: dayAtt.length });
+    }
+    return result;
+  }, [db.attendance]);
+
+  const maxAttCount = Math.max(1, ...last7Days.map((d) => Math.max(d.presents, d.absents + d.retards)));
+
+  // Répartition globale des présences
+  const totalAttRecords = db.attendance.length || 1;
+  const totalPresents = db.attendance.filter((a) => a.statut === "present").length;
+  const totalAbsents = db.attendance.filter((a) => a.statut === "absent").length;
+  const totalRetards = db.attendance.filter((a) => a.statut === "retard").length;
+  const attendanceRate = Math.round((totalPresents / totalAttRecords) * 100);
+
   return (
-    <div>
+    <div className="space-y-6">
       <PageHead
-        title={`Tableau de bord`}
-        subtitle="Vue d'ensemble de la plateforme SENTINELLES NUMÉRIQUES"
+        title="Tableau de bord"
+        subtitle="Supervision en temps réel — SENTINELLE NUMÉRIQUE"
         actions={
-          <>
-            <Link to="/app/etudiants"><Btn><PlusCircle size={16} /> Nouvel apprenant</Btn></Link>
-            <Link to="/app/contenu"><Btn variant="outline">Modifier le site</Btn></Link>
-          </>
+          <div className="flex flex-wrap gap-2">
+            <Link to="/app/qr-scanner">
+              <Btn variant="primary" className="bg-gradient-to-r from-cyan-500 to-blue-600 shadow-[0_0_15px_rgba(0,229,255,0.4)]">
+                <ClipboardCheck size={16} /> Scanner QR Présence
+              </Btn>
+            </Link>
+            <Link to="/app/etudiants">
+              <Btn variant="outline"><PlusCircle size={16} /> Nouvel apprenant</Btn>
+            </Link>
+            <Link to="/app/contenu">
+              <Btn variant="outline">Modifier le site</Btn>
+            </Link>
+          </div>
         }
       />
 
-      <div className="grid grid-cols-2 gap-4 md:grid-cols-4">
-        <Stat icon={<Users size={20} />} label="Apprenants" value={students.length} color="cyan" sub={`${infoCount} Info • ${indCount} Ind.`} />
-        <Stat icon={<GraduationCap size={20} />} label="Enseignants" value={db.teachers.length} color="blue" />
-        <Stat icon={<BookOpen size={20} />} label="Modules" value={db.modules.length} color="red" sub="2 formations" />
-        <Stat icon={<Wallet size={20} />} label="Revenus (payés)" value={money(revenue)} color="green" />
-      </div>
-
-      <div className="mt-4 grid grid-cols-2 gap-4 md:grid-cols-4">
-        <Stat icon={<ClipboardCheck size={20} />} label="Présents aujourd'hui" value={attToday.filter((a) => a.statut === "present").length} color="green" />
-        <Stat icon={<UserX size={20} />} label="Absents" value={attToday.filter((a) => a.statut === "absent").length} color="red" />
-        <Stat icon={<Timer size={20} />} label="Retards" value={attToday.filter((a) => a.statut === "retard").length} color="gold" />
-        <Stat icon={<BadgeDollarSign size={20} />} label="Bourses attribuées" value={scholarshipsGranted} color="gold" />
-      </div>
-
-      <div className="mt-4 grid gap-4 lg:grid-cols-3">
-        {/* inscriptions chart */}
-        <Card className="p-5">
-          <div className="mb-4 flex items-center gap-2">
-            <TrendingUp size={16} className="text-cyan-300" />
-            <h3 className="font-display text-sm font-bold text-white">Évolution des inscriptions</h3>
+      {/* Cartes statistiques principales (Inspirées de la maquette officielle) */}
+      <div className="grid grid-cols-2 gap-4 lg:grid-cols-4">
+        {/* Apprenants */}
+        <Card className="relative overflow-hidden p-5 border-cyan-400/20 bg-gradient-to-br from-[#0B1733] to-[#070D1E]">
+          <div className="flex items-center justify-between">
+            <span className="text-xs font-bold uppercase tracking-wider text-slate-400">Apprenants</span>
+            <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-cyan-400/10 text-cyan-300">
+              <Users size={20} />
+            </div>
           </div>
-          {months.length === 0 ? (
-            <p className="text-sm text-slate-500">Aucune inscription enregistrée.</p>
-          ) : (
-            <div className="space-y-2.5">
-              {months.map((m) => (
-                <Bar key={m} label={m} value={byMonth[m]} max={maxMonth} color="from-cyan-400 to-blue-500" />
-              ))}
-            </div>
-          )}
-        </Card>
-
-        {/* formation split */}
-        <Card className="p-5">
-          <div className="mb-4 flex items-center gap-2">
-            <Users size={16} className="text-cyan-300" />
-            <h3 className="font-display text-sm font-bold text-white">Répartition des formations</h3>
-          </div>
-          <div className="flex items-center justify-center gap-6">
-            <div className="relative h-32 w-32 rounded-full" style={{ background: `conic-gradient(#FF1744 0 ${infoPct}%, #00E5FF ${infoPct}% 100%)` }}>
-              <div className="absolute inset-3 flex flex-col items-center justify-center rounded-full bg-[#0A1224]">
-                <span className="font-display text-xl font-black text-white">{students.length}</span>
-                <span className="text-[9px] uppercase tracking-wider text-slate-500">apprenants</span>
-              </div>
-            </div>
-            <div className="space-y-2">
-              <div className="flex items-center gap-2 text-sm"><span className="h-2.5 w-2.5 rounded-full bg-red-500" /> Génie Info <b className="text-white">{infoCount}</b></div>
-              <div className="flex items-center gap-2 text-sm"><span className="h-2.5 w-2.5 rounded-full bg-cyan-400" /> Génie Ind. <b className="text-white">{indCount}</b></div>
-            </div>
+          <p className="font-display mt-2 text-3xl font-black text-white">{students.length.toLocaleString()}</p>
+          <div className="mt-2 flex items-center justify-between text-xs">
+            <span className="inline-flex items-center gap-1 font-bold text-emerald-400">
+              <TrendingUp size={13} /> +12% actifs
+            </span>
+            <span className="text-slate-400">{infoCount} Info · {indCount} Ind.</span>
           </div>
         </Card>
 
-        {/* payments + success */}
-        <Card className="p-5">
-          <div className="mb-4 flex items-center gap-2">
-            <DollarSign size={16} className="text-emerald-300" />
-            <h3 className="font-display text-sm font-bold text-white">Santé financière & réussite</h3>
+        {/* Formateurs */}
+        <Card className="relative overflow-hidden p-5 border-blue-500/20 bg-gradient-to-br from-[#0D1938] to-[#070D1E]">
+          <div className="flex items-center justify-between">
+            <span className="text-xs font-bold uppercase tracking-wider text-slate-400">Formateurs</span>
+            <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-blue-400/10 text-blue-300">
+              <GraduationCap size={20} />
+            </div>
           </div>
-          <div className="space-y-3">
+          <p className="font-display mt-2 text-3xl font-black text-white">{db.teachers.length.toLocaleString()}</p>
+          <div className="mt-2 flex items-center justify-between text-xs">
+            <span className="inline-flex items-center gap-1 font-bold text-emerald-400">
+              <TrendingUp size={13} /> +5% corps enseignant
+            </span>
+            <span className="text-slate-400">Pédagogie active</span>
+          </div>
+        </Card>
+
+        {/* Présences Aujourd'hui */}
+        <Card className="relative overflow-hidden p-5 border-emerald-500/20 bg-gradient-to-br from-[#0A1F26] to-[#070D1E]">
+          <div className="flex items-center justify-between">
+            <span className="text-xs font-bold uppercase tracking-wider text-slate-400">Présences aujourd'hui</span>
+            <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-emerald-400/10 text-emerald-300">
+              <ClipboardCheck size={20} />
+            </div>
+          </div>
+          <p className="font-display mt-2 text-3xl font-black text-white">
+            {attToday.filter((a) => a.statut === "present").length.toLocaleString()}
+          </p>
+          <div className="mt-2 flex items-center justify-between text-xs">
+            <span className="inline-flex items-center gap-1 font-bold text-emerald-400">
+              <TrendingUp size={13} /> {attToday.length > 0 ? `${Math.round((attToday.filter((a) => a.statut === "present").length / attToday.length) * 100)}% d'assiduité` : "Aucun appel"}
+            </span>
+            <span className="text-slate-400">{attToday.filter((a) => a.statut === "absent").length} absents</span>
+          </div>
+        </Card>
+
+        {/* Modules Actifs */}
+        <Card className="relative overflow-hidden p-5 border-red-500/20 bg-gradient-to-br from-[#1E0F1E] to-[#070D1E]">
+          <div className="flex items-center justify-between">
+            <span className="text-xs font-bold uppercase tracking-wider text-slate-400">Modules actifs</span>
+            <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-red-400/10 text-red-400">
+              <BookOpen size={20} />
+            </div>
+          </div>
+          <p className="font-display mt-2 text-3xl font-black text-white">{db.modules.length.toLocaleString()}</p>
+          <div className="mt-2 flex items-center justify-between text-xs">
+            <span className="inline-flex items-center gap-1 font-bold text-cyan-400">
+              <TrendingUp size={13} /> 2 filières
+            </span>
+            <span className="text-slate-400">Génie Info & Ind.</span>
+          </div>
+        </Card>
+      </div>
+
+      {/* Graphiques et statistiques avancées (Section 6) */}
+      <div className="grid gap-6 lg:grid-cols-3">
+        {/* Présences sur les 7 derniers jours */}
+        <Card className="p-5 lg:col-span-2">
+          <div className="mb-4 flex items-center justify-between">
             <div>
-              <div className="mb-1 flex justify-between text-xs text-slate-400"><span>Paiements réglés</span><span className="font-bold text-emerald-300">{paidPct}%</span></div>
-              <div className="h-2 overflow-hidden rounded-full bg-white/5"><div className="h-full rounded-full bg-gradient-to-r from-emerald-400 to-teal-500" style={{ width: `${paidPct}%` }} /></div>
+              <h3 className="font-display text-sm font-bold text-white">Présences sur les 7 derniers jours</h3>
+              <p className="text-xs text-slate-400">Assiduité journalière et variations d'effectifs</p>
             </div>
-            <div className="grid grid-cols-3 gap-2 pt-2">
-              <div className="rounded-xl border border-white/10 bg-white/[0.02] p-2.5 text-center">
-                <p className="font-display text-lg font-black text-white">{partial.length}</p>
-                <p className="text-[9px] uppercase tracking-wider text-slate-500">Partiels</p>
+            <div className="flex items-center gap-3 text-xs">
+              <span className="flex items-center gap-1.5"><span className="h-2.5 w-2.5 rounded-full bg-cyan-400" /> Présents</span>
+              <span className="flex items-center gap-1.5"><span className="h-2.5 w-2.5 rounded-full bg-red-500" /> Absents</span>
+              <span className="flex items-center gap-1.5"><span className="h-2.5 w-2.5 rounded-full bg-amber-400" /> Retards</span>
+            </div>
+          </div>
+
+          <div className="flex h-52 items-end justify-between gap-2 pt-6 pb-2 border-b border-white/5">
+            {last7Days.map((day) => {
+              const presentHeight = (day.presents / maxAttCount) * 100;
+              const absentHeight = (day.absents / maxAttCount) * 100;
+              const retardHeight = (day.retards / maxAttCount) * 100;
+
+              return (
+                <div key={day.date} className="flex-1 flex flex-col items-center gap-1 h-full justify-end group">
+                  <div className="text-[10px] text-slate-400 opacity-0 group-hover:opacity-100 transition-opacity">
+                    {day.presents}
+                  </div>
+                  <div className="w-full max-w-[28px] flex flex-col gap-1 items-center justify-end h-full">
+                    {day.absents > 0 && (
+                      <div
+                        className="w-full rounded bg-red-500/80 transition-all hover:bg-red-400"
+                        style={{ height: `${Math.max(4, absentHeight)}%` }}
+                        title={`${day.absents} absent(s)`}
+                      />
+                    )}
+                    {day.retards > 0 && (
+                      <div
+                        className="w-full rounded bg-amber-400/80 transition-all hover:bg-amber-300"
+                        style={{ height: `${Math.max(4, retardHeight)}%` }}
+                        title={`${day.retards} retard(s)`}
+                      />
+                    )}
+                    <div
+                      className="w-full rounded bg-cyan-400 transition-all hover:bg-cyan-300 shadow-[0_0_10px_rgba(0,229,255,0.4)]"
+                      style={{ height: `${Math.max(day.presents > 0 ? 8 : 2, presentHeight)}%` }}
+                      title={`${day.presents} présent(s)`}
+                    />
+                  </div>
+                  <span className="text-[11px] font-bold text-slate-400 mt-2">{day.label}</span>
+                </div>
+              );
+            })}
+          </div>
+
+          <div className="mt-3 flex items-center justify-between text-xs text-slate-400">
+            <span>Taux de présence global : <strong className="text-cyan-300">{attendanceRate}%</strong></span>
+            <Link to="/app/presences" className="font-bold text-cyan-400 hover:underline">Consulter les feuilles d'émargement →</Link>
+          </div>
+        </Card>
+
+        {/* Répartition des présences (Donut / Gauges) */}
+        <Card className="p-5 flex flex-col justify-between">
+          <div>
+            <h3 className="font-display text-sm font-bold text-white">Répartition des présences</h3>
+            <p className="text-xs text-slate-400">Statistiques cumulées d'assiduité</p>
+
+            <div className="my-6 flex items-center justify-center gap-6">
+              <div
+                className="relative h-32 w-32 rounded-full"
+                style={{
+                  background: `conic-gradient(#00E5FF 0 ${attendanceRate}%, #FF1744 ${attendanceRate}% ${attendanceRate + Math.round((totalAbsents / totalAttRecords) * 100)}%, #FFB300 ${attendanceRate + Math.round((totalAbsents / totalAttRecords) * 100)}% 100%)`
+                }}
+              >
+                <div className="absolute inset-3 flex flex-col items-center justify-center rounded-full bg-[#0A1224]">
+                  <span className="font-display text-2xl font-black text-white">{attendanceRate}%</span>
+                  <span className="text-[9px] uppercase tracking-wider text-slate-400">Présents</span>
+                </div>
               </div>
-              <div className="rounded-xl border border-white/10 bg-white/[0.02] p-2.5 text-center">
-                <p className="font-display text-lg font-black text-red-400">{unpaid}</p>
-                <p className="text-[9px] uppercase tracking-wider text-slate-500">Impayés</p>
+
+              <div className="space-y-2 text-xs">
+                <div className="flex items-center gap-2">
+                  <span className="h-2.5 w-2.5 rounded-full bg-cyan-400" />
+                  <span>Présents : <strong className="text-white">{totalPresents}</strong></span>
+                </div>
+                <div className="flex items-center gap-2">
+                  <span className="h-2.5 w-2.5 rounded-full bg-red-500" />
+                  <span>Absents : <strong className="text-white">{totalAbsents}</strong></span>
+                </div>
+                <div className="flex items-center gap-2">
+                  <span className="h-2.5 w-2.5 rounded-full bg-amber-400" />
+                  <span>Retards : <strong className="text-white">{totalRetards}</strong></span>
+                </div>
               </div>
-              <div className="rounded-xl border border-white/10 bg-white/[0.02] p-2.5 text-center">
-                <p className="font-display text-lg font-black text-cyan-300">{avgNote}/20</p>
-                <p className="text-[9px] uppercase tracking-wider text-slate-500">Moyenne</p>
-              </div>
+            </div>
+          </div>
+
+          <div className="rounded-xl border border-white/5 bg-white/[0.02] p-3 text-xs">
+            <p className="font-bold text-white">Bourses & Trésorerie :</p>
+            <div className="mt-1 flex items-center justify-between text-slate-400">
+              <span>Bourses attribuées :</span>
+              <span className="font-bold text-amber-300">{scholarshipsGranted}</span>
+            </div>
+            <div className="mt-1 flex items-center justify-between text-slate-400">
+              <span>Total encaissé :</span>
+              <span className="font-bold text-emerald-300">{money(revenue)}</span>
             </div>
           </div>
         </Card>

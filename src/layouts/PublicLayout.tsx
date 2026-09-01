@@ -24,12 +24,16 @@ export default function PublicLayout() {
       <header className="sticky top-0 z-40 border-b border-white/5 bg-[#05070D]/90 backdrop-blur-md">
         <div className="mx-auto flex max-w-7xl items-center justify-between gap-4 px-4 py-3 sm:px-6">
           <Link to="/" className="flex items-center gap-3">
-            <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-gradient-to-br from-cyan-400 to-blue-600 shadow-[0_0_20px_-4px_rgba(0,229,255,0.9)]">
-              <ShieldCheck size={20} className="text-white" />
-            </div>
+            <img
+              src="/logo.png"
+              alt="SENTINELLE NUMÉRIQUE"
+              className="h-10 w-10 object-contain drop-shadow-[0_0_15px_rgba(0,229,255,0.7)]"
+            />
             <div>
-              <p className="font-display text-sm font-extrabold tracking-wide text-white sm:text-base">{s.branding.name}</p>
-              <p className="hidden text-[10px] uppercase tracking-[0.25em] text-cyan-300 sm:block">{s.branding.badge}</p>
+              <p className="font-display text-sm font-black tracking-wide text-white sm:text-base">
+                SENTINELLE <span className="text-red-400">NUMÉRIQUE</span>
+              </p>
+              <p className="hidden text-[10px] uppercase tracking-[0.25em] text-cyan-300 sm:block">ENIA 2.0 · CONGO BRAZZAVILLE</p>
             </div>
           </Link>
           <nav className="hidden items-center gap-1 md:flex">
@@ -78,12 +82,12 @@ export default function PublicLayout() {
       <footer className="border-t border-white/5 bg-[#04060B]">
         <div className="mx-auto grid max-w-7xl gap-8 px-4 py-12 sm:px-6 md:grid-cols-3">
           <div>
-            <div className="mb-3 flex items-center gap-2">
-              <ShieldCheck size={22} className="text-cyan-400" />
-              <span className="font-display text-sm font-extrabold text-white">{s.branding.name}</span>
+            <div className="mb-3 flex items-center gap-2.5">
+              <img src="/logo.png" alt="Logo" className="h-8 w-8 object-contain drop-shadow" />
+              <span className="font-display text-sm font-black text-white">SENTINELLE <span className="text-red-400">NUMÉRIQUE</span></span>
             </div>
             <p className="text-sm text-slate-400">{s.branding.subtitle}</p>
-            <p className="mt-3 text-sm text-slate-500">{s.branding.tagline}</p>
+            <p className="mt-3 text-xs text-cyan-300 font-semibold uppercase tracking-wider">APPRENDRE • INNOVER • CRÉER • CODER • SÉCURISER</p>
           </div>
           <div>
             <p className="mb-3 text-xs font-bold uppercase tracking-[0.2em] text-cyan-300">Informations pratiques</p>

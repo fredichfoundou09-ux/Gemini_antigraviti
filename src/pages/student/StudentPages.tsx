@@ -106,19 +106,31 @@ export function StudentDashboard() {
           )}
         </Card>
 
-        <Card className="p-5">
-          <h3 className="font-display mb-3 text-sm font-bold text-white">Ma carte d'apprenant</h3>
-          <div className="flex items-center gap-4">
-            <div className="rounded-xl bg-white p-2">
-              <QRCodeSVG value={`SN|${student.id}|${student.nom}|${student.prenom}|${student.formation}`} size={90} />
+        <Card className="relative overflow-hidden p-5 border border-cyan-400/30 bg-gradient-to-br from-[#0A1224] to-[#07152B]">
+          <div className="mb-3 flex items-center justify-between">
+            <div className="flex items-center gap-2">
+              <img src="/logo.png" alt="Logo" className="h-8 w-8 object-contain drop-shadow" />
+              <div>
+                <span className="font-display text-xs font-black text-white">SENTINELLE <span className="text-red-400">NUMÉRIQUE</span></span>
+                <p className="text-[8px] uppercase tracking-wider text-cyan-300">ENIA 2.0 · CONGO</p>
+              </div>
+            </div>
+            <Badge color="green">{student.statut}</Badge>
+          </div>
+          <div className="flex items-center gap-4 pt-1">
+            <div className="rounded-xl bg-white p-2 shadow">
+              <QRCodeSVG value={`SN|${student.id}|${student.nom}|${student.prenom}|${student.formation}`} size={85} />
             </div>
             <div>
               <p className="font-display text-base font-black text-white">{student.prenom} {student.nom}</p>
-              <p className="font-mono text-xs text-cyan-300">{student.id}</p>
+              <p className="font-mono text-xs font-bold text-cyan-300">{student.id}</p>
               <p className="mt-1 text-xs text-slate-400">{formationLabel(student.formation)} • {myMods.length} modules</p>
-              <Badge color="green" className="mt-2">{student.statut}</Badge>
+              <p className="mt-2 text-[9px] uppercase tracking-wider text-slate-500">Présentez ce QR Code pour vos émargements</p>
             </div>
           </div>
+          <p className="mt-3 border-t border-white/5 pt-2 text-center text-[8px] uppercase tracking-widest text-cyan-300/70">
+            APPRENDRE • INNOVER • CRÉER • CODER • SÉCURISER
+          </p>
         </Card>
       </div>
     </div>

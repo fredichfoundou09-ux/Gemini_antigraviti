@@ -110,155 +110,262 @@ export function LoginPage() {
         setLocked({ ms: (res as any).remainingMs });
     }
   };
+  const [rememberMe, setRememberMe] = useState(true);
+  const [showForgot, setShowForgot] = useState(false);
 
   return (
-    <div className="bg-circuit scanlines relative flex min-h-[calc(100vh-65px)] items-center justify-center px-4 py-14">
-      <div className="bg-grid-hex pointer-events-none absolute inset-0" />
-      <div className="relative w-full max-w-md">
+    <div className="bg-circuit scanlines relative flex min-h-[calc(100vh-65px)] items-center justify-center p-4 sm:p-6 lg:p-10">
+      <div className="bg-grid-hex pointer-events-none absolute inset-0 opacity-40" />
 
-        {/* En-tête */}
-        <div className="mb-6 text-center">
-          <div className="mx-auto mb-3 flex h-14 w-14 items-center justify-center rounded-2xl bg-gradient-to-br from-cyan-400 to-blue-600 shadow-[0_0_30px_-6px_rgba(0,229,255,0.9)]">
-            <ShieldCheck size={26} className="text-white" />
-          </div>
-          <p className="font-display text-[10px] font-black uppercase tracking-[0.35em] text-cyan-300">SENTINELLES NUMÉRIQUES</p>
-          <h1 className="font-display mt-1 text-2xl font-black text-white">Espace sécurisé</h1>
-        </div>
+      {/* Conteneur Principal Split-Screen */}
+      <div className="relative z-10 w-full max-w-5xl overflow-hidden rounded-3xl border border-cyan-500/20 bg-[#070D1E]/85 shadow-[0_0_50px_-10px_rgba(0,229,255,0.25)] backdrop-blur-xl">
+        <div className="grid grid-cols-1 lg:grid-cols-12">
 
-        <Card className="p-6">
-          {/* Bandeau première utilisation */}
-          {canFirstBoot && (
-            <div className="mb-5 flex items-start gap-3 rounded-xl border border-amber-400/40 bg-amber-400/5 p-3">
-              <Sparkles size={16} className="mt-0.5 shrink-0 text-amber-300" />
-              <div className="min-w-0 flex-1">
-                <p className="text-sm font-bold text-amber-300">Première utilisation</p>
-                <p className="text-xs text-slate-300">Aucun compte n'est encore configuré. Créez le compte Administrateur Supérieur pour démarrer.</p>
+          {/* ================= PANNEAU GAUCHE : PRÉSENTATION OFFICIELLE ================= */}
+          <div className="relative flex flex-col justify-between border-b border-white/5 bg-gradient-to-br from-[#091534] via-[#070D20] to-[#140A1E] p-6 sm:p-10 lg:col-span-6 lg:border-b-0 lg:border-r">
+            {/* Lueur d'ambiance */}
+            <div className="pointer-events-none absolute -left-20 -top-20 h-64 w-64 rounded-full bg-cyan-500/15 blur-3xl" />
+            <div className="pointer-events-none absolute -bottom-20 -right-20 h-64 w-64 rounded-full bg-red-500/15 blur-3xl" />
+
+            <div>
+              {/* Badge supérieur */}
+              <div className="mb-4 inline-flex items-center gap-2 rounded-full border border-cyan-400/30 bg-cyan-400/10 px-3.5 py-1 text-[11px] font-bold tracking-widest text-cyan-300">
+                <span className="h-1.5 w-1.5 animate-ping rounded-full bg-cyan-400" />
+                CENTRE DE FORMATION OFFICIEL
+              </div>
+
+              {/* Logo officiel maître */}
+              <div className="group relative my-4 flex justify-center">
+                <div className="absolute -inset-1 rounded-2xl bg-gradient-to-r from-cyan-500/30 via-transparent to-red-500/30 opacity-75 blur transition duration-500 group-hover:opacity-100" />
+                <img
+                  src="/logo.png"
+                  alt="SENTINELLE NUMÉRIQUE"
+                  className="relative h-64 w-64 sm:h-72 sm:w-72 object-contain drop-shadow-[0_0_25px_rgba(0,229,255,0.5)] transition duration-500 group-hover:scale-105"
+                />
+              </div>
+
+              <div className="text-center">
+                <h2 className="font-display text-2xl font-black tracking-wider text-white sm:text-3xl">
+                  SENTINELLE <span className="text-red-400">NUMÉRIQUE</span>
+                </h2>
+                <p className="mt-2 text-xs font-semibold uppercase tracking-[0.25em] text-cyan-300">
+                  APPRENDRE • INNOVER • CRÉER • CODER • SÉCURISER
+                </p>
               </div>
             </div>
-          )}
 
-          {/* Sélecteur de rôle */}
-          <div className="mb-5 grid grid-cols-2 gap-2 sm:grid-cols-4">
-            {GROUPS.map((g) => (
-              <button
-                key={g.key}
-                type="button"
-                onClick={() => { setGroup(g.key); setError(""); }}
-                className={cn(
-                  "flex flex-col items-center gap-1.5 rounded-xl border p-3 text-center transition-all",
-                  group === g.key
-                    ? "border-cyan-400/60 bg-cyan-400/10 text-cyan-300 shadow-[0_0_20px_-6px_rgba(0,229,255,0.6)]"
-                    : "border-white/10 text-slate-400 hover:bg-white/5"
-                )}
-              >
-                {g.icon}
-                <span className="text-[10px] font-bold uppercase tracking-wider">{g.label}</span>
-              </button>
-            ))}
+            {/* Badges institutionnels ENIA 2.0 & Congo Brazzaville */}
+            <div className="mt-8 space-y-3">
+              <div className="grid grid-cols-2 gap-2 text-center text-xs">
+                <div className="rounded-xl border border-white/10 bg-white/[0.03] p-2.5">
+                  <p className="text-[10px] font-bold uppercase tracking-wider text-cyan-400">Partenaire Académique</p>
+                  <p className="font-display font-black text-white">ENIA 2.0</p>
+                  <p className="text-[9px] text-slate-400">École du Numérique & IA</p>
+                </div>
+                <div className="rounded-xl border border-white/10 bg-white/[0.03] p-2.5">
+                  <p className="text-[10px] font-bold uppercase tracking-wider text-red-400">Localisation</p>
+                  <p className="font-display font-black text-white">Congo Brazzaville</p>
+                  <p className="text-[9px] text-slate-400">Génie Info & Industriel</p>
+                </div>
+              </div>
+            </div>
           </div>
 
-          {/* Formulaire */}
-          <form onSubmit={submit} className="space-y-4" autoComplete="off">
-            <Field label="Nom d'utilisateur">
-              <div className="relative">
-                <UserIcon size={14} className="pointer-events-none absolute left-3.5 top-1/2 -translate-y-1/2 text-slate-500" />
-                <Input
-                  value={username}
-                  onChange={(e) => setUsername(e.target.value)}
-                  placeholder="Votre identifiant"
-                  autoComplete="username"
-                  spellCheck={false}
-                  required
-                  autoFocus
-                  className="pl-9"
-                />
+          {/* ================= PANNEAU DROIT : FORMULAIRE SÉCURISÉ ================= */}
+          <div className="flex flex-col justify-center p-6 sm:p-10 lg:col-span-6">
+            <div className="mb-6 flex items-center justify-between">
+              <div>
+                <h1 className="font-display text-2xl font-black text-white">Connexion</h1>
+                <p className="mt-0.5 text-xs text-slate-400">Portail d'authentification sécurisé</p>
               </div>
-            </Field>
+              <img
+                src="/shield-emblem.png"
+                alt="Emblème"
+                className="h-12 w-12 object-contain drop-shadow-[0_0_12px_rgba(0,229,255,0.7)]"
+              />
+            </div>
 
-            <Field label="Mot de passe">
-              <div className="relative">
-                <Lock size={14} className="pointer-events-none absolute left-3.5 top-1/2 -translate-y-1/2 text-slate-500" />
-                <Input
-                  type={show ? "text" : "password"}
-                  value={password}
-                  onChange={(e) => setPassword(e.target.value)}
-                  placeholder="••••••••••••"
-                  autoComplete="current-password"
-                  required
-                  className="pl-9 pr-10"
-                />
+            {/* Bandeau première utilisation */}
+            {canFirstBoot && (
+              <div className="mb-5 flex items-start gap-3 rounded-xl border border-amber-400/40 bg-amber-400/5 p-3">
+                <Sparkles size={16} className="mt-0.5 shrink-0 text-amber-300" />
+                <div className="min-w-0 flex-1">
+                  <p className="text-sm font-bold text-amber-300">Première utilisation</p>
+                  <p className="text-xs text-slate-300">Aucun compte n'est encore configuré. Créez le compte Administrateur Supérieur pour démarrer.</p>
+                </div>
+              </div>
+            )}
+
+            {/* Sélecteur de rôle */}
+            <div className="mb-5">
+              <p className="mb-2 text-[10px] font-bold uppercase tracking-wider text-slate-400">Profil de connexion :</p>
+              <div className="grid grid-cols-2 gap-2 sm:grid-cols-4">
+                {GROUPS.map((g) => (
+                  <button
+                    key={g.key}
+                    type="button"
+                    onClick={() => { setGroup(g.key); setError(""); }}
+                    className={cn(
+                      "flex flex-col items-center gap-1.5 rounded-xl border p-2.5 text-center transition-all",
+                      group === g.key
+                        ? "border-cyan-400/60 bg-cyan-400/10 text-cyan-300 shadow-[0_0_20px_-6px_rgba(0,229,255,0.6)]"
+                        : "border-white/10 text-slate-400 hover:bg-white/5"
+                    )}
+                  >
+                    {g.icon}
+                    <span className="text-[10px] font-bold uppercase tracking-wider">{g.label}</span>
+                  </button>
+                ))}
+              </div>
+            </div>
+
+            {/* Formulaire */}
+            <form onSubmit={submit} className="space-y-4" autoComplete="off">
+              <Field label="Nom d'utilisateur ou e-mail">
+                <div className="relative">
+                  <UserIcon size={14} className="pointer-events-none absolute left-3.5 top-1/2 -translate-y-1/2 text-slate-500" />
+                  <Input
+                    value={username}
+                    onChange={(e) => setUsername(e.target.value)}
+                    placeholder="Votre identifiant ou email"
+                    autoComplete="username"
+                    spellCheck={false}
+                    required
+                    autoFocus
+                    className="pl-9"
+                  />
+                </div>
+              </Field>
+
+              <Field label="Mot de passe">
+                <div className="relative">
+                  <Lock size={14} className="pointer-events-none absolute left-3.5 top-1/2 -translate-y-1/2 text-slate-500" />
+                  <Input
+                    type={show ? "text" : "password"}
+                    value={password}
+                    onChange={(e) => setPassword(e.target.value)}
+                    placeholder="••••••••••••"
+                    autoComplete="current-password"
+                    required
+                    className="pl-9 pr-10"
+                  />
+                  <button
+                    type="button"
+                    onClick={() => setShow(!show)}
+                    className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-500 hover:text-slate-300"
+                    aria-label="Afficher le mot de passe"
+                  >
+                    {show ? <EyeOff size={16} /> : <Eye size={16} />}
+                  </button>
+                </div>
+              </Field>
+
+              {/* Options Se souvenir de moi & Mot de passe oublié */}
+              <div className="flex items-center justify-between text-xs">
+                <label className="flex cursor-pointer items-center gap-2 text-slate-400 hover:text-slate-200">
+                  <input
+                    type="checkbox"
+                    checked={rememberMe}
+                    onChange={(e) => setRememberMe(e.target.checked)}
+                    className="rounded border-white/20 bg-white/5 text-cyan-400 focus:ring-cyan-400"
+                  />
+                  <span>Se souvenir de moi</span>
+                </label>
                 <button
                   type="button"
-                  onClick={() => setShow(!show)}
-                  className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-500 hover:text-slate-300"
-                  aria-label="Afficher le mot de passe"
+                  onClick={() => setShowForgot(true)}
+                  className="font-medium text-cyan-400 hover:text-cyan-300 hover:underline"
                 >
-                  {show ? <EyeOff size={16} /> : <Eye size={16} />}
+                  Mot de passe oublié ?
                 </button>
               </div>
-            </Field>
 
-            {error && (
-              <div className={cn(
-                "flex items-start gap-2 rounded-lg border px-3 py-2.5 text-xs font-semibold",
-                locked
-                  ? "border-red-500/40 bg-red-500/10 text-red-300"
-                  : "border-red-500/30 bg-red-500/5 text-red-400"
-              )}>
-                {locked
-                  ? <ShieldAlert size={14} className="mt-0.5 shrink-0" />
-                  : <AlertTriangle size={14} className="mt-0.5 shrink-0" />}
-                <span>
+              {error && (
+                <div className={cn(
+                  "flex items-start gap-2 rounded-lg border px-3 py-2.5 text-xs font-semibold",
+                  locked
+                    ? "border-red-500/40 bg-red-500/10 text-red-300"
+                    : "border-red-500/30 bg-red-500/5 text-red-400"
+                )}>
                   {locked
-                    ? `Compte temporairement verrouillé — ${formatDuration(locked.ms)} restantes.`
-                    : error}
-                </span>
-              </div>
-            )}
+                    ? <ShieldAlert size={14} className="mt-0.5 shrink-0" />
+                    : <AlertTriangle size={14} className="mt-0.5 shrink-0" />}
+                  <span>
+                    {locked
+                      ? `Compte temporairement verrouillé — ${formatDuration(locked.ms)} restantes.`
+                      : error}
+                  </span>
+                </div>
+              )}
 
-            <Btn type="submit" className="w-full py-3" disabled={busy || !!locked}>
-              <LogIn size={17} /> {busy ? "Connexion…" : "Se connecter"}
-            </Btn>
-          </form>
+              <Btn type="submit" className="w-full py-3" disabled={busy || !!locked}>
+                <LogIn size={17} /> {busy ? "Connexion…" : "Se connecter"}
+              </Btn>
+            </form>
 
-          {/* Zone bas de carte */}
-          <div className="mt-5 border-t border-white/5 pt-4 text-center">
-            {serverHasAdmin === null ? (
-              /* Chargement en cours — on n'affiche rien pour éviter tout clic accidentel */
-              <p className="text-[11px] text-slate-600 animate-pulse">Vérification du statut…</p>
-            ) : canFirstBoot ? (
-              <>
-                <p className="text-xs text-slate-400">Première utilisation ?</p>
-                <button
-                  type="button"
-                  onClick={() => setShowFirst(true)}
-                  className="mt-1 inline-flex items-center gap-1.5 text-sm font-bold text-cyan-300 hover:text-cyan-200 transition-colors"
-                >
-                  <KeyRound size={14} /> Créer le premier compte <ArrowRight size={14} />
-                </button>
-              </>
-            ) : (
-              <div className="rounded-xl border border-white/10 bg-white/[0.02] p-3">
-                <p className="flex items-center justify-center gap-1.5 text-xs font-bold text-emerald-300">
-                  <CheckCircle2 size={13} /> Plateforme déjà initialisée
-                </p>
-                <p className="mt-1 text-[11px] text-slate-500">
-                  La création du compte principal n'est plus disponible. Contactez l'administrateur système.
-                </p>
-              </div>
-            )}
+            {/* Zone bas de formulaire */}
+            <div className="mt-5 border-t border-white/5 pt-4 text-center">
+              {serverHasAdmin === null ? (
+                <p className="text-[11px] text-slate-600 animate-pulse">Vérification du statut…</p>
+              ) : canFirstBoot ? (
+                <>
+                  <p className="text-xs text-slate-400">Première utilisation ?</p>
+                  <button
+                    type="button"
+                    onClick={() => setShowFirst(true)}
+                    className="mt-1 inline-flex items-center gap-1.5 text-sm font-bold text-cyan-300 hover:text-cyan-200 transition-colors"
+                  >
+                    <KeyRound size={14} /> Créer le premier compte <ArrowRight size={14} />
+                  </button>
+                </>
+              ) : (
+                <div className="rounded-xl border border-white/10 bg-white/[0.02] p-2.5">
+                  <p className="flex items-center justify-center gap-1.5 text-xs font-bold text-emerald-300">
+                    <CheckCircle2 size={13} /> Système prêt & sécurisé
+                  </p>
+                </div>
+              )}
+            </div>
+
+            <p className="mt-4 text-center text-xs text-slate-500">
+              Pas encore inscrit(e) ?{" "}
+              <Link to="/pre-inscription" className="font-bold text-cyan-300 hover:underline">Pré-inscription en ligne</Link>
+            </p>
+
+            <p className="mt-3 flex items-center justify-center gap-1.5 text-center text-[10px] uppercase tracking-[0.2em] text-slate-600">
+              <Lock size={10} /> Chiffrement TLS · RBAC PostgreSQL Supabase
+            </p>
           </div>
-        </Card>
-
-        <p className="mt-4 text-center text-xs text-slate-500">
-          Pas encore inscrit(e) ?{" "}
-          <Link to="/pre-inscription" className="font-bold text-cyan-300 hover:underline">Pré-inscription en ligne</Link>
-        </p>
-
-        <p className="mt-3 flex items-center justify-center gap-1.5 text-center text-[10px] uppercase tracking-[0.2em] text-slate-600">
-          <Lock size={10} /> Connexion chiffrée · {isSupabaseConfigured ? "Supabase Auth" : "Mode local"}
-        </p>
+        </div>
       </div>
+
+      {/* Modal mot de passe oublié */}
+      {showForgot && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/75 p-4 backdrop-blur-sm">
+          <div className="w-full max-w-md rounded-2xl border border-white/10 bg-[#0B1528] p-6 shadow-2xl">
+            <div className="mb-4 flex items-center gap-3">
+              <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-cyan-400/10 text-cyan-300">
+                <Lock size={20} />
+              </div>
+              <div>
+                <h3 className="font-display font-bold text-white">Récupération de mot de passe</h3>
+                <p className="text-xs text-slate-400">Procédure d'accès sécurisé</p>
+              </div>
+            </div>
+            <p className="text-sm text-slate-300">
+              Pour des raisons de sécurité renforcée, la réinitialisation de mot de passe est gérée directement par la direction ou votre administrateur d'établissement.
+            </p>
+            <div className="my-4 rounded-xl border border-cyan-400/20 bg-cyan-400/5 p-3 text-xs text-slate-300">
+              <p className="font-bold text-cyan-300">Contacts d'assistance :</p>
+              <p className="mt-1">📧 direction@sentinelle.local</p>
+              <p>📱 WhatsApp : +242 06 941 09 46</p>
+            </div>
+            <div className="flex justify-end">
+              <Btn onClick={() => setShowForgot(false)}>Compris</Btn>
+            </div>
+          </div>
+        </div>
+      )}
 
       {/* Modal création premier Admin Sup */}
       {showFirst && (
@@ -266,7 +373,7 @@ export function LoginPage() {
           onClose={() => setShowFirst(false)}
           onDone={() => {
             setShowFirst(false);
-            setServerHasAdmin(true); // Masque immédiatement le bouton
+            setServerHasAdmin(true);
             navigate("/app/dashboard");
           }}
         />

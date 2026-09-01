@@ -1,7 +1,7 @@
 {
-  "name": "SENTINELLES NUMÉRIQUES",
-  "short_name": "Sentinelles",
-  "description": "Plateforme de gestion et d'encadrement des apprenants",
+  "name": "SENTINELLE NUMÉRIQUE",
+  "short_name": "Sentinelle",
+  "description": "Plateforme de gestion et de formation en Génie Informatique & Industriel — Sentinelle Numérique",
   "start_url": "/",
   "display": "standalone",
   "background_color": "#05070D",
@@ -10,6 +10,18 @@
     {
       "src": "/icon-192.png",
       "sizes": "192x192",
+      "type": "image/png",
+      "purpose": "any maskable"
+    },
+    {
+      "src": "/icon-512.png",
+      "sizes": "512x512",
+      "type": "image/png",
+      "purpose": "any maskable"
+    },
+    {
+      "src": "/icon-1024.png",
+      "sizes": "1024x1024",
       "type": "image/png",
       "purpose": "any maskable"
     }

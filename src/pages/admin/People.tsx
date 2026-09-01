@@ -831,9 +831,12 @@ function StudentView({ s }: { s: Student }) {
         <div className="bg-grid-hex pointer-events-none absolute inset-0 opacity-50" />
         <div className="relative">
           <div className="mb-4 flex items-center justify-between">
-            <div className="flex items-center gap-2">
-              <ShieldCheck size={20} className="text-cyan-300" />
-              <span className="font-display text-xs font-black tracking-wider text-white">SENTINELLES<br />NUMÉRIQUES</span>
+            <div className="flex items-center gap-2.5">
+              <img src="/logo.png" alt="Logo Sentinelle" className="h-9 w-9 object-contain drop-shadow-[0_0_10px_rgba(0,229,255,0.6)]" />
+              <div>
+                <span className="font-display text-xs font-black tracking-wider text-white">SENTINELLE <span className="text-red-400">NUMÉRIQUE</span></span>
+                <p className="text-[8px] uppercase tracking-widest text-cyan-300">ENIA 2.0 · CONGO</p>
+              </div>
             </div>
             <Badge color={s.statut === "actif" ? "green" : "gray"}>{s.statut}</Badge>
           </div>
@@ -847,7 +850,7 @@ function StudentView({ s }: { s: Student }) {
             </div>
           </div>
           <div className="mt-4 flex items-center justify-between rounded-xl border border-white/10 bg-white/[0.03] p-3">
-            <div className="rounded-lg bg-white p-1.5">
+            <div className="rounded-lg bg-white p-1.5 shadow">
               <QRCodeSVG value={`SN|${s.id}|${s.nom}|${s.prenom}|${s.formation}`} size={84} />
             </div>
             <div className="space-y-1.5 text-[11px] text-slate-300">
@@ -856,7 +859,9 @@ function StudentView({ s }: { s: Student }) {
               <p className="flex items-center gap-1.5"><MapPin size={11} className="text-blue-400" /> {s.adresse || "—"}</p>
             </div>
           </div>
-          <p className="mt-3 text-center text-[9px] uppercase tracking-[0.3em] text-slate-500">Carte numérique d'apprenant</p>
+          <p className="mt-3 text-center text-[8px] uppercase tracking-[0.25em] font-semibold text-cyan-300/70">
+            APPRENDRE • INNOVER • CRÉER • CODER • SÉCURISER
+          </p>
         </div>
       </div>
 
