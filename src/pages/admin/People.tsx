@@ -1,9 +1,10 @@
 import { useState, useEffect } from "react";
-import { Link, useSearchParams } from "react-router-dom";
+import { Link, useNavigate, useSearchParams } from "react-router-dom";
 import { QRCodeSVG } from "qrcode.react";
 import {
   Users, Search, PlusCircle, Eye, EyeOff, Pencil, UserCircle2, Phone, Mail, MapPin, CalendarDays,
   GraduationCap, ShieldCheck, Trash2, CheckCircle2, XCircle, KeyRound, Clock, Wallet, BadgeDollarSign, Timer, MessageCircle, Download,
+  Table2, LayoutGrid, Printer, CreditCard, ExternalLink, ArrowRight,
 } from "lucide-react";
 import { useStore } from "@/lib/store";
 import { cn } from "@/utils/cn";
@@ -62,14 +63,17 @@ const emptyStudent = (): Omit<Student, "id"> => ({
 
 export function StudentsPage() {
   const { db, update, nextStudentId, notify, log, computeAmount } = useStore();
+  const navigate = useNavigate();
   const [searchParams] = useSearchParams();
   const [q, setQ] = useState("");
   const [tab, setTab] = useState<"tous" | Formation>("tous");
   const [fPay, setFPay] = useState("");
   const [fActif, setFActif] = useState("");
+  const [viewMode, setViewMode] = useState<"table" | "cards">("table");
   const [editing, setEditing] = useState<Student | null>(null);
   const [creating, setCreating] = useState(false);
   const [viewing, setViewing] = useState<Student | null>(null);
+  const [printingBadge, setPrintingBadge] = useState<Student | null>(null);
   const [form, setForm] = useState<any>(emptyStudent());
   const [createdCreds, setCreatedCreds] = useState<{ nom: string; identifiant: string; motDePasse: string; phone?: string } | null>(null);
   const [deleteTarget, setDeleteTarget] = useState<Student | null>(null);
@@ -479,120 +483,492 @@ export function StudentsPage() {
   };
 
   return (
-    <div>
+    <div className="space-y-6">
       <PageHead
         title="Gestion des apprenants"
-        subtitle={`${db.students.length} apprenants • ${db.registrations.length} pré-inscription(s) en attente`}
+        subtitle={`${db.students.length} apprenants inscrits • ${db.registrations.length} pré-inscription(s) en attente`}
         actions={
-          <div className="flex flex-wrap gap-2">
-            <Btn variant="outline" onClick={exportStudentsCSV}><Download size={15} /> Exporter CSV</Btn>
-            <Btn onClick={() => { setForm(emptyStudent()); setEditing(null); setCreating(true); }}><PlusCircle size={16} /> Ajouter un apprenant</Btn>
+          <div className="flex flex-wrap items-center gap-2">
+            {/* Sélecteur de Mode d'Affichage comme dans l'Emploi du temps */}
+            <div className="flex items-center rounded-xl border border-white/10 bg-[#091124] p-1 shadow-inner">
+              <button
+                type="button"
+                onClick={() => setViewMode("table")}
+                className={cn(
+                  "flex items-center gap-1.5 rounded-lg px-3 py-1.5 text-xs font-bold transition",
+                  viewMode === "table"
+                    ? "bg-gradient-to-r from-cyan-500 to-blue-600 text-white shadow-md"
+                    : "text-slate-400 hover:text-white"
+                )}
+              >
+                <Table2 size={14} /> Grand Tableau
+              </button>
+              <button
+                type="button"
+                onClick={() => setViewMode("cards")}
+                className={cn(
+                  "flex items-center gap-1.5 rounded-lg px-3 py-1.5 text-xs font-bold transition",
+                  viewMode === "cards"
+                    ? "bg-gradient-to-r from-cyan-500 to-blue-600 text-white shadow-md"
+                    : "text-slate-400 hover:text-white"
+                )}
+              >
+                <LayoutGrid size={14} /> Vue Cartes
+              </button>
+            </div>
+
+            <Btn variant="outline" onClick={exportStudentsCSV}>
+              <Download size={15} /> Exporter CSV
+            </Btn>
+            <Btn onClick={() => { setForm(emptyStudent()); setEditing(null); setCreating(true); }} className="shadow-[0_0_20px_-4px_rgba(0,229,255,0.7)]">
+              <PlusCircle size={16} /> Inscrire un apprenant
+            </Btn>
           </div>
         }
       />
 
-      <div className="mb-5 space-y-3">
-        <div className="flex flex-wrap items-center gap-3">
-          <div className="relative flex-1 min-w-52">
-            <Search size={16} className="pointer-events-none absolute left-3.5 top-1/2 -translate-y-1/2 text-slate-500" />
-            <Input placeholder="Rechercher par nom, prénom ou n° d'apprenant..." value={q} onChange={(e) => setQ(e.target.value)} className="pl-10" />
+      {/* Barre de Recherche et Filtres Pédagogiques & Financiers */}
+      <div className="rounded-2xl border border-white/10 bg-[#0A1329]/80 p-4 backdrop-blur-md space-y-3.5 shadow-xl">
+        <div className="flex flex-col md:flex-row items-stretch md:items-center gap-3">
+          <div className="relative flex-1">
+            <Search size={16} className="pointer-events-none absolute left-3.5 top-1/2 -translate-y-1/2 text-cyan-400" />
+            <Input
+              placeholder="Rechercher par nom, prénom, matricule, téléphone..."
+              value={q}
+              onChange={(e) => setQ(e.target.value)}
+              className="pl-10 text-xs font-medium"
+            />
           </div>
-          <div className="flex gap-2">
-            {([["tous", "Tous"], ["informatique", "Génie Info"], ["industriel", "Génie Ind."]] as const).map(([k, l]) => (
-              <button key={k} onClick={() => setTab(k)} className={cn(
-                "rounded-xl border px-4 py-2 text-sm font-bold transition-all",
-                tab === k ? "border-cyan-400/50 bg-cyan-400/10 text-cyan-300" : "border-white/10 text-slate-400 hover:bg-white/5"
-              )}>{l}</button>
+          <div className="flex items-center gap-2">
+            <span className="text-xs font-bold uppercase tracking-wider text-slate-400 mr-1 hidden sm:inline">Filière :</span>
+            {([["tous", `Toutes (${db.students.length})`], ["informatique", `Génie Info (${db.students.filter(s => s.formation === "informatique").length})`], ["industriel", `Génie Ind. (${db.students.filter(s => s.formation === "industriel").length})`]] as const).map(([k, l]) => (
+              <button
+                key={k}
+                type="button"
+                onClick={() => setTab(k)}
+                className={cn(
+                  "rounded-xl border px-3.5 py-2 text-xs font-bold transition",
+                  tab === k
+                    ? "border-cyan-400/60 bg-cyan-400/15 text-cyan-200 shadow-[0_0_15px_rgba(0,229,255,0.3)]"
+                    : "border-white/10 text-slate-400 hover:bg-white/5 hover:text-slate-200"
+                )}
+              >
+                {l}
+              </button>
             ))}
           </div>
         </div>
 
-        <div className="flex flex-wrap items-center gap-2 text-xs">
-          <span className="text-slate-500 font-medium">Paiement :</span>
-          {(["", "paye", "partiel", "impaye", "retard"] as const).map((st) => (
-            <button
-              key={st}
-              onClick={() => setFPay(st)}
-              className={cn("rounded-lg border px-3 py-1 font-bold", fPay === st ? "border-cyan-400/50 bg-cyan-400/10 text-cyan-300" : "border-white/10 text-slate-400")}
-            >
-              {st === "" ? "Tous" : st === "paye" ? "Soldé" : st === "partiel" ? "Partiel" : st === "retard" ? "En retard" : "Impayé"}
-            </button>
-          ))}
+        <div className="flex flex-wrap items-center justify-between gap-3 border-t border-white/5 pt-3 text-xs">
+          <div className="flex flex-wrap items-center gap-2">
+            <span className="text-slate-400 font-bold uppercase tracking-wider text-[11px] mr-1">Paiement :</span>
+            {(["", "paye", "partiel", "impaye", "retard"] as const).map((st) => (
+              <button
+                key={st}
+                type="button"
+                onClick={() => setFPay(st)}
+                className={cn(
+                  "rounded-lg border px-2.5 py-1 text-xs font-bold transition",
+                  fPay === st
+                    ? "border-cyan-400/60 bg-cyan-400/20 text-cyan-200"
+                    : "border-white/10 text-slate-400 hover:text-slate-200"
+                )}
+              >
+                {st === "" ? "Tous" : st === "paye" ? "Soldé" : st === "partiel" ? "Partiel" : st === "retard" ? "En retard" : "Impayé"}
+              </button>
+            ))}
 
-          <span className="text-slate-500 font-medium ml-3">Statut :</span>
-          {(["", "actif", "inactif"] as const).map((a) => (
-            <button
-              key={a}
-              onClick={() => setFActif(a)}
-              className={cn("rounded-lg border px-3 py-1 font-bold", fActif === a ? "border-cyan-400/50 bg-cyan-400/10 text-cyan-300" : "border-white/10 text-slate-400")}
-            >
-              {a === "" ? "Tous" : a === "actif" ? "Actifs" : "Inactifs"}
-            </button>
-          ))}
+            <span className="text-slate-400 font-bold uppercase tracking-wider text-[11px] ml-3 mr-1">Statut :</span>
+            {(["", "actif", "inactif"] as const).map((a) => (
+              <button
+                key={a}
+                type="button"
+                onClick={() => setFActif(a)}
+                className={cn(
+                  "rounded-lg border px-2.5 py-1 text-xs font-bold transition",
+                  fActif === a
+                    ? "border-cyan-400/60 bg-cyan-400/20 text-cyan-200"
+                    : "border-white/10 text-slate-400 hover:text-slate-200"
+                )}
+              >
+                {a === "" ? "Tous" : a === "actif" ? "Actifs" : "Inactifs"}
+              </button>
+            ))}
+          </div>
 
-          {(q || tab !== "tous" || fPay || fActif) && (
-            <button
-              onClick={() => { setQ(""); setTab("tous"); setFPay(""); setFActif(""); }}
-              className="ml-auto text-xs font-bold text-red-400 hover:underline"
-            >
-              Réinitialiser les filtres
-            </button>
-          )}
+          <div className="flex items-center gap-3">
+            <span className="text-xs text-slate-400">
+              Affichés : <strong className="text-white font-mono">{filtered.length}</strong> / {db.students.length}
+            </span>
+            {(q || tab !== "tous" || fPay || fActif) && (
+              <button
+                type="button"
+                onClick={() => { setQ(""); setTab("tous"); setFPay(""); setFActif(""); }}
+                className="text-xs font-bold text-rose-400 hover:underline"
+              >
+                Réinitialiser
+              </button>
+            )}
+          </div>
         </div>
       </div>
 
+      {/* RÉSULTATS : GRAND TABLEAU OU CARTES */}
       {filtered.length === 0 ? (
         <Empty icon={<Users size={40} />} title="Aucun apprenant trouvé" sub="Essayez de modifier vos critères de recherche ou de filtres." />
-      ) : (
-        <Card className="overflow-x-auto">
-          <table className="w-full min-w-[820px] text-left">
-            <thead>
-              <tr className="border-b border-white/5 text-[10px] uppercase tracking-[0.2em] text-slate-500">
-                <th className="px-4 py-3">N° Apprenant</th>
-                <th className="px-4 py-3">Apprenant</th>
-                <th className="px-4 py-3">Formation</th>
-                <th className="px-4 py-3">Modules</th>
-                <th className="px-4 py-3">Paiement</th>
-                <th className="px-4 py-3">Statut</th>
-                <th className="px-4 py-3 text-right">Actions</th>
-              </tr>
-            </thead>
-            <tbody>
-              {filtered.map((s) => (
-                <tr key={s.id} className={cn("border-b border-white/5 last:border-0 hover:bg-white/[0.02]", s.actif === false && "opacity-60")}>
-                  <td className="px-4 py-3 font-mono text-xs font-bold text-cyan-300">{s.id}</td>
-                  <td className="px-4 py-3">
-                    <div className="flex items-center gap-2.5">
-                      {s.photo ? <img src={s.photo} alt="" className="h-9 w-9 rounded-lg object-cover" /> : <div className="flex h-9 w-9 items-center justify-center rounded-lg bg-gradient-to-br from-cyan-500/30 to-blue-600/30"><UserCircle2 size={20} className="text-cyan-300" /></div>}
-                      <div>
-                        <p className="text-sm font-bold text-white">{s.prenom} {s.nom}</p>
-                        <p className="text-[11px] text-slate-500">{s.niveau}</p>
-                      </div>
-                    </div>
-                  </td>
-                  <td className="px-4 py-3 text-xs font-semibold text-slate-300">{formationLabel(s.formation)}</td>
-                  <td className="px-4 py-3 text-xs text-slate-400">{s.modules.length} module(s)</td>
-                  <td className="px-4 py-3">{statusBadge(s)}</td>
-                  <td className="px-4 py-3">
-                    <Badge color={s.actif !== false ? "cyan" : "gray"}>
-                      {s.actif !== false ? "Actif" : "Inactif"}
-                    </Badge>
-                  </td>
-                  <td className="px-4 py-3">
-                    <div className="flex justify-end gap-1.5">
-                      <button onClick={() => setViewing(s)} className="rounded-lg border border-white/10 p-2 text-slate-300 hover:border-cyan-400/40 hover:text-cyan-300" title="Voir fiche"><Eye size={15} /></button>
-                      <button onClick={() => toggleActiveStudent(s)} className="rounded-lg border border-white/10 p-2 text-slate-300 hover:border-amber-400/40 hover:text-amber-300" title={s.actif !== false ? "Désactiver l'apprenant" : "Réactiver l'apprenant"}>
-                        {s.actif !== false ? <EyeOff size={15} /> : <CheckCircle2 size={15} className="text-emerald-400" />}
-                      </button>
-                      <button onClick={() => { setForm(s); setEditing(s); setCreating(true); }} className="rounded-lg border border-white/10 p-2 text-slate-300 hover:border-amber-400/40 hover:text-amber-300" title="Modifier"><Pencil size={15} /></button>
-                      <button onClick={() => setDeleteTarget(s)} className="rounded-lg border border-white/10 p-2 text-slate-300 hover:border-red-500/40 hover:text-red-400" title="Supprimer"><Trash2 size={15} /></button>
-                    </div>
-                  </td>
+      ) : viewMode === "table" ? (
+        /* VUE 1 : GRAND TABLEAU SPACIEUX & ACTIONS COMPLÈTES */
+        <Card className="overflow-hidden border-white/10 bg-[#081024]/90 backdrop-blur-md shadow-2xl">
+          <div className="overflow-x-auto">
+            <table className="w-full min-w-[1000px] text-left border-collapse">
+              <thead>
+                <tr className="border-b border-white/10 bg-white/[0.03] text-[11px] font-bold uppercase tracking-wider text-slate-400">
+                  <th className="px-5 py-4">N° Apprenant</th>
+                  <th className="px-5 py-4">Apprenant (Identité)</th>
+                  <th className="px-5 py-4">Filière & Modules</th>
+                  <th className="px-5 py-4">Coordonnées</th>
+                  <th className="px-5 py-4">Situation Financière</th>
+                  <th className="px-5 py-4">Statut Compte</th>
+                  <th className="px-5 py-4 text-right">Actions Disponibles</th>
                 </tr>
-              ))}
-            </tbody>
-          </table>
+              </thead>
+              <tbody className="divide-y divide-white/5">
+                {filtered.map((s) => {
+                  const fin = financialSummary(db, s.id);
+                  const isInfo = s.formation === "informatique";
+                  const phoneClean = (s.whatsapp || s.telephone || "").replace(/[^0-9]/g, "");
+
+                  return (
+                    <tr
+                      key={s.id}
+                      className={cn(
+                        "hover:bg-cyan-500/[0.04] transition-colors group",
+                        s.actif === false && "opacity-60 bg-red-950/10"
+                      )}
+                    >
+                      {/* Matricule */}
+                      <td className="px-5 py-4.5 whitespace-nowrap">
+                        <div className="inline-flex flex-col">
+                          <span className="rounded-lg border border-cyan-400/40 bg-cyan-400/10 px-2.5 py-1 font-mono text-xs font-bold text-cyan-300 shadow-sm">
+                            {s.id}
+                          </span>
+                          <span className="text-[10px] text-slate-500 mt-1">
+                            Inscrit le {s.dateInscription || "2026"}
+                          </span>
+                        </div>
+                      </td>
+
+                      {/* Apprenant (Identité) */}
+                      <td className="px-5 py-4.5">
+                        <div className="flex items-center gap-3.5">
+                          {s.photo ? (
+                            <img
+                              src={s.photo}
+                              alt=""
+                              className="h-11 w-11 rounded-xl object-cover border border-cyan-400/40 shadow-md shrink-0"
+                            />
+                          ) : (
+                            <div className="flex h-11 w-11 items-center justify-center rounded-xl bg-gradient-to-br from-cyan-500/20 to-blue-600/30 text-cyan-300 font-bold text-base border border-cyan-400/30 shadow-md shrink-0">
+                              {s.prenom?.charAt(0) || "A"}
+                            </div>
+                          )}
+                          <div className="min-w-0">
+                            <p className="text-sm font-extrabold text-white group-hover:text-cyan-200 transition truncate">
+                              {s.prenom} {s.nom}
+                            </p>
+                            <p className="text-xs text-slate-400 truncate">
+                              {s.niveau || "Session continue"}
+                            </p>
+                          </div>
+                        </div>
+                      </td>
+
+                      {/* Filière & Modules */}
+                      <td className="px-5 py-4.5 whitespace-nowrap">
+                        <div className="space-y-1">
+                          <span
+                            className={cn(
+                              "inline-block rounded-md border px-2 py-0.5 text-[11px] font-bold tracking-wide",
+                              isInfo
+                                ? "border-red-500/40 bg-red-500/15 text-red-300"
+                                : "border-cyan-400/40 bg-cyan-400/15 text-cyan-200"
+                            )}
+                          >
+                            {formationLabel(s.formation)}
+                          </span>
+                          <p className="text-xs text-slate-300 font-medium">
+                            📚 <strong className="text-white">{s.modules.length}</strong> module(s) actif(s)
+                          </p>
+                        </div>
+                      </td>
+
+                      {/* Coordonnées */}
+                      <td className="px-5 py-4.5 whitespace-nowrap text-xs text-slate-300">
+                        <div className="space-y-1">
+                          {s.telephone && (
+                            <a
+                              href={`tel:${s.telephone}`}
+                              className="flex items-center gap-1.5 text-slate-300 hover:text-cyan-300 transition"
+                            >
+                              <Phone size={13} className="text-cyan-400" />
+                              <span className="font-mono font-medium">{s.telephone}</span>
+                            </a>
+                          )}
+                          {s.email && (
+                            <a
+                              href={`mailto:${s.email}`}
+                              className="flex items-center gap-1.5 text-slate-400 hover:text-white transition text-[11px] truncate max-w-[180px]"
+                            >
+                              <Mail size={12} className="text-slate-400 shrink-0" />
+                              <span className="truncate">{s.email}</span>
+                            </a>
+                          )}
+                        </div>
+                      </td>
+
+                      {/* Situation Financière */}
+                      <td className="px-5 py-4.5 whitespace-nowrap">
+                        <div className="space-y-1">
+                          <div>{statusBadge(s)}</div>
+                          <p className="text-[11px] font-mono text-slate-400">
+                            {fin.reste > 0 ? (
+                              <span className="text-amber-400 font-bold">Reste: {money(fin.reste)}</span>
+                            ) : (
+                              <span className="text-emerald-400 font-bold">Soldé ✓</span>
+                            )}
+                          </p>
+                        </div>
+                      </td>
+
+                      {/* Statut Compte */}
+                      <td className="px-5 py-4.5 whitespace-nowrap">
+                        <Badge color={s.actif !== false ? "green" : "red"}>
+                          {s.actif !== false ? "Compte Actif" : "Suspendu"}
+                        </Badge>
+                      </td>
+
+                      {/* Actions Complètes Disponibles */}
+                      <td className="px-5 py-4.5 whitespace-nowrap text-right">
+                        <div className="flex items-center justify-end gap-1.5">
+                          {/* 1. Voir Dossier Complet */}
+                          <button
+                            type="button"
+                            onClick={() => setViewing(s)}
+                            className="flex items-center gap-1 rounded-lg border border-cyan-400/30 bg-cyan-400/10 px-2.5 py-1.5 text-xs font-bold text-cyan-300 hover:border-cyan-400 hover:bg-cyan-400/20 transition shadow-sm"
+                            title="Ouvrir le dossier complet"
+                          >
+                            <Eye size={14} /> Dossier
+                          </button>
+
+                          {/* 2. Modifier */}
+                          <button
+                            type="button"
+                            onClick={() => { setForm(s); setEditing(s); setCreating(true); }}
+                            className="rounded-lg border border-white/10 p-2 text-slate-300 hover:border-amber-400/50 hover:text-amber-300 hover:bg-amber-400/10 transition"
+                            title="Modifier les informations"
+                          >
+                            <Pencil size={15} />
+                          </button>
+
+                          {/* 3. Paiement / Finances */}
+                          <button
+                            type="button"
+                            onClick={() => navigate(`/app/finances`)}
+                            className="rounded-lg border border-white/10 p-2 text-slate-300 hover:border-emerald-400/50 hover:text-emerald-300 hover:bg-emerald-400/10 transition"
+                            title="Consulter ou encaisser les paiements"
+                          >
+                            <CreditCard size={15} />
+                          </button>
+
+                          {/* 4. WhatsApp Direct */}
+                          {phoneClean && (
+                            <a
+                              href={`https://wa.me/242${phoneClean}?text=${encodeURIComponent(
+                                `Bonjour ${s.prenom},\nNous vous contactons depuis l'administration de SENTINELLES NUMÉRIQUES.`
+                              )}`}
+                              target="_blank"
+                              rel="noreferrer"
+                              className="rounded-lg border border-white/10 p-2 text-slate-300 hover:border-emerald-400/50 hover:text-emerald-400 hover:bg-emerald-400/10 transition"
+                              title="Contacter sur WhatsApp"
+                            >
+                              <MessageCircle size={15} />
+                            </a>
+                          )}
+
+                          {/* 5. Imprimer Carte / Badge */}
+                          <button
+                            type="button"
+                            onClick={() => setPrintingBadge(s)}
+                            className="rounded-lg border border-white/10 p-2 text-slate-300 hover:border-cyan-400/50 hover:text-cyan-300 hover:bg-cyan-400/10 transition"
+                            title="Imprimer la carte d'apprenant"
+                          >
+                            <Printer size={15} />
+                          </button>
+
+                          {/* 6. Activer / Désactiver */}
+                          <button
+                            type="button"
+                            onClick={() => toggleActiveStudent(s)}
+                            className={cn(
+                              "rounded-lg border p-2 transition",
+                              s.actif !== false
+                                ? "border-white/10 text-slate-400 hover:border-amber-400/50 hover:text-amber-300 hover:bg-amber-400/10"
+                                : "border-emerald-400/50 text-emerald-300 bg-emerald-400/10"
+                            )}
+                            title={s.actif !== false ? "Suspendre l'apprenant" : "Réactiver l'apprenant"}
+                          >
+                            {s.actif !== false ? <EyeOff size={15} /> : <CheckCircle2 size={15} />}
+                          </button>
+
+                          {/* 7. Supprimer */}
+                          <button
+                            type="button"
+                            onClick={() => setDeleteTarget(s)}
+                            className="rounded-lg border border-red-500/20 p-2 text-red-400 hover:border-red-500/60 hover:bg-red-500/20 transition"
+                            title="Supprimer l'apprenant"
+                          >
+                            <Trash2 size={15} />
+                          </button>
+                        </div>
+                      </td>
+                    </tr>
+                  );
+                })}
+              </tbody>
+            </table>
+          </div>
         </Card>
+      ) : (
+        /* VUE 2 : VUE FICHES CARTES (GRILLE MODERNE) */
+        <div className="grid gap-5 md:grid-cols-2 xl:grid-cols-3">
+          {filtered.map((s) => {
+            const fin = financialSummary(db, s.id);
+            const isInfo = s.formation === "informatique";
+            const phoneClean = (s.whatsapp || s.telephone || "").replace(/[^0-9]/g, "");
+
+            return (
+              <Card
+                key={s.id}
+                className={cn(
+                  "p-5 border-white/10 bg-[#081024]/90 backdrop-blur-md shadow-xl hover:border-cyan-400/40 transition group",
+                  s.actif === false && "opacity-60"
+                )}
+              >
+                <div className="flex items-center justify-between border-b border-white/10 pb-3 mb-3.5">
+                  <span className="rounded-lg border border-cyan-400/40 bg-cyan-400/10 px-2.5 py-1 font-mono text-xs font-bold text-cyan-300">
+                    {s.id}
+                  </span>
+                  <Badge color={s.actif !== false ? "green" : "red"}>
+                    {s.actif !== false ? "Actif" : "Suspendu"}
+                  </Badge>
+                </div>
+
+                <div className="flex items-center gap-3.5 mb-4">
+                  {s.photo ? (
+                    <img
+                      src={s.photo}
+                      alt=""
+                      className="h-14 w-14 rounded-2xl object-cover border-2 border-cyan-400/40 shadow-lg shrink-0"
+                    />
+                  ) : (
+                    <div className="flex h-14 w-14 items-center justify-center rounded-2xl bg-gradient-to-br from-cyan-500/20 to-blue-600/30 text-cyan-300 font-bold text-xl border-2 border-cyan-400/30 shadow-lg shrink-0">
+                      {s.prenom?.charAt(0) || "A"}
+                    </div>
+                  )}
+                  <div className="min-w-0">
+                    <h4 className="text-base font-extrabold text-white group-hover:text-cyan-200 transition truncate">
+                      {s.prenom} {s.nom}
+                    </h4>
+                    <p className="text-xs text-slate-400">{s.niveau || "Session continue"}</p>
+                    <span
+                      className={cn(
+                        "inline-block mt-1 rounded-md border px-2 py-0.5 text-[10px] font-bold",
+                        isInfo
+                          ? "border-red-500/40 bg-red-500/15 text-red-300"
+                          : "border-cyan-400/40 bg-cyan-400/15 text-cyan-200"
+                      )}
+                    >
+                      {formationLabel(s.formation)}
+                    </span>
+                  </div>
+                </div>
+
+                <div className="space-y-2 border-t border-white/5 pt-3 text-xs text-slate-300 mb-4">
+                  <div className="flex items-center justify-between">
+                    <span className="text-slate-400">Modules :</span>
+                    <strong className="text-white">{s.modules.length} inscrit(s)</strong>
+                  </div>
+                  <div className="flex items-center justify-between">
+                    <span className="text-slate-400">Paiement :</span>
+                    <div>{statusBadge(s)}</div>
+                  </div>
+                  {fin.reste > 0 && (
+                    <div className="flex items-center justify-between text-amber-300 font-mono">
+                      <span>Reste à payer :</span>
+                      <strong>{money(fin.reste)}</strong>
+                    </div>
+                  )}
+                  {s.telephone && (
+                    <div className="flex items-center justify-between pt-1 text-slate-400">
+                      <span>Téléphone :</span>
+                      <a href={`tel:${s.telephone}`} className="text-cyan-300 font-mono font-medium hover:underline">
+                        {s.telephone}
+                      </a>
+                    </div>
+                  )}
+                </div>
+
+                {/* Actions de la Carte */}
+                <div className="flex items-center justify-between gap-1.5 border-t border-white/10 pt-3">
+                  <button
+                    type="button"
+                    onClick={() => setViewing(s)}
+                    className="flex-1 flex items-center justify-center gap-1 rounded-xl border border-cyan-400/40 bg-cyan-400/15 py-2 text-xs font-bold text-cyan-200 hover:bg-cyan-400/25 transition shadow-sm"
+                  >
+                    <Eye size={14} /> Dossier
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => setPrintingBadge(s)}
+                    className="rounded-xl border border-white/10 p-2 text-slate-300 hover:border-cyan-400/50 hover:text-cyan-300 transition"
+                    title="Imprimer carte"
+                  >
+                    <Printer size={15} />
+                  </button>
+                  {phoneClean && (
+                    <a
+                      href={`https://wa.me/242${phoneClean}?text=${encodeURIComponent(
+                        `Bonjour ${s.prenom},\nNous vous contactons depuis l'administration de SENTINELLES NUMÉRIQUES.`
+                      )}`}
+                      target="_blank"
+                      rel="noreferrer"
+                      className="rounded-xl border border-white/10 p-2 text-slate-300 hover:border-emerald-400/50 hover:text-emerald-400 transition"
+                      title="WhatsApp"
+                    >
+                      <MessageCircle size={15} />
+                    </a>
+                  )}
+                  <button
+                    type="button"
+                    onClick={() => { setForm(s); setEditing(s); setCreating(true); }}
+                    className="rounded-xl border border-white/10 p-2 text-slate-300 hover:border-amber-400/50 hover:text-amber-300 transition"
+                    title="Modifier"
+                  >
+                    <Pencil size={15} />
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => setDeleteTarget(s)}
+                    className="rounded-xl border border-red-500/20 p-2 text-red-400 hover:bg-red-500/20 transition"
+                    title="Supprimer"
+                  >
+                    <Trash2 size={15} />
+                  </button>
+                </div>
+              </Card>
+            );
+          })}
+        </div>
       )}
 
       {/* pré-inscriptions */}
@@ -726,6 +1102,73 @@ export function StudentsPage() {
           </div>
         </div>
       </Modal>
+
+      {/* Modale d'Impression Officielle de Carte / Badge Apprenant */}
+      {printingBadge && (
+        <Modal open={Boolean(printingBadge)} onClose={() => setPrintingBadge(null)} title="Carte Officielle d'Apprenant" wide={false}>
+          <div className="space-y-4">
+            <div className="relative overflow-hidden rounded-2xl border-2 border-cyan-400/40 bg-gradient-to-br from-[#060D1F] via-[#0A1633] to-[#040814] p-5 shadow-2xl text-white">
+              <div className="flex items-center justify-between border-b border-white/15 pb-3.5 mb-3.5">
+                <div className="flex items-center gap-2.5">
+                  <img src="/logo.png" alt="Logo" className="h-9 w-9 object-contain drop-shadow-[0_0_12px_rgba(0,229,255,0.7)]" />
+                  <div>
+                    <h4 className="font-display text-xs font-black tracking-wider text-white">
+                      SENTINELLE <span className="text-red-400">NUMÉRIQUE</span>
+                    </h4>
+                    <p className="text-[8px] uppercase tracking-widest text-cyan-300">CARTE D'APPRENANT OFFICIELLE</p>
+                  </div>
+                </div>
+                <Badge color={printingBadge.formation === "informatique" ? "red" : "cyan"}>
+                  {formationLabel(printingBadge.formation)}
+                </Badge>
+              </div>
+
+              <div className="flex items-center gap-4">
+                {printingBadge.photo ? (
+                  <img src={printingBadge.photo} alt="" className="h-20 w-20 rounded-xl border-2 border-cyan-400/50 object-cover shadow-lg shrink-0" />
+                ) : (
+                  <div className="flex h-20 w-20 items-center justify-center rounded-xl border-2 border-cyan-400/30 bg-gradient-to-br from-cyan-500/20 to-blue-600/30 text-cyan-300 font-bold text-2xl shrink-0">
+                    {printingBadge.prenom?.charAt(0) || "A"}
+                  </div>
+                )}
+                <div className="space-y-1 min-w-0">
+                  <h3 className="font-display text-base font-black text-white leading-tight truncate">
+                    {printingBadge.prenom} {printingBadge.nom}
+                  </h3>
+                  <div className="flex items-center gap-2">
+                    <span className="rounded bg-cyan-400/20 px-2 py-0.5 font-mono text-xs font-bold text-cyan-300 border border-cyan-400/40">
+                      {printingBadge.id}
+                    </span>
+                    <span className="text-xs text-slate-300 font-medium">
+                      {printingBadge.niveau || "Session 2026"}
+                    </span>
+                  </div>
+                  <p className="text-[11px] text-slate-400 truncate">
+                    📞 {printingBadge.telephone || "Non renseigné"}
+                  </p>
+                </div>
+              </div>
+
+              <div className="mt-4 flex items-center justify-between border-t border-white/10 pt-3">
+                <div>
+                  <p className="text-[9px] uppercase tracking-wider text-slate-400">Centre Agréé</p>
+                  <p className="text-xs font-bold text-white">ENIA 2.0 · Brazzaville</p>
+                </div>
+                <div className="rounded-lg bg-white p-1.5 shadow">
+                  <QRCodeSVG value={`https://code6senti.vercel.app/#/certificats?id=${printingBadge.id}`} size={54} />
+                </div>
+              </div>
+            </div>
+
+            <div className="flex justify-end gap-2 pt-2">
+              <Btn variant="ghost" onClick={() => setPrintingBadge(null)}>Fermer</Btn>
+              <Btn onClick={() => window.print()} className="shadow-[0_0_20px_-4px_rgba(0,229,255,0.7)]">
+                <Printer size={16} /> Imprimer la carte
+              </Btn>
+            </div>
+          </div>
+        </Modal>
+      )}
     </div>
   );
 }

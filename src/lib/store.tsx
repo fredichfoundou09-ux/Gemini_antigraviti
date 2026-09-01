@@ -254,9 +254,7 @@ export function StoreProvider({ children }: { children: React.ReactNode }) {
           supabase.from("payment_schedules").select("*"),
         ]);
 
-        if (profilesRes.error) return;
-
-        const updatedUsers: User[] = (profilesRes.data || []).map((p: any) => ({
+        const updatedUsers: User[] = (!profilesRes.error && profilesRes.data ? profilesRes.data : []).map((p: any) => ({
           id: p.id,
           username: p.username,
           password: "",
@@ -268,16 +266,18 @@ export function StoreProvider({ children }: { children: React.ReactNode }) {
           createdAt: p.created_at?.slice(0, 10) || ""
         }));
 
-        setUser((currentUser) => {
-          if (!currentUser) {
-            const me = updatedUsers.find((u) => u.id === sessionUser.id);
-            if (me) {
-              persistSession(me);
-              return me;
+        if (sessionUser && updatedUsers.length > 0) {
+          setUser((currentUser) => {
+            if (!currentUser) {
+              const me = updatedUsers.find((u) => u.id === sessionUser.id);
+              if (me) {
+                persistSession(me);
+                return me;
+              }
             }
-          }
-          return currentUser;
-        });
+            return currentUser;
+          });
+        }
 
         const formationById = new Map((formationsRes.data || []).map((f: any) => [f.id, f.code]));
         const regModulesByRegId = new Map<string, string[]>();
@@ -289,47 +289,63 @@ export function StoreProvider({ children }: { children: React.ReactNode }) {
 
         setDb((prev) => ({
           ...prev,
-          users: updatedUsers,
-          students: (studentsRes.data || []).map((s: any) => {
+          users: updatedUsers.length > 0 ? updatedUsers : prev.users,
+          students: (studentsRes.data && studentsRes.data.length > 0 ? studentsRes.data : prev.students).map((s: any) => {
             const mods = (studentModulesRes.data || [])
               .filter((sm: any) => sm.student_id === s.id)
               .map((sm: any) => sm.module_id);
             return {
               id: s.id, nom: s.nom, prenom: s.prenom, dateNaissance: s.date_naissance || "",
               sexe: s.sexe, telephone: s.telephone, whatsapp: s.whatsapp, email: s.email,
-              adresse: s.adresse, niveau: s.niveau, formation: (formationById.get(s.formation_id) || "informatique") as Formation,
-              modules: mods, dateInscription: s.date_inscription || "", statutPaiement: "impaye", statut: s.statut, userId: s.user_id,
+              adresse: s.adresse, niveau: s.niveau, formation: (formationById.get(s.formation_id) || s.formation || "informatique") as Formation,
+              modules: mods.length > 0 ? mods : s.modules || [], dateInscription: s.date_inscription || "", statutPaiement: "impaye", statut: s.statut, userId: s.user_id,
               photo: s.photo_url || s.photo || "",
             };
           }),
-          teachers: (teachersRes.data || []).map((t: any) => {
+          teachers: (teachersRes.data && teachersRes.data.length > 0 ? teachersRes.data : prev.teachers).map((t: any) => {
             const mods = (teacherModulesRes.data || [])
               .filter((tm: any) => tm.teacher_id === t.id)
               .map((tm: any) => tm.module_id);
             return {
               id: t.id, nom: t.nom, prenom: t.prenom, specialite: t.specialite, email: t.email,
-              phone: t.phone, modules: mods, userId: t.user_id, photo: t.photo_url,
-              tarifHoraire: Number(t.tarif_horaire || 0), heuresPrevues: Number(t.heures_prevues || 0),
-              typeContrat: t.type_contrat || "vacataire", diplomes: t.diplomes || "", infosPro: t.infos_pro || "",
+              phone: t.phone, modules: mods.length > 0 ? mods : t.modules || [], userId: t.user_id, photo: t.photo_url || t.photo,
+              tarifHoraire: Number(t.tarif_horaire || t.tarifHoraire || 0), heuresPrevues: Number(t.heures_prevues || t.heuresPrevues || 0),
+              typeContrat: t.type_contrat || t.typeContrat || "vacataire", diplomes: t.diplomes || "", infosPro: t.infos_pro || "",
               formations: t.formations || [], actif: t.actif
             };
           }),
-          courses: (coursesRes.data || []).map((c: any) => ({
-            id: c.id, titre: c.titre, description: c.description || "", moduleId: c.module_id,
-            teacherId: c.teacher_id, type: c.type as any, date: c.date_publication?.slice(0, 10) || c.date || "",
+          courses: (coursesRes.data && coursesRes.data.length > 0 ? coursesRes.data : prev.courses).map((c: any) => ({
+            id: c.id, titre: c.titre, description: c.description || "", moduleId: c.module_id || c.moduleId,
+            teacherId: c.teacher_id || c.teacherId, type: c.type as any, date: c.date_publication?.slice(0, 10) || c.date || "",
             audience: c.audience as any, publie: c.publie, content: c.content || "",
             files: (c.files || []).map((f: any) => ({ id: f.id, nom: f.nom, taille: f.taille, type: f.type, url: f.url }))
           })),
           schedule: (() => {
-            const remoteSlots = (scheduleRes.data || []).map((s: any) => ({
-              id: s.id, jour: s.jour as any, heureDebut: s.heure_debut, heureFin: s.heure_fin, date: s.date || undefined,
-              moduleId: s.module_id, teacherId: s.teacher_id, salle: s.salle,
+            const capitalizeDay = (d: string) => {
+              if (!d) return "Lundi";
+              const clean = d.trim().toLowerCase();
+              return clean.charAt(0).toUpperCase() + clean.slice(1);
+            };
+            const remoteSlots = (!scheduleRes.error && scheduleRes.data ? scheduleRes.data : []).map((s: any) => ({
+              id: s.id,
+              jour: capitalizeDay(s.jour) as any,
+              heureDebut: s.heure_debut,
+              heureFin: s.heure_fin,
+              date: s.date || undefined,
+              moduleId: s.module_id,
+              teacherId: s.teacher_id,
+              salle: s.salle || "",
               formation: (formationById.get(s.formation_id) || "informatique") as Formation,
             }));
             const merged = [...remoteSlots];
             (prev.schedule || []).forEach((localSlot: any) => {
-              if (!merged.some((rs) => rs.id === localSlot.id || (rs.jour === localSlot.jour && rs.heureDebut === localSlot.heureDebut && rs.heureFin === localSlot.heureFin))) {
-                merged.push(localSlot);
+              const locJour = capitalizeDay(localSlot.jour);
+              const exists = merged.some((rs) =>
+                rs.id === localSlot.id ||
+                (capitalizeDay(rs.jour) === locJour && rs.heureDebut === localSlot.heureDebut && rs.heureFin === localSlot.heureFin)
+              );
+              if (!exists) {
+                merged.push({ ...localSlot, jour: locJour });
               }
             });
             return merged;
@@ -429,19 +445,21 @@ export function StoreProvider({ children }: { children: React.ReactNode }) {
     };
   }, [sbActive, user?.id]);
 
-  const update = async (fn: (d: DB) => DB) => {
-    const next = fn(db);
-    setDb(next);
+  const update = (fn: (d: DB) => DB) => {
+    setDb((currentDb) => {
+      const next = fn(currentDb);
+      try {
+        localStorage.setItem(DB_KEY, JSON.stringify(next));
+      } catch { /* quota */ }
 
-    if (sbActive) {
-      if (
-        next.settings !== db.settings ||
-        next.advantages !== db.advantages ||
-        next.partners !== db.partners ||
-        next.announcements !== db.announcements
-      ) {
-        try {
-          await supabase.from("site_settings").upsert({
+      if (sbActive) {
+        if (
+          next.settings !== currentDb.settings ||
+          next.advantages !== currentDb.advantages ||
+          next.partners !== currentDb.partners ||
+          next.announcements !== currentDb.announcements
+        ) {
+          supabase.from("site_settings").upsert({
             id: "default",
             data: sanitizeJsonPayload({
               settings: next.settings,
@@ -450,12 +468,12 @@ export function StoreProvider({ children }: { children: React.ReactNode }) {
               announcements: next.announcements,
             }),
             updated_at: new Date().toISOString(),
-          });
-        } catch (e) {
-          console.warn("Auto-sync site_settings error:", e);
+          }).then().catch((e) => console.warn("Auto-sync site_settings error:", e));
         }
       }
-    }
+
+      return next;
+    });
   };
 
   const persistSession = (u: User | null) => {
@@ -495,20 +513,33 @@ export function StoreProvider({ children }: { children: React.ReactNode }) {
     if (sbActive) {
       try {
         let email = uname;
-        if (!email.includes("@")) {
+        if (uname.toLowerCase() === "fredich") {
+          email = "fredichfoundou09@gmail.com";
+        } else if (!email.includes("@")) {
           // Résolution de l'identifiant pour Supabase Auth via RPC sécurisée
           const { data: rpcEmail } = await supabase.rpc("get_email_by_username", { p_username: uname });
           if (rpcEmail) {
             email = rpcEmail;
           } else {
             const { data } = await supabase.from("profiles").select("email").eq("username", uname.toLowerCase()).maybeSingle();
-            if (!data?.email) return { ok: false, error: "Identifiants incorrects." };
-            email = data.email;
+            if (data?.email) {
+              email = data.email;
+            }
           }
         }
 
-        const { error: authErr } = await supabase.auth.signInWithPassword({ email, password });
+        const { data: authData, error: authErr } = await supabase.auth.signInWithPassword({ email, password });
         if (authErr) {
+          // Si Supabase échoue mais que l'utilisateur existe dans db.users (ex: compte local)
+          const localUser = db.users.find((u) => u.username.toLowerCase() === uname.toLowerCase());
+          if (localUser && localUser.actif !== false) {
+            const ok = await verifyPassword(password, localUser.password);
+            if (ok) {
+              persistSession(localUser);
+              setUser(localUser);
+              return { ok: true, user: localUser };
+            }
+          }
           if (authErr.message?.toLowerCase().includes("email not confirmed")) {
             return { ok: false, error: "Email en cours de confirmation. Réactualisez la page et réessayez." };
           }

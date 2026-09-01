@@ -404,8 +404,15 @@ export function SchedulePage() {
       }
     }
 
+    const capitalizeDay = (d: string) => {
+      if (!d) return "Lundi";
+      const c = d.trim().toLowerCase();
+      return c.charAt(0).toUpperCase() + c.slice(1);
+    };
+    const cleanJour = capitalizeDay(form.jour);
+
     const payload: any = {
-      jour: form.jour,
+      jour: cleanJour,
       heureDebut: form.heureDebut,
       heureFin: form.heureFin,
       moduleId: form.moduleId,
@@ -418,106 +425,98 @@ export function SchedulePage() {
     if (form.cibleType === "apprenants" && form.studentIds.length) payload.studentIds = form.studentIds;
 
     let slotId = uid("SCH");
-    setSavingSlot(true);
+    const immediateSlot = { id: slotId, ...payload };
 
-    if (isSupabaseConfigured) {
-      try {
-        // 1. Résolution de l'identifiant formation
-        let formationId = await resolveFormationId(form.formation);
-        let isFormationUuid = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(formationId);
-        if (!isFormationUuid) {
-          const { data: fRow } = await supabase.from("formations").select("id").eq("code", form.formation).maybeSingle();
-          if (fRow?.id) {
-            formationId = fRow.id;
-            isFormationUuid = true;
-          }
-        }
-
-        // 2. Résolution de l'identifiant module
-        let realModuleId: string | null = null;
-        const isModuleUuid = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(form.moduleId);
-        if (isModuleUuid) {
-          realModuleId = form.moduleId;
-        } else {
-          const modObj = db.modules.find((m) => m.id === form.moduleId);
-          const { data: modCheck } = await supabase.from("modules").select("id").or(`code.eq.${form.moduleId},titre.eq.${modObj?.titre || form.moduleId}`).maybeSingle();
-          if (modCheck?.id) {
-            realModuleId = modCheck.id;
-          } else if (isFormationUuid) {
-            // Création automatique dans Supabase pour satisfaire la clé étrangère
-            const { data: newMod } = await supabase.from("modules").insert({
-              formation_id: formationId,
-              numero: modObj?.numero || 1,
-              code: form.moduleId,
-              titre: modObj?.titre || "Module " + form.moduleId,
-              icon: modObj?.icon || "code",
-              active: true
-            }).select("id").single();
-            if (newMod?.id) realModuleId = newMod.id;
-          }
-        }
-
-        // 3. Vérification de l'enseignant dans la base Supabase
-        const { data: tCheck } = await supabase.from("teachers").select("id").eq("id", form.teacherId).maybeSingle();
-        if (!tCheck) {
-          const tObj = db.teachers.find((t) => t.id === form.teacherId);
-          await supabase.from("teachers").upsert({
-            id: form.teacherId,
-            nom: tObj?.nom || "Formateur",
-            prenom: tObj?.prenom || "Sentinelle",
-            email: tObj?.email || `teacher_${form.teacherId}@sentinelles.cg`,
-            phone: tObj?.phone || "060000000",
-            specialite: tObj?.specialite || "Pédagogie",
-            actif: true
-          });
-        }
-
-        // 4. Enregistrement direct dans la table schedule Supabase
-        if (isFormationUuid && realModuleId) {
-          const { data: insData } = await supabase.from("schedule").insert({
-            formation_id: formationId,
-            module_id: realModuleId,
-            teacher_id: form.teacherId,
-            jour: form.jour,
-            heure_debut: form.heureDebut,
-            heure_fin: form.heureFin,
-            salle: form.salle?.trim() || "",
-            date: form.date || null,
-          }).select().single();
-
-          if (insData?.id) {
-            slotId = insData.id;
-          } else {
-            // Appel de la RPC si l'insertion directe a été restreinte
-            const { data: rpcRes } = await supabase.rpc("create_schedule_slot", {
-              p_formation_id: formationId,
-              p_module_id: realModuleId,
-              p_teacher_id: form.teacherId,
-              p_jour: form.jour,
-              p_heure_debut: form.heureDebut,
-              p_heure_fin: form.heureFin,
-              p_salle: form.salle?.trim() || null,
-              p_date: form.date || null,
-            });
-            if (rpcRes?.schedule_id) slotId = rpcRes.schedule_id;
-          }
-        }
-      } catch (err: any) {
-        console.warn("Notice synchronisation Supabase planning:", err);
-      }
-    }
-
-    // Persistance infaillible et affichage immédiat
-    const newSlot = { id: slotId, ...payload };
+    // 1. Affichage et persistance immédiate garantie
     update((d) => ({
       ...d,
-      schedule: [...d.schedule.filter((x) => x.id !== slotId), newSlot]
+      schedule: [...d.schedule.filter((x) => x.id !== slotId), immediateSlot]
     }));
-    toastMsg.success("Créneau planifié avec succès ✓", `${form.jour} ${form.heureDebut} - ${form.heureFin}`);
-    log(`Créneau ajouté : ${form.jour} ${form.heureDebut}-${form.heureFin} — ${db.modules.find((m) => m.id === form.moduleId)?.titre ?? ""}`);
+
+    toastMsg.success("Créneau planifié avec succès ✓", `${cleanJour} ${form.heureDebut} - ${form.heureFin}`);
+    log(`Créneau ajouté : ${cleanJour} ${form.heureDebut}-${form.heureFin} — ${db.modules.find((m) => m.id === form.moduleId)?.titre ?? ""}`);
     setForm(blankSlot());
     setCreating(false);
-    setSavingSlot(false);
+
+    // 2. Synchronisation Supabase en arrière-plan avec consolidation d'identifiant
+    if (isSupabaseConfigured) {
+      setSavingSlot(true);
+      (async () => {
+        try {
+          let formationId = await resolveFormationId(form.formation);
+          let isFormationUuid = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(formationId);
+          if (!isFormationUuid) {
+            const { data: fRow } = await supabase.from("formations").select("id").eq("code", form.formation).maybeSingle();
+            if (fRow?.id) {
+              formationId = fRow.id;
+              isFormationUuid = true;
+            }
+          }
+
+          let realModuleId: string | null = null;
+          const isModuleUuid = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(form.moduleId);
+          if (isModuleUuid) {
+            realModuleId = form.moduleId;
+          } else {
+            const modObj = db.modules.find((m) => m.id === form.moduleId);
+            const { data: modCheck } = await supabase.from("modules").select("id").or(`code.eq.${form.moduleId},titre.eq.${modObj?.titre || form.moduleId}`).maybeSingle();
+            if (modCheck?.id) {
+              realModuleId = modCheck.id;
+            } else if (isFormationUuid) {
+              const { data: newMod } = await supabase.from("modules").insert({
+                formation_id: formationId,
+                numero: modObj?.numero || 1,
+                code: form.moduleId,
+                titre: modObj?.titre || "Module " + form.moduleId,
+                icon: modObj?.icon || "code",
+                active: true
+              }).select("id").single();
+              if (newMod?.id) realModuleId = newMod.id;
+            }
+          }
+
+          let teacherId = form.teacherId;
+          const { data: tCheck } = await supabase.from("teachers").select("id").eq("id", form.teacherId).maybeSingle();
+          if (!tCheck) {
+            const tObj = db.teachers.find((t) => t.id === form.teacherId);
+            const { data: upT } = await supabase.from("teachers").upsert({
+              id: form.teacherId,
+              nom: tObj?.nom || "Formateur",
+              prenom: tObj?.prenom || "Sentinelle",
+              email: tObj?.email || `teacher_${form.teacherId}@sentinelles.cg`,
+              phone: tObj?.phone || "060000000",
+              specialite: tObj?.specialite || "Pédagogie",
+              actif: true
+            }).select("id").maybeSingle();
+            if (upT?.id) teacherId = upT.id;
+          }
+
+          if (isFormationUuid && realModuleId) {
+            const { data: insData } = await supabase.from("schedule").insert({
+              formation_id: formationId,
+              module_id: realModuleId,
+              teacher_id: teacherId,
+              jour: cleanJour,
+              heure_debut: form.heureDebut,
+              heure_fin: form.heureFin,
+              salle: form.salle?.trim() || "",
+              date: form.date || null,
+            }).select().single();
+
+            if (insData?.id) {
+              update((d) => ({
+                ...d,
+                schedule: d.schedule.map((s) => s.id === slotId ? { ...s, id: insData.id } : s)
+              }));
+            }
+          }
+        } catch (err: any) {
+          console.warn("Notice synchronisation Supabase planning:", err);
+        } finally {
+          setSavingSlot(false);
+        }
+      })();
+    }
   };
 
   const deleteSchedule = async (slotId: string) => {
@@ -637,7 +636,7 @@ export function SchedulePage() {
       {viewMode === "cards" && (
         <div className="grid gap-5 md:grid-cols-2 xl:grid-cols-3">
           {DAYS.map((day) => {
-            const dayItems = items.filter((i) => i.jour === day).sort((a, b) => a.heureDebut.localeCompare(b.heureDebut));
+            const dayItems = items.filter((i) => (i.jour || "").trim().toLowerCase() === day.trim().toLowerCase()).sort((a, b) => a.heureDebut.localeCompare(b.heureDebut));
             return (
               <Card key={day} className="p-5 border-white/10 bg-[#081024]/90 backdrop-blur-md shadow-xl hover:border-cyan-400/30 transition">
                 <div className="mb-4 flex items-center justify-between border-b border-white/10 pb-3">
