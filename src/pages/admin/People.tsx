@@ -1,5 +1,5 @@
-import { useState } from "react";
-import { Link } from "react-router-dom";
+import { useState, useEffect } from "react";
+import { Link, useSearchParams } from "react-router-dom";
 import { QRCodeSVG } from "qrcode.react";
 import {
   Users, Search, PlusCircle, Eye, EyeOff, Pencil, UserCircle2, Phone, Mail, MapPin, CalendarDays,
@@ -62,6 +62,7 @@ const emptyStudent = (): Omit<Student, "id"> => ({
 
 export function StudentsPage() {
   const { db, update, nextStudentId, notify, log, computeAmount } = useStore();
+  const [searchParams] = useSearchParams();
   const [q, setQ] = useState("");
   const [tab, setTab] = useState<"tous" | Formation>("tous");
   const [fPay, setFPay] = useState("");
@@ -72,6 +73,17 @@ export function StudentsPage() {
   const [form, setForm] = useState<any>(emptyStudent());
   const [createdCreds, setCreatedCreds] = useState<{ nom: string; identifiant: string; motDePasse: string; phone?: string } | null>(null);
   const [deleteTarget, setDeleteTarget] = useState<Student | null>(null);
+
+  // Ouverture automatique depuis la barre de recherche globale
+  useEffect(() => {
+    const studentId = searchParams.get("id");
+    if (studentId) {
+      const found = db.students.find((s) => s.id === studentId);
+      if (found) {
+        setViewing(found);
+      }
+    }
+  }, [searchParams, db.students]);
 
   const filtered = db.students.filter((s) => {
     const matchQ = `${s.nom} ${s.prenom} ${s.id}`.toLowerCase().includes(q.toLowerCase());
@@ -966,10 +978,23 @@ function StudentView({ s }: { s: Student }) {
 /* ================= TEACHERS ================= */
 export function TeachersPage() {
   const { db, user, update, log } = useStore();
+  const [searchParams] = useSearchParams();
   const [editing, setEditing] = useState<any>(null);
   const [creating, setCreating] = useState(false);
   const [viewing, setViewing] = useState<any>(null);
   const [deleteTarget, setDeleteTarget] = useState<any>(null);
+
+  // Ouverture automatique depuis la recherche globale
+  useEffect(() => {
+    const teacherId = searchParams.get("id");
+    if (teacherId) {
+      const found = db.teachers.find((t) => t.id === teacherId);
+      if (found) {
+        setViewing(found);
+      }
+    }
+  }, [searchParams, db.teachers]);
+
   const [q, setQ] = useState("");
   const [fFormation, setFFormation] = useState("");
   const [fModule, setFModule] = useState("");

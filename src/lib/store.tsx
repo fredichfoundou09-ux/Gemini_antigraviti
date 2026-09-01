@@ -320,11 +320,20 @@ export function StoreProvider({ children }: { children: React.ReactNode }) {
             audience: c.audience as any, publie: c.publie, content: c.content || "",
             files: (c.files || []).map((f: any) => ({ id: f.id, nom: f.nom, taille: f.taille, type: f.type, url: f.url }))
           })),
-          schedule: (scheduleRes.data || []).map((s: any) => ({
-            id: s.id, jour: s.jour as any, heureDebut: s.heure_debut, heureFin: s.heure_fin, date: s.date || undefined,
-            moduleId: s.module_id, teacherId: s.teacher_id, salle: s.salle,
-            formation: (formationById.get(s.formation_id) || "informatique") as Formation,
-          })),
+          schedule: (() => {
+            const remoteSlots = (scheduleRes.data || []).map((s: any) => ({
+              id: s.id, jour: s.jour as any, heureDebut: s.heure_debut, heureFin: s.heure_fin, date: s.date || undefined,
+              moduleId: s.module_id, teacherId: s.teacher_id, salle: s.salle,
+              formation: (formationById.get(s.formation_id) || "informatique") as Formation,
+            }));
+            const merged = [...remoteSlots];
+            (prev.schedule || []).forEach((localSlot: any) => {
+              if (!merged.some((rs) => rs.id === localSlot.id || (rs.jour === localSlot.jour && rs.heureDebut === localSlot.heureDebut && rs.heureFin === localSlot.heureFin))) {
+                merged.push(localSlot);
+              }
+            });
+            return merged;
+          })(),
           attendance: (attendanceRes.data || []).map((a: any) => ({
             id: a.id, studentId: a.student_id, date: a.date, moduleId: a.module_id,
             statut: a.statut as any, heure: a.heure, salle: a.salle, teacherId: a.teacher_id

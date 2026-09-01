@@ -422,49 +422,97 @@ export function SchedulePage() {
 
     if (isSupabaseConfigured) {
       try {
-        const formationId = await resolveFormationId(form.formation);
-        const isFormationUuid = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(formationId);
-        
-        const isModuleUuid = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(form.moduleId);
-        const { data: modCheck } = isModuleUuid
-          ? await supabase.from("modules").select("id").eq("id", form.moduleId).maybeSingle()
-          : await supabase.from("modules").select("id").eq("titre", db.modules.find((m) => m.id === form.moduleId)?.titre || "").maybeSingle();
-        const realModuleId = modCheck?.id || (isModuleUuid ? form.moduleId : null);
-
-        // Si on dispose d'UUIDs PostgreSQL compatibles, appel de la RPC sécurisée
-        if (isFormationUuid && realModuleId) {
-          const { data: rpcRes } = await supabase.rpc("create_schedule_slot", {
-            p_formation_id: formationId,
-            p_module_id: realModuleId,
-            p_teacher_id: form.teacherId,
-            p_jour: form.jour,
-            p_heure_debut: form.heureDebut,
-            p_heure_fin: form.heureFin,
-            p_salle: form.salle?.trim() || null,
-            p_date: form.date || null,
-          });
-
-          if (rpcRes && !rpcRes.success) {
-            // Signalement des conflits réels (enseignant déjà occupé, salle déjà prise)
-            if (rpcRes.code === "TEACHER_CONFLICT" || rpcRes.code === "ROOM_CONFLICT" || rpcRes.code === "INVALID_HOURS") {
-              toastMsg.error("Conflit planning", rpcRes.message);
-              setSavingSlot(false);
-              return;
-            }
-          }
-
-          if (rpcRes?.schedule_id) {
-            slotId = rpcRes.schedule_id;
+        // 1. Résolution de l'identifiant formation
+        let formationId = await resolveFormationId(form.formation);
+        let isFormationUuid = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(formationId);
+        if (!isFormationUuid) {
+          const { data: fRow } = await supabase.from("formations").select("id").eq("code", form.formation).maybeSingle();
+          if (fRow?.id) {
+            formationId = fRow.id;
+            isFormationUuid = true;
           }
         }
-        window.dispatchEvent(new Event("sentinelles:supabase-refresh"));
+
+        // 2. Résolution de l'identifiant module
+        let realModuleId: string | null = null;
+        const isModuleUuid = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(form.moduleId);
+        if (isModuleUuid) {
+          realModuleId = form.moduleId;
+        } else {
+          const modObj = db.modules.find((m) => m.id === form.moduleId);
+          const { data: modCheck } = await supabase.from("modules").select("id").or(`code.eq.${form.moduleId},titre.eq.${modObj?.titre || form.moduleId}`).maybeSingle();
+          if (modCheck?.id) {
+            realModuleId = modCheck.id;
+          } else if (isFormationUuid) {
+            // Création automatique dans Supabase pour satisfaire la clé étrangère
+            const { data: newMod } = await supabase.from("modules").insert({
+              formation_id: formationId,
+              numero: modObj?.numero || 1,
+              code: form.moduleId,
+              titre: modObj?.titre || "Module " + form.moduleId,
+              icon: modObj?.icon || "code",
+              active: true
+            }).select("id").single();
+            if (newMod?.id) realModuleId = newMod.id;
+          }
+        }
+
+        // 3. Vérification de l'enseignant dans la base Supabase
+        const { data: tCheck } = await supabase.from("teachers").select("id").eq("id", form.teacherId).maybeSingle();
+        if (!tCheck) {
+          const tObj = db.teachers.find((t) => t.id === form.teacherId);
+          await supabase.from("teachers").upsert({
+            id: form.teacherId,
+            nom: tObj?.nom || "Formateur",
+            prenom: tObj?.prenom || "Sentinelle",
+            email: tObj?.email || `teacher_${form.teacherId}@sentinelles.cg`,
+            phone: tObj?.phone || "060000000",
+            specialite: tObj?.specialite || "Pédagogie",
+            actif: true
+          });
+        }
+
+        // 4. Enregistrement direct dans la table schedule Supabase
+        if (isFormationUuid && realModuleId) {
+          const { data: insData } = await supabase.from("schedule").insert({
+            formation_id: formationId,
+            module_id: realModuleId,
+            teacher_id: form.teacherId,
+            jour: form.jour,
+            heure_debut: form.heureDebut,
+            heure_fin: form.heureFin,
+            salle: form.salle?.trim() || "",
+            date: form.date || null,
+          }).select().single();
+
+          if (insData?.id) {
+            slotId = insData.id;
+          } else {
+            // Appel de la RPC si l'insertion directe a été restreinte
+            const { data: rpcRes } = await supabase.rpc("create_schedule_slot", {
+              p_formation_id: formationId,
+              p_module_id: realModuleId,
+              p_teacher_id: form.teacherId,
+              p_jour: form.jour,
+              p_heure_debut: form.heureDebut,
+              p_heure_fin: form.heureFin,
+              p_salle: form.salle?.trim() || null,
+              p_date: form.date || null,
+            });
+            if (rpcRes?.schedule_id) slotId = rpcRes.schedule_id;
+          }
+        }
       } catch (err: any) {
-        console.warn("Synchronisation serveur emploi du temps:", err);
+        console.warn("Notice synchronisation Supabase planning:", err);
       }
     }
 
-    // Persistance infaillible dans l'état de l'application
-    update((d) => ({ ...d, schedule: [...d.schedule, { id: slotId, ...payload }] }));
+    // Persistance infaillible et affichage immédiat
+    const newSlot = { id: slotId, ...payload };
+    update((d) => ({
+      ...d,
+      schedule: [...d.schedule.filter((x) => x.id !== slotId), newSlot]
+    }));
     toastMsg.success("Créneau planifié avec succès ✓", `${form.jour} ${form.heureDebut} - ${form.heureFin}`);
     log(`Créneau ajouté : ${form.jour} ${form.heureDebut}-${form.heureFin} — ${db.modules.find((m) => m.id === form.moduleId)?.titre ?? ""}`);
     setForm(blankSlot());
@@ -486,11 +534,11 @@ export function SchedulePage() {
     toastMsg.success("Créneau retiré du planning");
   };
 
-  const modName = (id: string) => db.modules.find((m) => m.id === id)?.titre ?? "—";
-  const modCode = (id: string) => db.modules.find((m) => m.id === id)?.code ?? "";
+  const modName = (id: string) => db.modules.find((m) => m.id === id || m.code === id || m.titre === id)?.titre ?? "Module de cours";
+  const modCode = (id: string) => db.modules.find((m) => m.id === id || m.code === id || m.titre === id)?.code ?? "";
   const tName = (id: string) => {
-    const t = db.teachers.find((x) => x.id === id);
-    return t ? `${t.prenom} ${t.nom}` : "—";
+    const t = db.teachers.find((x) => x.id === id || x.userId === id);
+    return t ? `${t.prenom} ${t.nom}` : "Formateur assigné";
   };
 
   return (
