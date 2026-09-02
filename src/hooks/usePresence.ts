@@ -104,22 +104,33 @@ export function usePresence() {
 
     fetchPresences();
 
+    let channel: any = null;
     const sb = getSupabase();
-    const channel = sb
-      .channel("presence-monitor")
-      .on(
-        "postgres_changes",
-        { event: "*", schema: "public", table: "user_presence" },
-        () => {
-          fetchPresences();
-        }
-      )
-      .subscribe();
+    const channelName = `presence-monitor-${Date.now()}-${Math.random().toString(36).slice(2, 7)}`;
+
+    try {
+      channel = sb
+        .channel(channelName)
+        .on(
+          "postgres_changes",
+          { event: "*", schema: "public", table: "user_presence" },
+          () => {
+            fetchPresences();
+          }
+        );
+      channel.subscribe();
+    } catch (err) {
+      console.warn("Realtime presence subscription warning:", err);
+    }
 
     const polling = setInterval(fetchPresences, 30000);
 
     return () => {
-      channel.unsubscribe();
+      if (channel) {
+        try {
+          sb.removeChannel(channel);
+        } catch { /* silence */ }
+      }
       clearInterval(polling);
     };
   }, [user, fetchPresences]);
