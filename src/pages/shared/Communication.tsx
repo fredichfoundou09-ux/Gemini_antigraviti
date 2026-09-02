@@ -3,7 +3,7 @@ import { Send, Mail, Bell, CheckCheck, Users, UserCircle2, Inbox, ChevronRight, 
 import { useStore } from "@/lib/store";
 import { cn } from "@/utils/cn";
 import { Btn, Card, Field, Input, Textarea, Empty, PageHead, Badge, uid, today } from "@/lib/ui";
-import { isSupabaseConfigured } from "@/lib/supabase/client";
+import { isSupabaseConfigured, getSupabase } from "@/lib/supabase/client";
 import { fetchMyConversations, startConversation, replyToConversation, subscribeToAllMessages } from "@/lib/supabase/communication";
 import { toastMsg } from "@/lib/toast";
 
@@ -28,6 +28,18 @@ export function MessageCenter() {
   const [replyBody, setReplyBody] = useState("");
   const [sendingReply, setSendingReply] = useState(false);
 
+  const [remoteProfiles, setRemoteProfiles] = useState<any[]>([]);
+
+  // Charger les profils Supabase réels
+  const loadProfiles = async () => {
+    if (!isSupabaseConfigured) return;
+    try {
+      const sb = getSupabase();
+      const { data } = await sb.from("profiles").select("id, name, username, email, role").order("name");
+      if (data && data.length > 0) setRemoteProfiles(data);
+    } catch { /* fallback */ }
+  };
+
   // Charger les conversations Supabase
   const loadConversations = async () => {
     if (!isSupabaseConfigured || !user?.id) return;
@@ -41,11 +53,15 @@ export function MessageCenter() {
 
   useEffect(() => {
     loadConversations();
+    loadProfiles();
     if (isSupabaseConfigured) {
       const sub = subscribeToAllMessages(() => {
         loadConversations();
       });
-      const refreshHandler = () => loadConversations();
+      const refreshHandler = () => {
+        loadConversations();
+        loadProfiles();
+      };
       window.addEventListener("sentinelles:supabase-refresh", refreshHandler);
       return () => {
         sub.unsubscribe();
@@ -68,13 +84,13 @@ export function MessageCenter() {
         );
         const lastMsg = msgs[msgs.length - 1];
         const isFromMe = lastMsg?.sender_id === user?.id;
-        const sender = db.users.find((u) => u.id === lastMsg?.sender_id);
+        const sender = remoteProfiles.find((p) => p.id === lastMsg?.sender_id) || db.users.find((u) => u.id === lastMsg?.sender_id);
         return {
           id: c.id,
           isRemote: true,
           subject: c.subject || "Discussion",
           date: lastMsg?.created_at ? new Date(lastMsg.created_at).toLocaleString("fr-FR", { dateStyle: "short", timeStyle: "short" }) : "",
-          lastSenderName: sender?.name || (isFromMe ? "Moi" : "Expéditeur inconnu"),
+          lastSenderName: sender?.name || sender?.username || (isFromMe ? "Moi" : "Expéditeur inconnu"),
           messages: msgs,
           isFromMe,
         };
@@ -90,7 +106,7 @@ export function MessageCenter() {
       isFromMe: m.fromId === user?.id,
       localMsg: m,
     }));
-  }, [remoteConvs, localMessages, isSupabaseConfigured, user?.id, db.users]);
+  }, [remoteConvs, localMessages, isSupabaseConfigured, user?.id, remoteProfiles, db.users]);
 
   const send = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -101,9 +117,11 @@ export function MessageCenter() {
       if (isSupabaseConfigured) {
         let memberIds: string[] = [];
         if (to === "all_students") {
-          memberIds = db.users.filter((u) => u.role === "student").map((u) => u.id);
+          const sIds = remoteProfiles.filter((p) => p.role === "student").map((p) => p.id);
+          memberIds = sIds.length > 0 ? sIds : db.users.filter((u) => u.role === "student").map((u) => u.id);
         } else if (to === "all_teachers") {
-          memberIds = db.users.filter((u) => u.role === "teacher").map((u) => u.id);
+          const tIds = remoteProfiles.filter((p) => p.role === "teacher").map((p) => p.id);
+          memberIds = tIds.length > 0 ? tIds : db.users.filter((u) => u.role === "teacher").map((u) => u.id);
         } else {
           memberIds = [to];
         }
@@ -120,7 +138,8 @@ export function MessageCenter() {
         toastMsg.success("Message envoyé en local ✓");
       }
 
-      log(`Message envoyé à ${userName(to)} : ${subject}`);
+      const destName = remoteProfiles.find((p) => p.id === to)?.name || userName(to);
+      log(`Message envoyé à ${destName} : ${subject}`);
       setSubject(""); setBody(""); setMode("inbox");
     } catch (err: any) {
       console.error("Erreur envoi message:", err);
@@ -155,11 +174,31 @@ export function MessageCenter() {
 
   const targets = useMemo(() => {
     const opts: { id: string; label: string; icon: React.ReactNode }[] = [];
-    if (["superadmin", "admin", "teacher"].includes(user!.role)) opts.push({ id: "all_students", label: "Tous les apprenants", icon: <Users size={14} /> });
-    if (["superadmin", "admin"].includes(user!.role)) opts.push({ id: "all_teachers", label: "Tous les enseignants", icon: <UserCircle2 size={14} /> });
-    db.users.filter((u) => u.id !== user!.id).forEach((u) => opts.push({ id: u.id, label: `${u.name} (${u.role})`, icon: <UserCircle2 size={14} /> }));
+    if (["superadmin", "admin", "teacher"].includes(user!.role)) {
+      opts.push({ id: "all_students", label: "Tous les apprenants", icon: <Users size={14} /> });
+    }
+    if (["superadmin", "admin"].includes(user!.role)) {
+      opts.push({ id: "all_teachers", label: "Tous les enseignants", icon: <UserCircle2 size={14} /> });
+    }
+
+    const seen = new Set<string>();
+    if (user?.id) seen.add(user.id);
+
+    // Profils Supabase distants
+    remoteProfiles.forEach((p) => {
+      if (!seen.has(p.id)) {
+        seen.add(p.id);
+        opts.push({ id: p.id, label: `${p.name || p.username} (${p.role})`, icon: <UserCircle2 size={14} /> });
+      }
+    });
+
+    // Utilisateurs locaux
+    db.users.filter((u) => !seen.has(u.id)).forEach((u) => {
+      opts.push({ id: u.id, label: `${u.name} (${u.role})`, icon: <UserCircle2 size={14} /> });
+    });
+
     return opts;
-  }, [db.users, user]);
+  }, [remoteProfiles, db.users, user]);
 
   return (
     <div>
@@ -241,10 +280,10 @@ export function MessageCenter() {
                         className="flex-1"
                         onKeyDown={(e) => { if (e.key === "Enter" && !e.shiftKey) { e.preventDefault(); handleReply(item.id); } }}
                       />
-                      <Btn size="sm" onClick={() => handleReply(item.id)} disabled={sendingReply || !replyBody.trim()}>
+                      <Btn className="px-3 py-1.5 text-xs" onClick={() => handleReply(item.id)} disabled={sendingReply || !replyBody.trim()}>
                         <Send size={14} /> {sendingReply ? "..." : "Envoyer"}
                       </Btn>
-                      <Btn variant="ghost" size="sm" onClick={() => { setReplyingTo(null); setReplyBody(""); }}>Annuler</Btn>
+                      <Btn variant="ghost" className="px-3 py-1.5 text-xs" onClick={() => { setReplyingTo(null); setReplyBody(""); }}>Annuler</Btn>
                     </div>
                   </div>
                 ) : (

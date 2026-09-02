@@ -533,8 +533,8 @@ export function SchedulePage() {
     toastMsg.success("Créneau retiré du planning");
   };
 
-  const modName = (id: string) => db.modules.find((m) => m.id === id || m.code === id || m.titre === id)?.titre ?? "Module de cours";
-  const modCode = (id: string) => db.modules.find((m) => m.id === id || m.code === id || m.titre === id)?.code ?? "";
+  const modName = (id: string) => db.modules.find((m) => m.id === id || (m as any).code === id || m.titre === id)?.titre ?? "Module de cours";
+  const modCode = (id: string) => (db.modules.find((m) => m.id === id || (m as any).code === id || m.titre === id) as any)?.code ?? "";
   const tName = (id: string) => {
     const t = db.teachers.find((x) => x.id === id || x.userId === id);
     return t ? `${t.prenom} ${t.nom}` : "Formateur assigné";
@@ -2409,7 +2409,7 @@ export function PaymentsPage() {
             <Card className="mb-5 overflow-x-auto">
               <div className="p-4 border-b border-white/5 flex justify-between items-center">
                 <h3 className="font-display text-sm font-bold text-white">Factures associées ({invoices.length})</h3>
-                <Btn size="sm" variant="outline" onClick={() => setCreatingInv(true)}><FileText size={14} /> Nouvelle facture</Btn>
+                <Btn variant="outline" className="px-3 py-1.5 text-xs" onClick={() => setCreatingInv(true)}><FileText size={14} /> Nouvelle facture</Btn>
               </div>
               <table className="w-full min-w-[650px] text-left text-sm">
                 <thead>
@@ -2452,7 +2452,7 @@ export function PaymentsPage() {
           {/* Historique paiements apprenant */}
           <div className="mb-3 flex items-center justify-between">
             <h3 className="font-display text-sm font-bold text-white">Historique des paiements de l'apprenant ({payments.length})</h3>
-            <Btn size="sm" onClick={() => setCreatingPay(true)}><PlusCircle size={14} /> Nouveau paiement</Btn>
+            <Btn className="px-3 py-1.5 text-xs" onClick={() => setCreatingPay(true)}><PlusCircle size={14} /> Nouveau paiement</Btn>
           </div>
           {payments.length === 0 ? (
             <Empty icon={<Wallet size={40} />} title="Aucun paiement enregistré" />
@@ -2571,7 +2571,7 @@ export function PaymentsPage() {
             </div>
             <div className="flex justify-end gap-2">
               <Btn variant="ghost" onClick={() => setDeletingPay(null)}>Annuler</Btn>
-              <Btn variant="danger" onClick={confirmDeletePayment}><Trash2 size={15} /> Confirmer la suppression</Btn>
+              <Btn variant="red" onClick={confirmDeletePayment}><Trash2 size={15} /> Confirmer la suppression</Btn>
             </div>
           </div>
         )}
@@ -2626,7 +2626,7 @@ export function PaymentsPage() {
             </div>
             <div className="flex justify-end gap-2">
               <Btn variant="ghost" onClick={() => setDeletingInv(null)}>Annuler</Btn>
-              <Btn variant="danger" onClick={confirmDeleteInvoice}><Trash2 size={15} /> Confirmer la suppression</Btn>
+              <Btn variant="red" onClick={confirmDeleteInvoice}><Trash2 size={15} /> Confirmer la suppression</Btn>
             </div>
           </div>
         )}

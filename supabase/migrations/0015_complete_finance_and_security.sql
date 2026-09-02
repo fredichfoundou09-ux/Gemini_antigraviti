@@ -61,6 +61,16 @@ CREATE TABLE IF NOT EXISTS public.payment_schedules (
 CREATE INDEX IF NOT EXISTS idx_payment_schedules_student ON public.payment_schedules(student_id);
 CREATE INDEX IF NOT EXISTS idx_payment_schedules_due_date ON public.payment_schedules(due_date);
 
+-- Fonction helper current_student_id
+CREATE OR REPLACE FUNCTION public.current_student_id()
+RETURNS TEXT
+LANGUAGE sql
+STABLE SECURITY DEFINER
+SET search_path = public
+AS $$
+  SELECT id FROM public.students WHERE user_id = auth.uid() LIMIT 1;
+$$;
+
 -- RLS pour payment_schedules
 ALTER TABLE public.payment_schedules ENABLE ROW LEVEL SECURITY;
 
@@ -183,6 +193,8 @@ END;
 $$;
 
 -- 4. Sécurisation de submit_registration avec validation d'appartenance des modules (Audit Section 14)
+DROP FUNCTION IF EXISTS public.submit_registration(TEXT, TEXT, TEXT, TEXT, TEXT, TEXT, TEXT, UUID[]);
+DROP FUNCTION IF EXISTS public.submit_registration;
 CREATE OR REPLACE FUNCTION public.submit_registration(
   p_nom TEXT,
   p_prenom TEXT,

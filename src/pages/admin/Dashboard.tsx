@@ -3,12 +3,14 @@ import { Link } from "react-router-dom";
 import {
   Users, GraduationCap, BookOpen, Wallet, ClipboardCheck, UserX, Timer,
   TestTube2, Award, BadgeDollarSign, TrendingUp, Activity, AlertTriangle, PlusCircle, RotateCcw,
-  CalendarDays, DollarSign,
+  CalendarDays, DollarSign, Download, FileSpreadsheet, FileJson, Archive, Radio, ShieldCheck,
+  CheckCircle2, XCircle, Search, Clock
 } from "lucide-react";
 import { useStore } from "@/lib/store";
-import { Card, Stat, PageHead, Badge, Btn, Field, Input, today, money, Empty, formationLabel } from "@/lib/ui";
+import { Card, Stat, PageHead, Badge, Btn, Field, Input, Modal, today, money, Empty, formationLabel } from "@/lib/ui";
 import { supabase, isSupabaseConfigured } from "@/lib/supabase/client";
 import { toastMsg } from "@/lib/toast";
+import { usePresence, isUserActiveOnline } from "@/hooks/usePresence";
 
 /* ---------- helpers ---------- */
 function Bar({ label, value, max, color }: { label: string; value: number; max: number; color: string }) {
@@ -25,6 +27,7 @@ function Bar({ label, value, max, color }: { label: string; value: number; max: 
 
 export function AdminDashboard() {
   const { db } = useStore();
+  const { presences } = usePresence();
   const d = today();
   const students = db.students;
   const attToday = db.attendance.filter((a) => a.date === d);
@@ -338,6 +341,49 @@ export function AdminDashboard() {
           )}
         </Card>
 
+        {/* Présence des utilisateurs en temps réel */}
+        <Card className="p-5">
+          <div className="mb-3 flex items-center justify-between">
+            <div className="flex items-center gap-2">
+              <span className="relative flex h-2.5 w-2.5">
+                <span className="absolute inline-flex h-full w-full animate-ping rounded-full bg-emerald-400 opacity-75"></span>
+                <span className="relative inline-flex h-2.5 w-2.5 rounded-full bg-emerald-500"></span>
+              </span>
+              <h3 className="font-display text-sm font-bold text-white">Présence en direct</h3>
+            </div>
+            <span className="rounded-full bg-emerald-500/10 px-2 py-0.5 text-[11px] font-bold text-emerald-400 border border-emerald-500/20">
+              {presences.filter(isUserActiveOnline).length} connecté(s)
+            </span>
+          </div>
+          <div className="space-y-2 max-h-56 overflow-y-auto pr-1">
+            {presences.slice(0, 8).map((p) => {
+              const online = isUserActiveOnline(p);
+              return (
+                <div key={p.user_id} className="flex items-center justify-between rounded-xl border border-white/5 bg-white/[0.02] px-3 py-2 text-xs">
+                  <div className="flex items-center gap-2.5 min-w-0">
+                    <span className={`h-2.5 w-2.5 shrink-0 rounded-full ${online ? "bg-emerald-400 shadow-[0_0_8px_rgba(52,211,153,0.8)]" : "bg-rose-500"}`} />
+                    <div className="min-w-0">
+                      <p className="truncate font-bold text-slate-200">{p.name || "Utilisateur"}</p>
+                      <p className="text-[10px] text-slate-500 capitalize">{p.role}</p>
+                    </div>
+                  </div>
+                  <div className="text-right shrink-0">
+                    <span className={`inline-block px-1.5 py-0.5 rounded text-[10px] font-semibold ${online ? "bg-emerald-500/15 text-emerald-300 border border-emerald-500/30" : "bg-rose-500/15 text-rose-300 border border-rose-500/30"}`}>
+                      {online ? "En ligne" : "Hors ligne"}
+                    </span>
+                    <p className="text-[10px] text-slate-600 mt-0.5">
+                      {p.last_seen_at ? new Date(p.last_seen_at).toLocaleTimeString("fr-FR", { hour: "2-digit", minute: "2-digit" }) : "—"}
+                    </p>
+                  </div>
+                </div>
+              );
+            })}
+            {presences.length === 0 && (
+              <p className="py-6 text-center text-xs text-slate-500">Aucune télémétrie de présence enregistrée.</p>
+            )}
+          </div>
+        </Card>
+
         {/* activity log */}
         <Card className="p-5">
           <div className="mb-3 flex items-center justify-between">
@@ -382,25 +428,199 @@ export function AdminDashboard() {
   );
 }
 
-/* ---------- Journal ---------- */
+/* ---------- Journal Rénové & Export Quotidien ---------- */
 export function JournalPage() {
-  const { db } = useStore();
+  const { db, update, log } = useStore();
+  const [filterUser, setFilterUser] = useState("tous");
+  const [searchTerm, setSearchTerm] = useState("");
+  const [showArchiveModal, setShowArchiveModal] = useState(false);
+
+  // Liste des utilisateurs distincts ayant des logs
+  const distinctUsers = useMemo(() => {
+    const set = new Set<string>();
+    db.log.forEach((l) => { if (l.user) set.add(l.user); });
+    return Array.from(set).sort();
+  }, [db.log]);
+
+  // Filtrage
+  const filteredLogs = useMemo(() => {
+    return db.log.filter((l) => {
+      const matchU = filterUser === "tous" || l.user === filterUser;
+      const matchQ = !searchTerm.trim() || l.action.toLowerCase().includes(searchTerm.toLowerCase()) || l.user.toLowerCase().includes(searchTerm.toLowerCase());
+      return matchU && matchQ;
+    });
+  }, [db.log, filterUser, searchTerm]);
+
+  // Regroupement par jour
+  const groupedByDay = useMemo(() => {
+    const map = new Map<string, typeof db.log>();
+    filteredLogs.forEach((l) => {
+      const day = l.date.slice(0, 10);
+      if (!map.has(day)) map.set(day, []);
+      map.get(day)!.push(l);
+    });
+    return Array.from(map.entries()).sort((a, b) => b[0].localeCompare(a[0]));
+  }, [filteredLogs]);
+
+  // Export CSV
+  const exportCSV = () => {
+    const headers = ["ID", "Date et Heure", "Utilisateur", "Action"];
+    const rows = filteredLogs.map((l) => [
+      l.id,
+      l.date,
+      `"${(l.user || "").replace(/"/g, '""')}"`,
+      `"${(l.action || "").replace(/"/g, '""')}"`
+    ]);
+    const csvContent = "\uFEFF" + [headers.join(";"), ...rows.map((r) => r.join(";"))].join("\n");
+    const blob = new Blob([csvContent], { type: "text/csv;charset=utf-8;" });
+    const url = URL.createObjectURL(blob);
+    const link = document.createElement("a");
+    link.href = url;
+    link.setAttribute("download", `journal_audit_${today()}.csv`);
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
+    URL.revokeObjectURL(url);
+    toastMsg.success("Journal d'audit exporté en CSV ✓");
+  };
+
+  // Export JSON
+  const exportJSON = () => {
+    const dataStr = JSON.stringify(filteredLogs, null, 2);
+    const blob = new Blob([dataStr], { type: "application/json;charset=utf-8;" });
+    const url = URL.createObjectURL(blob);
+    const link = document.createElement("a");
+    link.href = url;
+    link.setAttribute("download", `journal_audit_${today()}.json`);
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
+    URL.revokeObjectURL(url);
+    toastMsg.success("Journal d'audit exporté en JSON ✓");
+  };
+
+  // Archivage et nettoyage sécurisé des logs actifs
+  const confirmArchiveAndClean = () => {
+    update((d) => ({
+      ...d,
+      archivedLogs: [...(d.archivedLogs || []), ...d.log],
+      log: [],
+    }));
+    setShowArchiveModal(false);
+    toastMsg.success("Logs archivés et tableau actif nettoyé ✓", "Toutes les entrées ont été archivées en lieu sûr.");
+    log("Archivage et nettoyage sécurisé du journal d'activité");
+  };
+
   return (
-    <div>
-      <PageHead title="Journal d'activité" subtitle="Toutes les actions effectuées sur la plateforme" />
-      <Card className="overflow-hidden">
-        <div className="divide-y divide-white/5">
-          {db.log.map((l) => (
-            <div key={l.id} className="flex flex-wrap items-center gap-3 px-5 py-3">
-              <Activity size={14} className="shrink-0 text-cyan-400" />
-              <p className="min-w-0 flex-1 text-sm text-slate-300">{l.action}</p>
-              <Badge color="gray">{l.user}</Badge>
-              <span className="font-mono text-[11px] text-slate-500">{l.date}</span>
-            </div>
-          ))}
-          {db.log.length === 0 && <p className="px-5 py-8 text-center text-sm text-slate-500">Journal vide.</p>}
+    <div className="space-y-6">
+      <PageHead
+        title="Journal d'audit & d'activité"
+        subtitle="Traçabilité complète, regroupement par date et export administratif"
+        actions={
+          <div className="flex flex-wrap items-center gap-2">
+            <Btn variant="outline" className="px-3 py-1.5 text-xs" onClick={exportCSV} disabled={filteredLogs.length === 0}>
+              <FileSpreadsheet size={14} /> Exporter CSV
+            </Btn>
+            <Btn variant="outline" className="px-3 py-1.5 text-xs" onClick={exportJSON} disabled={filteredLogs.length === 0}>
+              <FileJson size={14} /> Exporter JSON
+            </Btn>
+            <Btn variant="red" className="px-3 py-1.5 text-xs" onClick={() => setShowArchiveModal(true)} disabled={db.log.length === 0}>
+              <Archive size={14} /> Archiver & Nettoyer
+            </Btn>
+          </div>
+        }
+      />
+
+      {/* Barre de recherche et filtres */}
+      <Card className="p-4">
+        <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+          <div className="relative flex-1">
+            <Search size={16} className="absolute left-3.5 top-1/2 -translate-y-1/2 text-slate-500" />
+            <input
+              type="text"
+              value={searchTerm}
+              onChange={(e) => setSearchTerm(e.target.value)}
+              placeholder="Rechercher une action, un mot-clé ou un identifiant..."
+              className="w-full rounded-xl border border-white/10 bg-white/[0.03] pl-10 pr-4 py-2 text-sm text-white placeholder-slate-500 outline-none focus:border-cyan-400/50"
+            />
+          </div>
+          <div className="flex items-center gap-2">
+            <span className="text-xs text-slate-400">Utilisateur :</span>
+            <select
+              value={filterUser}
+              onChange={(e) => setFilterUser(e.target.value)}
+              className="rounded-xl border border-white/10 bg-[#07102B] px-3 py-2 text-xs text-slate-200 outline-none focus:border-cyan-400/50"
+            >
+              <option value="tous">Tous les utilisateurs ({db.log.length})</option>
+              {distinctUsers.map((u) => (
+                <option key={u} value={u}>{u}</option>
+              ))}
+            </select>
+          </div>
         </div>
       </Card>
+
+      {/* Affichage groupé par date */}
+      {groupedByDay.length === 0 ? (
+        <Card className="p-12 text-center">
+          <Empty icon={<Activity size={40} />} title="Aucune activité trouvée" />
+        </Card>
+      ) : (
+        <div className="space-y-6">
+          {groupedByDay.map(([day, entries]) => (
+            <div key={day} className="space-y-2">
+              <div className="flex items-center gap-2 px-1">
+                <Clock size={14} className="text-cyan-400" />
+                <h3 className="text-xs font-bold uppercase tracking-wider text-cyan-300">
+                  {day === today() ? `Aujourd'hui (${day})` : day}
+                </h3>
+                <span className="text-[11px] text-slate-500 font-medium">— {entries.length} action(s)</span>
+              </div>
+              <Card className="overflow-hidden divide-y divide-white/5">
+                {entries.map((l) => (
+                  <div key={l.id} className="flex flex-wrap items-center gap-3 px-5 py-3 text-sm hover:bg-white/[0.01] transition">
+                    <Activity size={14} className="shrink-0 text-cyan-400" />
+                    <p className="min-w-0 flex-1 text-slate-300">{l.action}</p>
+                    <Badge color="gray">{l.user}</Badge>
+                    <span className="font-mono text-[11px] text-slate-500">
+                      {l.date.includes(" ") ? l.date.split(" ")[1] : l.date}
+                    </span>
+                  </div>
+                ))}
+              </Card>
+            </div>
+          ))}
+        </div>
+      )}
+
+      {/* Archives précédentes si existantes */}
+      {db.archivedLogs && db.archivedLogs.length > 0 && (
+        <div className="rounded-xl border border-white/5 bg-white/[0.01] p-4 text-xs text-slate-400 flex items-center justify-between">
+          <div className="flex items-center gap-2">
+            <Archive size={14} className="text-amber-400" />
+            <span>Historique sécurisé : <strong>{db.archivedLogs.length}</strong> entrées déjà archivées.</span>
+          </div>
+        </div>
+      )}
+
+      {/* Modale de confirmation d'archivage */}
+      <Modal open={showArchiveModal} onClose={() => setShowArchiveModal(false)} title="Confirmer l'archivage & nettoyage du journal">
+        <div className="space-y-4">
+          <p className="text-sm text-slate-300">
+            Vous vous apprêtez à archiver <strong className="text-cyan-300">{db.log.length} entrées actives</strong> du journal d'activité.
+          </p>
+          <div className="rounded-xl border border-amber-400/30 bg-amber-400/10 p-3.5 text-xs text-amber-300 space-y-1">
+            <p className="font-bold">🛡️ Aucune donnée ne sera perdue :</p>
+            <p>Toutes les entrées seront intégralement conservées dans l'historique d'archives. Le tableau principal redeviendra immédiatement fluide et vierge pour la nouvelle journée d'exploitation.</p>
+          </div>
+          <div className="flex justify-end gap-2 pt-2">
+            <Btn variant="ghost" onClick={() => setShowArchiveModal(false)}>Annuler</Btn>
+            <Btn variant="red" onClick={confirmArchiveAndClean}>
+              <Archive size={14} /> Confirmer l'archivage
+            </Btn>
+          </div>
+        </div>
+      </Modal>
     </div>
   );
 }

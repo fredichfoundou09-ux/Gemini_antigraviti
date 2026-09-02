@@ -43,10 +43,11 @@ export async function createConversation(subject: string, memberIds: string[]) {
   memberIds.filter(isUuid).forEach((m) => validMembers.add(m));
 
   if (validMembers.size > 0) {
-    await sb
-      .from("conversation_members")
-      .insert(Array.from(validMembers).map((user_id) => ({ conversation_id: conv.id, user_id })))
-      .catch(() => {});
+    try {
+      await sb
+        .from("conversation_members")
+        .insert(Array.from(validMembers).map((user_id) => ({ conversation_id: conv.id, user_id })));
+    } catch { /* silence */ }
   }
   return conv;
 }
@@ -90,10 +91,11 @@ export async function startConversation(subject: string, memberIds: string[], in
   validMemberIds.forEach((m) => allMembers.add(m));
 
   if (allMembers.size > 0) {
-    await sb
-      .from("conversation_members")
-      .insert(Array.from(allMembers).map((user_id) => ({ conversation_id: conv.id, user_id })))
-      .catch(() => {});
+    try {
+      await sb
+        .from("conversation_members")
+        .insert(Array.from(allMembers).map((user_id) => ({ conversation_id: conv.id, user_id })));
+    } catch { /* silence */ }
   }
 
   let messageId;
@@ -108,13 +110,15 @@ export async function startConversation(subject: string, memberIds: string[], in
     // Notifier les destinataires
     for (const recipientId of validMemberIds) {
       if (recipientId !== user.id) {
-        await sb.from("notifications").insert({
-          user_id: recipientId,
-          title: `Nouveau message : ${subject.trim()}`,
-          body: initialMessage.trim(),
-          type: "message",
-          read: false,
-        }).catch(() => {});
+        try {
+          await sb.from("notifications").insert({
+            user_id: recipientId,
+            title: `Nouveau message : ${subject.trim()}`,
+            body: initialMessage.trim(),
+            type: "message",
+            read: false,
+          });
+        } catch { /* silence */ }
       }
     }
   }
@@ -135,10 +139,11 @@ export async function replyToConversation(conversationId: string, senderId: stri
 
   // S'assurer que l'expéditeur est membre avant d'insérer
   if (isUuid(senderId)) {
-    await sb
-      .from("conversation_members")
-      .insert({ conversation_id: conversationId, user_id: senderId })
-      .catch(() => {});
+    try {
+      await sb
+        .from("conversation_members")
+        .insert({ conversation_id: conversationId, user_id: senderId });
+    } catch { /* silence */ }
   }
 
   return sendMessage(conversationId, senderId, body.trim());

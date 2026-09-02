@@ -8,6 +8,7 @@ import { useStore } from "@/lib/store";
 import { cn } from "@/utils/cn";
 import { Btn, Card, PageHead, Input, Badge } from "@/lib/ui";
 import { RESET_CATEGORIES, resetCategories, ResetCategory } from "@/lib/seed";
+import { supabase, isSupabaseConfigured } from "@/lib/supabase/client";
 
 type Step = "select" | "warn" | "confirm";
 

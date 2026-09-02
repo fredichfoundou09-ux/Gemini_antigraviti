@@ -58,6 +58,7 @@ export interface Student {
   dateInscription: string;
   statutPaiement: "paye" | "partiel" | "impaye";
   statut: "actif" | "inactif";
+  actif?: boolean;
   userId?: string;
 }
 
@@ -215,6 +216,7 @@ export interface FinancialSummary {
   totalDu: number;
   totalPaye: number;
   solde: number;
+  reste: number;
   statut: FinancialStatus;
   invoices: Invoice[];
   payments: Payment[];
@@ -446,6 +448,7 @@ export interface DB {
   students: Student[];
   teachers: Teacher[];
   registrations: PreRegistration[];
+  archivedRegistrations?: any[];
   courses: Course[];
   schedule: ScheduleItem[];
   attendance: AttendanceRecord[];
@@ -468,4 +471,5 @@ export interface DB {
   announcements: Announcement[];
   enia: EniaContent;
   log: LogEntry[];
+  archivedLogs?: LogEntry[];
 }

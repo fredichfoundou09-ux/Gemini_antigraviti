@@ -230,7 +230,8 @@ export function StoreProvider({ children }: { children: React.ReactNode }) {
           testsRes, resultsRes, gradesRes, notificationsRes,
           certificatesRes, scholarshipsRes,
           registrationsRes, registrationModulesRes,
-          schedulesRes
+          schedulesRes,
+          archivedRegistrationsRes
         ] = await Promise.all([
           supabase.from("profiles").select("*"),
           supabase.from("formations").select("*"),
@@ -252,6 +253,7 @@ export function StoreProvider({ children }: { children: React.ReactNode }) {
           supabase.from("registrations").select("*").order("created_at", { ascending: false }),
           supabase.from("registration_modules").select("*"),
           supabase.from("payment_schedules").select("*"),
+          supabase.from("archived_registrations").select("*").order("archived_at", { ascending: false }),
         ]);
 
         const updatedUsers: User[] = (!profilesRes.error && profilesRes.data ? profilesRes.data : []).map((p: any) => ({
@@ -286,6 +288,81 @@ export function StoreProvider({ children }: { children: React.ReactNode }) {
           arr.push(rm.module_id);
           regModulesByRegId.set(rm.registration_id, arr);
         });
+
+        // Mappage et cycle de vie automatique des préinscriptions
+        const rawRegs = (registrationsRes.data || []).map((r: any) => ({
+          id: r.id,
+          nom: r.nom,
+          prenom: r.prenom,
+          telephone: r.telephone,
+          whatsapp: r.whatsapp,
+          email: r.email || "",
+          niveau: r.niveau || "",
+          formation: (formationById.get(r.formation_id) || "informatique") as Formation,
+          modules: regModulesByRegId.get(r.id) || [],
+          date: r.date || r.created_at?.slice(0, 10) || "",
+          statut: r.statut as any,
+          createdAt: r.created_at || r.date,
+        }));
+
+        const existingArchives = (archivedRegistrationsRes?.data || []).map((a: any) => ({
+          id: a.id,
+          originalId: a.original_id,
+          nom: a.nom,
+          prenom: a.prenom,
+          email: a.email || "",
+          telephone: a.telephone || "",
+          formation: a.formation,
+          statut: a.statut,
+          archiveReason: a.archive_reason,
+          date: a.created_at?.slice(0, 10) || "",
+          archivedAt: a.archived_at ? new Date(a.archived_at).toLocaleString("fr-FR") : "",
+          modules: a.details?.modules || [],
+          whatsapp: a.details?.whatsapp || a.telephone || "",
+          niveau: a.details?.niveau || "",
+        }));
+
+        const nowMs = Date.now();
+        const activeRegs: any[] = [];
+        const newlyArchived: any[] = [];
+
+        rawRegs.forEach((r) => {
+          const regDateMs = new Date(r.createdAt || r.date).getTime();
+          const ageDays = isNaN(regDateMs) ? 0 : (nowMs - regDateMs) / (1000 * 60 * 60 * 24);
+
+          if (r.statut === "en_attente" && ageDays > 7) {
+            newlyArchived.push({
+              ...r,
+              archiveReason: "Délai de traitement dépassé (> 7 jours)",
+              archivedAt: new Date().toLocaleString("fr-FR"),
+            });
+          } else if ((r.statut === "confirmee" || r.statut === "refusee") && ageDays > 2) {
+            newlyArchived.push({
+              ...r,
+              archiveReason: "Archivage opérationnel post-traitement (> 2 jours)",
+              archivedAt: new Date().toLocaleString("fr-FR"),
+            });
+          } else {
+            activeRegs.push(r);
+          }
+        });
+
+        if (newlyArchived.length > 0) {
+          newlyArchived.forEach((na) => {
+            supabase.from("archived_registrations").insert({
+              original_id: na.id,
+              nom: na.nom,
+              prenom: na.prenom,
+              email: na.email,
+              telephone: na.telephone,
+              formation: na.formation,
+              statut: na.statut,
+              archive_reason: na.archiveReason,
+              created_at: na.createdAt || new Date().toISOString(),
+              details: { whatsapp: na.whatsapp, niveau: na.niveau, modules: na.modules }
+            }).then().catch(() => {});
+          });
+        }
 
         setDb((prev) => ({
           ...prev,
@@ -385,19 +462,8 @@ export function StoreProvider({ children }: { children: React.ReactNode }) {
           notifications: (notificationsRes.data || []).map((n: any) => ({ id: n.id, toId: n.user_id || "all", title: n.title, body: n.body, date: n.created_at?.slice(0, 10) || "", lu: n.read, type: n.type })),
           certificates: (certificatesRes.data || []).map((c: any) => ({ id: c.id, studentId: c.student_id, numero: c.numero, formation: (formationById.get(c.formation_id) || "informatique") as Formation, modules: (c.modules || []).map((x: any) => x.module_id), periode: c.periode, resultat: c.resultat, note: Number(c.note), date: c.date })),
           scholarships: (scholarshipsRes.data || []).map((s: any) => ({ id: s.id, studentId: s.student_id, statut: s.statut, date: s.date })),
-          registrations: (registrationsRes.data || []).map((r: any) => ({
-            id: r.id,
-            nom: r.nom,
-            prenom: r.prenom,
-            telephone: r.telephone,
-            whatsapp: r.whatsapp,
-            email: r.email || "",
-            niveau: r.niveau || "",
-            formation: (formationById.get(r.formation_id) || "informatique") as Formation,
-            modules: regModulesByRegId.get(r.id) || [],
-            date: r.date || r.created_at?.slice(0, 10) || "",
-            statut: r.statut as any,
-          })),
+          registrations: activeRegs,
+          archivedRegistrations: [...newlyArchived, ...existingArchives],
         }));
       } catch (err) {
         console.warn("Erreur chargement données privées Supabase:", err);
@@ -457,7 +523,8 @@ export function StoreProvider({ children }: { children: React.ReactNode }) {
           next.settings !== currentDb.settings ||
           next.advantages !== currentDb.advantages ||
           next.partners !== currentDb.partners ||
-          next.announcements !== currentDb.announcements
+          next.announcements !== currentDb.announcements ||
+          next.enia !== currentDb.enia
         ) {
           supabase.from("site_settings").upsert({
             id: "default",
@@ -466,6 +533,7 @@ export function StoreProvider({ children }: { children: React.ReactNode }) {
               advantages: next.advantages,
               partners: next.partners,
               announcements: next.announcements,
+              enia: next.enia,
             }),
             updated_at: new Date().toISOString(),
           }).then().catch((e) => console.warn("Auto-sync site_settings error:", e));

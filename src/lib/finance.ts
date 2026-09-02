@@ -19,7 +19,7 @@ export function financialSummary(db: DB, studentId: string): FinancialSummary {
     const overdue = invoices.some((i) => i.dueDate && i.dueDate < today) || schedules.some((s) => s.status !== "paye" && s.dueDate < today);
     if (overdue) statut = "retard";
   }
-  return { totalDu, totalPaye, solde, statut, invoices, payments, schedules };
+  return { totalDu, totalPaye, solde, reste: solde, statut, invoices, payments, schedules };
 }
 
 /** Répartit un paiement sur la facture ouverte la plus ancienne. Retourne l'invoiceId choisi. */

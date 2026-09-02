@@ -4,7 +4,7 @@ import { QRCodeSVG } from "qrcode.react";
 import {
   Users, Search, PlusCircle, Eye, EyeOff, Pencil, UserCircle2, Phone, Mail, MapPin, CalendarDays,
   GraduationCap, ShieldCheck, Trash2, CheckCircle2, XCircle, KeyRound, Clock, Wallet, BadgeDollarSign, Timer, MessageCircle, Download,
-  Table2, LayoutGrid, Printer, CreditCard, ExternalLink, ArrowRight,
+  Table2, LayoutGrid, Printer, CreditCard, ExternalLink, ArrowRight, Archive, FileSpreadsheet,
 } from "lucide-react";
 import { useStore } from "@/lib/store";
 import { cn } from "@/utils/cn";
@@ -62,7 +62,7 @@ const emptyStudent = (): Omit<Student, "id"> => ({
 });
 
 export function StudentsPage() {
-  const { db, update, nextStudentId, notify, log, computeAmount } = useStore();
+  const { db, user, update, nextStudentId, notify, log, computeAmount } = useStore();
   const navigate = useNavigate();
   const [searchParams] = useSearchParams();
   const [q, setQ] = useState("");
@@ -77,6 +77,7 @@ export function StudentsPage() {
   const [form, setForm] = useState<any>(emptyStudent());
   const [createdCreds, setCreatedCreds] = useState<{ nom: string; identifiant: string; motDePasse: string; phone?: string } | null>(null);
   const [deleteTarget, setDeleteTarget] = useState<Student | null>(null);
+  const [showArchives, setShowArchives] = useState(false);
 
   // Ouverture automatique depuis la barre de recherche globale
   useEffect(() => {
@@ -447,6 +448,69 @@ export function StudentsPage() {
       ...d,
       registrations: d.registrations.map((x) => (x.id === regId ? { ...x, statut: "refusee" as const } : x)),
     }));
+  };
+
+  const archiveRegistration = async (regId: string) => {
+    const reg = db.registrations.find((r) => r.id === regId);
+    if (!reg) return;
+    const archivedItem = {
+      ...reg,
+      archiveReason: "Archivage manuel par l'administrateur",
+      archivedAt: new Date().toLocaleString("fr-FR"),
+    };
+    if (isSupabaseConfigured) {
+      try {
+        await supabase.from("archived_registrations").insert({
+          original_id: reg.id,
+          nom: reg.nom,
+          prenom: reg.prenom,
+          email: reg.email,
+          telephone: reg.telephone,
+          formation: reg.formation,
+          statut: reg.statut,
+          archive_reason: "Archivage manuel par l'administrateur",
+          created_at: (reg as any).createdAt || new Date().toISOString(),
+          details: { whatsapp: reg.whatsapp, niveau: reg.niveau, modules: reg.modules }
+        });
+        await supabase.from("registrations").delete().eq("id", regId);
+      } catch { /* silence */ }
+    }
+    update((d) => ({
+      ...d,
+      registrations: d.registrations.filter((r) => r.id !== regId),
+      archivedRegistrations: [archivedItem, ...(d.archivedRegistrations || [])],
+    }));
+    toastMsg.success("Pré-inscription archivée ✓");
+    log(`Pré-inscription archivée : ${reg.nom} ${reg.prenom}`);
+  };
+
+  const exportArchivesCSV = () => {
+    const list = db.archivedRegistrations || [];
+    if (list.length === 0) return;
+    const headers = ["ID", "Nom", "Prénom", "Téléphone", "Email", "Formation", "Statut", "Motif Archivage", "Date Inscription", "Date Archivage"];
+    const rows = list.map((a: any) => [
+      a.id,
+      `"${(a.nom || "").replace(/"/g, '""')}"`,
+      `"${(a.prenom || "").replace(/"/g, '""')}"`,
+      a.telephone || "",
+      a.email || "",
+      a.formation || "",
+      a.statut || "",
+      `"${(a.archiveReason || "").replace(/"/g, '""')}"`,
+      a.date || "",
+      a.archivedAt || ""
+    ]);
+    const csvContent = "\uFEFF" + [headers.join(";"), ...rows.map((r) => r.join(";"))].join("\n");
+    const blob = new Blob([csvContent], { type: "text/csv;charset=utf-8;" });
+    const url = URL.createObjectURL(blob);
+    const link = document.createElement("a");
+    link.href = url;
+    link.setAttribute("download", `archives_preinscriptions_${today()}.csv`);
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
+    URL.revokeObjectURL(url);
+    toastMsg.success("Archives exportées en CSV ✓");
   };
 
   const confirmDeleteStudent = async () => {
@@ -971,36 +1035,109 @@ export function StudentsPage() {
         </div>
       )}
 
-      {/* pré-inscriptions */}
-      <h3 className="font-display mt-8 mb-3 text-lg font-bold text-white">Pré-inscriptions en ligne</h3>
-      {db.registrations.length === 0 ? (
-        <p className="text-sm text-slate-500">Aucune pré-inscription en attente.</p>
-      ) : (
-        <div className="space-y-3">
-          {db.registrations.map((r) => (
-            <Card key={r.id} className="p-4" glow={r.statut === "en_attente" ? "gold" : "none"}>
-              <div className="flex flex-wrap items-center justify-between gap-3">
-                <div>
-                  <p className="text-sm font-bold text-white">{r.nom} {r.prenom}</p>
-                  <p className="text-xs text-slate-400">{formationLabel(r.formation)} • {r.modules.length} module(s) • {r.niveau}</p>
-                  <div className="mt-1 flex flex-wrap gap-3 text-[11px] text-slate-500">
-                    <span className="flex items-center gap-1"><Phone size={11} /> {r.telephone}</span>
-                    <span className="flex items-center gap-1"><Mail size={11} /> {r.email}</span>
-                    <span className="flex items-center gap-1"><CalendarDays size={11} /> {r.date}</span>
+      {/* Section Pré-inscriptions en ligne & Archives sécurisées */}
+      <div className="mt-8 mb-3 flex flex-wrap items-center justify-between gap-3">
+        <div>
+          <h3 className="font-display text-lg font-bold text-white">Pré-inscriptions en ligne</h3>
+          <p className="text-xs text-slate-400">
+            Cycle de vie automatique (7j non traitée, 2j traitée) • {db.registrations.length} active(s) • {(db.archivedRegistrations || []).length} archivée(s)
+          </p>
+        </div>
+        <div className="flex items-center gap-2">
+          <Btn
+            variant="outline"
+            className="px-3 py-1.5 text-xs"
+            onClick={() => setShowArchives(!showArchives)}
+          >
+            <Archive size={14} />
+            {showArchives ? "Voir les actives" : `Archives (${(db.archivedRegistrations || []).length})`}
+          </Btn>
+          {showArchives && (db.archivedRegistrations || []).length > 0 && (
+            <Btn
+              variant="outline"
+              className="px-3 py-1.5 text-xs"
+              onClick={exportArchivesCSV}
+            >
+              <FileSpreadsheet size={14} /> Exporter CSV
+            </Btn>
+          )}
+        </div>
+      </div>
+
+      {!showArchives ? (
+        db.registrations.length === 0 ? (
+          <p className="text-sm text-slate-500">Aucune pré-inscription active.</p>
+        ) : (
+          <div className="space-y-3">
+            {db.registrations.map((r) => (
+              <Card key={r.id} className="p-4" glow={r.statut === "en_attente" ? "gold" : "none"}>
+                <div className="flex flex-wrap items-center justify-between gap-3">
+                  <div>
+                    <p className="text-sm font-bold text-white">{r.nom} {r.prenom}</p>
+                    <p className="text-xs text-slate-400">{formationLabel(r.formation)} • {r.modules.length} module(s) • {r.niveau}</p>
+                    <div className="mt-1 flex flex-wrap gap-3 text-[11px] text-slate-500">
+                      <span className="flex items-center gap-1"><Phone size={11} /> {r.telephone}</span>
+                      <span className="flex items-center gap-1"><Mail size={11} /> {r.email}</span>
+                      <span className="flex items-center gap-1"><CalendarDays size={11} /> {r.date}</span>
+                    </div>
+                  </div>
+                  <div className="flex items-center gap-2">
+                    <Badge color={r.statut === "en_attente" ? "gold" : r.statut === "confirmee" ? "green" : "red"}>{r.statut.replace("_", " ")}</Badge>
+                    {r.statut === "en_attente" && (
+                      <>
+                        <Btn variant="green" className="px-3 py-1.5 text-xs" onClick={() => confirmRegistration(r.id)}><CheckCircle2 size={15} /> Confirmer</Btn>
+                        <Btn variant="ghost" className="px-2 py-1.5 text-xs text-rose-400 hover:text-rose-300" onClick={() => rejectRegistration(r.id)} title="Refuser"><XCircle size={15} /></Btn>
+                      </>
+                    )}
+                    <Btn
+                      variant="ghost"
+                      className="px-2 py-1.5 text-xs text-slate-400 hover:text-amber-300"
+                      onClick={() => archiveRegistration(r.id)}
+                      title="Archiver sans supprimer"
+                    >
+                      <Archive size={14} />
+                    </Btn>
                   </div>
                 </div>
-                <div className="flex items-center gap-2">
-                  <Badge color={r.statut === "en_attente" ? "gold" : r.statut === "confirmee" ? "green" : "red"}>{r.statut.replace("_", " ")}</Badge>
-                  {r.statut === "en_attente" && (
-                    <>
-                      <Btn variant="green" onClick={() => confirmRegistration(r.id)}><CheckCircle2 size={15} /> Confirmer</Btn>
-                      <Btn variant="ghost" onClick={() => rejectRegistration(r.id)}><XCircle size={15} /></Btn>
-                    </>
-                  )}
-                </div>
-              </div>
+              </Card>
+            ))}
+          </div>
+        )
+      ) : (
+        /* Tiroir / Vue des Archives de préinscriptions */
+        <div className="space-y-3">
+          {(db.archivedRegistrations || []).length === 0 ? (
+            <Card className="p-8 text-center">
+              <p className="text-sm text-slate-500">Aucune pré-inscription archivée pour le moment.</p>
             </Card>
-          ))}
+          ) : (
+            (db.archivedRegistrations || []).map((a: any) => (
+              <Card key={a.id} className="p-4 border-white/5 bg-white/[0.01]">
+                <div className="flex flex-wrap items-center justify-between gap-3">
+                  <div>
+                    <div className="flex items-center gap-2">
+                      <p className="text-sm font-bold text-slate-200">{a.nom} {a.prenom}</p>
+                      <span className="rounded bg-amber-500/10 px-2 py-0.5 text-[10px] font-semibold text-amber-400 border border-amber-500/20">
+                        {a.archiveReason || "Archivée"}
+                      </span>
+                    </div>
+                    <p className="text-xs text-slate-400">{formationLabel(a.formation)} • {a.modules?.length || 0} module(s)</p>
+                    <div className="mt-1 flex flex-wrap gap-3 text-[11px] text-slate-500">
+                      <span className="flex items-center gap-1"><Phone size={11} /> {a.telephone}</span>
+                      <span className="flex items-center gap-1"><Mail size={11} /> {a.email || "—"}</span>
+                      <span className="flex items-center gap-1"><CalendarDays size={11} /> Inscrit le : {a.date}</span>
+                      {a.archivedAt && <span className="flex items-center gap-1"><Archive size={11} /> Archivé le : {a.archivedAt}</span>}
+                    </div>
+                  </div>
+                  <div className="flex items-center gap-2">
+                    <Badge color={a.statut === "confirmee" ? "green" : a.statut === "refusee" ? "red" : "gold"}>
+                      {a.statut ? a.statut.replace("_", " ") : "archivé"}
+                    </Badge>
+                  </div>
+                </div>
+              </Card>
+            ))
+          )}
         </div>
       )}
 

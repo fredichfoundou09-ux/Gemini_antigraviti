@@ -31,9 +31,8 @@ export function PasswordChangeCard() {
       return;
     }
 
-    const check = passwordStrong(newPassword);
-    if (!check.ok) {
-      toastMsg.error("Mot de passe insuffisant", check.reason || "Veuillez choisir un mot de passe plus robuste.");
+    if (!passwordStrong(newPassword)) {
+      toastMsg.error("Mot de passe insuffisant", "Veuillez choisir un mot de passe robuste (au moins 8 caractères, majuscule, minuscule et chiffre).");
       return;
     }
 

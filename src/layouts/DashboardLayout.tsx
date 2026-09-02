@@ -11,6 +11,7 @@ import { cn } from "@/utils/cn";
 import { useStore } from "@/lib/store";
 import { useAuth } from "@/contexts/AuthContext";
 import { Badge, formationLabel } from "@/lib/ui";
+import { usePresence } from "@/hooks/usePresence";
 
 const roleLabel: Record<string, string> = {
   superadmin: "SUPER ADMIN",
@@ -107,6 +108,7 @@ export default function DashboardLayout() {
   const [searchQuery, setSearchQuery] = useState("");
   const searchInputRef = useRef<HTMLInputElement>(null);
   const searchContainerRef = useRef<HTMLDivElement>(null);
+  usePresence();
 
   const user = storeUser || (profile ? {
     id: profile.id,

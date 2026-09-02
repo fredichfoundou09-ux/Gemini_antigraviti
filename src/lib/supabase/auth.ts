@@ -161,6 +161,7 @@ export async function invokeCreateUser(payload: {
   teacher?: any;
   partner?: any;
   module_ids?: string[];
+  frais?: any;
 }) {
   const sb = getSupabase();
   const { data, error } = await sb.functions.invoke("create-user", {
