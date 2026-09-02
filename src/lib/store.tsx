@@ -115,8 +115,12 @@ interface StoreCtxType {
     registrationFee: number;
     moduleTotal: number;
     total: number;
+    tranche1: number;
+    tranche2: number;
+    tranche3: number;
     installment1: number;
     installment2: number;
+    installment3: number;
   };
   userName: (id: string) => string;
   studentOf: (userId: string) => DB["students"][number] | undefined;
@@ -838,14 +842,19 @@ export function StoreProvider({ children }: { children: React.ReactNode }) {
     const regFee = Number(db.settings.frais?.inscription || 5000);
     const moduleTotal = computeAmount(f, moduleCount, false);
     const total = regFee + moduleTotal;
-    const installment1 = regFee + Math.round(moduleTotal / 2);
-    const installment2 = total - installment1;
+    const tranche1 = regFee; // Tranche 1 : Frais d'inscription obligatoires (avant le début des cours)
+    const tranche2 = Math.round(moduleTotal / 2); // Tranche 2 : 50% des cours (après 1 mois)
+    const tranche3 = moduleTotal - tranche2; // Tranche 3 : Solde restant des cours (avant fin de formation)
     return {
       registrationFee: regFee,
       moduleTotal,
       total,
-      installment1,
-      installment2,
+      tranche1,
+      tranche2,
+      tranche3,
+      installment1: tranche1,
+      installment2: tranche2,
+      installment3: tranche3,
     };
   };
 

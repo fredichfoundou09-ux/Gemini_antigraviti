@@ -156,6 +156,38 @@ export function TarifsPage() {
           </Card>
         </div>
 
+        {/* Modalités officielles de règlement en 3 tranches */}
+        <div className="mt-8 rounded-2xl border border-cyan-400/25 bg-gradient-to-br from-cyan-950/20 via-slate-900/40 to-black/60 p-6">
+          <div className="flex flex-wrap items-center justify-between gap-3 border-b border-white/10 pb-4 mb-4">
+            <div>
+              <p className="text-xs font-bold uppercase tracking-wider text-cyan-300">Modalités & Cycle de règlement officiel</p>
+              <h3 className="font-display text-lg font-black text-white mt-0.5">Paiement échelonné en 3 tranches</h3>
+            </div>
+            <Link to="/pre-inscription">
+              <Btn variant="green" className="py-2 text-xs">
+                S'inscrire en ligne
+              </Btn>
+            </Link>
+          </div>
+          <div className="grid gap-4 sm:grid-cols-3">
+            <div className="rounded-xl border border-amber-400/30 bg-amber-950/20 p-4">
+              <span className="inline-block rounded bg-amber-400/20 px-2 py-0.5 text-[10px] font-bold text-amber-300 uppercase">Tranche 1</span>
+              <p className="font-display text-sm font-bold text-white mt-1.5">Frais d'inscription ({money(f.inscription)})</p>
+              <p className="text-xs text-slate-400 mt-1">À régler dès la confirmation avant le début des cours (ouvre votre accès et délivre votre badge apprenant).</p>
+            </div>
+            <div className="rounded-xl border border-cyan-400/30 bg-cyan-950/20 p-4">
+              <span className="inline-block rounded bg-cyan-400/20 px-2 py-0.5 text-[10px] font-bold text-cyan-300 uppercase">Tranche 2</span>
+              <p className="font-display text-sm font-bold text-cyan-300 mt-1.5">50% des cours (À 1 mois)</p>
+              <p className="text-xs text-slate-400 mt-1">Exigible un mois après le démarrage de la formation sur la base des modules choisis.</p>
+            </div>
+            <div className="rounded-xl border border-emerald-400/30 bg-emerald-950/20 p-4">
+              <span className="inline-block rounded bg-emerald-400/20 px-2 py-0.5 text-[10px] font-bold text-emerald-300 uppercase">Tranche 3</span>
+              <p className="font-display text-sm font-bold text-emerald-300 mt-1.5">Solde restant (Fin de formation)</p>
+              <p className="text-xs text-slate-400 mt-1">Dernière tranche à régler avant la fin de la formation pour valider l'examen et obtenir le certificat.</p>
+            </div>
+          </div>
+        </div>
+
         <div className="mt-10 grid gap-4 md:grid-cols-3">
           {[
             { icon: <Award size={22} className="text-amber-300" />, t: db.settings.avantages[0], b: "border-amber-400/30" },
@@ -374,15 +406,25 @@ export function PreInscriptionPage() {
                 </div>
 
                 <div className="rounded-xl border border-white/10 bg-white/[0.02] p-4 text-xs text-slate-300">
-                  <p className="mb-2 font-bold uppercase tracking-wider text-slate-400">📅 Échéancier en 2 tranches</p>
-                  <div className="grid grid-cols-2 gap-3">
-                    <div className="rounded-lg border border-cyan-400/20 bg-cyan-950/20 p-2.5">
-                      <p className="text-[10px] text-slate-400">Tranche 1 (à l'inscription)</p>
-                      <p className="text-sm font-bold text-cyan-300">{money(pb.installment1)}</p>
+                  <div className="mb-2.5 flex items-center justify-between">
+                    <p className="font-bold uppercase tracking-wider text-slate-300">📅 Échéancier officiel en 3 tranches</p>
+                    <span className="text-[10px] text-cyan-400 font-medium">Modalités flexibles de paiement</span>
+                  </div>
+                  <div className="grid grid-cols-1 sm:grid-cols-3 gap-2.5">
+                    <div className="rounded-lg border border-amber-400/30 bg-amber-950/20 p-2.5">
+                      <p className="text-[10px] font-bold text-amber-300 uppercase">Tranche 1 (Inscription)</p>
+                      <p className="text-sm font-black text-white mt-0.5">{money(pb.tranche1)}</p>
+                      <p className="text-[9px] text-slate-400 mt-1">Avant le début des cours (valide votre badge et accès).</p>
                     </div>
-                    <div className="rounded-lg border border-white/10 bg-white/[0.02] p-2.5">
-                      <p className="text-[10px] text-slate-400">Tranche 2 (à 1 mois)</p>
-                      <p className="text-sm font-bold text-slate-200">{money(pb.installment2)}</p>
+                    <div className="rounded-lg border border-cyan-400/30 bg-cyan-950/20 p-2.5">
+                      <p className="text-[10px] font-bold text-cyan-300 uppercase">Tranche 2 (Après 1 mois)</p>
+                      <p className="text-sm font-black text-cyan-300 mt-0.5">{money(pb.tranche2)}</p>
+                      <p className="text-[9px] text-slate-400 mt-1">50% des cours, 1 mois après le démarrage.</p>
+                    </div>
+                    <div className="rounded-lg border border-emerald-400/30 bg-emerald-950/20 p-2.5">
+                      <p className="text-[10px] font-bold text-emerald-300 uppercase">Tranche 3 (Fin de session)</p>
+                      <p className="text-sm font-black text-emerald-300 mt-0.5">{money(pb.tranche3)}</p>
+                      <p className="text-[9px] text-slate-400 mt-1">Solde restant avant validation et certificat.</p>
                     </div>
                   </div>
                 </div>

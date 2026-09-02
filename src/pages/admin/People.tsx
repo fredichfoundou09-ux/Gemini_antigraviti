@@ -1219,23 +1219,23 @@ export function StudentsPage() {
               </div>
             </div>
 
-            {/* Récapitulatif des tranches de paiement */}
+            {/* Récapitulatif des 3 tranches de paiement */}
             <div className="rounded-xl border border-cyan-500/20 bg-cyan-500/5 p-3 text-left">
-              <p className="text-[11px] font-bold uppercase tracking-wider text-cyan-300 mb-2">Échéancier de règlement prévu :</p>
+              <p className="text-[11px] font-bold uppercase tracking-wider text-cyan-300 mb-2">Échéancier officiel en 3 tranches :</p>
               <div className="space-y-1.5 text-xs">
                 <div className="flex justify-between text-slate-300">
-                  <span>1. Inscription (Immédiate) :</span>
+                  <span>Tranche 1 (Inscription — Immédiate) :</span>
                   <strong className="text-white">{money(createdCreds.inscAmount || 5000)}</strong>
                 </div>
                 {(createdCreds.tranche1 ?? 0) > 0 && (
                   <div className="flex justify-between text-slate-300">
-                    <span>2. Tranche 1 (Dans 1 mois - 50%) :</span>
+                    <span>Tranche 2 (Après 1 mois — 50%) :</span>
                     <strong className="text-cyan-300">{money(createdCreds.tranche1 || 0)}</strong>
                   </div>
                 )}
                 {(createdCreds.tranche2 ?? 0) > 0 && (
                   <div className="flex justify-between text-slate-300">
-                    <span>3. Tranche 2 (Fin de session) :</span>
+                    <span>Tranche 3 (Fin de session — Solde) :</span>
                     <strong className="text-emerald-300">{money(createdCreds.tranche2 || 0)}</strong>
                   </div>
                 )}
@@ -1252,10 +1252,10 @@ export function StudentsPage() {
                     `🌐 Lien de connexion : https://code6senti.vercel.app/#/connexion\n` +
                     `👤 Identifiant : ${createdCreds.identifiant}\n` +
                     `🔑 Mot de passe temporaire : ${createdCreds.motDePasse}\n\n` +
-                    `💳 Modalités et cycle de règlement de votre formation (${money(createdCreds.totalAmount || (createdCreds.inscAmount || 5000) + (createdCreds.tranche1 || 0) + (createdCreds.tranche2 || 0))}) :\n` +
-                    `1. Frais d'inscription (${money(createdCreds.inscAmount || 5000)}) : À régler auprès de la direction avant le début des cours (ouvre vos accès et badge).\n` +
-                    ((createdCreds.tranche1 ?? 0) > 0 ? `2. Première tranche (${money(createdCreds.tranche1 || 0)}) : Exigible 1 mois après le démarrage de la formation (50% des cours).\n` : "") +
-                    ((createdCreds.tranche2 ?? 0) > 0 ? `3. Deuxième tranche (${money(createdCreds.tranche2 || 0)}) : Solde restant exigible avant la fin de la formation.\n\n` : "\n") +
+                    `💳 Modalités et cycle officiel de règlement en 3 tranches (${money(createdCreds.totalAmount || (createdCreds.inscAmount || 5000) + (createdCreds.tranche1 || 0) + (createdCreds.tranche2 || 0))}) :\n` +
+                    `1. Tranche 1 — Frais d'inscription (${money(createdCreds.inscAmount || 5000)}) : À régler auprès de la direction avant le début des cours (ouvre vos accès et votre badge apprenant).\n` +
+                    ((createdCreds.tranche1 ?? 0) > 0 ? `2. Tranche 2 — Premier versement cours (${money(createdCreds.tranche1 || 0)}) : Exigible 1 mois après le démarrage de la formation (50% des cours).\n` : "") +
+                    ((createdCreds.tranche2 ?? 0) > 0 ? `3. Tranche 3 — Solde final (${money(createdCreds.tranche2 || 0)}) : Exigible avant la fin de la formation pour valider l'examen et obtenir le certificat.\n\n` : "\n") +
                     `📍 Rapprochez-vous de la direction (Institut des Jeunes Sourds / ENIA 2.0, Brazzaville) pour régulariser votre inscription.\n\n` +
                     `À très bientôt en cours !`
                   )}`}
