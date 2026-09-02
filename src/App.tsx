@@ -6,6 +6,7 @@ import DashboardLayout from "@/layouts/DashboardLayout";
 import Home from "@/pages/public/Home";
 import { LoginPage, FormationsPage, TarifsPage, PreInscriptionPage } from "@/pages/public/PublicPages";
 import { AccountActivationPage } from "@/pages/public/AccountActivation";
+import { TeacherAccessPage } from "@/pages/public/TeacherAccessPage";
 import { AdminDashboard, JournalPage, ParametresPage } from "@/pages/admin/Dashboard";
 import { StudentsPage, TeachersPage, UsersPage } from "@/pages/admin/People";
 import {
@@ -105,6 +106,7 @@ export default function App() {
             <Route path="/pre-inscription" element={<PreInscriptionPage />} />
             <Route path="/connexion" element={<LoginPage />} />
             <Route path="/activer-compte" element={<AccountActivationPage />} />
+            <Route path="/acces-formateur" element={<TeacherAccessPage />} />
             <Route path="/verifier-certificat" element={<CertificateVerifyPage />} />
           </Route>
 
@@ -179,6 +181,7 @@ export default function App() {
             <Route path="mes-presences" element={<Gate roles={["student"]}><MyAttendance /></Gate>} />
             <Route path="mes-notes" element={<Gate roles={["student"]}><MyGrades /></Gate>} />
             <Route path="mes-paiements" element={<Gate roles={["student"]}><MyPayments /></Gate>} />
+            <Route path="etudiant/finances" element={<Gate roles={["student"]}><MyPayments /></Gate>} />
             <Route path="mon-certificat" element={<Gate roles={["student"]}><MyCertificate /></Gate>} />
             <Route path="ma-bourse" element={<Gate roles={["student"]}><MyScholarship /></Gate>} />
             <Route index element={<Navigate to="dashboard" replace />} />

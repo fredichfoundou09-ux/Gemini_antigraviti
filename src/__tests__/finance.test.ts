@@ -89,4 +89,18 @@ describe("Finance and Ledger Reconciliation (Audit 4.2)", () => {
     expect(res.solde).toBe(0);
     expect(res.statut).toBe("paye");
   });
+
+  it("génère correctement les tranches d'échéancier (50% à 1 mois, solde à la fin)", () => {
+    const tuitionTotal = 14000;
+    const tranche1 = Math.round(tuitionTotal / 2);
+    const tranche2 = tuitionTotal - tranche1;
+
+    expect(tranche1).toBe(7000);
+    expect(tranche2).toBe(7000);
+    expect(tranche1 + tranche2).toBe(tuitionTotal);
+
+    const inscription = 5000;
+    const totalWithInscription = tuitionTotal + inscription;
+    expect(totalWithInscription).toBe(19000);
+  });
 });

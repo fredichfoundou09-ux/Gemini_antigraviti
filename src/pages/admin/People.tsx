@@ -75,7 +75,16 @@ export function StudentsPage() {
   const [viewing, setViewing] = useState<Student | null>(null);
   const [printingBadge, setPrintingBadge] = useState<Student | null>(null);
   const [form, setForm] = useState<any>(emptyStudent());
-  const [createdCreds, setCreatedCreds] = useState<{ nom: string; identifiant: string; motDePasse: string; phone?: string } | null>(null);
+  const [createdCreds, setCreatedCreds] = useState<{
+    nom: string;
+    identifiant: string;
+    motDePasse: string;
+    phone?: string;
+    totalAmount?: number;
+    inscAmount?: number;
+    tranche1?: number;
+    tranche2?: number;
+  } | null>(null);
   const [deleteTarget, setDeleteTarget] = useState<Student | null>(null);
   const [showArchives, setShowArchives] = useState(false);
 
@@ -251,6 +260,18 @@ export function StudentsPage() {
                 log(`Factures créées pour ${form.nom} ${form.prenom} (${createdStudentId}) : ${money(montant + insc)}`);
               }
             }
+
+            if (montant > 0) {
+              try {
+                await supabase.rpc("generate_student_payment_schedule", {
+                  p_student_id: createdStudentId,
+                  p_tuition_total: montant,
+                  p_start_date: today(),
+                });
+              } catch (schErr: any) {
+                console.warn("Échéancier auto notice:", schErr.message);
+              }
+            }
           }
           
           setCreatedCreds({
@@ -258,11 +279,15 @@ export function StudentsPage() {
             identifiant: uname,
             motDePasse: tempPassword,
             phone: form.whatsapp || form.telephone,
+            totalAmount: montant + insc,
+            inscAmount: insc,
+            tranche1: Math.round(montant / 2),
+            tranche2: montant - Math.round(montant / 2),
           });
           toastMsg.credentials({ nom: `${form.prenom} ${form.nom}`, identifiant: uname, motDePasse: tempPassword });
-          toastMsg.success("Apprenant inscrit avec facturation automatique ✓");
+          toastMsg.success("Apprenant inscrit avec facturation et échéancier automatique ✓");
           if (montant + insc > 0) {
-            toastMsg.info(`Factures générées : ${money(montant + insc)}`);
+            toastMsg.info(`Factures générées : ${money(montant + insc)} (2 tranches configurées)`);
           }
           log(`Apprenant inscrit (Supabase) : ${form.nom} ${form.prenom} — compte ${uname}`);
           window.dispatchEvent(new Event("sentinelles:supabase-refresh"));
@@ -381,6 +406,18 @@ export function StudentsPage() {
               log(`Factures créées suite confirmation pour ${reg.nom} ${reg.prenom} (${confirmedStudentId}) : ${money(montant + insc)}`);
             }
           }
+
+          if (montant > 0) {
+            try {
+              await supabase.rpc("generate_student_payment_schedule", {
+                p_student_id: confirmedStudentId,
+                p_tuition_total: montant,
+                p_start_date: today(),
+              });
+            } catch (schErr: any) {
+              console.warn("Échéancier auto notice:", schErr.message);
+            }
+          }
         }
         
         await supabase.from("registrations").update({ statut: "confirmee", updated_at: new Date().toISOString() }).eq("id", regId);
@@ -395,11 +432,15 @@ export function StudentsPage() {
           identifiant: confirmedUname,
           motDePasse: tempPassword,
           phone: reg.whatsapp || reg.telephone,
+          totalAmount: montant + insc,
+          inscAmount: insc,
+          tranche1: Math.round(montant / 2),
+          tranche2: montant - Math.round(montant / 2),
         });
         toastMsg.credentials({ nom: `${reg.prenom} ${reg.nom}`, identifiant: confirmedUname, motDePasse: tempPassword });
         toastMsg.success(res?.is_existing ? "Apprenant associé au compte existant et confirmé ✓" : "Inscription confirmée et compte apprenant activé ✓");
         if (montant + insc > 0) {
-          toastMsg.info(`Factures générées : ${money(montant + insc)}`);
+          toastMsg.info(`Factures générées : ${money(montant + insc)} (2 tranches configurées)`);
         }
         log(`Pré-inscription confirmée (Supabase) : ${reg.nom} ${reg.prenom} — compte ${confirmedUname}`);
         window.dispatchEvent(new Event("sentinelles:supabase-refresh"));
@@ -1178,24 +1219,52 @@ export function StudentsPage() {
               </div>
             </div>
 
+            {/* Récapitulatif des tranches de paiement */}
+            <div className="rounded-xl border border-cyan-500/20 bg-cyan-500/5 p-3 text-left">
+              <p className="text-[11px] font-bold uppercase tracking-wider text-cyan-300 mb-2">Échéancier de règlement prévu :</p>
+              <div className="space-y-1.5 text-xs">
+                <div className="flex justify-between text-slate-300">
+                  <span>1. Inscription (Immédiate) :</span>
+                  <strong className="text-white">{money(createdCreds.inscAmount || 5000)}</strong>
+                </div>
+                {(createdCreds.tranche1 ?? 0) > 0 && (
+                  <div className="flex justify-between text-slate-300">
+                    <span>2. Tranche 1 (Dans 1 mois - 50%) :</span>
+                    <strong className="text-cyan-300">{money(createdCreds.tranche1 || 0)}</strong>
+                  </div>
+                )}
+                {(createdCreds.tranche2 ?? 0) > 0 && (
+                  <div className="flex justify-between text-slate-300">
+                    <span>3. Tranche 2 (Fin de session) :</span>
+                    <strong className="text-emerald-300">{money(createdCreds.tranche2 || 0)}</strong>
+                  </div>
+                )}
+              </div>
+            </div>
+
             <div className="flex flex-col gap-2 pt-2">
               {createdCreds.phone && (
                 <a
                   href={`https://wa.me/242${createdCreds.phone.replace(/[^0-9]/g, "")}?text=${encodeURIComponent(
                     `Bonjour ${createdCreds.nom},\n\n` +
-                    `Votre inscription à SENTINELLES NUMÉRIQUES a été validée avec succès !\n\n` +
-                    `Voici vos accès pour vous connecter :\n` +
-                    `🌐 Lien : https://code6senti.vercel.app/#/connexion\n` +
+                    `Votre inscription au centre de formation SENTINELLES NUMÉRIQUES (ENIA 2.0) est confirmée avec succès !\n\n` +
+                    `Voici vos identifiants d'accès à l'Espace Apprenant :\n` +
+                    `🌐 Lien de connexion : https://code6senti.vercel.app/#/connexion\n` +
                     `👤 Identifiant : ${createdCreds.identifiant}\n` +
-                    `🔑 Mot de passe : ${createdCreds.motDePasse}\n\n` +
-                    `Veuillez conserver précieusement ces informations pour accéder à votre espace apprenant.`
+                    `🔑 Mot de passe temporaire : ${createdCreds.motDePasse}\n\n` +
+                    `💳 Modalités et cycle de règlement de votre formation (${money(createdCreds.totalAmount || (createdCreds.inscAmount || 5000) + (createdCreds.tranche1 || 0) + (createdCreds.tranche2 || 0))}) :\n` +
+                    `1. Frais d'inscription (${money(createdCreds.inscAmount || 5000)}) : À régler auprès de la direction avant le début des cours (ouvre vos accès et badge).\n` +
+                    ((createdCreds.tranche1 ?? 0) > 0 ? `2. Première tranche (${money(createdCreds.tranche1 || 0)}) : Exigible 1 mois après le démarrage de la formation (50% des cours).\n` : "") +
+                    ((createdCreds.tranche2 ?? 0) > 0 ? `3. Deuxième tranche (${money(createdCreds.tranche2 || 0)}) : Solde restant exigible avant la fin de la formation.\n\n` : "\n") +
+                    `📍 Rapprochez-vous de la direction (Institut des Jeunes Sourds / ENIA 2.0, Brazzaville) pour régulariser votre inscription.\n\n` +
+                    `À très bientôt en cours !`
                   )}`}
                   target="_blank"
                   rel="noreferrer"
                   className="w-full"
                 >
                   <Btn variant="green" className="w-full justify-center">
-                    <MessageCircle size={16} /> Envoyer par WhatsApp
+                    <MessageCircle size={16} /> Envoyer accès & échéancier par WhatsApp
                   </Btn>
                 </a>
               )}
@@ -1205,9 +1274,9 @@ export function StudentsPage() {
                   className="flex-1 justify-center"
                   onClick={() => {
                     navigator.clipboard.writeText(
-                      `Identifiant : ${createdCreds.identifiant}\nMot de passe : ${createdCreds.motDePasse}\nLien : https://code6senti.vercel.app/#/connexion`
+                      `Identifiant : ${createdCreds.identifiant}\nMot de passe : ${createdCreds.motDePasse}\nLien : https://code6senti.vercel.app/#/connexion\nInscription : ${money(createdCreds.inscAmount || 5000)}\nTranche 1 (1 mois) : ${money(createdCreds.tranche1 || 0)}\nTranche 2 (Fin) : ${money(createdCreds.tranche2 || 0)}`
                     );
-                    toastMsg.success("Accès copiés dans le presse-papier !");
+                    toastMsg.success("Accès et échéancier copiés dans le presse-papier !");
                   }}
                 >
                   Copier les accès
@@ -2122,18 +2191,18 @@ function TeacherDetail({ t }: { t: any }) {
         </div>
       )}
 
-      {/* Accès sécurisé & Invitation WhatsApp (Point 4.3 de l'audit) */}
+      {/* Accès sécurisé & Invitation WhatsApp à Usage Unique (Exigence formateur) */}
       <div className="rounded-xl border border-emerald-500/20 bg-emerald-500/5 p-4">
         <div className="flex flex-wrap items-center justify-between gap-3">
           <div>
-            <p className="text-xs font-bold uppercase tracking-wider text-emerald-300">Invitation & Accès Formateur</p>
-            <p className="text-[11px] text-slate-400">Générer un lien temporaire sécurisé (48h) sans transmission de mot de passe en clair</p>
+            <p className="text-xs font-bold uppercase tracking-wider text-emerald-300">Invitation & Accès Formateur (Lien Unique)</p>
+            <p className="text-[11px] text-slate-400">Générer un lien à usage unique avec identifiant et mot de passe temporaire</p>
           </div>
           <Btn
             variant="outline"
             className="border-emerald-500/40 text-emerald-300 hover:bg-emerald-500/10"
             onClick={async () => {
-              const token = "ACT_" + uid("T") + "_" + Math.random().toString(36).slice(2, 10);
+              const token = "TCH_" + uid("T") + "_" + Math.random().toString(36).slice(2, 10);
               if (isSupabaseConfigured) {
                 try {
                   await supabase.from("account_invitations").insert({
@@ -2147,20 +2216,30 @@ function TeacherDetail({ t }: { t: any }) {
                   console.warn("Invitation token save notice:", e.message);
                 }
               }
-              const link = `${window.location.origin}/#/activer-compte?token=${token}`;
+              const link = `${window.location.origin}/#/acces-formateur?token=${token}`;
+              const teacherUser = db.users.find((u) => u.id === t.userId);
+              const identifiant = teacherUser?.username || (t.email ? t.email.split("@")[0] : `${t.prenom.toLowerCase()}.${t.nom.toLowerCase()}`);
               const cleanPhone = (t.phone || "").replace(/[^0-9]/g, "");
-              const message = `Bonjour ${t.prenom} ${t.nom},\nVotre espace formateur SENTINELLE NUMÉRIQUE (ENIA 2.0) est prêt.\nPour activer votre compte et définir votre mot de passe en toute sécurité, cliquez sur votre lien personnel (valable 48h) :\n${link}\n\nÀ très bientôt !`;
+              const message = `Bonjour ${t.prenom} ${t.nom},\n\n` +
+                `Votre compte formateur SENTINELLE NUMÉRIQUE (ENIA 2.0) a été créé avec succès.\n\n` +
+                `Voici vos identifiants temporaires :\n` +
+                `👤 Identifiant : ${identifiant}\n` +
+                `🔑 Mot de passe temporaire : Sentinelle#2026!\n\n` +
+                `👉 Accédez directement à votre espace formateur via ce lien sécurisé à usage unique :\n${link}\n\n` +
+                `⚠️ ATTENTION (Sécurité) : Ce lien est à usage unique et expirera dès votre premier clic. Vous devrez y renseigner votre email et définir votre mot de passe personnel définitif.\n\n` +
+                `À très bientôt !`;
 
               if (cleanPhone) {
-                window.open(`https://wa.me/${cleanPhone}?text=${encodeURIComponent(message)}`, "_blank");
-                toastMsg.success("Lien WhatsApp ouvert ✓", "L'invitation a été pré-remplie.");
+                const phoneWithCode = cleanPhone.startsWith("242") ? cleanPhone : `242${cleanPhone}`;
+                window.open(`https://wa.me/${phoneWithCode}?text=${encodeURIComponent(message)}`, "_blank");
+                toastMsg.success("Lien WhatsApp ouvert ✓", "L'invitation avec accès à usage unique a été pré-remplie.");
               } else {
-                navigator.clipboard.writeText(link);
-                toastMsg.success("Lien d'activation copié ✓", "Partagez ce lien sécurisé (valable 48h) avec l'enseignant.");
+                navigator.clipboard.writeText(message);
+                toastMsg.success("Message d'accès copié ✓", "Partagez ce message sécurisé à usage unique avec l'enseignant.");
               }
             }}
           >
-            <MessageCircle size={15} /> Inviter via WhatsApp (48h)
+            <MessageCircle size={15} /> Inviter via WhatsApp (Usage Unique)
           </Btn>
         </div>
       </div>

@@ -21,6 +21,12 @@ build/
 supabase/.branches
 supabase/.temp
 
+# Scripts locaux et temporaires
+scripts/*.mjs
+scripts/*.local.*
+scripts/*test*
+scripts/*restore*
+
 # Backend local artifacts
 backend/node_modules/
 backend/dist/

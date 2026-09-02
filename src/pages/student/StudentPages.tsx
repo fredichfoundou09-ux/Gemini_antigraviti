@@ -1,9 +1,10 @@
 import { useState } from "react";
+import { Link } from "react-router-dom";
 import { QRCodeSVG } from "qrcode.react";
 import {
   UserCircle2, CalendarDays, Clock, MapPin, ClipboardCheck, PenLine, Wallet, Award,
   BadgeDollarSign, CheckCircle2, XCircle, Timer, Phone, Mail, FileText, TestTube2, PlayCircle,
-  ShieldCheck, ChevronRight, Printer, ReceiptText, TrendingUp, Eye,
+  ShieldCheck, ChevronRight, Printer, ReceiptText, TrendingUp, Eye, AlertCircle, ArrowRight,
 } from "lucide-react";
 import { useStore } from "@/lib/store";
 import { cn } from "@/utils/cn";
@@ -34,9 +35,70 @@ export function StudentDashboard() {
   const todaySessions = db.schedule.filter((s) => s.formation === student.formation && s.jour === new Date().toLocaleDateString("fr-FR", { weekday: "long" }).replace(/^\w/, (c) => c.toUpperCase()));
   const notifs = db.notifications.filter((n) => n.toId === user!.id || n.toId === "all").slice(0, 3);
 
+  const summary = financialSummary(db, student.id);
+  const inscriptionInv = summary.invoices.find((i) => i.type === "inscription" || i.libelle.toLowerCase().includes("inscription"));
+  const inscAmount = inscriptionInv?.montant || 5000;
+  const formationInvs = summary.invoices.filter((i) => i.type === "formation");
+  const formationTotal = formationInvs.reduce((a, b) => a + (b.montant || 0), 0);
+  const tranche1Amount = Math.round(formationTotal / 2);
+  const tranche2Amount = formationTotal - tranche1Amount;
+  const hasRemainingFees = summary.solde > 0 || summary.statut !== "paye";
+
   return (
     <div>
       <PageHead title={`Bonjour, ${student.prenom} 👋`} subtitle={`${student.id} — ${formationLabel(student.formation)}`} />
+
+      {/* Rappel Frais de Formation & Cycle de Règlement */}
+      {hasRemainingFees && (
+        <div className="mb-6 rounded-2xl border border-amber-500/30 bg-gradient-to-br from-amber-500/10 via-[#0a1426] to-[#07101f] p-5 shadow-xl">
+          <div className="flex flex-col sm:flex-row items-start gap-3.5">
+            <div className="rounded-xl bg-amber-500/20 p-2.5 text-amber-300 shrink-0">
+              <AlertCircle size={24} />
+            </div>
+            <div className="flex-1 w-full">
+              <div className="flex flex-wrap items-center justify-between gap-2">
+                <h3 className="font-display text-sm font-bold text-amber-300">
+                  Rappel Frais de Formation : Rapprochez-vous de la direction
+                </h3>
+                <Badge color="gold">Règlement en cours</Badge>
+              </div>
+              <p className="mt-1.5 text-xs text-slate-300 leading-relaxed">
+                Veuillez vous rapprocher de la direction du centre (Institut des Jeunes Sourds / ENIA 2.0) pour régulariser vos frais de formation selon les modalités officielles :
+              </p>
+
+              <div className="mt-3.5 grid gap-2.5 sm:grid-cols-3 text-xs">
+                <div className="rounded-xl border border-white/5 bg-white/[0.02] p-3">
+                  <p className="text-[10px] font-bold uppercase tracking-wider text-amber-300">1. Frais d'inscription</p>
+                  <p className="mt-1 text-sm font-black text-white">{money(inscAmount)}</p>
+                  <p className="mt-1 text-[11px] text-slate-400">À régler au démarrage (valide votre badge et vos accès aux cours).</p>
+                </div>
+                <div className="rounded-xl border border-white/5 bg-white/[0.02] p-3">
+                  <p className="text-[10px] font-bold uppercase tracking-wider text-cyan-300">2. Tranche 1 (Après 1 mois)</p>
+                  <p className="mt-1 text-sm font-black text-white">{money(tranche1Amount)}</p>
+                  <p className="mt-1 text-[11px] text-slate-400">50% des frais de cours à régler 1 mois après le démarrage.</p>
+                </div>
+                <div className="rounded-xl border border-white/5 bg-white/[0.02] p-3">
+                  <p className="text-[10px] font-bold uppercase tracking-wider text-emerald-300">3. Tranche 2 (Fin de session)</p>
+                  <p className="mt-1 text-sm font-black text-white">{money(tranche2Amount)}</p>
+                  <p className="mt-1 text-[11px] text-slate-400">Solde restant exigible avant les évaluations finales et la certification.</p>
+                </div>
+              </div>
+
+              <div className="mt-3.5 flex flex-wrap items-center justify-between gap-3 border-t border-white/5 pt-3">
+                <div className="text-xs text-slate-400">
+                  Total payé : <strong className="text-emerald-300">{money(summary.totalPaye)}</strong> • Reste dû : <strong className="text-amber-300">{money(summary.solde)}</strong>
+                </div>
+                <Link to="/app/mes-paiements">
+                  <Btn variant="outline" className="border-amber-400/40 text-amber-300 hover:bg-amber-400/10 text-xs py-1.5">
+                    Consulter mes reçus et échéancier <ArrowRight size={14} />
+                  </Btn>
+                </Link>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
+
       <div className="grid grid-cols-2 gap-4 md:grid-cols-4">
         <Stat icon={<TrendingUp size={20} />} label="Progression" value={`${progression}%`} color="cyan" />
         <Stat icon={<ClipboardCheck size={20} />} label="Présences" value={present} color="green" />

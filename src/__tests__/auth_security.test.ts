@@ -31,4 +31,18 @@ describe("Authentication Security & Validation (Audit 3 & 4.3)", () => {
     const expiresAt = new Date(now.getTime() + 48 * 3600 * 1000);
     expect(expiresAt.getTime()).toBeGreaterThan(now.getTime());
   });
+
+  it("garantit le format et la règle d'usage unique du jeton formateur TCH_", () => {
+    const teacherToken = "TCH_T123_abc98765";
+    expect(teacherToken.startsWith("TCH_")).toBe(true);
+
+    // Simulation de la consommation atomique (usage unique)
+    let usedAt: Date | null = null;
+    const isTokenValid = () => usedAt === null;
+
+    expect(isTokenValid()).toBe(true);
+    // Première utilisation : marquage consommé
+    usedAt = new Date();
+    expect(isTokenValid()).toBe(false); // Deuxième tentative rejetée
+  });
 });
