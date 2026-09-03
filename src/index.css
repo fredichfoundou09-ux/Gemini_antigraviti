@@ -1,9 +1,10 @@
 @import "tailwindcss";
 
 @theme {
-  --font-display: "Orbitron", "Rajdhani", sans-serif;
+  --font-display: "Oxanium", "Orbitron", "Rajdhani", sans-serif;
   --font-sans: "Rajdhani", "Inter", system-ui, sans-serif;
   --font-mono: "JetBrains Mono", "Fira Code", monospace;
+  --font-sentinel: "Oxanium", "Orbitron", sans-serif;
   --color-night: #05070d;
   --color-night2: #07152b;
   --color-electric: #008cff;
@@ -25,6 +26,14 @@ body {
 
 .font-display {
   font-family: var(--font-display);
+  letter-spacing: 0.04em;
+}
+
+.font-sentinel {
+  font-family: var(--font-sentinel);
+  font-weight: 800;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
 }
 
 .font-mono {

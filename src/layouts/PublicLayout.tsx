@@ -30,10 +30,10 @@ export default function PublicLayout() {
               className="h-10 w-10 object-contain drop-shadow-[0_0_15px_rgba(0,229,255,0.7)]"
             />
             <div>
-              <p className="font-display text-sm font-black tracking-wide text-white sm:text-base">
+              <p className="font-sentinel text-sm font-black tracking-[0.08em] text-white sm:text-base">
                 SENTINELLE <span className="text-red-400">NUMÉRIQUE</span>
               </p>
-              <p className="hidden text-[10px] uppercase tracking-[0.25em] text-cyan-300 sm:block">ENIA 2.0 · CONGO BRAZZAVILLE</p>
+              <p className="hidden text-[10px] uppercase tracking-[0.25em] text-cyan-300 sm:block font-bold">ENIA 2.0 · CONGO BRAZZAVILLE</p>
             </div>
           </Link>
           <nav className="hidden items-center gap-1 md:flex">

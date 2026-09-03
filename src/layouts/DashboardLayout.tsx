@@ -208,8 +208,8 @@ export default function DashboardLayout() {
           className="h-10 w-10 object-contain drop-shadow-[0_0_12px_rgba(0,229,255,0.7)]"
         />
         <div className="min-w-0">
-          <p className="font-display truncate text-[13px] font-black tracking-wide text-white">SENTINELLE</p>
-          <p className="truncate text-[10px] uppercase tracking-[0.25em] font-extrabold text-red-400">NUMÉRIQUE</p>
+          <p className="font-sentinel truncate text-[13px] font-black tracking-[0.08em] text-white">SENTINELLE</p>
+          <p className="font-sentinel truncate text-[10px] uppercase tracking-[0.25em] font-extrabold text-red-400">NUMÉRIQUE</p>
         </div>
       </div>
 
