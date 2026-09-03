@@ -1,10 +1,10 @@
 import { useEffect, useMemo, useState } from "react";
-import { Send, Mail, Bell, CheckCheck, Users, UserCircle2, Inbox, ChevronRight, MessageSquare, Reply, CornerDownRight } from "lucide-react";
+import { Send, Mail, Bell, CheckCheck, Users, UserCircle2, Inbox, ChevronRight, MessageSquare, Reply, CornerDownRight, Trash2 } from "lucide-react";
 import { useStore } from "@/lib/store";
 import { cn } from "@/utils/cn";
 import { Btn, Card, Field, Input, Textarea, Empty, PageHead, Badge, uid, today } from "@/lib/ui";
 import { isSupabaseConfigured, getSupabase } from "@/lib/supabase/client";
-import { fetchMyConversations, startConversation, replyToConversation, subscribeToAllMessages } from "@/lib/supabase/communication";
+import { fetchMyConversations, startConversation, replyToConversation, subscribeToAllMessages, deleteConversation, deleteMessage } from "@/lib/supabase/communication";
 import { toastMsg } from "@/lib/toast";
 
 const notifColor: Record<string, string> = {
@@ -172,6 +172,45 @@ export function MessageCenter() {
     }
   };
 
+  const handleDeleteConversation = async (item: any) => {
+    if (!window.confirm(`Voulez-vous vraiment supprimer la discussion "${item.subject}" et tous ses messages ?`)) return;
+    try {
+      if (item.isRemote) {
+        await deleteConversation(item.id);
+        await loadConversations();
+      } else {
+        update((d) => ({
+          ...d,
+          messages: d.messages.filter((m) => m.id !== item.id),
+        }));
+      }
+      toastMsg.success("Conversation supprimée ✓");
+      log(`Conversation supprimée : ${item.subject}`);
+    } catch (err: any) {
+      console.error("Erreur suppression conversation:", err);
+      toastMsg.error("Échec de suppression", err.message || "Erreur réseau");
+    }
+  };
+
+  const handleDeleteMessage = async (msg: any, parentItem: any) => {
+    if (!window.confirm("Voulez-vous vraiment supprimer ce message ?")) return;
+    try {
+      if (parentItem.isRemote && msg.id) {
+        await deleteMessage(msg.id);
+        await loadConversations();
+      } else {
+        update((d) => ({
+          ...d,
+          messages: d.messages.filter((m) => m.id !== msg.id),
+        }));
+      }
+      toastMsg.success("Message supprimé ✓");
+    } catch (err: any) {
+      console.error("Erreur suppression message:", err);
+      toastMsg.error("Échec de suppression du message", err.message || "Erreur réseau");
+    }
+  };
+
   const targets = useMemo(() => {
     const opts: { id: string; label: string; icon: React.ReactNode }[] = [];
     if (["superadmin", "admin", "teacher"].includes(user!.role)) {
@@ -248,7 +287,16 @@ export function MessageCenter() {
                     {incoming ? <Mail size={16} className="text-cyan-300" /> : <Send size={16} className="text-emerald-300" />}
                     <p className="text-sm font-bold text-white">{item.subject}</p>
                   </div>
-                  <span className="text-[11px] text-slate-500">{item.date}</span>
+                  <div className="flex items-center gap-2">
+                    <span className="text-[11px] text-slate-500">{item.date}</span>
+                    <button
+                      onClick={() => handleDeleteConversation(item)}
+                      title="Supprimer cette conversation"
+                      className="rounded-lg p-1.5 text-slate-500 hover:bg-red-500/10 hover:text-red-400 transition"
+                    >
+                      <Trash2 size={15} />
+                    </button>
+                  </div>
                 </div>
 
                 {/* Fil des échanges */}
@@ -257,11 +305,23 @@ export function MessageCenter() {
                     const fromMe = m.sender_id === user?.id;
                     const senderObj = db.users.find((u) => u.id === m.sender_id);
                     const authorName = senderObj?.name || (fromMe ? "Moi" : "Correspondant");
+                    const canDelete = fromMe || user?.role === "superadmin" || user?.role === "admin";
                     return (
-                      <div key={m.id || idx} className={cn("rounded-xl p-3 text-sm", fromMe ? "bg-white/[0.04] border border-white/10 ml-6" : "bg-cyan-950/20 border border-cyan-400/20 mr-6")}>
+                      <div key={m.id || idx} className={cn("group relative rounded-xl p-3 text-sm transition", fromMe ? "bg-white/[0.04] border border-white/10 ml-6" : "bg-cyan-950/20 border border-cyan-400/20 mr-6")}>
                         <div className="flex justify-between items-center mb-1 text-[11px] text-slate-400">
                           <span className={cn("font-semibold", fromMe ? "text-slate-300" : "text-cyan-300")}>{authorName}</span>
-                          {m.created_at && <span>{new Date(m.created_at).toLocaleTimeString("fr-FR", { hour: "2-digit", minute: "2-digit" })}</span>}
+                          <div className="flex items-center gap-2">
+                            {m.created_at && <span>{new Date(m.created_at).toLocaleTimeString("fr-FR", { hour: "2-digit", minute: "2-digit" })}</span>}
+                            {canDelete && (
+                              <button
+                                onClick={() => handleDeleteMessage(m, item)}
+                                title="Supprimer ce message"
+                                className="rounded p-1 text-slate-500 hover:bg-red-500/10 hover:text-red-400 transition"
+                              >
+                                <Trash2 size={13} />
+                              </button>
+                            )}
+                          </div>
                         </div>
                         <p className="whitespace-pre-wrap text-slate-200">{m.body}</p>
                       </div>

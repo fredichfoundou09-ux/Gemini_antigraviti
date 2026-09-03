@@ -12,18 +12,23 @@ createRoot(document.getElementById("root")!).render(
     </AuthProvider>
     <Toaster
       position="top-right"
+      visibleToasts={5}
+      expand={true}
+      gap={8}
       richColors={false}
       closeButton
       toastOptions={{
         style: {
-          fontFamily: "'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif",
-          fontWeight: 800,
+          fontFamily: "'Oxanium', 'Rajdhani', sans-serif",
+          fontWeight: 700,
           fontSize: "14px",
-          color: "#FF1744",
+          color: "#FFFFFF",
           background: "rgba(8, 16, 33, 0.98)",
-          border: "1.5px solid rgba(255, 23, 68, 0.7)",
+          border: "1.5px solid rgba(255, 23, 68, 0.8)",
+          borderRadius: "16px",
+          boxShadow: "0 0 25px -5px rgba(255, 23, 68, 0.5)",
         },
-        descriptionClassName: "!text-[#FF5252] !font-bold",
+        descriptionClassName: "!text-slate-300 !font-semibold !text-xs",
       }}
     />
   </StrictMode>

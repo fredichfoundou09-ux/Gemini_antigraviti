@@ -149,6 +149,30 @@ export async function replyToConversation(conversationId: string, senderId: stri
   return sendMessage(conversationId, senderId, body.trim());
 }
 
+export async function deleteConversation(conversationId: string) {
+  const sb = getSupabase();
+  try {
+    const { data, error } = await sb.rpc("delete_conversation", { p_conversation_id: conversationId });
+    if (!error && (data?.success || data?.ok)) return data;
+  } catch { /* fallback */ }
+
+  const { error } = await sb.from("conversations").delete().eq("id", conversationId);
+  if (error) throw error;
+  return { success: true };
+}
+
+export async function deleteMessage(messageId: string) {
+  const sb = getSupabase();
+  try {
+    const { data, error } = await sb.rpc("delete_message", { p_message_id: messageId });
+    if (!error && (data?.success || data?.ok)) return data;
+  } catch { /* fallback */ }
+
+  const { error } = await sb.from("messages").delete().eq("id", messageId);
+  if (error) throw error;
+  return { success: true };
+}
+
 /* ---------- Notifications ---------- */
 export async function fetchNotifications() {
   const sb = getSupabase();
