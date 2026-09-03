@@ -153,35 +153,51 @@ export default function DashboardLayout() {
     return () => document.removeEventListener("mousedown", handleClickOutside);
   }, []);
 
+  const usersRef = useRef(db.users);
+  useEffect(() => {
+    usersRef.current = db.users;
+  }, [db.users]);
+
   // Écoute en temps réel des messages et notifications entrantes
   useEffect(() => {
     if (!isSupabaseConfigured || !user?.id) return;
 
+    let refreshTimeout: any = null;
+    const triggerRefresh = () => {
+      clearTimeout(refreshTimeout);
+      refreshTimeout = setTimeout(() => {
+        window.dispatchEvent(new Event("sentinelles:supabase-refresh"));
+      }, 400);
+    };
+
     const unsubMsg = subscribeToAllMessages((msg) => {
-      if (msg.sender_id !== user.id) {
-        const sender = db.users.find((u) => u.id === msg.sender_id);
-        const senderName = sender?.name || "Nouveau correspondant";
+      if (msg && msg.sender_id && msg.sender_id !== user.id) {
+        const sender = usersRef.current.find((u) => u.id === msg.sender_id);
+        const senderName = sender?.name || "Correspondant";
         toastMsg.incomingMessage({
           senderName,
           body: msg.body || "Nouveau message reçu",
         });
-        window.dispatchEvent(new Event("sentinelles:supabase-refresh"));
+        triggerRefresh();
       }
     });
 
     const unsubNotif = subscribeToNotifications(user.id, (notif) => {
-      toastMsg.incomingNotification({
-        title: notif.title || "Nouvelle notification",
-        body: notif.body || "",
-      });
-      window.dispatchEvent(new Event("sentinelles:supabase-refresh"));
+      if (notif) {
+        toastMsg.incomingNotification({
+          title: notif.title || "Nouvelle notification",
+          body: notif.body || "",
+        });
+        triggerRefresh();
+      }
     });
 
     return () => {
+      clearTimeout(refreshTimeout);
       unsubMsg.unsubscribe();
       unsubNotif.unsubscribe();
     };
-  }, [user?.id, db.users]);
+  }, [user?.id]);
 
   const logout = () => {
     storeLogout();
@@ -751,11 +767,10 @@ export default function DashboardLayout() {
           <div className="flex items-center gap-1.5 sm:gap-2">
             <NavLink
               to="/app/messages"
-              className="relative flex items-center gap-1.5 rounded-xl border border-white/10 p-2 sm:px-3 sm:py-2 text-slate-300 transition hover:border-cyan-400/40 hover:text-cyan-300 shrink-0"
-              title={unreadMessages > 0 ? `💬 ${unreadMessages} message(s) non lu(s) — Nouveau message disponible` : "Messagerie interne"}
+              className="relative rounded-xl border border-white/10 p-2 sm:p-2.5 text-slate-300 transition hover:border-cyan-400/40 hover:text-cyan-300 shrink-0"
+              title={unreadMessages > 0 ? `${unreadMessages} message(s) non lu(s)` : "Messagerie interne"}
             >
-              <span className="text-base leading-none" role="img" aria-label="Messages">💬</span>
-              <MessagesSquare size={16} className="hidden sm:inline text-slate-400" />
+              <MessagesSquare size={18} />
               {unreadMessages > 0 && (
                 <span className="absolute -right-1.5 -top-1.5 flex h-5 min-w-5 animate-pulse items-center justify-center rounded-full bg-red-600 px-1 text-[10px] font-black text-white shadow-[0_0_12px_#FF1744] border border-white/40">
                   {unreadMessages}
@@ -765,11 +780,10 @@ export default function DashboardLayout() {
 
             <NavLink
               to="/app/notifications"
-              className="relative flex items-center gap-1.5 rounded-xl border border-white/10 p-2 sm:px-3 sm:py-2 text-slate-300 transition hover:border-cyan-400/40 hover:text-cyan-300 shrink-0"
-              title={unreadNotifications > 0 ? `🔔 ${unreadNotifications} notification(s) en attente` : "Notifications"}
+              className="relative rounded-xl border border-white/10 p-2 sm:p-2.5 text-slate-300 transition hover:border-cyan-400/40 hover:text-cyan-300 shrink-0"
+              title={unreadNotifications > 0 ? `${unreadNotifications} notification(s) non lue(s)` : "Notifications"}
             >
-              <span className="text-base leading-none" role="img" aria-label="Notifications">🔔</span>
-              <Bell size={16} className="hidden sm:inline text-slate-400" />
+              <Bell size={18} />
               {unreadNotifications > 0 && (
                 <span className="absolute -right-1.5 -top-1.5 flex h-5 min-w-5 animate-pulse items-center justify-center rounded-full bg-red-600 px-1 text-[10px] font-black text-white shadow-[0_0_12px_#FF1744] border border-white/40">
                   {unreadNotifications}
@@ -843,7 +857,7 @@ export default function DashboardLayout() {
             )
           }
         >
-          <span className="text-base leading-none">💬</span>
+          <MessagesSquare size={18} />
           {unreadMessages > 0 && (
             <span className="absolute top-0.5 right-2 flex h-4 min-w-4 items-center justify-center rounded-full bg-red-600 px-1 text-[9px] font-black text-white shadow-[0_0_8px_#FF1744]">
               {unreadMessages}

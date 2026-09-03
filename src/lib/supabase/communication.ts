@@ -149,10 +149,13 @@ export async function replyToConversation(conversationId: string, senderId: stri
   return sendMessage(conversationId, senderId, body.trim());
 }
 
-export async function deleteConversation(conversationId: string) {
+export async function deleteConversation(conversationId: string, userId?: string) {
   const sb = getSupabase();
   try {
-    const { data, error } = await sb.rpc("delete_conversation", { p_conversation_id: conversationId });
+    const { data, error } = await sb.rpc("delete_conversation", {
+      p_conversation_id: conversationId,
+      p_user_id: userId || null,
+    });
     if (!error && (data?.success || data?.ok)) return data;
   } catch { /* fallback */ }
 
@@ -161,10 +164,13 @@ export async function deleteConversation(conversationId: string) {
   return { success: true };
 }
 
-export async function deleteMessage(messageId: string) {
+export async function deleteMessage(messageId: string, userId?: string) {
   const sb = getSupabase();
   try {
-    const { data, error } = await sb.rpc("delete_message", { p_message_id: messageId });
+    const { data, error } = await sb.rpc("delete_message", {
+      p_message_id: messageId,
+      p_user_id: userId || null,
+    });
     if (!error && (data?.success || data?.ok)) return data;
   } catch { /* fallback */ }
 
@@ -197,24 +203,42 @@ export async function createNotification(payload: { user_id?: string | null; tit
 /* ---------- Realtime ---------- */
 export function subscribeToMessages(conversationId: string, onInsert: (msg: any) => void) {
   const sb = getSupabase();
-  return sb
-    .channel(`messages-${conversationId}`)
+  const channelName = `messages-${conversationId}-${Math.random().toString(36).slice(2, 7)}`;
+  const channel = sb
+    .channel(channelName)
     .on("postgres_changes", { event: "INSERT", schema: "public", table: "messages", filter: `conversation_id=eq.${conversationId}` }, (payload) => onInsert(payload.new))
     .subscribe();
+  return {
+    unsubscribe: () => {
+      try { sb.removeChannel(channel); } catch { /* ignore */ }
+    },
+  };
 }
 
 export function subscribeToAllMessages(onInsert: (msg: any) => void) {
   const sb = getSupabase();
-  return sb
-    .channel("all-public-messages")
+  const channelName = `all-msgs-${Math.random().toString(36).slice(2, 7)}`;
+  const channel = sb
+    .channel(channelName)
     .on("postgres_changes", { event: "INSERT", schema: "public", table: "messages" }, (payload) => onInsert(payload.new))
     .subscribe();
+  return {
+    unsubscribe: () => {
+      try { sb.removeChannel(channel); } catch { /* ignore */ }
+    },
+  };
 }
 
 export function subscribeToNotifications(userId: string, onInsert: (n: any) => void) {
   const sb = getSupabase();
-  return sb
-    .channel(`notifications-${userId}`)
+  const channelName = `notifs-${userId}-${Math.random().toString(36).slice(2, 7)}`;
+  const channel = sb
+    .channel(channelName)
     .on("postgres_changes", { event: "INSERT", schema: "public", table: "notifications", filter: `user_id=eq.${userId}` }, (payload) => onInsert(payload.new))
     .subscribe();
+  return {
+    unsubscribe: () => {
+      try { sb.removeChannel(channel); } catch { /* ignore */ }
+    },
+  };
 }

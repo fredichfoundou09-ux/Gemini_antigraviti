@@ -90,12 +90,12 @@ export const toastMsg = {
   }),
 
   incomingMessage: (payload: { senderName: string; subject?: string; body: string }) =>
-    toast(`💬 Message reçu : ${payload.senderName}`, {
+    toast(`Nouveau message · ${payload.senderName}`, {
       description: payload.subject ? `${payload.subject} : ${payload.body.slice(0, 65)}...` : payload.body.slice(0, 80),
-      duration: 5000,
+      duration: 4500,
       style: {
         ...BASE_TOAST_STYLE,
-        border: "2px solid #FF1744",
+        border: "1.5px solid #FF1744",
         color: "#FFFFFF",
       },
       action: {
@@ -107,12 +107,12 @@ export const toastMsg = {
     }),
 
   incomingNotification: (payload: { title: string; body: string }) =>
-    toast(`🔔 ${payload.title}`, {
+    toast(payload.title, {
       description: payload.body.slice(0, 80),
-      duration: 5000,
+      duration: 4500,
       style: {
         ...BASE_TOAST_STYLE,
-        border: "2px solid #FF1744",
+        border: "1.5px solid #FF1744",
         color: "#FFFFFF",
       },
       action: {

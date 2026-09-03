@@ -176,7 +176,7 @@ export function MessageCenter() {
     if (!window.confirm(`Voulez-vous vraiment supprimer la discussion "${item.subject}" et tous ses messages ?`)) return;
     try {
       if (item.isRemote) {
-        await deleteConversation(item.id);
+        await deleteConversation(item.id, user?.id);
         await loadConversations();
       } else {
         update((d) => ({
@@ -196,7 +196,7 @@ export function MessageCenter() {
     if (!window.confirm("Voulez-vous vraiment supprimer ce message ?")) return;
     try {
       if (parentItem.isRemote && msg.id) {
-        await deleteMessage(msg.id);
+        await deleteMessage(msg.id, user?.id);
         await loadConversations();
       } else {
         update((d) => ({
