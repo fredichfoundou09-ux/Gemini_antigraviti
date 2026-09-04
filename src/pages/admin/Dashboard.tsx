@@ -26,7 +26,7 @@ function Bar({ label, value, max, color }: { label: string; value: number; max: 
 }
 
 export function AdminDashboard() {
-  const { db } = useStore();
+  const { db, user } = useStore();
   const { presences } = usePresence();
   const d = today();
   const students = db.students;
