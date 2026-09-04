@@ -10,7 +10,7 @@ import { useStore } from "@/lib/store";
 import { cn } from "@/utils/cn";
 import {
   Btn, Badge, Card, Empty, Field, Input, PageHead, Progress, Modal, Stat, moduleIcon, money,
-  formationLabel, today, printHTML, uid,
+  formationLabel, today, printHTML, uid, SentinelLogo,
 } from "@/lib/ui";
 import { Test } from "@/lib/types";
 import { financialSummary, statusLabel } from "@/lib/finance";
@@ -171,7 +171,7 @@ export function StudentDashboard() {
         <Card className="relative overflow-hidden p-5 border border-cyan-400/30 bg-gradient-to-br from-[#0A1224] to-[#07152B]">
           <div className="mb-3 flex items-center justify-between">
             <div className="flex items-center gap-2">
-              <img src="/logo.png" alt="Logo" className="h-8 w-8 object-contain drop-shadow" />
+              <SentinelLogo variant="symbol" alt="Symbole SENTINEL'S" className="h-8 w-8 object-contain drop-shadow-[0_0_8px_rgba(255,23,79,0.5)]" />
               <div>
                 <span className="font-display text-xs font-black text-white">SENTINELLE <span className="text-red-400">NUMÉRIQUE</span></span>
                 <p className="text-[8px] uppercase tracking-wider text-cyan-300">ENIA 2.0 · CONGO</p>

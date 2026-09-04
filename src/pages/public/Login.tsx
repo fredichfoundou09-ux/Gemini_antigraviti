@@ -8,7 +8,7 @@ import {
 import { useStore } from "@/lib/store";
 import { useAuth } from "@/contexts/AuthContext";
 import { cn } from "@/utils/cn";
-import { Btn, Field, Input, Card } from "@/lib/ui";
+import { Btn, Field, Input, Card, SentinelLogo } from "@/lib/ui";
 import { checkPassword, passwordScore, getLockState, formatDuration } from "@/lib/auth";
 import { isSupabaseConfigured } from "@/lib/supabase/client";
 import { hasAnySuperadmin as sbHasAnySuperadmin } from "@/lib/supabase/auth";
@@ -136,11 +136,11 @@ export function LoginPage() {
 
               {/* Logo officiel maître */}
               <div className="group relative my-4 flex justify-center">
-                <div className="absolute -inset-1 rounded-lg bg-gradient-to-r from-[#00C8FF]/30 via-transparent to-[#FF174F]/30 opacity-75 blur transition duration-500 group-hover:opacity-100" />
-                <img
-                  src="/logo.png"
-                  alt="SENTINELLE NUMÉRIQUE"
-                  className="relative h-64 w-64 sm:h-72 sm:w-72 object-contain drop-shadow-[0_0_25px_rgba(0,229,255,0.5)] transition duration-500 group-hover:scale-105"
+                <div className="absolute -inset-1 rounded-2xl bg-gradient-to-r from-[#FF174F]/25 via-transparent to-[#00C8FF]/25 opacity-75 blur transition duration-500 group-hover:opacity-100" />
+                <SentinelLogo
+                  variant="full"
+                  alt="SENTINEL'S"
+                  className="relative h-64 w-64 sm:h-72 sm:w-72 rounded-2xl object-contain drop-shadow-[0_0_30px_rgba(255,23,79,0.35)] transition duration-500 group-hover:scale-105"
                 />
               </div>
 
@@ -178,10 +178,10 @@ export function LoginPage() {
                 <h1 className="font-display text-2xl font-black text-white">Connexion</h1>
                 <p className="mt-0.5 text-xs text-[#4C91B5]">Portail d'authentification sécurisé</p>
               </div>
-              <img
-                src="/shield-emblem.png"
-                alt="Emblème"
-                className="h-12 w-12 object-contain drop-shadow-[0_0_12px_rgba(0,229,255,0.7)]"
+              <SentinelLogo
+                variant="symbol"
+                alt="Symbole SENTINEL'S"
+                className="h-12 w-12 object-contain drop-shadow-[0_0_12px_rgba(255,23,79,0.5)]"
               />
             </div>
 

@@ -4,7 +4,7 @@ import {
   ShieldCheck, Lock, KeyRound, Eye, EyeOff, CheckCircle2, AlertTriangle, ArrowRight, Sparkles,
 } from "lucide-react";
 import { useStore } from "@/lib/store";
-import { Btn, Card, Field, Input, PageHead } from "@/lib/ui";
+import { Btn, Card, Field, Input, PageHead, SentinelLogo } from "@/lib/ui";
 import { validatePassword, passwordScore } from "@/lib/auth";
 import { supabase, isSupabaseConfigured } from "@/lib/supabase/client";
 import { toastMsg } from "@/lib/toast";
@@ -118,10 +118,10 @@ export function AccountActivationPage() {
       <div className="relative z-10 w-full max-w-md">
         {/* En-tête officiel */}
         <div className="mb-6 text-center">
-          <img
-            src="/logo.png"
-            alt="SENTINELLE NUMÉRIQUE"
-            className="mx-auto mb-3 h-16 w-16 object-contain drop-shadow-[0_0_20px_rgba(0,229,255,0.7)]"
+          <SentinelLogo
+            variant="symbol"
+            alt="Symbole SENTINEL'S"
+            className="mx-auto mb-3 h-16 w-16 object-contain drop-shadow-[0_0_20px_rgba(255,23,79,0.5)]"
           />
           <h1 className="font-display text-2xl font-black text-white">Activation de Compte</h1>
           <p className="mt-1 text-xs text-slate-400">Définissez votre mot de passe personnel sécurisé</p>

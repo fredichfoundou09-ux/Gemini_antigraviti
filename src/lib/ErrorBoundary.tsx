@@ -1,5 +1,6 @@
 import React, { Component, ErrorInfo, ReactNode } from "react";
 import { ShieldAlert, RefreshCw, Home } from "lucide-react";
+import { SentinelLogo } from "@/components/SentinelLogo";
 
 interface Props {
   children: ReactNode;
@@ -28,14 +29,14 @@ export class ErrorBoundary extends Component<Props, State> {
     if (this.state.hasError) {
       return (
         <div className="min-h-screen bg-[#07090E] flex items-center justify-center p-6 text-white font-sans selection:bg-[#00E5FF]/20">
-          <div className="relative max-w-lg w-full rounded-2xl border border-red-500/40 bg-[#0B111A]/95 p-8 shadow-[0_0_50px_rgba(255,23,68,0.25)] backdrop-blur-xl">
+          <div className="relative max-w-lg w-full rounded-2xl border border-red-500/40 bg-[#0B111A]/95 p-8 shadow-[0_0_50px_rgba(255,23,79,0.25)] backdrop-blur-xl">
             {/* Ambient cyber glow */}
             <div className="absolute -top-10 -right-10 h-32 w-32 rounded-full bg-red-500/10 blur-3xl pointer-events-none" />
             <div className="absolute -bottom-10 -left-10 h-32 w-32 rounded-full bg-[#006DFF]/10 blur-3xl pointer-events-none" />
 
             <div className="flex items-center gap-4 mb-5">
-              <div className="flex h-14 w-14 items-center justify-center rounded-xl border border-red-500/50 bg-red-500/15 shadow-[0_0_20px_rgba(255,23,68,0.4)]">
-                <ShieldAlert className="h-8 w-8 text-red-400 animate-pulse" />
+              <div className="flex h-14 w-14 items-center justify-center rounded-xl border border-red-500/50 bg-red-500/15 shadow-[0_0_20px_rgba(255,23,79,0.4)] p-2">
+                <SentinelLogo variant="symbol" alt="SENTINEL'S" className="h-full w-full object-contain" />
               </div>
               <div>
                 <span className="text-[10px] font-mono tracking-widest text-red-400 uppercase font-black">

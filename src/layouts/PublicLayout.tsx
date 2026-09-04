@@ -3,7 +3,7 @@ import { ShieldCheck, LogIn, Menu, X, MessageCircle } from "lucide-react";
 import { useState } from "react";
 import { cn } from "@/utils/cn";
 import { useStore } from "@/lib/store";
-import { Btn } from "@/lib/ui";
+import { Btn, SentinelLogo } from "@/lib/ui";
 
 const LINKS = [
   { to: "/", label: "Accueil" },
@@ -27,10 +27,10 @@ export default function PublicLayout() {
       <header className="sticky top-0 z-40 border-b border-[#006DFF]/30 bg-[#0B111A]/95 shadow-[0_4px_20px_rgba(0,0,0,0.7)] backdrop-blur-md">
         <div className="mx-auto flex max-w-7xl items-center justify-between gap-4 px-4 py-3 sm:px-6">
           <Link to="/" className="flex items-center gap-3 group">
-            <div className="relative flex h-10 w-10 items-center justify-center rounded border border-[#00C8FF]/50 bg-[#071A2B] p-1 shadow-[0_0_15px_rgba(0,229,255,0.4)] transition group-hover:border-[#00E5FF]">
-              <img
-                src="/logo.png"
-                alt="SENTINELLE NUMÉRIQUE"
+            <div className="relative flex h-10 w-10 items-center justify-center rounded-xl border border-[#FF174F]/40 bg-[#071A2B] p-1 shadow-[0_0_15px_rgba(255,23,79,0.3)] transition group-hover:border-[#FF174F]">
+              <SentinelLogo
+                variant="symbol"
+                alt="Symbole SENTINEL'S"
                 className="h-full w-full object-contain"
               />
             </div>
@@ -109,8 +109,8 @@ export default function PublicLayout() {
         <div className="mx-auto grid max-w-7xl gap-8 px-4 py-12 sm:px-6 md:grid-cols-3">
           <div>
             <div className="mb-3 flex items-center gap-2.5">
-              <div className="flex h-8 w-8 items-center justify-center rounded border border-[#00C8FF]/40 bg-[#071A2B] p-1">
-                <img src="/logo.png" alt="Logo" className="h-full w-full object-contain" />
+              <div className="flex h-8 w-8 items-center justify-center rounded-lg border border-[#FF174F]/40 bg-[#071A2B] p-1 shadow-[0_0_10px_rgba(255,23,79,0.25)]">
+                <SentinelLogo variant="symbol" alt="Symbole SENTINEL'S" className="h-full w-full object-contain" />
               </div>
               <span className="font-display text-sm font-black text-white">
                 SENTINELLE <span className="text-[#FF174F]">NUMÉRIQUE</span>

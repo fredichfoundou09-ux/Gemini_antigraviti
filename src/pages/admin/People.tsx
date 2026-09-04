@@ -10,7 +10,7 @@ import { useStore } from "@/lib/store";
 import { cn } from "@/utils/cn";
 import {
   Btn, Badge, Card, Empty, Field, Input, Modal, PageHead, Select, Textarea, Stat, uid, today,
-  formationLabel, money, moduleIcon, readImage,
+  formationLabel, money, moduleIcon, readImage, SentinelLogo,
 } from "@/lib/ui";
 import { Student, Formation, User, Role, DB } from "@/lib/types";
 import { AppRole } from "@/lib/supabase/auth";
@@ -1316,7 +1316,7 @@ export function StudentsPage() {
             <div className="relative overflow-hidden rounded-2xl border-2 border-cyan-400/40 bg-gradient-to-br from-[#060D1F] via-[#0A1633] to-[#040814] p-5 shadow-2xl text-white">
               <div className="flex items-center justify-between border-b border-white/15 pb-3.5 mb-3.5">
                 <div className="flex items-center gap-2.5">
-                  <img src="/logo.png" alt="Logo" className="h-9 w-9 object-contain drop-shadow-[0_0_12px_rgba(0,229,255,0.7)]" />
+                  <SentinelLogo variant="symbol" alt="Symbole SENTINEL'S" className="h-9 w-9 object-contain drop-shadow-[0_0_12px_rgba(255,23,79,0.5)]" />
                   <div>
                     <h4 className="font-display text-xs font-black tracking-wider text-white">
                       SENTINELLE <span className="text-red-400">NUMÉRIQUE</span>
@@ -1493,7 +1493,7 @@ function StudentView({ s }: { s: Student }) {
         <div className="relative">
           <div className="mb-4 flex items-center justify-between">
             <div className="flex items-center gap-2.5">
-              <img src="/logo.png" alt="Logo Sentinelle" className="h-9 w-9 object-contain drop-shadow-[0_0_10px_rgba(0,229,255,0.6)]" />
+              <SentinelLogo variant="symbol" alt="Symbole SENTINEL'S" className="h-9 w-9 object-contain drop-shadow-[0_0_10px_rgba(255,23,79,0.5)]" />
               <div>
                 <span className="font-display text-xs font-black tracking-wider text-white">SENTINELLE <span className="text-red-400">NUMÉRIQUE</span></span>
                 <p className="text-[8px] uppercase tracking-widest text-cyan-300">ENIA 2.0 · CONGO</p>

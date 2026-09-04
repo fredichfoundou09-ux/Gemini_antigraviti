@@ -5,6 +5,7 @@ import {
 } from "lucide-react";
 import { cn } from "@/utils/cn";
 import { Formation } from "./types";
+export { SentinelLogo, SENTINEL_ASSETS } from "@/components/SentinelLogo";
 
 /* ---------- helpers ---------- */
 export const uid = (p: string) => `${p}-${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 7)}`;
@@ -63,7 +64,7 @@ export function officialPrintDoc(title: string, contentHTML: string, docType = "
     <div class="receipt">
       <div style="display:flex;align-items:center;justify-content:space-between;border-bottom:2px solid #00E5FF;padding-bottom:16px;margin-bottom:20px">
         <div style="display:flex;align-items:center;gap:12px">
-          <img src="/logo.png" style="height:56px;width:56px;object-fit:contain" alt="Logo" />
+          <img src="/assets/branding/sentinel-symbol.png" style="height:56px;width:56px;object-fit:contain" alt="SENTINEL'S" />
           <div>
             <h2 style="margin:0;font-size:16px;font-weight:900;letter-spacing:1px;color:#fff">SENTINELLE NUMÉRIQUE</h2>
             <p style="margin:2px 0 0;font-size:10px;color:#00E5FF;text-transform:uppercase;letter-spacing:1px">ENIA 2.0 · CONGO BRAZZAVILLE</p>

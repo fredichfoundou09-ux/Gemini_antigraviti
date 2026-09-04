@@ -10,7 +10,7 @@ import {
 import { cn } from "@/utils/cn";
 import { useStore } from "@/lib/store";
 import { useAuth } from "@/contexts/AuthContext";
-import { Badge, formationLabel } from "@/lib/ui";
+import { Badge, formationLabel, SentinelLogo } from "@/lib/ui";
 import { usePresence } from "@/hooks/usePresence";
 import { useBackgroundSync } from "@/hooks/useBackgroundSync";
 import { isSupabaseConfigured } from "@/lib/supabase/client";
@@ -256,11 +256,11 @@ export default function DashboardLayout() {
     <div className="flex h-full flex-col bg-[#080A0F]">
       {/* Brand Header */}
       <div className="flex items-center gap-3 border-b border-[#006DFF]/20 px-5 py-4 bg-[#0B111A]/50">
-        <div className="relative p-1 rounded-xl border border-[#00C8FF]/40 bg-[#071A2B] shadow-[0_0_12px_rgba(0,229,255,0.3)]">
-          <img
-            src="/logo.png"
-            alt="SENTINELLE NUMÉRIQUE"
-            className="h-9 w-9 object-contain drop-shadow-[0_0_8px_rgba(0,229,255,0.7)]"
+        <div className="relative p-1.5 rounded-xl border border-[#FF174F]/40 bg-[#071A2B] shadow-[0_0_12px_rgba(255,23,79,0.3)]">
+          <SentinelLogo
+            variant="symbol"
+            alt="Symbole SENTINEL'S"
+            className="h-8 w-8 object-contain drop-shadow-[0_0_8px_rgba(255,23,79,0.6)]"
           />
         </div>
         <div className="min-w-0">
@@ -335,7 +335,7 @@ export default function DashboardLayout() {
 
             {/* Logo compact sur mobile */}
             <div className="flex items-center gap-2 lg:hidden">
-              <img src="/logo.png" alt="Logo" className="h-7 w-7 object-contain drop-shadow-[0_0_6px_rgba(0,229,255,0.6)]" />
+              <SentinelLogo variant="symbol" alt="Symbole SENTINEL'S" className="h-7 w-7 object-contain drop-shadow-[0_0_6px_rgba(255,23,79,0.5)]" />
               <span className="font-display text-xs font-black text-[#B8F3FF]">SENTINELLE</span>
             </div>
 
