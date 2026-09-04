@@ -246,3 +246,18 @@ body {
     border: none !important;
   }
 }
+
+/* ========================================================
+   HARMONISATION CYBER HUD UNIVERSELLE :
+   Bords droits / biseautés techniques sur TOUT le logiciel
+   (remplace les angles ronds par des arêtes nettes HUD)
+   ======================================================== */
+.rounded-3xl,
+.rounded-2xl {
+  border-radius: 6px !important;
+}
+
+.rounded-xl {
+  border-radius: 4px !important;
+}
+

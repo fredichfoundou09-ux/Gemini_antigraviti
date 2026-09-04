@@ -118,25 +118,25 @@ export function LoginPage() {
       <div className="bg-grid-hex pointer-events-none absolute inset-0 opacity-40" />
 
       {/* Conteneur Principal Split-Screen */}
-      <div className="relative z-10 w-full max-w-5xl overflow-hidden rounded-3xl border border-cyan-500/20 bg-[#070D1E]/85 shadow-[0_0_50px_-10px_rgba(0,229,255,0.25)] backdrop-blur-xl">
+      <div className="relative z-10 w-full max-w-5xl overflow-hidden rounded-lg border border-[#00C8FF]/40 bg-[#0B111A]/95 shadow-[0_0_50px_rgba(0,109,255,0.3)] backdrop-blur-xl">
         <div className="grid grid-cols-1 lg:grid-cols-12">
 
           {/* ================= PANNEAU GAUCHE : PRÉSENTATION OFFICIELLE ================= */}
-          <div className="relative flex flex-col justify-between border-b border-white/5 bg-gradient-to-br from-[#091534] via-[#070D20] to-[#140A1E] p-6 sm:p-10 lg:col-span-6 lg:border-b-0 lg:border-r">
+          <div className="relative flex flex-col justify-between border-b border-[#006DFF]/30 bg-gradient-to-br from-[#071A2B] via-[#092033] to-[#1a0815] p-6 sm:p-10 lg:col-span-6 lg:border-b-0 lg:border-r">
             {/* Lueur d'ambiance */}
-            <div className="pointer-events-none absolute -left-20 -top-20 h-64 w-64 rounded-full bg-cyan-500/15 blur-3xl" />
-            <div className="pointer-events-none absolute -bottom-20 -right-20 h-64 w-64 rounded-full bg-red-500/15 blur-3xl" />
+            <div className="pointer-events-none absolute -left-20 -top-20 h-64 w-64 rounded-full bg-[#00E5FF]/15 blur-3xl" />
+            <div className="pointer-events-none absolute -bottom-20 -right-20 h-64 w-64 rounded-full bg-[#FF174F]/15 blur-3xl" />
 
             <div>
               {/* Badge supérieur */}
-              <div className="mb-4 inline-flex items-center gap-2 rounded-full border border-cyan-400/30 bg-cyan-400/10 px-3.5 py-1 text-[11px] font-bold tracking-widest text-cyan-300">
-                <span className="h-1.5 w-1.5 animate-ping rounded-full bg-cyan-400" />
-                CENTRE DE FORMATION OFFICIEL
+              <div className="mb-4 inline-flex items-center gap-2 rounded border border-[#00C8FF]/40 bg-[#071A2B] px-3.5 py-1 text-[10px] font-bold tracking-widest text-[#00E5FF] font-mono uppercase">
+                <span className="h-1.5 w-1.5 animate-ping rounded-full bg-[#00E5FF]" />
+                CENTRE DE SUPERVISION & FORMATION
               </div>
 
               {/* Logo officiel maître */}
               <div className="group relative my-4 flex justify-center">
-                <div className="absolute -inset-1 rounded-2xl bg-gradient-to-r from-cyan-500/30 via-transparent to-red-500/30 opacity-75 blur transition duration-500 group-hover:opacity-100" />
+                <div className="absolute -inset-1 rounded-lg bg-gradient-to-r from-[#00C8FF]/30 via-transparent to-[#FF174F]/30 opacity-75 blur transition duration-500 group-hover:opacity-100" />
                 <img
                   src="/logo.png"
                   alt="SENTINELLE NUMÉRIQUE"
@@ -146,9 +146,9 @@ export function LoginPage() {
 
               <div className="text-center">
                 <h2 className="font-display text-2xl font-black tracking-wider text-white sm:text-3xl">
-                  SENTINELLE <span className="text-red-400">NUMÉRIQUE</span>
+                  SENTINELLE <span className="text-[#FF174F] drop-shadow-[0_0_8px_#FF174F]">NUMÉRIQUE</span>
                 </h2>
-                <p className="mt-2 text-xs font-semibold uppercase tracking-[0.25em] text-cyan-300">
+                <p className="mt-2 text-xs font-semibold uppercase tracking-[0.25em] text-[#00E5FF] font-mono">
                   APPRENDRE • INNOVER • CRÉER • CODER • SÉCURISER
                 </p>
               </div>
@@ -157,26 +157,26 @@ export function LoginPage() {
             {/* Badges institutionnels ENIA 2.0 & Congo Brazzaville */}
             <div className="mt-8 space-y-3">
               <div className="grid grid-cols-2 gap-2 text-center text-xs">
-                <div className="rounded-xl border border-white/10 bg-white/[0.03] p-2.5">
-                  <p className="text-[10px] font-bold uppercase tracking-wider text-cyan-400">Partenaire Académique</p>
+                <div className="rounded border border-[#006DFF]/30 bg-[#071A2B] p-2.5">
+                  <p className="text-[10px] font-bold uppercase tracking-wider text-[#00E5FF] font-mono">Partenaire Académique</p>
                   <p className="font-display font-black text-white">ENIA 2.0</p>
-                  <p className="text-[9px] text-slate-400">École du Numérique & IA</p>
+                  <p className="text-[9px] text-[#4C91B5]">École du Numérique & IA</p>
                 </div>
-                <div className="rounded-xl border border-white/10 bg-white/[0.03] p-2.5">
-                  <p className="text-[10px] font-bold uppercase tracking-wider text-red-400">Localisation</p>
+                <div className="rounded border border-[#FF174F]/40 bg-[#2A0815] p-2.5">
+                  <p className="text-[10px] font-bold uppercase tracking-wider text-[#FF174F] font-mono">Localisation</p>
                   <p className="font-display font-black text-white">Congo Brazzaville</p>
-                  <p className="text-[9px] text-slate-400">Génie Info & Industriel</p>
+                  <p className="text-[9px] text-[#4C91B5]">Génie Info & Industriel</p>
                 </div>
               </div>
             </div>
           </div>
 
           {/* ================= PANNEAU DROIT : FORMULAIRE SÉCURISÉ ================= */}
-          <div className="flex flex-col justify-center p-6 sm:p-10 lg:col-span-6">
+          <div className="flex flex-col justify-center p-6 sm:p-10 lg:col-span-6 bg-[#0B111A]">
             <div className="mb-6 flex items-center justify-between">
               <div>
                 <h1 className="font-display text-2xl font-black text-white">Connexion</h1>
-                <p className="mt-0.5 text-xs text-slate-400">Portail d'authentification sécurisé</p>
+                <p className="mt-0.5 text-xs text-[#4C91B5]">Portail d'authentification sécurisé</p>
               </div>
               <img
                 src="/shield-emblem.png"
@@ -187,7 +187,7 @@ export function LoginPage() {
 
             {/* Bandeau première utilisation */}
             {canFirstBoot && (
-              <div className="mb-5 flex items-start gap-3 rounded-xl border border-amber-400/40 bg-amber-400/5 p-3">
+              <div className="mb-5 flex items-start gap-3 rounded border border-amber-400/40 bg-amber-400/10 p-3">
                 <Sparkles size={16} className="mt-0.5 shrink-0 text-amber-300" />
                 <div className="min-w-0 flex-1">
                   <p className="text-sm font-bold text-amber-300">Première utilisation</p>
@@ -198,7 +198,7 @@ export function LoginPage() {
 
             {/* Sélecteur de rôle */}
             <div className="mb-5">
-              <p className="mb-2 text-[10px] font-bold uppercase tracking-wider text-slate-400">Profil de connexion :</p>
+              <p className="mb-2 text-[10px] font-mono font-bold uppercase tracking-wider text-[#4C91B5]">Profil de connexion :</p>
               <div className="grid grid-cols-2 gap-2 sm:grid-cols-4">
                 {GROUPS.map((g) => (
                   <button
@@ -206,10 +206,10 @@ export function LoginPage() {
                     type="button"
                     onClick={() => { setGroup(g.key); setError(""); }}
                     className={cn(
-                      "flex flex-col items-center gap-1.5 rounded-xl border p-2.5 text-center transition-all",
+                      "flex flex-col items-center gap-1.5 rounded border p-2.5 text-center transition-all",
                       group === g.key
-                        ? "border-cyan-400/60 bg-cyan-400/10 text-cyan-300 shadow-[0_0_20px_-6px_rgba(0,229,255,0.6)]"
-                        : "border-white/10 text-slate-400 hover:bg-white/5"
+                        ? "border-[#00C8FF] bg-[#071A2B] text-[#00E5FF] shadow-[0_0_15px_rgba(0,229,255,0.4)]"
+                        : "border-[#006DFF]/25 text-[#4C91B5] hover:border-[#006DFF]/50 hover:bg-[#071A2B]/50 hover:text-[#B8F3FF]"
                     )}
                   >
                     {g.icon}

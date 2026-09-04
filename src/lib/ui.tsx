@@ -121,7 +121,7 @@ export function Card({ children, className, glow = "cyan" }: { children: ReactNo
       ? "border-[#006DFF]/25"
       : "border-[#006DFF]/35 hover:border-[#00C8FF]/70 hover:shadow-[0_0_24px_-4px_rgba(0,229,255,0.35)]";
   return (
-    <div className={cn("rounded-2xl border bg-gradient-to-br from-[#092033]/95 via-[#0A1726]/95 to-[#080A0F]/98 backdrop-blur-md transition-all duration-250 shadow-[0_8px_32px_-4px_rgba(0,0,0,0.6)]", g, className)}>
+    <div className={cn("rounded-lg border bg-gradient-to-br from-[#092033]/95 via-[#0A1726]/95 to-[#080A0F]/98 backdrop-blur-md transition-all duration-250 shadow-[0_8px_32px_-4px_rgba(0,0,0,0.6)]", g, className)}>
       {children}
     </div>
   );
@@ -142,7 +142,7 @@ export function Btn({
   }[variant];
   return (
     <button type={type} disabled={disabled} onClick={onClick}
-      className={cn("inline-flex items-center justify-center gap-2 rounded-xl px-4 py-2.5 text-sm font-semibold transition-all active:scale-[0.98] disabled:opacity-50 disabled:pointer-events-none", v, className)}>
+      className={cn("inline-flex items-center justify-center gap-2 rounded px-4 py-2.5 text-sm font-semibold transition-all active:scale-[0.98] disabled:opacity-50 disabled:pointer-events-none", v, className)}>
       {children}
     </button>
   );
@@ -157,7 +157,7 @@ export function Badge({ children, color = "cyan", className }: { children: React
     gray: "bg-[#0B111A] text-[#4C91B5] border-[#006DFF]/25",
     blue: "bg-[#081830] text-[#008CFF] border-[#006DFF]/40",
   }[color];
-  return <span className={cn("inline-flex items-center gap-1 rounded-full border px-2.5 py-0.5 text-[11px] font-semibold uppercase tracking-wider", c, className)}>{children}</span>;
+  return <span className={cn("inline-flex items-center gap-1 rounded border px-2.5 py-0.5 text-[11px] font-semibold uppercase tracking-wider", c, className)}>{children}</span>;
 }
 
 export function Field({ label, children, hint }: { label: string; children: ReactNode; hint?: string }) {
@@ -171,7 +171,7 @@ export function Field({ label, children, hint }: { label: string; children: Reac
 }
 
 export const inputCls =
-  "w-full rounded-xl border border-[#006DFF]/30 bg-[#0B111A]/90 px-3.5 py-2.5 text-sm text-[#B8F3FF] placeholder-[#4C91B5]/60 outline-none transition-all focus:border-[#00C8FF] focus:shadow-[0_0_16px_rgba(0,229,255,0.4)]";
+  "w-full rounded border border-[#006DFF]/30 bg-[#0B111A]/90 px-3.5 py-2.5 text-sm text-[#B8F3FF] placeholder-[#4C91B5]/60 outline-none transition-all focus:border-[#00C8FF] focus:shadow-[0_0_16px_rgba(0,229,255,0.4)]";
 
 export function Input(props: React.InputHTMLAttributes<HTMLInputElement>) {
   return <input {...props} className={cn(inputCls, props.className)} />;
@@ -188,10 +188,10 @@ export function Modal({ open, onClose, title, children, wide }: { open: boolean;
   return (
     <div className="fixed inset-0 z-[90] flex items-center justify-center p-4">
       <div className="absolute inset-0 bg-black/85 backdrop-blur-md" onClick={onClose} />
-      <div className={cn("relative max-h-[92vh] w-full overflow-y-auto rounded-2xl border border-[#00C8FF]/40 bg-[#0B111A] p-6 shadow-[0_0_60px_-10px_rgba(0,200,255,0.4)]", wide ? "max-w-4xl" : "max-w-lg")}>
+      <div className={cn("relative max-h-[92vh] w-full overflow-y-auto rounded-lg border border-[#00C8FF]/40 bg-[#0B111A] p-6 shadow-[0_0_60px_-10px_rgba(0,200,255,0.4)]", wide ? "max-w-4xl" : "max-w-lg")}>
         <div className="mb-4 flex items-center justify-between gap-4 border-b border-[#006DFF]/20 pb-3">
           <h3 className="font-display text-lg font-bold text-[#B8F3FF]">{title}</h3>
-          <button onClick={onClose} className="rounded-lg border border-white/10 px-2.5 py-1 text-slate-400 hover:bg-white/10 hover:text-white">✕</button>
+          <button onClick={onClose} className="rounded border border-white/10 px-2.5 py-1 text-slate-400 hover:bg-white/10 hover:text-white">✕</button>
         </div>
         {children}
       </div>
@@ -215,7 +215,7 @@ export function Stat({ icon, label, value, color = "cyan", sub }: { icon: ReactN
           <p className="font-display mt-1.5 text-2xl font-bold text-[#B8F3FF]">{value}</p>
           {sub && <p className="mt-0.5 text-[11px] text-[#27506B]">{sub}</p>}
         </div>
-        <div className={cn("rounded-xl border p-2.5", c)}>{icon}</div>
+        <div className={cn("rounded border p-2.5", c)}>{icon}</div>
       </div>
     </Card>
   );
@@ -235,10 +235,10 @@ export function PageHead({ title, subtitle, actions }: { title: ReactNode; subti
 
 export function Empty({ icon, title, sub }: { icon: ReactNode; title: string; sub?: string }) {
   return (
-    <div className="flex flex-col items-center justify-center rounded-2xl border border-dashed border-white/10 bg-white/[0.02] py-14 text-center">
-      <div className="mb-3 text-slate-600">{icon}</div>
-      <p className="font-semibold text-slate-300">{title}</p>
-      {sub && <p className="mt-1 max-w-sm text-sm text-slate-500">{sub}</p>}
+    <div className="flex flex-col items-center justify-center rounded-lg border border-dashed border-[#006DFF]/30 bg-[#0B111A]/60 py-14 text-center">
+      <div className="mb-3 text-[#4C91B5]">{icon}</div>
+      <p className="font-semibold text-[#B8F3FF]">{title}</p>
+      {sub && <p className="mt-1 max-w-sm text-sm text-[#4C91B5]">{sub}</p>}
     </div>
   );
 }

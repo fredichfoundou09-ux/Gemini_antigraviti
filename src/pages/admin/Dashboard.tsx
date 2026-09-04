@@ -77,49 +77,14 @@ export function AdminDashboard() {
     });
   }, [db.modules, db.grades]);
 
-  // Alertes récentes dérivées des logs ou notifications
-  const recentAlerts = useMemo(() => {
-    const alertsList = [
-      {
-        id: "alt-1",
-        title: "Tentative de connexion suspecte",
-        time: "Il y a 2 min",
-        ip: "IP: 197.45.23.12",
-        level: "CRITIQUE",
-        color: "#FF174F",
-      },
-      {
-        id: "alt-2",
-        title: "Charge serveur élevée",
-        time: "Il y a 15 min",
-        ip: "CPU: 92%",
-        level: "ATTENTION",
-        color: "#D50072",
-      },
-      {
-        id: "alt-3",
-        title: "Espace disque faible",
-        time: "Il y a 1 h",
-        ip: "Disque: 12% restant",
-        level: "AVERTISSEMENT",
-        color: "#FFB300",
-      },
-    ];
-
-    // Si des logs d'erreurs réels existent dans le système, on les priorise
-    if (db.log.length > 0) {
-      const systemLogs = db.log.slice(0, 3).map((l, i) => ({
-        id: l.id || `alt-log-${i}`,
-        title: l.action,
-        time: l.date.includes(" ") ? l.date.split(" ")[1] : l.date,
-        ip: l.user || "Système",
-        level: i === 0 ? "CRITIQUE" : i === 1 ? "ATTENTION" : "AVERTISSEMENT",
-        color: i === 0 ? "#FF174F" : i === 1 ? "#D50072" : "#FFB300",
-      }));
-      return systemLogs;
-    }
-
-    return alertsList;
+  // Alertes réelles dérivées des logs de sécurité
+  const realSecurityAlerts = useMemo(() => {
+    return db.log
+      .filter((l) => {
+        const a = (l.action || "").toLowerCase();
+        return a.includes("alerte") || a.includes("erreur") || a.includes("suppr") || a.includes("sécur") || a.includes("bloqu");
+      })
+      .slice(0, 3);
   }, [db.log]);
 
   if (isEmpty) {
@@ -531,28 +496,28 @@ export function AdminDashboard() {
                 <p className="font-black text-[#B8F3FF] text-[9px] uppercase tracking-wider">BOURSES & TRÉSORERIE</p>
                 <div className="mt-1 flex items-center justify-between text-[#4C91B5] text-[10px]">
                   <span>Bourses attribuées :</span>
-                  <strong className="text-[#FFB300] font-mono">{scholarshipsGranted || 18}</strong>
+                  <strong className="text-[#FFB300] font-mono">{scholarshipsGranted}</strong>
                 </div>
                 <div className="mt-1 flex items-center justify-between text-[#4C91B5] text-[10px]">
                   <span>Total encaissé :</span>
-                  <strong className="text-[#00FF88] font-mono">{revenue > 0 ? money(revenue) : "2 450 000 FCFA"}</strong>
+                  <strong className="text-[#00FF88] font-mono">{money(revenue)}</strong>
                 </div>
               </div>
             </div>
 
             {/* ACTIVITÉ EN TEMPS RÉEL (ACCENT ROUGE NÉON EN BORDURE !) */}
-            <div className="hud-panel rounded-lg border border-[#FF174F]/50 shadow-[0_0_18px_rgba(255,23,79,0.25)] p-3.5 flex flex-col justify-between overflow-hidden">
-              <div className="flex items-center justify-between border-b border-[#006DFF]/20 pb-1.5">
+            <div className="hud-panel rounded-lg border-2 border-[#FF174F] shadow-[0_0_20px_rgba(255,23,79,0.35)] p-3.5 flex flex-col justify-between overflow-hidden">
+              <div className="flex items-center justify-between border-b border-[#FF174F]/30 pb-1.5">
                 <div className="flex items-center gap-2">
                   <span className="relative flex h-2 w-2">
-                    <span className="absolute inline-flex h-full w-full animate-ping rounded-full bg-[#00E5FF] opacity-75" />
-                    <span className="relative inline-flex h-2 w-2 rounded-full bg-[#00E5FF]" />
+                    <span className="absolute inline-flex h-full w-full animate-ping rounded-full bg-[#FF174F] opacity-75" />
+                    <span className="relative inline-flex h-2 w-2 rounded-full bg-[#FF174F]" />
                   </span>
                   <h3 className="font-display text-xs font-black text-[#B8F3FF] uppercase tracking-wider">
                     ACTIVITÉ EN TEMPS RÉEL
                   </h3>
                 </div>
-                <span className="rounded border border-[#006DFF]/40 bg-[#071A2B] px-1.5 py-0.5 text-[9px] font-bold text-[#00E5FF]">
+                <span className="rounded border border-[#FF174F]/50 bg-[#2A0815] px-1.5 py-0.5 text-[9px] font-bold text-[#FF174F]">
                   SOC LIVE
                 </span>
               </div>
@@ -572,43 +537,43 @@ export function AdminDashboard() {
                   {/* Lignes interconnectées animées */}
                   <path d="M 65 40 Q 115 15, 165 35" fill="none" stroke="#00E5FF" strokeWidth="1.2" opacity="0.8" strokeDasharray="3 2" />
                   <path d="M 165 35 Q 200 20, 230 40" fill="none" stroke="#00E5FF" strokeWidth="1.2" opacity="0.8" strokeDasharray="3 2" />
-                  <path d="M 170 75 Q 130 85, 95 85" fill="none" stroke="#D50072" strokeWidth="1.2" opacity="0.7" strokeDasharray="2 2" />
+                  <path d="M 170 75 Q 130 85, 95 85" fill="none" stroke="#FF174F" strokeWidth="1.2" opacity="0.8" strokeDasharray="2 2" />
                   <path d="M 170 75 Q 220 85, 265 95" fill="none" stroke="#00C8FF" strokeWidth="1.2" opacity="0.7" strokeDasharray="2 2" />
 
                   {/* Nœuds lumineux palpitants */}
                   <circle cx="65" cy="40" r="3" fill="#00E5FF" className="animate-pulse" />
                   <circle cx="165" cy="35" r="3.5" fill="#00E5FF" />
-                  <circle cx="170" cy="75" r="4" fill="#00FF88" className="animate-ping" />
-                  <circle cx="170" cy="75" r="3" fill="#00FF88" />
+                  <circle cx="170" cy="75" r="4" fill="#FF174F" className="animate-ping" />
+                  <circle cx="170" cy="75" r="3" fill="#FF174F" />
                   <circle cx="230" cy="40" r="3" fill="#D50072" />
                   <circle cx="265" cy="95" r="2.5" fill="#00C8FF" />
                 </svg>
               </div>
 
-              {/* Métriques télémétriques */}
+              {/* Métriques télémétriques 100% réelles */}
               <div className="grid grid-cols-4 gap-1 border-t border-[#006DFF]/20 pt-1.5 text-center text-[9px]">
                 <div>
-                  <p className="text-[#4C91B5]">Connexions</p>
+                  <p className="text-[#4C91B5]">Connectés</p>
                   <p className="font-display text-xs font-black text-[#00E5FF] font-mono">
-                    {presences.filter(isUserActiveOnline).length || 124}
+                    {presences.filter(isUserActiveOnline).length || (user ? 1 : 0)}
                   </p>
                 </div>
                 <div>
-                  <p className="text-[#4C91B5]">Sessions</p>
+                  <p className="text-[#4C91B5]">Aujourd'hui</p>
                   <p className="font-display text-xs font-black text-[#008CFF] font-mono">
-                    {presences.length || 86}
+                    {attToday.length}
                   </p>
                 </div>
                 <div>
-                  <p className="text-[#FF174F] font-bold">Alertes système</p>
+                  <p className="text-[#FF174F] font-bold">Alertes logs</p>
                   <p className="font-display text-xs font-black text-[#FF174F] font-mono drop-shadow-[0_0_6px_#FF174F]">
-                    7
+                    {db.log.filter((l) => (l.action || "").toLowerCase().includes("erreur") || (l.action || "").toLowerCase().includes("alerte")).length}
                   </p>
                 </div>
                 <div>
-                  <p className="text-[#D50072]">Nouv. inscrits</p>
+                  <p className="text-[#D50072]">Pré-inscrits</p>
                   <p className="font-display text-xs font-black text-[#D50072] font-mono">
-                    {db.registrations.length || 15}
+                    {db.registrations.length}
                   </p>
                 </div>
               </div>
@@ -643,23 +608,25 @@ export function AdminDashboard() {
               <div className="flex-1 space-y-1 text-xs">
                 <div className="flex justify-between text-[#4C91B5]">
                   <span>Cours créés</span>
-                  <strong className="text-[#B8F3FF] font-mono">{db.courses.length || 142}</strong>
+                  <strong className="text-[#B8F3FF] font-mono">{db.courses.length}</strong>
                 </div>
                 <div className="flex justify-between text-[#4C91B5]">
-                  <span>Devoirs remis</span>
-                  <strong className="text-[#B8F3FF] font-mono">{db.grades.length || 521}</strong>
+                  <span>Devoirs / Notes</span>
+                  <strong className="text-[#B8F3FF] font-mono">{db.grades.length}</strong>
                 </div>
                 <div className="flex justify-between text-[#4C91B5]">
-                  <span>Tests effectués</span>
-                  <strong className="text-[#B8F3FF] font-mono">{db.quizzes?.length || 389}</strong>
+                  <span>Tests actifs</span>
+                  <strong className="text-[#B8F3FF] font-mono">{db.tests?.length || 0}</strong>
                 </div>
                 <div className="flex justify-between text-[#4C91B5]">
-                  <span>Heures de cours</span>
-                  <strong className="text-[#00E5FF] font-mono">1287h</strong>
+                  <span>Heures formateurs</span>
+                  <strong className="text-[#00E5FF] font-mono">
+                    {db.teacherHours?.reduce((acc, h) => acc + (h.heures || 0), 0) || 0}h
+                  </strong>
                 </div>
                 <div className="flex justify-between text-[#4C91B5]">
-                  <span>Réunions planifiées</span>
-                  <strong className="text-[#B8F3FF] font-mono">48</strong>
+                  <span>Créneaux planning</span>
+                  <strong className="text-[#B8F3FF] font-mono">{db.schedule.length}</strong>
                 </div>
               </div>
             </div>
@@ -673,7 +640,7 @@ export function AdminDashboard() {
               <h3 className="font-display text-xs font-black text-[#B8F3FF] uppercase tracking-wider">
                 ACTIVITÉ DES MODULES
               </h3>
-              <span className="text-[10px] text-[#00E5FF] font-bold">Ce mois ▾</span>
+              <span className="text-[10px] text-[#00E5FF] font-bold">Actifs ({db.modules.length})</span>
             </div>
 
             {/* Ondes fréquentielles luminescentes animées */}
@@ -704,9 +671,8 @@ export function AdminDashboard() {
             </div>
 
             <div className="flex items-center justify-between text-[11px] font-mono">
-              <span className="text-[#00E5FF] font-bold">72%</span>
-              <span className="text-[#008CFF] font-bold">58%</span>
-              <span className="text-[#D50072] font-bold">35%</span>
+              <span className="text-[#00E5FF] font-bold">Informatique ({infoCount})</span>
+              <span className="text-[#D50072] font-bold">Industriel ({indCount})</span>
             </div>
           </div>
         </div>
@@ -714,68 +680,69 @@ export function AdminDashboard() {
         {/* 3. TOP MODULES ACTIFS (BORDURE ROUGE NÉON INTENSE EXACTE DE LA MAQUETTE !) */}
         <div className="hud-panel rounded-lg border-2 border-[#FF174F] shadow-[0_0_22px_rgba(255,23,79,0.45)] p-3.5 flex flex-col justify-between">
           <div>
-            <h3 className="font-display text-xs font-black text-[#FF174F] uppercase tracking-wider border-b border-[#FF174F]/40 pb-2 drop-shadow-[0_0_6px_#FF174F]">
-              TOP MODULES ACTIFS
-            </h3>
+            <div className="flex items-center justify-between border-b border-[#FF174F]/40 pb-2">
+              <h3 className="font-display text-xs font-black text-[#FF174F] uppercase tracking-wider drop-shadow-[0_0_6px_#FF174F]">
+                TOP MODULES ACTIFS
+              </h3>
+              <span className="text-[9px] font-mono text-[#FF174F] font-bold">{db.modules.length} modules</span>
+            </div>
             <div className="mt-2 space-y-2 text-[10px]">
-              {[
-                { name: "Programmation & Dev Web", count: 256, pct: 85, color: "bg-[#00E5FF]" },
-                { name: "Réseaux Informatiques", count: 198, pct: 66, color: "bg-[#008CFF]" },
-                { name: "Systèmes d'Exploitation", count: 176, pct: 58, color: "bg-[#008CFF]" },
-                { name: "Cybersécurité & Gestion SI", count: 154, pct: 46, color: "bg-[#D50072]" },
-                { name: "Hacking Éthique", count: 121, pct: 40, color: "bg-[#FF174F]" },
-              ].map((m, idx) => (
-                <div key={idx}>
-                  <div className="flex justify-between text-[#B8F3FF]">
-                    <span className="truncate max-w-[130px] font-semibold">{m.name}</span>
-                    <span className="font-mono text-[#4C91B5]">{m.count} <strong className="text-white">{m.pct}%</strong></span>
+              {topModules.length > 0 ? (
+                topModules.map((m, idx) => (
+                  <div key={m.id || idx}>
+                    <div className="flex justify-between text-[#B8F3FF]">
+                      <span className="truncate max-w-[140px] font-semibold">{m.titre}</span>
+                      <span className="font-mono text-[#4C91B5]">{m.count} éval. <strong className="text-white">{m.pct}%</strong></span>
+                    </div>
+                    <div className="mt-1 h-1.5 w-full rounded-sm bg-[#080A0F] overflow-hidden">
+                      <div className={`h-full rounded-sm ${idx === 0 ? "bg-[#00E5FF]" : idx === 1 ? "bg-[#008CFF]" : idx === 2 ? "bg-[#D50072]" : "bg-[#FF174F]"}`} style={{ width: `${m.pct}%` }} />
+                    </div>
                   </div>
-                  <div className="mt-1 h-1.5 w-full rounded-sm bg-[#080A0F] overflow-hidden">
-                    <div className={`h-full rounded-sm ${m.color}`} style={{ width: `${m.pct}%` }} />
-                  </div>
+                ))
+              ) : (
+                <div className="py-4 text-center text-xs text-[#4C91B5]">
+                  Aucun module enregistré.
                 </div>
-              ))}
+              )}
             </div>
           </div>
         </div>
 
-        {/* 4. ÉTAT DES SYSTÈMES */}
+        {/* 4. ÉTAT DES SYSTÈMES (AVEC ACCENT ROUGE SOC CRITIQUE) */}
         <div className="hud-panel rounded-lg border border-[#006DFF]/40 p-3.5 flex flex-col justify-between">
           <div>
             <h3 className="font-display text-xs font-black text-[#B8F3FF] uppercase tracking-wider border-b border-[#006DFF]/25 pb-2">
               ÉTAT DES SYSTÈMES
             </h3>
             <div className="my-2 flex items-center justify-between gap-3">
-              {/* Bouclier HUD 85% sécurisé */}
+              {/* Bouclier HUD sécurisé */}
               <div className="relative flex h-14 w-14 shrink-0 items-center justify-center rounded-full border-2 border-[#00C8FF] bg-[#071A2B] shadow-[0_0_15px_rgba(0,229,255,0.4)]">
                 <ShieldCheck size={24} className="text-[#00E5FF]" />
-                <span className="absolute -bottom-1 rounded bg-[#006DFF] px-1 text-[8px] font-bold text-white shadow">85%</span>
+                <span className="absolute -bottom-1 rounded bg-[#006DFF] px-1 text-[8px] font-bold text-white shadow">
+                  {isSupabaseConfigured ? "100%" : "LOCAL"}
+                </span>
               </div>
 
               <div className="flex-1 space-y-1 text-[9px]">
                 <div className="flex items-center justify-between">
-                  <span className="flex items-center gap-1 text-[#4C91B5]"><span className="h-1.5 w-1.5 rounded-full bg-[#00FF88]" /> Serveurs</span>
-                  <span className="font-bold text-[#00FF88]">OPÉRATIONNEL</span>
+                  <span className="flex items-center gap-1 text-[#4C91B5]"><span className="h-1.5 w-1.5 rounded-full bg-[#00FF88]" /> Base Supabase</span>
+                  <span className="font-bold text-[#00FF88]">{isSupabaseConfigured ? "CONNECTÉ" : "LOCAL"}</span>
                 </div>
                 <div className="flex items-center justify-between">
-                  <span className="flex items-center gap-1 text-[#4C91B5]"><span className="h-1.5 w-1.5 rounded-full bg-[#00FF88]" /> Base de données</span>
-                  <span className="font-bold text-[#00FF88]">OPÉRATIONNEL</span>
+                  <span className="flex items-center gap-1 text-[#4C91B5]"><span className="h-1.5 w-1.5 rounded-full bg-[#00FF88]" /> Utilisateurs actifs</span>
+                  <span className="font-bold text-[#00FF88]">{db.users.filter((u) => u.actif !== false).length}</span>
                 </div>
                 <div className="flex items-center justify-between">
-                  <span className="flex items-center gap-1 text-[#4C91B5]"><span className="h-1.5 w-1.5 rounded-full bg-[#00FF88]" /> Sauvegardes</span>
-                  <span className="font-bold text-[#00FF88]">OK</span>
+                  <span className="flex items-center gap-1 text-[#4C91B5]"><span className="h-1.5 w-1.5 rounded-full bg-[#008CFF]" /> Apprenants</span>
+                  <span className="font-bold text-[#008CFF]">{students.length}</span>
                 </div>
                 <div className="flex items-center justify-between">
-                  <span className="flex items-center gap-1 text-[#4C91B5]"><span className="h-1.5 w-1.5 rounded-full bg-[#008CFF]" /> Réseau</span>
-                  <span className="font-bold text-[#008CFF]">STABLE</span>
+                  <span className="flex items-center gap-1 text-[#4C91B5]"><span className="h-1.5 w-1.5 rounded-full bg-[#00C8FF]" /> Formateurs</span>
+                  <span className="font-bold text-[#00C8FF]">{db.teachers.length}</span>
                 </div>
                 <div className="flex items-center justify-between">
-                  <span className="flex items-center gap-1 text-[#4C91B5]"><span className="h-1.5 w-1.5 rounded-full bg-[#FFB300]" /> Stockage</span>
-                  <span className="font-bold text-[#FFB300]">73%</span>
-                </div>
-                <div className="flex items-center justify-between">
-                  <span className="flex items-center gap-1 text-[#4C91B5]"><span className="h-1.5 w-1.5 rounded-full bg-[#FF174F]" /> Bande passante</span>
-                  <span className="font-bold text-[#FF174F]">58%</span>
+                  <span className="flex items-center gap-1 text-[#FF174F]"><span className="h-1.5 w-1.5 rounded-full bg-[#FF174F]" /> Sécurité SOC</span>
+                  <span className="font-bold text-[#FF174F]">ARMÉ</span>
                 </div>
               </div>
             </div>
@@ -785,12 +752,12 @@ export function AdminDashboard() {
 
       {/* ================= SECTION 4 : PRÉ-INSCRIPTIONS + PRÉSENCE DIRECTE + ALERTES (BORDURE ROUGE NÉON !) ================= */}
       <div className="grid grid-cols-1 gap-3.5 lg:grid-cols-12">
-        {/* 1. PRÉ-INSCRIPTIONS RÉCENTES */}
+        {/* 1. PRÉ-INSCRIPTIONS RÉCENTES (100% DONNÉES RÉELLES DB) */}
         <div className="hud-panel rounded-lg border border-[#006DFF]/40 p-4 lg:col-span-4 flex flex-col justify-between">
           <div>
             <div className="flex items-center justify-between border-b border-[#006DFF]/25 pb-2">
               <h3 className="font-display text-xs font-black text-[#B8F3FF] uppercase tracking-wider">
-                PRÉ-INSCRIPTIONS RÉCENTES
+                PRÉ-INSCRIPTIONS RÉCENTES ({db.registrations.length})
               </h3>
               <Link to="/app/etudiants" className="text-[10px] font-bold text-[#00E5FF] hover:underline">
                 GÉRER →
@@ -798,40 +765,35 @@ export function AdminDashboard() {
             </div>
 
             <div className="mt-2.5 space-y-2">
-              <div className="flex items-center justify-between rounded border border-[#006DFF]/30 bg-[#0B111A]/90 p-2 text-xs">
-                <div className="flex items-center gap-2 min-w-0">
-                  <div className="flex h-7 w-7 shrink-0 items-center justify-center rounded border border-[#00C8FF]/40 bg-[#071A2B] text-[#00E5FF]">
-                    <Users size={13} />
+              {db.registrations.length > 0 ? (
+                db.registrations.slice(0, 3).map((r) => (
+                  <div key={r.id} className="flex items-center justify-between rounded border border-[#006DFF]/30 bg-[#0B111A]/90 p-2 text-xs">
+                    <div className="flex items-center gap-2 min-w-0">
+                      <div className="flex h-7 w-7 shrink-0 items-center justify-center rounded border border-[#00C8FF]/40 bg-[#071A2B] text-[#00E5FF]">
+                        <Users size={13} />
+                      </div>
+                      <div className="min-w-0">
+                        <p className="truncate font-bold text-[#B8F3FF]">{r.nom} {r.prenom}</p>
+                        <p className="truncate text-[9px] text-[#4C91B5]">{formationLabel(r.formation)} • {r.modules?.length || 1} module(s)</p>
+                      </div>
+                    </div>
+                    <span className={`shrink-0 rounded px-2 py-0.5 text-[9px] font-bold uppercase tracking-wider ${
+                      r.statut === "confirmee" ? "border border-[#00FF88]/40 bg-[#052619] text-[#00FF88]" : "border border-[#FFB300]/40 bg-[#261E05] text-[#FFB300]"
+                    }`}>
+                      {r.statut === "confirmee" ? "CONFIRMÉE" : "EN ATTENTE"}
+                    </span>
                   </div>
-                  <div className="min-w-0">
-                    <p className="truncate font-bold text-[#B8F3FF]">NZINGOU Fredich</p>
-                    <p className="truncate text-[9px] text-[#4C91B5]">Génie Informatique • 7 modules • 2025-09-02</p>
-                  </div>
+                ))
+              ) : (
+                <div className="rounded border border-[#006DFF]/20 bg-[#0B111A]/50 p-4 text-center text-[11px] text-[#4C91B5]">
+                  Aucune pré-inscription enregistrée dans la base de données.
                 </div>
-                <span className="shrink-0 rounded border border-[#00FF88]/40 bg-[#052619] px-2 py-0.5 text-[9px] font-bold uppercase tracking-wider text-[#00FF88]">
-                  CONFIRMÉE
-                </span>
-              </div>
-
-              <div className="flex items-center justify-between rounded border border-[#006DFF]/30 bg-[#0B111A]/90 p-2 text-xs">
-                <div className="flex items-center gap-2 min-w-0">
-                  <div className="flex h-7 w-7 shrink-0 items-center justify-center rounded border border-[#006DFF]/40 bg-[#071A2B] text-[#008CFF]">
-                    <Users size={13} />
-                  </div>
-                  <div className="min-w-0">
-                    <p className="truncate font-bold text-[#B8F3FF]">MBEMBA Loric</p>
-                    <p className="truncate text-[9px] text-[#4C91B5]">Génie Industriel • 6 modules • 2025-09-01</p>
-                  </div>
-                </div>
-                <span className="shrink-0 rounded border border-[#FFB300]/40 bg-[#261E05] px-2 py-0.5 text-[9px] font-bold uppercase tracking-wider text-[#FFB300]">
-                  EN ATTENTE
-                </span>
-              </div>
+              )}
             </div>
           </div>
         </div>
 
-        {/* 2. PRÉSENCE EN DIRECT */}
+        {/* 2. PRÉSENCE EN DIRECT (UNIQUEMENT COMPTES CONNECTÉS RÉELS) */}
         <div className="hud-panel rounded-lg border border-[#006DFF]/40 p-4 lg:col-span-4 flex flex-col justify-between">
           <div>
             <div className="flex items-center justify-between border-b border-[#006DFF]/25 pb-2">
@@ -845,39 +807,48 @@ export function AdminDashboard() {
                 </h3>
               </div>
               <span className="rounded border border-[#00FF88]/40 bg-[#052619] px-1.5 py-0.5 text-[9px] font-bold text-[#00FF88]">
-                {presences.filter(isUserActiveOnline).length || 12} connecté(s)
+                {presences.filter(isUserActiveOnline).length || (user ? 1 : 0)} connecté(s)
               </span>
             </div>
 
             <div className="mt-2.5 space-y-1.5">
-              {[
-                { name: "FOUNDOU", role: "Superadmin" },
-                { name: "MARTIAL", role: "Enseignant" },
-                { name: "VIANNEY", role: "Formateur" },
-              ].map((u, i) => (
-                <div key={i} className="flex items-center justify-between rounded border border-[#006DFF]/30 bg-[#0B111A]/90 px-2.5 py-1.5 text-xs">
-                  <div className="flex items-center gap-2">
-                    <span className="h-2 w-2 rounded-full bg-[#00FF88] shadow-[0_0_6px_#00FF88]" />
-                    <div>
-                      <p className="font-bold text-[#B8F3FF] text-[11px]">{u.name}</p>
-                      <p className="text-[9px] text-[#4C91B5]">{u.role}</p>
+              {(() => {
+                const onlineUsers = presences.filter(isUserActiveOnline);
+                const displayList = onlineUsers.length > 0
+                  ? onlineUsers
+                  : user ? [{ name: user.name || user.username, role: user.role }] : [];
+
+                return displayList.length > 0 ? (
+                  displayList.slice(0, 3).map((u, i) => (
+                    <div key={i} className="flex items-center justify-between rounded border border-[#006DFF]/30 bg-[#0B111A]/90 px-2.5 py-1.5 text-xs">
+                      <div className="flex items-center gap-2 min-w-0">
+                        <span className="h-2 w-2 shrink-0 rounded-full bg-[#00FF88] shadow-[0_0_6px_#00FF88]" />
+                        <div className="min-w-0">
+                          <p className="font-bold text-[#B8F3FF] text-[11px] truncate">{u.name}</p>
+                          <p className="text-[9px] text-[#4C91B5] uppercase">{u.role}</p>
+                        </div>
+                      </div>
+                      <span className="text-[10px] font-bold text-[#00FF88] shrink-0">En ligne</span>
                     </div>
+                  ))
+                ) : (
+                  <div className="rounded border border-[#006DFF]/20 bg-[#0B111A]/50 p-4 text-center text-[11px] text-[#4C91B5]">
+                    Aucun utilisateur connecté.
                   </div>
-                  <span className="text-[10px] font-bold text-[#00FF88]">En ligne</span>
-                </div>
-              ))}
+                );
+              })()}
             </div>
           </div>
 
           <div className="mt-2 text-right">
             <Link to="/app/utilisateurs" className="text-[10px] font-bold text-[#00C8FF] hover:underline">
-              Voir tous →
+              Gérer les comptes →
             </Link>
           </div>
         </div>
 
-        {/* 3. ALERTES RÉCENTES (BORDURE ROUGE NÉON INTENSE EXACTE DE LA MAQUETTE !) */}
-        <div className="hud-panel rounded-lg border-2 border-[#FF174F] shadow-[0_0_22px_rgba(255,23,79,0.45)] p-4 lg:col-span-4 flex flex-col justify-between">
+        {/* 3. ALERTES RÉCENTES (BORDURE ROUGE NÉON INTENSE EXACTE DE LA MAQUETTE & LOGS RÉELS !) */}
+        <div className="hud-panel rounded-lg border-2 border-[#FF174F] shadow-[0_0_24px_rgba(255,23,79,0.5)] p-4 lg:col-span-4 flex flex-col justify-between">
           <div>
             <div className="flex items-center justify-between border-b border-[#FF174F]/40 pb-2">
               <div className="flex items-center gap-2">
@@ -892,44 +863,36 @@ export function AdminDashboard() {
             </div>
 
             <div className="mt-2.5 space-y-2">
-              <div className="flex items-center justify-between rounded border border-[#FF174F]/40 bg-[#0B111A]/90 p-2 text-xs">
-                <div className="flex items-start gap-2 min-w-0">
-                  <AlertTriangle size={15} className="shrink-0 text-[#FF174F] mt-0.5" />
-                  <div className="min-w-0">
-                    <p className="truncate font-bold text-[#B8F3FF]">Tentative de connexion suspecte</p>
-                    <p className="text-[9px] text-[#4C91B5]">Il y a 2 min • IP: 197.45.23.12</p>
-                  </div>
-                </div>
-                <span className="shrink-0 rounded border border-[#FF174F] bg-[#FF174F]/20 px-2 py-0.5 text-[8px] font-black uppercase tracking-wider text-[#FF174F] shadow-[0_0_8px_#FF174F]">
-                  CRITIQUE
-                </span>
-              </div>
+              {(() => {
+                const securityLogs = db.log.filter((l) => {
+                  const a = (l.action || "").toLowerCase();
+                  return a.includes("alerte") || a.includes("erreur") || a.includes("suppr") || a.includes("sécur") || a.includes("bloqu");
+                });
 
-              <div className="flex items-center justify-between rounded border border-[#D50072]/40 bg-[#0B111A]/90 p-2 text-xs">
-                <div className="flex items-start gap-2 min-w-0">
-                  <AlertTriangle size={15} className="shrink-0 text-[#D50072] mt-0.5" />
-                  <div className="min-w-0">
-                    <p className="truncate font-bold text-[#B8F3FF]">Charge serveur élevée</p>
-                    <p className="text-[9px] text-[#4C91B5]">Il y a 15 min • CPU: 92%</p>
-                  </div>
-                </div>
-                <span className="shrink-0 rounded border border-[#FFB300]/50 bg-[#FFB300]/20 px-2 py-0.5 text-[8px] font-black uppercase tracking-wider text-[#FFB300]">
-                  ATTENTION
-                </span>
-              </div>
+                const displayLogs = securityLogs.length > 0 ? securityLogs.slice(0, 3) : db.log.slice(0, 3);
 
-              <div className="flex items-center justify-between rounded border border-amber-500/40 bg-[#0B111A]/90 p-2 text-xs">
-                <div className="flex items-start gap-2 min-w-0">
-                  <AlertTriangle size={15} className="shrink-0 text-[#FFB300] mt-0.5" />
-                  <div className="min-w-0">
-                    <p className="truncate font-bold text-[#B8F3FF]">Espace disque faible</p>
-                    <p className="text-[9px] text-[#4C91B5]">Il y a 1 h • Disque: 12% restant</p>
+                return displayLogs.length > 0 ? (
+                  displayLogs.map((l) => (
+                    <div key={l.id} className="flex items-center justify-between rounded border border-[#FF174F]/40 bg-[#0B111A]/90 p-2 text-xs">
+                      <div className="flex items-start gap-2 min-w-0">
+                        <AlertTriangle size={15} className="shrink-0 text-[#FF174F] mt-0.5" />
+                        <div className="min-w-0">
+                          <p className="truncate font-bold text-[#B8F3FF]">{l.action}</p>
+                          <p className="text-[9px] text-[#4C91B5]">{l.date} • {l.user || "Système"}</p>
+                        </div>
+                      </div>
+                      <span className="shrink-0 rounded border border-[#FF174F] bg-[#FF174F]/20 px-2 py-0.5 text-[8px] font-black uppercase tracking-wider text-[#FF174F] shadow-[0_0_8px_#FF174F]">
+                        SOC
+                      </span>
+                    </div>
+                  ))
+                ) : (
+                  <div className="rounded border border-[#00FF88]/30 bg-[#052619]/40 p-3 text-center text-xs text-[#00FF88]">
+                    <ShieldCheck size={18} className="mx-auto mb-1 text-[#00FF88]" />
+                    Système nominal • Aucune anomalie détectée
                   </div>
-                </div>
-                <span className="shrink-0 rounded border border-[#FFB300]/50 bg-[#FFB300]/20 px-2 py-0.5 text-[8px] font-black uppercase tracking-wider text-[#FFB300]">
-                  AVERTISSEMENT
-                </span>
-              </div>
+                );
+              })()}
             </div>
           </div>
         </div>
