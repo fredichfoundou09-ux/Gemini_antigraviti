@@ -12,6 +12,7 @@ import { useStore } from "@/lib/store";
 import { useAuth } from "@/contexts/AuthContext";
 import { Badge, formationLabel } from "@/lib/ui";
 import { usePresence } from "@/hooks/usePresence";
+import { useBackgroundSync } from "@/hooks/useBackgroundSync";
 import { isSupabaseConfigured } from "@/lib/supabase/client";
 import { subscribeToAllMessages, subscribeToNotifications } from "@/lib/supabase/communication";
 import { toastMsg } from "@/lib/toast";
@@ -112,6 +113,7 @@ export default function DashboardLayout() {
   const searchInputRef = useRef<HTMLInputElement>(null);
   const searchContainerRef = useRef<HTMLDivElement>(null);
   usePresence();
+  const { unreadCount } = useBackgroundSync();
 
   const user = storeUser || (profile ? {
     id: profile.id,
@@ -245,7 +247,10 @@ export default function DashboardLayout() {
 
   const items = MENU.filter((m) => m.roles.includes(user.role));
   const unreadNotifications = db.notifications.filter((n) => !n.lu && (n.toId === user.id || n.toId === "all")).length;
-  const unreadMessages = db.messages.filter((m) => !m.lu && m.toId === user.id).length;
+  const unreadMessages = Math.max(
+    unreadCount,
+    db.messages.filter((m) => !m.lu && (m.toId === user.id || m.toId === "all_students" || m.toId === "all_teachers")).length
+  );
 
   const sidebar = (
     <div className="flex h-full flex-col">

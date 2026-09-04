@@ -89,22 +89,58 @@ export const toastMsg = {
     },
   }),
 
-  incomingMessage: (payload: { senderName: string; subject?: string; body: string }) =>
-    toast(`Nouveau message · ${payload.senderName}`, {
-      description: payload.subject ? `${payload.subject} : ${payload.body.slice(0, 65)}...` : payload.body.slice(0, 80),
-      duration: 4500,
+  incomingMessage: (payload: { senderName: string; senderRole?: string; subject?: string; body: string }) => {
+    // Émission d'un bip sonore discret cyber (Web Audio API natif)
+    try {
+      const AudioCtx = window.AudioContext || (window as any).webkitAudioContext;
+      if (AudioCtx) {
+        const ctx = new AudioCtx();
+        const osc = ctx.createOscillator();
+        const gain = ctx.createGain();
+        osc.type = "sine";
+        osc.frequency.setValueAtTime(587.33, ctx.currentTime); // D5
+        osc.frequency.exponentialRampToValueAtTime(880, ctx.currentTime + 0.15); // A5
+        gain.gain.setValueAtTime(0.08, ctx.currentTime);
+        gain.gain.exponentialRampToValueAtTime(0.001, ctx.currentTime + 0.25);
+        osc.connect(gain);
+        gain.connect(ctx.destination);
+        osc.start();
+        osc.stop(ctx.currentTime + 0.25);
+      }
+    } catch { /* silence audio */ }
+
+    const roleMap: Record<string, string> = {
+      superadmin: "Super Admin",
+      admin: "Direction / Admin",
+      teacher: "Formateur",
+      student: "Apprenant",
+      partner: "Partenaire",
+      partner_admin: "Admin Partenaire",
+    };
+    const roleTag = payload.senderRole ? (roleMap[payload.senderRole] || payload.senderRole) : "Utilisateur";
+
+    return toast(`💬 ${payload.senderName} (${roleTag})`, {
+      description: payload.subject ? `${payload.subject} : ${payload.body.slice(0, 90)}` : payload.body.slice(0, 100),
+      duration: 5000,
+      position: "top-center",
       style: {
-        ...BASE_TOAST_STYLE,
-        border: "1.5px solid #FF1744",
+        background: "rgba(8, 16, 33, 0.98)",
+        border: "1.5px solid #00E5FF",
         color: "#FFFFFF",
+        fontWeight: 700,
+        fontSize: "14px",
+        borderRadius: "16px",
+        boxShadow: "0 0 30px -5px rgba(0, 229, 255, 0.5)",
+        fontFamily: "'Oxanium', 'Rajdhani', sans-serif",
       },
       action: {
-        label: "Ouvrir",
+        label: "Voir le message",
         onClick: () => {
           window.location.hash = "#/app/messages";
         },
       },
-    }),
+    });
+  },
 
   incomingNotification: (payload: { title: string; body: string }) =>
     toast(payload.title, {

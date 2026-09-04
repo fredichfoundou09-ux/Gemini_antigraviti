@@ -40,12 +40,28 @@ export function MessageCenter() {
     } catch { /* fallback */ }
   };
 
-  // Charger les conversations Supabase
+  // Charger les conversations Supabase et marquer comme lues
   const loadConversations = async () => {
     if (!isSupabaseConfigured || !user?.id) return;
     try {
       const convs = await fetchMyConversations();
       setRemoteConvs(convs);
+
+      // Marquer automatiquement les conversations actives comme lues côté Supabase
+      if (convs && convs.length > 0) {
+        const sb = getSupabase();
+        convs.forEach((c: any) => {
+          sb.rpc("mark_conversation_as_read", { p_conversation_id: c.id }).then().catch(() => {});
+        });
+      }
+
+      // Marquer les messages locaux comme lus
+      update((d) => ({
+        ...d,
+        messages: (d.messages || []).map((m) =>
+          m.toId === user?.id || m.toId === "all_students" || m.toId === "all_teachers" ? { ...m, lu: true } : m
+        ),
+      }));
     } catch (err: any) {
       console.warn("Impossible de charger les conversations Supabase:", err.message);
     }
@@ -54,6 +70,12 @@ export function MessageCenter() {
   useEffect(() => {
     loadConversations();
     loadProfiles();
+
+    // Polling silencieux d'arrière-plan toutes les 4 secondes
+    const pollInterval = setInterval(() => {
+      loadConversations();
+    }, 4000);
+
     if (isSupabaseConfigured) {
       const sub = subscribeToAllMessages(() => {
         loadConversations();
@@ -64,10 +86,13 @@ export function MessageCenter() {
       };
       window.addEventListener("sentinelles:supabase-refresh", refreshHandler);
       return () => {
+        clearInterval(pollInterval);
         sub.unsubscribe();
         window.removeEventListener("sentinelles:supabase-refresh", refreshHandler);
       };
     }
+
+    return () => clearInterval(pollInterval);
   }, [user?.id]);
 
   // Messages locaux (fallback ou mix)
