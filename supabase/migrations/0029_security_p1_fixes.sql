@@ -39,7 +39,6 @@ SELECT
   phone,
   photo_url,
   actif,
-  formations,
   diplomes,
   infos_pro,
   created_at
@@ -60,7 +59,6 @@ RETURNS TABLE (
   phone text,
   photo_url text,
   actif boolean,
-  formations text[],
   diplomes text,
   infos_pro text,
   tarif_horaire numeric,
@@ -87,7 +85,6 @@ BEGIN
     t.phone,
     t.photo_url,
     t.actif,
-    t.formations,
     t.diplomes,
     t.infos_pro,
     -- Le tarif horaire n'est retourné qu'au staff administratif ou au formateur lui-même
