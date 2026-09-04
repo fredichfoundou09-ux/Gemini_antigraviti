@@ -104,30 +104,54 @@ export function useBackgroundSync() {
       setUnreadCount(unread);
 
       // Déclencher les notifications Toast pour chaque nouveau message entrant
+      const newNotifs: any[] = [];
       if (incomingToNotify.length > 0) {
         incomingToNotify.forEach((newMsg) => {
           const senderInfo = profilesMapRef.current.get(newMsg.sender_id);
-          const senderName = senderInfo?.name || "Un utilisateur";
-          const senderRole = senderInfo?.role;
+          const isStudentUser = user?.role === "student";
+          const isAdminSender = senderInfo?.role === "superadmin" || senderInfo?.role === "admin";
+
+          let senderName = senderInfo?.name || "Un utilisateur";
+          if (isStudentUser && isAdminSender) {
+            senderName = senderInfo?.role === "superadmin" ? "Super Administrateur" : "Administration";
+          }
 
           toastMsg.incomingMessage({
             senderName,
-            senderRole,
+            senderRole: senderInfo?.role,
             body: newMsg.body,
+          });
+
+          // Notifier également dans la cloche des notifications
+          newNotifs.push({
+            id: `ntf-msg-${newMsg.id}`,
+            toId: user.id,
+            title: `Message de ${senderName}`,
+            body: newMsg.body,
+            date: newMsg.created_at ? new Date(newMsg.created_at).toLocaleDateString("fr-FR") : "",
+            lu: false,
+            type: "message",
           });
         });
       }
 
-      // Synchroniser db.messages dans le store local pour cohérence globale
+      // Synchroniser db.messages et db.notifications dans le store local pour cohérence globale
       setDb((prev) => {
         const mappedRemote = messages.map((m: SyncMessage) => {
           const senderInfo = profilesMapRef.current.get(m.sender_id);
+          const isStudentUser = user?.role === "student";
+          const isAdminSender = senderInfo?.role === "superadmin" || senderInfo?.role === "admin";
+          let fromName = senderInfo?.name || "Utilisateur";
+          if (isStudentUser && isAdminSender) {
+            fromName = senderInfo?.role === "superadmin" ? "Super Administrateur" : "Administration";
+          }
+
           const lastRead = lastReadMap.get(m.conversation_id) || "1970-01-01T00:00:00Z";
           const isLu = m.sender_id === user.id || new Date(m.created_at) <= new Date(lastRead);
           return {
             id: m.id,
             fromId: m.sender_id,
-            fromName: senderInfo?.name || "Utilisateur",
+            fromName,
             toId: user.id,
             subject: "Discussion",
             body: m.body,
@@ -136,13 +160,18 @@ export function useBackgroundSync() {
           };
         });
 
-        // Fusionne sans doublon
+        // Fusionne les messages sans doublon
         const existingIds = new Set(mappedRemote.map((r) => r.id));
         const filteredLocals = (prev.messages || []).filter((l) => !existingIds.has(l.id));
+
+        // Fusionne les notifications sans doublon
+        const notifIds = new Set((prev.notifications || []).map((n: any) => n.id));
+        const addedNotifs = newNotifs.filter((n) => !notifIds.has(n.id));
 
         return {
           ...prev,
           messages: [...mappedRemote, ...filteredLocals],
+          notifications: [...addedNotifs, ...(prev.notifications || [])],
         };
       });
 

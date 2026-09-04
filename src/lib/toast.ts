@@ -110,31 +110,36 @@ export const toastMsg = {
     } catch { /* silence audio */ }
 
     const roleMap: Record<string, string> = {
-      superadmin: "Super Admin",
-      admin: "Direction / Admin",
+      superadmin: "Super Administrateur",
+      admin: "Administration",
       teacher: "Formateur",
       student: "Apprenant",
       partner: "Partenaire",
       partner_admin: "Admin Partenaire",
     };
-    const roleTag = payload.senderRole ? (roleMap[payload.senderRole] || payload.senderRole) : "Utilisateur";
+    const roleTag = payload.senderRole ? (roleMap[payload.senderRole] || payload.senderRole) : "Direct";
+    const title = `💬 ${payload.senderName} [${roleTag}]`;
+    const desc = payload.subject ? `${payload.subject} : ${payload.body}` : payload.body;
 
-    return toast(`💬 ${payload.senderName} (${roleTag})`, {
-      description: payload.subject ? `${payload.subject} : ${payload.body.slice(0, 90)}` : payload.body.slice(0, 100),
-      duration: 5000,
-      position: "top-center",
+    return toast(title, {
+      description: desc,
+      duration: 8000,
+      position: "top-right",
       style: {
         background: "rgba(8, 16, 33, 0.98)",
-        border: "1.5px solid #00E5FF",
-        color: "#FFFFFF",
-        fontWeight: 700,
-        fontSize: "14px",
-        borderRadius: "16px",
-        boxShadow: "0 0 30px -5px rgba(0, 229, 255, 0.5)",
+        border: "2px solid #00E5FF",
+        borderRadius: "20px",
+        color: "#00E5FF", // NOM EN BLEU
+        fontWeight: 800,
+        fontSize: "15px",
+        boxShadow: "0 0 30px -5px rgba(0, 229, 255, 0.55)",
         fontFamily: "'Oxanium', 'Rajdhani', sans-serif",
       },
+      classNames: {
+        description: "!text-[#FF1744] !font-bold !text-[13px] !mt-1 !leading-snug", // ÉCRITS EN ROUGE
+      },
       action: {
-        label: "Voir le message",
+        label: "Répondre",
         onClick: () => {
           window.location.hash = "#/app/messages";
         },

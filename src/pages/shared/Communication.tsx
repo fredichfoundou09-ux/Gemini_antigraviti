@@ -110,12 +110,19 @@ export function MessageCenter() {
         const lastMsg = msgs[msgs.length - 1];
         const isFromMe = lastMsg?.sender_id === user?.id;
         const sender = remoteProfiles.find((p) => p.id === lastMsg?.sender_id) || db.users.find((u) => u.id === lastMsg?.sender_id);
+        const isStudentUser = user?.role === "student";
+        const isAdminSender = sender?.role === "superadmin" || sender?.role === "admin";
+        let lastSenderName = sender?.name || sender?.username || (isFromMe ? "Moi" : "Expéditeur inconnu");
+        if (isStudentUser && isAdminSender && !isFromMe) {
+          lastSenderName = sender?.role === "superadmin" ? "Super Administrateur" : "Administration";
+        }
+
         return {
           id: c.id,
           isRemote: true,
           subject: c.subject || "Discussion",
           date: lastMsg?.created_at ? new Date(lastMsg.created_at).toLocaleString("fr-FR", { dateStyle: "short", timeStyle: "short" }) : "",
-          lastSenderName: sender?.name || sender?.username || (isFromMe ? "Moi" : "Expéditeur inconnu"),
+          lastSenderName,
           messages: msgs,
           isFromMe,
         };
@@ -238,27 +245,66 @@ export function MessageCenter() {
 
   const targets = useMemo(() => {
     const opts: { id: string; label: string; icon: React.ReactNode }[] = [];
-    if (["superadmin", "admin", "teacher"].includes(user!.role)) {
+    const isStudent = user?.role === "student";
+
+    if (!isStudent && ["superadmin", "admin", "teacher"].includes(user!.role)) {
       opts.push({ id: "all_students", label: "Tous les apprenants", icon: <Users size={14} /> });
     }
-    if (["superadmin", "admin"].includes(user!.role)) {
+    if (!isStudent && ["superadmin", "admin"].includes(user!.role)) {
       opts.push({ id: "all_teachers", label: "Tous les enseignants", icon: <UserCircle2 size={14} /> });
     }
 
     const seen = new Set<string>();
     if (user?.id) seen.add(user.id);
 
-    // Profils Supabase distants
-    remoteProfiles.forEach((p) => {
-      if (!seen.has(p.id)) {
-        seen.add(p.id);
-        opts.push({ id: p.id, label: `${p.name || p.username} (${p.role})`, icon: <UserCircle2 size={14} /> });
-      }
-    });
+    // Rassembler tous les profils (distants et locaux)
+    const allCandidates = [
+      ...remoteProfiles,
+      ...db.users.map((u) => ({ id: u.id, name: u.name, username: u.username, role: u.role })),
+    ];
 
-    // Utilisateurs locaux
-    db.users.filter((u) => !seen.has(u.id)).forEach((u) => {
-      opts.push({ id: u.id, label: `${u.name} (${u.role})`, icon: <UserCircle2 size={14} /> });
+    allCandidates.forEach((p) => {
+      if (!p.id || seen.has(p.id)) return;
+      seen.add(p.id);
+
+      if (isStudent) {
+        // Pour les étudiants : masquer strictement le nom personnel des administrateurs
+        if (p.role === "superadmin") {
+          opts.push({
+            id: p.id,
+            label: "🛡️ Direction (Super Administrateur)",
+            icon: <ShieldCheck size={14} className="text-red-400" />,
+          });
+        } else if (p.role === "admin" || p.role === "partner_admin") {
+          opts.push({
+            id: p.id,
+            label: "🛡️ Scolarité & Support (Administration)",
+            icon: <ShieldCheck size={14} className="text-cyan-400" />,
+          });
+        } else if (p.role === "teacher") {
+          // Nom du formateur visible en clair
+          opts.push({
+            id: p.id,
+            label: `👨‍🏫 ${p.name || p.username} (Formateur)`,
+            icon: <UserCircle2 size={14} className="text-emerald-400" />,
+          });
+        } else if (p.role === "student") {
+          // Nom de l'autre apprenant visible en clair
+          opts.push({
+            id: p.id,
+            label: `🎓 ${p.name || p.username} (Apprenant)`,
+            icon: <Users size={14} className="text-purple-400" />,
+          });
+        }
+      } else {
+        // Pour le staff et les enseignants : affichage complet
+        const rTag = p.role === "superadmin" ? "Super Admin" : p.role === "admin" ? "Admin" : p.role === "teacher" ? "Formateur" : "Apprenant";
+        opts.push({
+          id: p.id,
+          label: `${p.name || p.username} (${rTag})`,
+          icon: <UserCircle2 size={14} />,
+        });
+      }
     });
 
     return opts;
@@ -328,8 +374,13 @@ export function MessageCenter() {
                 <div className="my-3 space-y-2">
                   {item.messages.map((m: any, idx: number) => {
                     const fromMe = m.sender_id === user?.id;
-                    const senderObj = db.users.find((u) => u.id === m.sender_id);
-                    const authorName = senderObj?.name || (fromMe ? "Moi" : "Correspondant");
+                    const senderObj = remoteProfiles.find((p) => p.id === m.sender_id) || db.users.find((u) => u.id === m.sender_id);
+                    const isStudentUser = user?.role === "student";
+                    const isAdminSender = senderObj?.role === "superadmin" || senderObj?.role === "admin";
+                    let authorName = senderObj?.name || (fromMe ? "Moi" : "Correspondant");
+                    if (isStudentUser && isAdminSender && !fromMe) {
+                      authorName = senderObj?.role === "superadmin" ? "Super Administrateur" : "Administration";
+                    }
                     const canDelete = fromMe || user?.role === "superadmin" || user?.role === "admin";
                     return (
                       <div key={m.id || idx} className={cn("group relative rounded-xl p-3 text-sm transition", fromMe ? "bg-white/[0.04] border border-white/10 ml-6" : "bg-cyan-950/20 border border-cyan-400/20 mr-6")}>
