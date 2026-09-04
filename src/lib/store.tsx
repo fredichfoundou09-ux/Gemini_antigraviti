@@ -602,16 +602,6 @@ export function StoreProvider({ children }: { children: React.ReactNode }) {
 
         const { data: authData, error: authErr } = await supabase.auth.signInWithPassword({ email, password });
         if (authErr) {
-          // Si Supabase échoue mais que l'utilisateur existe dans db.users (ex: compte local)
-          const localUser = db.users.find((u) => u.username.toLowerCase() === uname.toLowerCase());
-          if (localUser && localUser.actif !== false) {
-            const ok = await verifyPassword(password, localUser.password);
-            if (ok) {
-              persistSession(localUser);
-              setUser(localUser);
-              return { ok: true, user: localUser };
-            }
-          }
           if (authErr.message?.toLowerCase().includes("email not confirmed")) {
             return { ok: false, error: "Email en cours de confirmation. Réactualisez la page et réessayez." };
           }

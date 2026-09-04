@@ -2,12 +2,29 @@
 // Nécessite SUPABASE_SERVICE_ROLE_KEY (jamais exposée au frontend).
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2.49.1";
 
-const corsHeaders = {
-  "Access-Control-Allow-Origin": "*",
-  "Access-Control-Allow-Headers": "authorization, x-client-info, apikey, content-type",
-};
+function getCorsHeaders(req: Request) {
+  const origin = req.headers.get("Origin") || "";
+  const allowedOrigins = [
+    "http://localhost:5173",
+    "http://localhost:3000",
+    "http://localhost:4173",
+    "https://tvcuwhgqhrcvdgwlviju.supabase.co",
+  ];
+  const appOrigin = Deno.env.get("APP_ORIGIN");
+  if (appOrigin) allowedOrigins.push(appOrigin);
+
+  const isAllowed = !origin || allowedOrigins.includes(origin) || origin.endsWith(".vercel.app");
+  const allowOrigin = isAllowed ? (origin || "*") : (allowedOrigins[0] || "*");
+
+  return {
+    "Access-Control-Allow-Origin": allowOrigin,
+    "Access-Control-Allow-Headers": "authorization, x-client-info, apikey, content-type",
+    "Access-Control-Allow-Methods": "POST, OPTIONS",
+  };
+}
 
 Deno.serve(async (req) => {
+  const corsHeaders = getCorsHeaders(req);
   if (req.method === "OPTIONS") return new Response("ok", { headers: corsHeaders });
 
   try {
@@ -16,6 +33,9 @@ Deno.serve(async (req) => {
     const anonKey = Deno.env.get("SUPABASE_ANON_KEY")!;
 
     const admin = createClient(supabaseUrl, serviceKey);
+
+    // Extraction sécurisée du corps de la requête
+    const body = await req.json().catch(() => ({}));
 
     // Vérification de l'appelant (staff) via token Bearer
     const authHeader = req.headers.get("Authorization") || "";
@@ -33,8 +53,7 @@ Deno.serve(async (req) => {
     if (!callerUserId) {
       // Cas bootstrap initial : vérifier s'il existe déjà un Super Admin
       const { data: hasAdmin } = await admin.rpc("has_any_superadmin");
-      const bodyPreview = await req.clone().json().catch(() => ({}));
-      if (!hasAdmin && bodyPreview?.role === "superadmin") {
+      if (!hasAdmin && body?.role === "superadmin") {
         // Autoriser la création initiale du superadmin (callerProfile reste null)
       } else {
         return new Response(JSON.stringify({ error: "Session expirée ou non authentifié" }), { status: 401, headers: corsHeaders });
@@ -56,6 +75,17 @@ Deno.serve(async (req) => {
 
     if (!email || !password || !username || !name || !role) {
       return new Response(JSON.stringify({ error: "Champs requis manquants" }), { status: 400, headers: corsHeaders });
+    }
+
+    // Validation stricte du mot de passe côté serveur (#5)
+    if (typeof password !== "string" || password.length < 8) {
+      return new Response(JSON.stringify({ error: "Le mot de passe doit comporter au moins 8 caractères." }), { status: 400, headers: corsHeaders });
+    }
+    const hasUpperCase = /[A-Z]/.test(password);
+    const hasLowerCase = /[a-z]/.test(password);
+    const hasDigit = /[0-9]/.test(password);
+    if (!hasUpperCase || !hasLowerCase || !hasDigit) {
+      return new Response(JSON.stringify({ error: "Le mot de passe doit contenir au moins une lettre majuscule, une minuscule et un chiffre." }), { status: 400, headers: corsHeaders });
     }
     const allowedRoles = ["admin", "partner_admin", "teacher", "student", "partner"];
     const callerRole = callerProfile?.role ?? "superadmin"; // bootstrap = superadmin implicite
