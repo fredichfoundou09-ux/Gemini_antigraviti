@@ -112,16 +112,16 @@ export const moduleIcon = (key: string, className = "h-5 w-5") => {
 export function Card({ children, className, glow = "cyan" }: { children: ReactNode; className?: string; glow?: "cyan" | "red" | "green" | "gold" | "none" }) {
   const g =
     glow === "red"
-      ? "border-red-500/25 hover:shadow-[0_0_28px_-8px_rgba(255,23,68,0.5)]"
+      ? "border-[#FF174F]/40 hover:border-[#FF174F] hover:shadow-[0_0_24px_-4px_rgba(255,23,79,0.4)]"
       : glow === "green"
-      ? "border-emerald-400/25 hover:shadow-[0_0_28px_-8px_rgba(0,255,136,0.5)]"
+      ? "border-emerald-400/35 hover:border-emerald-400 hover:shadow-[0_0_24px_-4px_rgba(0,255,136,0.35)]"
       : glow === "gold"
-      ? "border-amber-400/25 hover:shadow-[0_0_28px_-8px_rgba(255,179,0,0.5)]"
+      ? "border-amber-400/35 hover:border-amber-400 hover:shadow-[0_0_24px_-4px_rgba(255,179,0,0.35)]"
       : glow === "none"
-      ? "border-white/10"
-      : "border-cyan-400/25 hover:shadow-[0_0_28px_-8px_rgba(0,229,255,0.5)]";
+      ? "border-[#006DFF]/25"
+      : "border-[#006DFF]/35 hover:border-[#00C8FF]/70 hover:shadow-[0_0_24px_-4px_rgba(0,229,255,0.35)]";
   return (
-    <div className={cn("rounded-2xl border bg-[#0A1224]/80 backdrop-blur-sm transition-all duration-300", g, className)}>
+    <div className={cn("rounded-2xl border bg-gradient-to-br from-[#092033]/95 via-[#0A1726]/95 to-[#080A0F]/98 backdrop-blur-md transition-all duration-250 shadow-[0_8px_32px_-4px_rgba(0,0,0,0.6)]", g, className)}>
       {children}
     </div>
   );
@@ -134,11 +134,11 @@ export function Btn({
   className?: string; type?: "button" | "submit"; disabled?: boolean;
 }) {
   const v = {
-    primary: "bg-gradient-to-r from-cyan-500 to-blue-600 text-white shadow-[0_0_20px_-4px_rgba(0,229,255,0.6)] hover:brightness-110",
-    red: "bg-gradient-to-r from-red-600 to-rose-600 text-white shadow-[0_0_20px_-4px_rgba(255,23,68,0.6)] hover:brightness-110",
-    green: "bg-gradient-to-r from-emerald-500 to-teal-600 text-white shadow-[0_0_20px_-4px_rgba(0,255,136,0.5)] hover:brightness-110",
-    ghost: "bg-white/5 text-slate-200 hover:bg-white/10 border border-white/10",
-    outline: "bg-transparent text-cyan-300 border border-cyan-400/40 hover:bg-cyan-400/10",
+    primary: "bg-gradient-to-r from-[#006DFF] to-[#00C8FF] text-white shadow-[0_0_18px_rgba(0,229,255,0.45)] hover:brightness-115 border border-[#00E5FF]/40",
+    red: "bg-gradient-to-r from-[#8B0035] to-[#FF174F] text-white shadow-[0_0_18px_rgba(255,23,79,0.4)] hover:brightness-115 border border-[#FF174F]/50",
+    green: "bg-gradient-to-r from-emerald-500 to-teal-600 text-white shadow-[0_0_18px_rgba(0,255,136,0.4)] hover:brightness-115 border border-emerald-400/40",
+    ghost: "bg-white/5 text-[#B8F3FF] hover:bg-white/10 border border-white/10",
+    outline: "bg-[#092033]/80 text-[#00E5FF] border border-[#00C8FF]/40 hover:bg-[#00C8FF]/15 hover:border-[#00C8FF] hover:shadow-[0_0_15px_rgba(0,229,255,0.25)]",
   }[variant];
   return (
     <button type={type} disabled={disabled} onClick={onClick}
@@ -150,12 +150,12 @@ export function Btn({
 
 export function Badge({ children, color = "cyan", className }: { children: ReactNode; color?: "cyan" | "red" | "green" | "gold" | "gray" | "blue"; className?: string }) {
   const c = {
-    cyan: "bg-cyan-400/10 text-cyan-300 border-cyan-400/30",
-    red: "bg-red-500/10 text-red-400 border-red-500/30",
-    green: "bg-emerald-400/10 text-emerald-300 border-emerald-400/30",
-    gold: "bg-amber-400/10 text-amber-300 border-amber-400/30",
-    gray: "bg-white/5 text-slate-300 border-white/10",
-    blue: "bg-blue-500/10 text-blue-400 border-blue-500/30",
+    cyan: "bg-[#071A2B] text-[#00E5FF] border-[#00C8FF]/40 shadow-[0_0_10px_rgba(0,200,255,0.2)]",
+    red: "bg-[#2A0815] text-[#FF174F] border-[#FF174F]/40 shadow-[0_0_10px_rgba(255,23,79,0.2)]",
+    green: "bg-[#052619] text-[#00FF88] border-[#00FF88]/40 shadow-[0_0_10px_rgba(0,255,136,0.2)]",
+    gold: "bg-[#261E05] text-[#FFB300] border-[#FFB300]/40 shadow-[0_0_10px_rgba(255,179,0,0.2)]",
+    gray: "bg-[#0B111A] text-[#4C91B5] border-[#006DFF]/25",
+    blue: "bg-[#081830] text-[#008CFF] border-[#006DFF]/40",
   }[color];
   return <span className={cn("inline-flex items-center gap-1 rounded-full border px-2.5 py-0.5 text-[11px] font-semibold uppercase tracking-wider", c, className)}>{children}</span>;
 }
@@ -163,15 +163,15 @@ export function Badge({ children, color = "cyan", className }: { children: React
 export function Field({ label, children, hint }: { label: string; children: ReactNode; hint?: string }) {
   return (
     <label className="block">
-      <span className="mb-1.5 block text-xs font-semibold uppercase tracking-wider text-slate-400">{label}</span>
+      <span className="mb-1.5 block text-xs font-semibold uppercase tracking-wider text-[#4C91B5]">{label}</span>
       {children}
-      {hint && <span className="mt-1 block text-[11px] text-slate-500">{hint}</span>}
+      {hint && <span className="mt-1 block text-[11px] text-[#27506B]">{hint}</span>}
     </label>
   );
 }
 
 export const inputCls =
-  "w-full rounded-xl border border-white/10 bg-[#05070D]/80 px-3.5 py-2.5 text-sm text-slate-100 placeholder-slate-600 outline-none transition-all focus:border-cyan-400/60 focus:shadow-[0_0_16px_-6px_rgba(0,229,255,0.5)]";
+  "w-full rounded-xl border border-[#006DFF]/30 bg-[#0B111A]/90 px-3.5 py-2.5 text-sm text-[#B8F3FF] placeholder-[#4C91B5]/60 outline-none transition-all focus:border-[#00C8FF] focus:shadow-[0_0_16px_rgba(0,229,255,0.4)]";
 
 export function Input(props: React.InputHTMLAttributes<HTMLInputElement>) {
   return <input {...props} className={cn(inputCls, props.className)} />;
@@ -187,10 +187,10 @@ export function Modal({ open, onClose, title, children, wide }: { open: boolean;
   if (!open) return null;
   return (
     <div className="fixed inset-0 z-[90] flex items-center justify-center p-4">
-      <div className="absolute inset-0 bg-black/80 backdrop-blur-sm" onClick={onClose} />
-      <div className={cn("relative max-h-[92vh] w-full overflow-y-auto rounded-2xl border border-cyan-400/30 bg-[#081021] p-6 shadow-[0_0_60px_-12px_rgba(0,229,255,0.4)]", wide ? "max-w-4xl" : "max-w-lg")}>
-        <div className="mb-4 flex items-center justify-between gap-4">
-          <h3 className="font-display text-lg font-bold text-white">{title}</h3>
+      <div className="absolute inset-0 bg-black/85 backdrop-blur-md" onClick={onClose} />
+      <div className={cn("relative max-h-[92vh] w-full overflow-y-auto rounded-2xl border border-[#00C8FF]/40 bg-[#0B111A] p-6 shadow-[0_0_60px_-10px_rgba(0,200,255,0.4)]", wide ? "max-w-4xl" : "max-w-lg")}>
+        <div className="mb-4 flex items-center justify-between gap-4 border-b border-[#006DFF]/20 pb-3">
+          <h3 className="font-display text-lg font-bold text-[#B8F3FF]">{title}</h3>
           <button onClick={onClose} className="rounded-lg border border-white/10 px-2.5 py-1 text-slate-400 hover:bg-white/10 hover:text-white">✕</button>
         </div>
         {children}
@@ -201,19 +201,19 @@ export function Modal({ open, onClose, title, children, wide }: { open: boolean;
 
 export function Stat({ icon, label, value, color = "cyan", sub }: { icon: ReactNode; label: string; value: ReactNode; color?: "cyan" | "red" | "green" | "gold" | "blue"; sub?: string }) {
   const c = {
-    cyan: "text-cyan-300 bg-cyan-400/10 border-cyan-400/30",
-    red: "text-red-400 bg-red-500/10 border-red-500/30",
-    green: "text-emerald-300 bg-emerald-400/10 border-emerald-400/30",
-    gold: "text-amber-300 bg-amber-400/10 border-amber-400/30",
-    blue: "text-blue-400 bg-blue-500/10 border-blue-500/30",
+    cyan: "text-[#00E5FF] bg-[#071A2B] border-[#00C8FF]/40",
+    red: "text-[#FF174F] bg-[#2A0815] border-[#FF174F]/40",
+    green: "text-[#00FF88] bg-[#052619] border-[#00FF88]/40",
+    gold: "text-[#FFB300] bg-[#261E05] border-[#FFB300]/40",
+    blue: "text-[#008CFF] bg-[#081830] border-[#006DFF]/40",
   }[color];
   return (
     <Card className="p-4">
       <div className="flex items-start justify-between">
         <div>
-          <p className="text-[11px] font-semibold uppercase tracking-wider text-slate-400">{label}</p>
-          <p className="font-display mt-1.5 text-2xl font-bold text-white">{value}</p>
-          {sub && <p className="mt-0.5 text-[11px] text-slate-500">{sub}</p>}
+          <p className="text-[11px] font-semibold uppercase tracking-wider text-[#4C91B5]">{label}</p>
+          <p className="font-display mt-1.5 text-2xl font-bold text-[#B8F3FF]">{value}</p>
+          {sub && <p className="mt-0.5 text-[11px] text-[#27506B]">{sub}</p>}
         </div>
         <div className={cn("rounded-xl border p-2.5", c)}>{icon}</div>
       </div>
@@ -225,10 +225,10 @@ export function PageHead({ title, subtitle, actions }: { title: ReactNode; subti
   return (
     <div className="mb-6 flex flex-wrap items-end justify-between gap-4">
       <div>
-        <h1 className="font-display text-2xl font-bold text-white sm:text-3xl">{title}</h1>
-        {subtitle && <p className="mt-1 text-sm text-slate-400">{subtitle}</p>}
+        <h1 className="font-display text-2xl font-black tracking-tight text-[#B8F3FF] sm:text-3xl lg:text-4xl drop-shadow-[0_0_15px_rgba(0,229,255,0.35)]">{title}</h1>
+        {subtitle && <p className="mt-1 text-xs sm:text-sm font-semibold tracking-wider uppercase text-[#4C91B5]">{subtitle}</p>}
       </div>
-      {actions && <div className="flex flex-wrap gap-2">{actions}</div>}
+      {actions && <div className="flex flex-wrap gap-2.5">{actions}</div>}
     </div>
   );
 }

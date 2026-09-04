@@ -253,22 +253,24 @@ export default function DashboardLayout() {
   );
 
   const sidebar = (
-    <div className="flex h-full flex-col">
+    <div className="flex h-full flex-col bg-[#080A0F]">
       {/* Brand Header */}
-      <div className="flex items-center gap-3 border-b border-white/5 px-5 py-4">
-        <img
-          src="/logo.png"
-          alt="SENTINELLE NUMÉRIQUE"
-          className="h-10 w-10 object-contain drop-shadow-[0_0_12px_rgba(0,229,255,0.7)]"
-        />
+      <div className="flex items-center gap-3 border-b border-[#006DFF]/20 px-5 py-4 bg-[#0B111A]/50">
+        <div className="relative p-1 rounded-xl border border-[#00C8FF]/40 bg-[#071A2B] shadow-[0_0_12px_rgba(0,229,255,0.3)]">
+          <img
+            src="/logo.png"
+            alt="SENTINELLE NUMÉRIQUE"
+            className="h-9 w-9 object-contain drop-shadow-[0_0_8px_rgba(0,229,255,0.7)]"
+          />
+        </div>
         <div className="min-w-0">
-          <p className="font-sentinel truncate text-[13px] font-black tracking-[0.08em] text-white">SENTINELLE</p>
-          <p className="font-sentinel truncate text-[10px] uppercase tracking-[0.25em] font-extrabold text-red-400">NUMÉRIQUE</p>
+          <p className="font-sentinel truncate text-[13px] font-black tracking-[0.1em] text-[#B8F3FF]">SENTINELLE</p>
+          <p className="font-sentinel truncate text-[10px] uppercase tracking-[0.25em] font-extrabold text-[#D50072]">NUMÉRIQUE</p>
         </div>
       </div>
 
       {/* Navigation Links */}
-      <nav className="flex-1 space-y-0.5 overflow-y-auto px-3 py-4">
+      <nav className="flex-1 space-y-1 overflow-y-auto px-3 py-4">
         {items.map((m) => (
           <NavLink
             key={m.to}
@@ -277,28 +279,28 @@ export default function DashboardLayout() {
             onClick={() => setOpen(false)}
             className={({ isActive }) =>
               cn(
-                "flex items-center gap-3 rounded-xl px-3.5 py-2.5 text-sm font-semibold transition-all",
+                "flex items-center gap-3 rounded-xl px-3.5 py-2.5 text-sm font-semibold transition-all duration-200",
                 isActive
-                  ? "bg-gradient-to-r from-cyan-500/20 to-blue-600/10 text-cyan-300 border border-cyan-400/30 shadow-[0_0_18px_-6px_rgba(0,229,255,0.6)]"
-                  : "text-slate-400 hover:bg-white/5 hover:text-slate-100 border border-transparent"
+                  ? "bg-[#071A2B] text-[#00E5FF] border border-[#00C8FF] shadow-[0_0_16px_-4px_rgba(0,229,255,0.5)] font-bold"
+                  : "text-[#4C91B5] hover:bg-[#0B111A] hover:text-[#B8F3FF] hover:border-[#006DFF]/30 border border-transparent"
               )
             }
           >
-            {m.icon}
+            <span className="shrink-0">{m.icon}</span>
             <span className="truncate">{m.label}</span>
           </NavLink>
         ))}
       </nav>
 
       {/* User Footer in Sidebar */}
-      <div className="border-t border-white/5 p-3">
-        <div className="flex items-center gap-3 rounded-xl border border-white/5 bg-white/[0.02] p-2.5">
-          <div className="flex h-9 w-9 items-center justify-center rounded-lg bg-gradient-to-br from-cyan-400 to-blue-600 font-display font-bold text-white text-sm shadow">
+      <div className="border-t border-[#006DFF]/20 p-3 bg-[#080A0F]">
+        <div className="flex items-center gap-3 rounded-xl border border-[#006DFF]/30 bg-[#0B111A] p-2.5 shadow-inner">
+          <div className="flex h-9 w-9 items-center justify-center rounded-lg bg-gradient-to-br from-[#006DFF] to-[#00E5FF] font-display font-black text-white text-sm shadow-[0_0_10px_rgba(0,229,255,0.4)]">
             {user.name.charAt(0).toUpperCase()}
           </div>
           <div className="min-w-0 flex-1">
-            <p className="truncate text-xs font-bold text-white">{user.name}</p>
-            <p className="truncate text-[10px] text-cyan-300/80 uppercase font-semibold">{roleLabel[user.role]}</p>
+            <p className="truncate text-xs font-bold text-[#B8F3FF]">{user.name}</p>
+            <p className="truncate text-[10px] text-[#00E5FF] uppercase font-bold tracking-wider">{roleLabel[user.role]}</p>
           </div>
         </div>
       </div>
@@ -306,17 +308,17 @@ export default function DashboardLayout() {
   );
 
   return (
-    <div className="bg-night min-h-screen text-slate-100 pb-16 lg:pb-0">
+    <div className="bg-[#080A0F] min-h-screen text-[#B8F3FF] pb-16 lg:pb-0">
       {/* Desktop Sidebar */}
-      <aside className="no-print fixed inset-y-0 left-0 z-40 hidden w-64 border-r border-white/5 bg-[#07102B]/90 backdrop-blur lg:block">
+      <aside className="no-print fixed inset-y-0 left-0 z-40 hidden w-64 border-r border-[#006DFF]/20 bg-[#080A0F] backdrop-blur-md lg:block">
         {sidebar}
       </aside>
 
       {/* Mobile drawer */}
       {open && (
         <div className="no-print fixed inset-0 z-50 lg:hidden">
-          <div className="absolute inset-0 bg-black/70" onClick={() => setOpen(false)} />
-          <aside className="absolute inset-y-0 left-0 w-72 border-r border-cyan-400/20 bg-[#07102B]">
+          <div className="absolute inset-0 bg-black/80 backdrop-blur-sm" onClick={() => setOpen(false)} />
+          <aside className="absolute inset-y-0 left-0 w-72 border-r border-[#00C8FF]/30 bg-[#080A0F]">
             {sidebar}
           </aside>
         </div>
@@ -325,29 +327,31 @@ export default function DashboardLayout() {
       {/* Main Content Area */}
       <div className="lg:pl-64">
         {/* Top Header */}
-        <header className="no-print sticky top-0 z-30 flex items-center justify-between gap-3 border-b border-white/5 bg-[#05070D]/85 px-4 py-3 backdrop-blur lg:px-8">
+        <header className="no-print sticky top-0 z-30 flex items-center justify-between gap-3 border-b border-[#006DFF]/20 bg-[#080A0F]/90 px-4 py-3 backdrop-blur-md lg:px-8">
           <div className="flex items-center gap-3">
-            <button onClick={() => setOpen(true)} className="rounded-lg border border-white/10 p-2 text-slate-300 lg:hidden" aria-label="Ouvrir le menu">
+            <button onClick={() => setOpen(true)} className="rounded-lg border border-[#006DFF]/30 p-2 text-[#4C91B5] hover:text-[#00E5FF] lg:hidden" aria-label="Ouvrir le menu">
               <Menu size={18} />
             </button>
 
             {/* Logo compact sur mobile */}
             <div className="flex items-center gap-2 lg:hidden">
-              <img src="/logo.png" alt="Logo" className="h-7 w-7 object-contain" />
-              <span className="font-display text-xs font-black text-white">SENTINELLE</span>
+              <img src="/logo.png" alt="Logo" className="h-7 w-7 object-contain drop-shadow-[0_0_6px_rgba(0,229,255,0.6)]" />
+              <span className="font-display text-xs font-black text-[#B8F3FF]">SENTINELLE</span>
             </div>
 
             {/* Salutation desktop */}
             <div className="hidden lg:block">
-              <p className="text-sm font-bold text-white">Bonjour, {user.name.split(" ")[0]} 👋</p>
-              <Badge color={user.role === "student" ? "green" : user.role === "teacher" ? "cyan" : "gold"}>{roleLabel[user.role]}</Badge>
+              <p className="text-sm font-bold text-[#B8F3FF]">Bonjour, {user.name.split(" ")[0]} 👋</p>
+              <span className="inline-block mt-0.5 rounded-md border border-[#D50072]/50 bg-[#0B111A] px-2 py-0.5 text-[10px] font-bold text-[#B8F3FF] shadow-[0_0_8px_rgba(213,0,114,0.25)] uppercase tracking-wider">
+                {roleLabel[user.role]}
+              </span>
             </div>
           </div>
 
           {/* Barre de Recherche Globale Interactive (Saisie directe ultra-fluide) */}
           <div className="relative flex-1 max-w-md mx-2 sm:mx-4" ref={searchContainerRef}>
             <div className="relative flex items-center">
-              <Search size={15} className="pointer-events-none absolute left-3.5 top-1/2 -translate-y-1/2 text-cyan-400 shrink-0" />
+              <Search size={15} className="pointer-events-none absolute left-3.5 top-1/2 -translate-y-1/2 text-[#00E5FF] shrink-0" />
               <input
                 ref={searchInputRef}
                 type="text"
@@ -359,7 +363,7 @@ export default function DashboardLayout() {
                 onFocus={() => setSearchOpen(true)}
                 onClick={() => setSearchOpen(true)}
                 placeholder="Rechercher apprenants, cours, formateurs, planning…"
-                className="w-full rounded-xl border border-white/15 bg-[#091124] py-2 pl-9 pr-9 text-xs font-medium text-white placeholder:text-slate-400 hover:border-cyan-400/40 focus:border-cyan-400 focus:bg-[#07102B] focus:outline-none focus:ring-2 focus:ring-cyan-400/40 caret-cyan-400 shadow-inner transition"
+                className="w-full rounded-xl border border-[#006DFF]/40 bg-[#0B111A] py-2 pl-9 pr-9 text-xs font-medium text-[#B8F3FF] placeholder:text-[#4C91B5]/70 hover:border-[#00C8FF]/60 focus:border-[#00C8FF] focus:bg-[#071A2B] focus:outline-none focus:ring-2 focus:ring-[#00C8FF]/30 caret-[#00E5FF] shadow-inner transition"
               />
               {searchQuery ? (
                 <button
@@ -769,15 +773,15 @@ export default function DashboardLayout() {
           </div>
 
           {/* Actions Header : Messages, Notifications, Site public, Déconnexion */}
-          <div className="flex items-center gap-1.5 sm:gap-2">
+          <div className="flex items-center gap-1.5 sm:gap-2.5">
             <NavLink
               to="/app/messages"
-              className="relative rounded-xl border border-white/10 p-2 sm:p-2.5 text-slate-300 transition hover:border-cyan-400/40 hover:text-cyan-300 shrink-0"
+              className="relative rounded-xl border border-[#006DFF]/30 bg-[#0B111A] p-2 sm:p-2.5 text-[#4C91B5] transition hover:border-[#00C8FF] hover:text-[#00E5FF] hover:shadow-[0_0_12px_rgba(0,229,255,0.25)] shrink-0"
               title={unreadMessages > 0 ? `${unreadMessages} message(s) non lu(s)` : "Messagerie interne"}
             >
               <MessagesSquare size={18} />
               {unreadMessages > 0 && (
-                <span className="absolute -right-1.5 -top-1.5 flex h-5 min-w-5 animate-pulse items-center justify-center rounded-full bg-red-600 px-1 text-[10px] font-black text-white shadow-[0_0_12px_#FF1744] border border-white/40">
+                <span className="absolute -right-1.5 -top-1.5 flex h-5 min-w-5 animate-pulse items-center justify-center rounded-full bg-[#FF174F] px-1 text-[10px] font-black text-white shadow-[0_0_12px_#FF174F] border border-white/40">
                   {unreadMessages}
                 </span>
               )}
@@ -785,12 +789,12 @@ export default function DashboardLayout() {
 
             <NavLink
               to="/app/notifications"
-              className="relative rounded-xl border border-white/10 p-2 sm:p-2.5 text-slate-300 transition hover:border-cyan-400/40 hover:text-cyan-300 shrink-0"
+              className="relative rounded-xl border border-[#006DFF]/30 bg-[#0B111A] p-2 sm:p-2.5 text-[#4C91B5] transition hover:border-[#00C8FF] hover:text-[#00E5FF] hover:shadow-[0_0_12px_rgba(0,229,255,0.25)] shrink-0"
               title={unreadNotifications > 0 ? `${unreadNotifications} notification(s) non lue(s)` : "Notifications"}
             >
               <Bell size={18} />
               {unreadNotifications > 0 && (
-                <span className="absolute -right-1.5 -top-1.5 flex h-5 min-w-5 animate-pulse items-center justify-center rounded-full bg-red-600 px-1 text-[10px] font-black text-white shadow-[0_0_12px_#FF1744] border border-white/40">
+                <span className="absolute -right-1.5 -top-1.5 flex h-5 min-w-5 animate-pulse items-center justify-center rounded-full bg-[#FF174F] px-1 text-[10px] font-black text-white shadow-[0_0_12px_#FF174F] border border-white/40">
                   {unreadNotifications}
                 </span>
               )}
@@ -798,7 +802,7 @@ export default function DashboardLayout() {
 
             <NavLink
               to="/"
-              className="hidden rounded-xl border border-white/10 px-3.5 py-2 text-xs font-semibold text-slate-300 transition hover:border-cyan-400/40 hover:text-cyan-300 sm:block"
+              className="hidden rounded-xl border border-[#006DFF]/30 bg-[#0B111A] px-3.5 py-2 text-xs font-semibold text-[#B8F3FF] transition hover:border-[#00C8FF] hover:text-[#00E5FF] hover:shadow-[0_0_14px_rgba(0,229,255,0.25)] sm:block"
             >
               Site public
             </NavLink>
@@ -810,7 +814,7 @@ export default function DashboardLayout() {
                 navigate("/connexion", { replace: true });
                 setTimeout(() => window.location.reload(), 50);
               }}
-              className="rounded-xl border border-red-500/30 p-2 sm:p-2.5 text-red-400 transition hover:bg-red-500/10 shrink-0"
+              className="rounded-xl border border-[#FF174F]/40 bg-[#0B111A] p-2 sm:p-2.5 text-[#FF174F] transition hover:bg-[#FF174F]/15 hover:shadow-[0_0_12px_rgba(255,23,79,0.35)] shrink-0"
               title="Déconnexion"
             >
               <LogOut size={18} />
