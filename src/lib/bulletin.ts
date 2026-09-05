@@ -26,7 +26,7 @@ export function generateBulletin(db: DB, studentId: string, periode?: string) {
     const mention = grade ? (grade.note >= 16 ? "TB" : grade.note >= 14 ? "B" : grade.note >= 12 ? "AB" : grade.note >= 10 ? "P" : "I") : "—";
     return `<tr style="border-bottom:1px solid #1d2b45">
       <td style="padding:8px 4px;font-size:13px">${mod.numero}. ${mod.titre}</td>
-      <td style="padding:8px;text-align:center;font-weight:bold;font-size:14px;color:${grade && grade.note >= 10 ? "#00FF88" : "#FF1744"}">${note}</td>
+      <td style="padding:8px;text-align:center;font-weight:bold;font-size:14px;color:${grade && grade.note >= 10 ? "#00FF88" : "#FF174F"}">${note}</td>
       <td style="padding:8px;text-align:center;font-size:12px;color:#FFB300">${mention}</td>
       <td style="padding:8px;font-size:12px;color:#8A94A6">${appr}</td>
     </tr>`;
@@ -40,7 +40,7 @@ export function generateBulletin(db: DB, studentId: string, periode?: string) {
   const decision = parseFloat(average) >= 10
     ? "ADMIS(E)"
     : average === "—" ? "EN COURS" : "AJOURNÉ(E)";
-  const decisionColor = parseFloat(average) >= 10 ? "#00FF88" : "#FF1744";
+  const decisionColor = parseFloat(average) >= 10 ? "#00FF88" : "#FF174F";
 
   const invoice = db.invoices.filter((i) => i.studentId === studentId).reduce((a, i) => a + i.montant, 0);
   const paid = db.payments.filter((p) => p.studentId === studentId).reduce((a, p) => a + p.montant, 0);
@@ -82,7 +82,7 @@ export function generateBulletin(db: DB, studentId: string, periode?: string) {
         <tfoot>
           <tr style="background:rgba(0,229,255,0.1);font-weight:bold">
             <td style="padding:10px 4px;font-size:14px">Moyenne générale</td>
-            <td style="padding:10px;text-align:center;font-size:18px;color:${parseFloat(average) >= 10 ? "#00FF88" : "#FF1744"}">${average}</td>
+            <td style="padding:10px;text-align:center;font-size:18px;color:${parseFloat(average) >= 10 ? "#00FF88" : "#FF174F"}">${average}</td>
             <td></td>
             <td style="padding:10px;font-size:14px;color:${decisionColor}">${decision}</td>
           </tr>
@@ -95,7 +95,7 @@ export function generateBulletin(db: DB, studentId: string, periode?: string) {
           <p class="label">Présences</p><p style="font-size:24px;font-weight:800;color:#00FF88">${present}</p>
         </div>
         <div style="border:1px solid #1d2b45;border-radius:8px;padding:12px;text-align:center">
-          <p class="label">Absences</p><p style="font-size:24px;font-weight:800;color:#FF1744">${absent}</p>
+          <p class="label">Absences</p><p style="font-size:24px;font-weight:800;color:#FF174F">${absent}</p>
         </div>
         <div style="border:1px solid #1d2b45;border-radius:8px;padding:12px;text-align:center">
           <p class="label">Retards</p><p style="font-size:24px;font-weight:800;color:#FFB300">${retards}</p>
@@ -105,7 +105,7 @@ export function generateBulletin(db: DB, studentId: string, periode?: string) {
       <!-- Finance résumé -->
       <div class="row"><span>Montant dû</span><span>${money(invoice)}</span></div>
       <div class="row"><span>Montant payé</span><span class="green">${money(paid)}</span></div>
-      <div class="row"><span>Solde</span><span style="color:${invoice - paid > 0 ? "#FF1744" : "#00FF88"}">${money(Math.max(0, invoice - paid))}</span></div>
+      <div class="row"><span>Solde</span><span style="color:${invoice - paid > 0 ? "#FF174F" : "#00FF88"}">${money(Math.max(0, invoice - paid))}</span></div>
 
       <!-- Signatures -->
       <div style="display:flex;justify-content:space-between;margin-top:32px;padding-top:16px;border-top:1px solid #1d2b45">

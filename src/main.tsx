@@ -27,9 +27,9 @@ createRoot(document.getElementById("root")!).render(
           fontSize: "14px",
           color: "#FFFFFF",
           background: "rgba(8, 16, 33, 0.98)",
-          border: "1.5px solid rgba(255, 23, 68, 0.8)",
+          border: "1.5px solid rgba(255, 23, 79, 0.8)",
           borderRadius: "16px",
-          boxShadow: "0 0 25px -5px rgba(255, 23, 68, 0.5)",
+          boxShadow: "0 0 25px -5px rgba(255, 23, 79, 0.5)",
         },
         descriptionClassName: "!text-slate-300 !font-semibold !text-xs",
       }}

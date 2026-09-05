@@ -15,9 +15,9 @@
   --color-electric2: #008cff;
   --color-cyber: #00c8ff;
   --color-neon: #00e5ff;
-  --color-magenta: #d50072;
-  --color-magentadark: #72004f;
-  --color-neonpink: #ff008c;
+  --color-magenta: #ff174f;
+  --color-magentadark: #8b0035;
+  --color-neonpink: #ff174f;
   --color-neonred: #ff174f;
   --color-reddark: #8b0035;
   --color-hudtext: #b8f3ff;
@@ -85,12 +85,12 @@ body {
 }
 
 .hud-border-magenta {
-  border: 1px solid rgba(213, 0, 114, 0.55);
-  box-shadow: 0 0 16px -2px rgba(213, 0, 114, 0.28), inset 0 0 15px rgba(213, 0, 114, 0.06);
+  border: 1px solid rgba(255, 23, 79, 0.6);
+  box-shadow: 0 0 16px -2px rgba(255, 23, 79, 0.32), inset 0 0 15px rgba(255, 23, 79, 0.08);
 }
 .hud-border-magenta:hover {
-  border-color: #ff008c;
-  box-shadow: 0 0 24px rgba(213, 0, 114, 0.45), inset 0 0 20px rgba(213, 0, 114, 0.12);
+  border-color: #ff174f;
+  box-shadow: 0 0 26px rgba(255, 23, 79, 0.5), inset 0 0 20px rgba(255, 23, 79, 0.15);
 }
 
 .hud-border-blue {
@@ -147,8 +147,8 @@ body {
 }
 
 @keyframes wave-glow-magenta {
-  0%, 100% { filter: drop-shadow(0 0 3px #d50072); opacity: 0.85; }
-  50% { filter: drop-shadow(0 0 10px #d50072); opacity: 1; }
+  0%, 100% { filter: drop-shadow(0 0 3px #ff174f); opacity: 0.85; }
+  50% { filter: drop-shadow(0 0 10px #ff174f); opacity: 1; }
 }
 .animate-wave-magenta {
   animation: wave-glow-magenta 3s ease-in-out infinite 1s;

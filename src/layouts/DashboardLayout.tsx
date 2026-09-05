@@ -265,7 +265,7 @@ export default function DashboardLayout() {
         </div>
         <div className="min-w-0">
           <p className="font-sentinel truncate text-[13px] font-black tracking-[0.1em] text-[#B8F3FF]">SENTINELLE</p>
-          <p className="font-sentinel truncate text-[10px] uppercase tracking-[0.25em] font-extrabold text-[#D50072]">NUMÉRIQUE</p>
+          <p className="font-sentinel truncate text-[10px] uppercase tracking-[0.25em] font-extrabold text-[#FF174F] drop-shadow-[0_0_8px_#FF174F]">NUMÉRIQUE</p>
         </div>
       </div>
 
@@ -342,7 +342,7 @@ export default function DashboardLayout() {
             {/* Salutation desktop */}
             <div className="hidden lg:block">
               <p className="text-sm font-bold text-[#B8F3FF]">Bonjour, {user.name.split(" ")[0]} 👋</p>
-              <span className="inline-block mt-0.5 rounded-md border border-[#D50072]/50 bg-[#0B111A] px-2 py-0.5 text-[10px] font-bold text-[#B8F3FF] shadow-[0_0_8px_rgba(213,0,114,0.25)] uppercase tracking-wider">
+              <span className="inline-block mt-0.5 rounded-md border border-[#FF174F]/50 bg-[#0B111A] px-2 py-0.5 text-[10px] font-bold text-[#B8F3FF] shadow-[0_0_8px_rgba(255,23,79,0.35)] uppercase tracking-wider">
                 {roleLabel[user.role]}
               </span>
             </div>
@@ -868,7 +868,7 @@ export default function DashboardLayout() {
         >
           <MessagesSquare size={18} />
           {unreadMessages > 0 && (
-            <span className="absolute top-0.5 right-2 flex h-4 min-w-4 items-center justify-center rounded-full bg-red-600 px-1 text-[9px] font-black text-white shadow-[0_0_8px_#FF1744]">
+            <span className="absolute top-0.5 right-2 flex h-4 min-w-4 items-center justify-center rounded-full bg-[#FF174F] px-1 text-[9px] font-black text-white shadow-[0_0_8px_#FF174F]">
               {unreadMessages}
             </span>
           )}

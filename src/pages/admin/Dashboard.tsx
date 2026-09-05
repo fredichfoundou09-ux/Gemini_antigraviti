@@ -140,7 +140,7 @@ export function AdminDashboard() {
                 <span className="h-2 w-2 rounded-full bg-[#FFB300] shadow-[0_0_6px_#FFB300]" /> Retards
               </span>
               <span className="flex items-center gap-1.5 text-[#B8F3FF]">
-                <span className="h-2 w-2 rounded-full bg-[#D50072] shadow-[0_0_6px_#D50072]" /> Nouv. inscrits
+                <span className="h-2 w-2 rounded-full bg-[#FF174F] shadow-[0_0_6px_#FF174F]" /> Nouv. inscrits
               </span>
             </div>
 
@@ -181,13 +181,13 @@ export function AdminDashboard() {
                   strokeWidth="2.5"
                   className="drop-shadow-[0_0_10px_#00E5FF]"
                 />
-                {/* Courbe Nouv. Inscrits (Magenta) */}
+                {/* Courbe Nouv. Inscrits (Rouge néon) */}
                 <path
                   d="M 35 138 Q 115 110, 195 130 T 345 80 T 485 70"
                   fill="none"
-                  stroke="#D50072"
+                  stroke="#FF174F"
                   strokeWidth="2"
-                  className="drop-shadow-[0_0_8px_#D50072]"
+                  className="drop-shadow-[0_0_8px_#FF174F]"
                 />
                 {/* Courbe Absences (Rouge néon intense) */}
                 <path
@@ -211,7 +211,7 @@ export function AdminDashboard() {
                 <circle cx="335" cy="45" r="4" fill="#00E5FF" className="animate-ping" />
                 <circle cx="335" cy="45" r="3" fill="#00E5FF" />
                 <circle cx="485" cy="55" r="3.5" fill="#00E5FF" />
-                <circle cx="345" cy="80" r="3" fill="#D50072" />
+                <circle cx="345" cy="80" r="3" fill="#FF174F" />
                 <circle cx="175" cy="120" r="3" fill="#FF174F" />
 
                 {/* Barres verticales sous le graphe (comme sur la maquette) */}
@@ -222,7 +222,7 @@ export function AdminDashboard() {
                     y={145 - (i % 3 === 0 ? 18 : i % 2 === 0 ? 12 : 7)}
                     width="4"
                     height={i % 3 === 0 ? 18 : i % 2 === 0 ? 12 : 7}
-                    fill={i % 4 === 0 ? "#00E5FF" : i % 3 === 0 ? "#FF174F" : i % 2 === 0 ? "#006DFF" : "#D50072"}
+                    fill={i % 4 === 0 ? "#00E5FF" : i % 3 === 0 ? "#FF174F" : i % 2 === 0 ? "#006DFF" : "#FF174F"}
                     opacity="0.7"
                   />
                 ))}
@@ -400,8 +400,8 @@ export function AdminDashboard() {
               </div>
             </div>
 
-            {/* 4. MODULES ACTIFS (ACCENT MAGENTA/ROUGE DE LA MAQUETTE !) */}
-            <div className="hud-panel rounded-lg border border-[#D50072]/80 shadow-[0_0_15px_rgba(213,0,114,0.3)] p-2.5 flex flex-col justify-between">
+            {/* 4. MODULES ACTIFS (ACCENT ROUGE NÉON DE LA MAQUETTE !) */}
+            <div className="hud-panel rounded-lg border border-[#FF174F]/80 shadow-[0_0_15px_rgba(255,23,79,0.35)] p-2.5 flex flex-col justify-between">
               <div className="flex items-center justify-between">
                 <span className="text-[9px] font-black uppercase tracking-wider text-[#B8F3FF]">MODULES ACTIFS</span>
                 <div className="flex h-6 w-6 items-center justify-center rounded border border-[#FF174F]/50 bg-[#071A2B] text-[#FF174F]">
@@ -545,7 +545,7 @@ export function AdminDashboard() {
                   <circle cx="165" cy="35" r="3.5" fill="#00E5FF" />
                   <circle cx="170" cy="75" r="4" fill="#FF174F" className="animate-ping" />
                   <circle cx="170" cy="75" r="3" fill="#FF174F" />
-                  <circle cx="230" cy="40" r="3" fill="#D50072" />
+                  <circle cx="230" cy="40" r="3" fill="#FF174F" />
                   <circle cx="265" cy="95" r="2.5" fill="#00C8FF" />
                 </svg>
               </div>
@@ -571,8 +571,8 @@ export function AdminDashboard() {
                   </p>
                 </div>
                 <div>
-                  <p className="text-[#D50072]">Pré-inscrits</p>
-                  <p className="font-display text-xs font-black text-[#D50072] font-mono">
+                  <p className="text-[#FF174F] font-bold">Pré-inscrits</p>
+                  <p className="font-display text-xs font-black text-[#FF174F] font-mono drop-shadow-[0_0_6px_#FF174F]">
                     {db.registrations.length}
                   </p>
                 </div>
@@ -633,8 +633,8 @@ export function AdminDashboard() {
           </div>
         </div>
 
-        {/* 2. ACTIVITÉ DES MODULES (AVEC ONDES DYNAMIQUES EN MOUVEMENT & BORDURE MAGENTA) */}
-        <div className="hud-panel rounded-lg border border-[#D50072]/80 shadow-[0_0_18px_rgba(213,0,114,0.3)] p-3.5 flex flex-col justify-between">
+        {/* 2. ACTIVITÉ DES MODULES (AVEC ONDES DYNAMIQUES EN MOUVEMENT & BORDURE ROUGE NÉON) */}
+        <div className="hud-panel rounded-lg border border-[#FF174F]/80 shadow-[0_0_18px_rgba(255,23,79,0.35)] p-3.5 flex flex-col justify-between">
           <div>
             <div className="flex items-center justify-between border-b border-[#006DFF]/25 pb-2">
               <h3 className="font-display text-xs font-black text-[#B8F3FF] uppercase tracking-wider">
@@ -663,7 +663,7 @@ export function AdminDashboard() {
                 <path
                   d="M 5 60 Q 50 45, 110 60 T 235 55"
                   fill="none"
-                  stroke="#D50072"
+                  stroke="#FF174F"
                   strokeWidth="2"
                   className="animate-wave-magenta"
                 />
@@ -672,7 +672,7 @@ export function AdminDashboard() {
 
             <div className="flex items-center justify-between text-[11px] font-mono">
               <span className="text-[#00E5FF] font-bold">Informatique ({infoCount})</span>
-              <span className="text-[#D50072] font-bold">Industriel ({indCount})</span>
+              <span className="text-[#FF174F] font-bold">Industriel ({indCount})</span>
             </div>
           </div>
         </div>
@@ -695,7 +695,7 @@ export function AdminDashboard() {
                       <span className="font-mono text-[#4C91B5]">{m.count} éval. <strong className="text-white">{m.pct}%</strong></span>
                     </div>
                     <div className="mt-1 h-1.5 w-full rounded-sm bg-[#080A0F] overflow-hidden">
-                      <div className={`h-full rounded-sm ${idx === 0 ? "bg-[#00E5FF]" : idx === 1 ? "bg-[#008CFF]" : idx === 2 ? "bg-[#D50072]" : "bg-[#FF174F]"}`} style={{ width: `${m.pct}%` }} />
+                      <div className={`h-full rounded-sm ${idx === 0 ? "bg-[#00E5FF]" : idx === 1 ? "bg-[#008CFF]" : idx === 2 ? "bg-[#FF174F]" : "bg-[#FF174F]"}`} style={{ width: `${m.pct}%` }} />
                     </div>
                   </div>
                 ))

@@ -7,12 +7,12 @@ import { toast } from "sonner";
 
 const BASE_TOAST_STYLE = {
   background: "rgba(8, 16, 33, 0.98)",
-  border: "1.5px solid rgba(255, 23, 68, 0.7)",
-  color: "#FF1744",
+  border: "1.5px solid rgba(255, 23, 79, 0.7)",
+  color: "#FF174F",
   fontWeight: 700,
   fontSize: "14px",
   borderRadius: "16px",
-  boxShadow: "0 0 25px -5px rgba(255, 23, 68, 0.4)",
+  boxShadow: "0 0 25px -5px rgba(255, 23, 79, 0.4)",
 };
 
 export const toastMsg = {
@@ -22,8 +22,8 @@ export const toastMsg = {
       duration: 4000,
       style: {
         ...BASE_TOAST_STYLE,
-        border: "1.5px solid rgba(255, 23, 68, 0.8)",
-        color: "#FF1744",
+        border: "1.5px solid rgba(255, 23, 79, 0.8)",
+        color: "#FF174F",
       },
     }),
 
@@ -33,8 +33,8 @@ export const toastMsg = {
       duration: 6000,
       style: {
         ...BASE_TOAST_STYLE,
-        border: "2px solid #FF1744",
-        color: "#FF1744",
+        border: "2px solid #FF174F",
+        color: "#FF174F",
       },
     }),
 
@@ -55,8 +55,8 @@ export const toastMsg = {
       duration: 4000,
       style: {
         ...BASE_TOAST_STYLE,
-        border: "1.5px solid rgba(255, 23, 68, 0.6)",
-        color: "#FF1744",
+        border: "1.5px solid rgba(255, 23, 79, 0.6)",
+        color: "#FF174F",
       },
     }),
 
@@ -68,8 +68,8 @@ export const toastMsg = {
         duration: 15000,
         style: {
           ...BASE_TOAST_STYLE,
-          border: "1.5px solid #FF1744",
-          color: "#FF1744",
+          border: "1.5px solid #FF174F",
+          color: "#FF174F",
         },
         action: {
           label: "Copier",
@@ -84,8 +84,8 @@ export const toastMsg = {
   loading: (msg: string) => toast.loading(msg, {
     style: {
       ...BASE_TOAST_STYLE,
-      border: "1.5px solid rgba(255, 23, 68, 0.5)",
-      color: "#FF1744",
+      border: "1.5px solid rgba(255, 23, 79, 0.5)",
+      color: "#FF174F",
     },
   }),
 
@@ -136,7 +136,7 @@ export const toastMsg = {
         fontFamily: "'Oxanium', 'Rajdhani', sans-serif",
       },
       classNames: {
-        description: "!text-[#FF1744] !font-bold !text-[13px] !mt-1 !leading-snug", // ÉCRITS EN ROUGE
+        description: "!text-[#FF174F] !font-bold !text-[13px] !mt-1 !leading-snug", // ÉCRITS EN ROUGE
       },
       action: {
         label: "Répondre",
@@ -153,7 +153,7 @@ export const toastMsg = {
       duration: 4500,
       style: {
         ...BASE_TOAST_STYLE,
-        border: "1.5px solid #FF1744",
+        border: "1.5px solid #FF174F",
         color: "#FFFFFF",
       },
       action: {

@@ -53,7 +53,7 @@ export function printHTML(title: string, body: string) {
     .row{display:flex;justify-content:space-between;padding:8px 0;border-bottom:1px dashed #1d2b45}
     .grid{display:grid;grid-template-columns:1fr 1fr;gap:12px}
     .label{color:#8A94A6;font-size:12px;text-transform:uppercase;letter-spacing:1px}
-    .accent{color:#00E5FF}.gold{color:#FFB300}.red{color:#FF1744}.green{color:#00FF88}
+    .accent{color:#00E5FF}.gold{color:#FFB300}.red{color:#FF174F}.green{color:#00FF88}
     @media print{body{background:#fff;color:#000}.receipt{background:#fff;border:2px solid #000;color:#000}}
   </style></head><body>${body}<script>window.onload=()=>setTimeout(()=>window.print(),300)</script></body></html>`);
   w.document.close();

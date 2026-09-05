@@ -135,12 +135,12 @@ export function LoginPage() {
               </div>
 
               {/* Logo officiel maître */}
-              <div className="group relative my-4 flex justify-center">
-                <div className="absolute -inset-1 rounded-2xl bg-gradient-to-r from-[#FF174F]/25 via-transparent to-[#00C8FF]/25 opacity-75 blur transition duration-500 group-hover:opacity-100" />
+              <div className="group relative my-5 flex justify-center">
+                <div className="absolute -inset-1 rounded-2xl bg-gradient-to-r from-[#FF174F]/30 via-transparent to-[#00C8FF]/30 opacity-75 blur transition duration-500 group-hover:opacity-100" />
                 <SentinelLogo
                   variant="full"
                   alt="SENTINEL'S"
-                  className="relative h-64 w-64 sm:h-72 sm:w-72 rounded-2xl object-contain drop-shadow-[0_0_30px_rgba(255,23,79,0.35)] transition duration-500 group-hover:scale-105"
+                  className="relative h-72 w-72 sm:h-80 sm:w-80 lg:h-[360px] lg:w-[360px] rounded-2xl object-contain drop-shadow-[0_0_35px_rgba(255,23,79,0.4)] transition duration-500 group-hover:scale-105"
                 />
               </div>
 
@@ -173,16 +173,14 @@ export function LoginPage() {
 
           {/* ================= PANNEAU DROIT : FORMULAIRE SÉCURISÉ ================= */}
           <div className="flex flex-col justify-center p-6 sm:p-10 lg:col-span-6 bg-[#0B111A]">
-            <div className="mb-6 flex items-center justify-between">
-              <div>
-                <h1 className="font-display text-2xl font-black text-white">Connexion</h1>
-                <p className="mt-0.5 text-xs text-[#4C91B5]">Portail d'authentification sécurisé</p>
-              </div>
+            <div className="mb-6 flex flex-col items-center justify-center text-center">
               <SentinelLogo
                 variant="symbol"
                 alt="Symbole SENTINEL'S"
-                className="h-12 w-12 object-contain drop-shadow-[0_0_12px_rgba(255,23,79,0.5)]"
+                className="mb-2.5 h-14 w-14 object-contain drop-shadow-[0_0_16px_rgba(255,23,79,0.6)]"
               />
+              <h1 className="font-display text-2xl sm:text-3xl font-black text-white tracking-wide">Connexion</h1>
+              <p className="mt-1 text-xs text-[#4C91B5]">Portail d'authentification sécurisé</p>
             </div>
 
             {/* Bandeau première utilisation */}

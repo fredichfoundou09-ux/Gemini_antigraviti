@@ -1,7 +1,7 @@
 {
-  "name": "SENTINEL'S — Sentinelle Numérique",
+  "name": "SENTINEL'S",
   "short_name": "SENTINEL'S",
-  "description": "Plateforme de gestion et de formation en Génie Informatique & Industriel — Sentinelle Numérique",
+  "description": "Plateforme officielle SENTINEL'S — Centre de formation et de supervision",
   "start_url": "/",
   "display": "standalone",
   "background_color": "#05070D",
