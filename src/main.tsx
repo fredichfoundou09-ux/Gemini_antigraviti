@@ -1,10 +1,14 @@
 import { StrictMode } from "react";
 import { createRoot } from "react-dom/client";
 import { Toaster } from "sonner";
+import { registerSW } from "virtual:pwa-register";
 import "./index.css";
 import App from "./App";
 import { AuthProvider } from "@/contexts/AuthContext";
 import { ErrorBoundary } from "@/lib/ErrorBoundary";
+
+// Enregistrement automatique du Service Worker PWA avec auto-update
+registerSW({ immediate: true });
 
 createRoot(document.getElementById("root")!).render(
   <StrictMode>
@@ -37,9 +41,3 @@ createRoot(document.getElementById("root")!).render(
   </StrictMode>
 );
 
-// Enregistrement du Service Worker pour permettre l'installation PWA
-if ("serviceWorker" in navigator) {
-  window.addEventListener("load", () => {
-    navigator.serviceWorker.register("/sw.js").catch(() => {});
-  });
-}
