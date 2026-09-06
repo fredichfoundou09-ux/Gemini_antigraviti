@@ -1,11 +1,12 @@
-import { useState } from "react";
+import { useState, useMemo } from "react";
 import { Link } from "react-router-dom";
 import {
   GraduationCap, Users, CalendarDays, PenLine, BookOpen, ClipboardCheck, TestTube2, MessagesSquare,
   Phone, Mail, ChevronRight, FileText, Upload, UserCircle2, Clock, Wallet, CheckCircle2,
+  Search, Filter, X, Shield, Eye, Award, MessageSquare, AlertCircle,
 } from "lucide-react";
 import { useStore } from "@/lib/store";
-import { Card, Stat, PageHead, Badge, Empty, moduleIcon, formationLabel, Input, Field, Btn, money, readImage, uid, today } from "@/lib/ui";
+import { Card, Stat, PageHead, Badge, Empty, moduleIcon, formationLabel, Input, Field, Btn, money, readImage, uid, today, Textarea } from "@/lib/ui";
 import { supabase, isSupabaseConfigured } from "@/lib/supabase/client";
 import { toastMsg } from "@/lib/toast";
 import { PasswordChangeCard } from "@/pages/shared/PasswordChangeCard";
@@ -184,52 +185,261 @@ export function TeacherClasses() {
 export function TeacherStudents() {
   const { db, user } = useStore();
   const teacher = db.teachers.find((t) => t.userId === user!.id);
+  const [searchTerm, setSearchTerm] = useState("");
+  const [filterModule, setFilterModule] = useState<string>("all");
+  const [selectedStudent, setSelectedStudent] = useState<any | null>(null);
+
   if (!teacher) return <Empty icon={<Users size={40} />} title="Profil enseignant introuvable" />;
-  const students = db.students.filter((s) => s.modules.some((mid) => teacher.modules.includes(mid)));
+
+  // Règle obligatoire (Point 6) : Le formateur ne peut voir QUE les apprenants officiellement inscrits dans ses modules
+  const allMyStudents = useMemo(() => {
+    return db.students.filter((s) => s.modules.some((mid) => teacher.modules.includes(mid)));
+  }, [db.students, teacher.modules]);
+
+  const teacherModules = useMemo(() => {
+    return db.modules.filter((m) => teacher.modules.includes(m.id));
+  }, [db.modules, teacher.modules]);
+
+  const filteredStudents = useMemo(() => {
+    return allMyStudents.filter((s) => {
+      // Filtre textuel
+      const q = searchTerm.toLowerCase().trim();
+      const matchQuery =
+        !q ||
+        `${s.prenom} ${s.nom}`.toLowerCase().includes(q) ||
+        s.id.toLowerCase().includes(q) ||
+        (s.email || "").toLowerCase().includes(q) ||
+        (s.telephone || "").includes(q);
+
+      // Filtre par module
+      const matchModule = filterModule === "all" || s.modules.includes(filterModule);
+
+      return matchQuery && matchModule;
+    });
+  }, [allMyStudents, searchTerm, filterModule]);
 
   return (
-    <div>
-      <PageHead title="Mes apprenants" subtitle={`${students.length} apprenant(s) dans mes modules`} />
-      {students.length === 0 ? (
-        <Empty icon={<Users size={40} />} title="Aucun apprenant" />
+    <div className="space-y-4">
+      <PageHead
+        title="Mes apprenants"
+        subtitle={`${allMyStudents.length} apprenant(s) officiellement inscrit(s) dans vos modules`}
+      />
+
+      {/* Barre de recherche et filtres (Point 7) */}
+      <Card className="p-4">
+        <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+          <div className="relative flex-1">
+            <Search size={15} className="absolute left-3.5 top-1/2 -translate-y-1/2 text-slate-500" />
+            <input
+              type="text"
+              value={searchTerm}
+              onChange={(e) => setSearchTerm(e.target.value)}
+              placeholder="Rechercher par nom, prénom, matricule, téléphone..."
+              className="w-full rounded-xl border border-white/10 bg-white/[0.03] pl-10 pr-4 py-2 text-xs text-white placeholder-slate-500 outline-none focus:border-cyan-400/50"
+            />
+          </div>
+
+          <div className="flex items-center gap-2">
+            <span className="text-xs text-slate-400 whitespace-nowrap">Module :</span>
+            <select
+              value={filterModule}
+              onChange={(e) => setFilterModule(e.target.value)}
+              className="rounded-xl border border-white/10 bg-[#07102B] px-3 py-2 text-xs text-slate-200 outline-none focus:border-cyan-400/50"
+            >
+              <option value="all">Tous mes modules ({teacherModules.length})</option>
+              {teacherModules.map((m) => (
+                <option key={m.id} value={m.id}>
+                  {m.numero}. {m.titre}
+                </option>
+              ))}
+            </select>
+          </div>
+        </div>
+      </Card>
+
+      {/* Liste des cartes apprenants */}
+      {filteredStudents.length === 0 ? (
+        <Empty icon={<Users size={40} />} title="Aucun apprenant correspondant" sub="Ajustez vos filtres ou contactez la scolarité." />
       ) : (
         <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-3">
-          {students.map((s) => {
+          {filteredStudents.map((s) => {
             const myMods = db.modules.filter((m) => s.modules.includes(m.id) && teacher.modules.includes(m.id));
+            const studentAttendances = db.attendance.filter(
+              (a) => a.studentId === s.id && teacher.modules.includes(a.moduleId)
+            );
+            const presentCount = studentAttendances.filter((a) => a.statut === "present").length;
+            const presenceRate = studentAttendances.length > 0 ? Math.round((presentCount / studentAttendances.length) * 100) : 100;
+
             return (
-              <Card key={s.id} className="p-5" glow="cyan">
-                <div className="flex items-center gap-3">
-                  <div className="flex h-11 w-11 items-center justify-center rounded-xl bg-gradient-to-br from-cyan-500/30 to-blue-600/30">
-                    <GraduationCap size={20} className="text-cyan-300" />
+              <Card key={s.id} className="p-5 flex flex-col justify-between" glow="cyan">
+                <div>
+                  <div className="flex items-start justify-between gap-3">
+                    <div className="flex items-center gap-3">
+                      <div className="flex h-12 w-12 items-center justify-center rounded-xl bg-gradient-to-br from-cyan-500/30 to-blue-600/30 border border-cyan-400/30">
+                        <GraduationCap size={22} className="text-cyan-300" />
+                      </div>
+                      <div className="min-w-0">
+                        <p className="font-display text-sm font-bold text-white">{s.prenom} {s.nom}</p>
+                        <p className="font-mono text-[10px] text-cyan-300/70 font-semibold">{s.id}</p>
+                        <span className="text-[10px] text-slate-400">{formationLabel(s.formation)}</span>
+                      </div>
+                    </div>
+                    <Badge color={presenceRate >= 80 ? "green" : presenceRate >= 50 ? "gold" : "red"}>
+                      {presenceRate}% prés.
+                    </Badge>
                   </div>
-                  <div className="min-w-0">
-                    <p className="font-display text-sm font-bold text-white">{s.prenom} {s.nom}</p>
-                    <p className="font-mono text-[10px] text-cyan-300/70">{s.id}</p>
+
+                  {/* Modules partagés */}
+                  <div className="mt-3 flex flex-wrap gap-1.5">
+                    {myMods.map((m) => (
+                      <span key={m.id} className="rounded-md border border-cyan-500/20 bg-cyan-500/5 px-2 py-0.5 text-[10px] text-cyan-300 font-medium">
+                        {m.numero}. {m.titre}
+                      </span>
+                    ))}
+                  </div>
+
+                  <div className="mt-3 grid grid-cols-2 gap-2 text-[11px] text-slate-400 border-t border-white/5 pt-2.5">
+                    <span className="flex items-center gap-1 truncate"><Mail size={12} className="text-cyan-400 shrink-0" /> {s.email || "—"}</span>
+                    <span className="flex items-center gap-1 truncate"><Phone size={12} className="text-emerald-400 shrink-0" /> {s.telephone}</span>
                   </div>
                 </div>
-                <div className="mt-3 flex flex-wrap gap-1.5">
-                  {myMods.map((m) => <span key={m.id} className="rounded-md border border-white/10 bg-white/[0.03] px-2 py-0.5 text-[10px] text-slate-400">{m.numero}. {m.titre}</span>)}
-                </div>
-                <div className="mt-3 flex items-center gap-3 text-[11px] text-slate-400">
-                  <span className="flex items-center gap-1"><Mail size={11} className="text-cyan-300" /> {s.email || "—"}</span>
-                  <span className="flex items-center gap-1"><Phone size={11} className="text-emerald-300" /> {s.telephone}</span>
+
+                <div className="mt-4 pt-3 border-t border-white/5 flex items-center justify-between">
+                  <span className="text-[10px] text-slate-500">Dossier pédagogique</span>
+                  <button
+                    onClick={() => setSelectedStudent(s)}
+                    className="inline-flex items-center gap-1.5 rounded-lg border border-cyan-400/30 bg-cyan-400/10 px-3 py-1.5 text-xs font-bold text-cyan-300 hover:bg-cyan-400/20 transition"
+                  >
+                    <Eye size={13} /> Fiche apprenant
+                  </button>
                 </div>
               </Card>
             );
           })}
         </div>
       )}
+
+      {/* Modal / Fiche pédagogique de l'apprenant (Point 8) */}
+      {selectedStudent && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/80 backdrop-blur-sm p-4 overflow-y-auto animate-fade-in">
+          <Card className="w-full max-w-2xl max-h-[90vh] overflow-y-auto p-6 space-y-5 border-cyan-500/40 shadow-[0_0_40px_rgba(6,182,212,0.15)]">
+            <div className="flex items-start justify-between border-b border-white/10 pb-4">
+              <div className="flex items-center gap-4">
+                <div className="flex h-14 w-14 items-center justify-center rounded-2xl bg-cyan-500/20 border border-cyan-400/40">
+                  <GraduationCap size={28} className="text-cyan-300" />
+                </div>
+                <div>
+                  <h3 className="font-display text-lg font-bold text-white">
+                    {selectedStudent.prenom} {selectedStudent.nom}
+                  </h3>
+                  <p className="font-mono text-xs text-cyan-300">Matricule : {selectedStudent.id}</p>
+                  <p className="text-xs text-slate-400">{formationLabel(selectedStudent.formation)}</p>
+                </div>
+              </div>
+              <button
+                onClick={() => setSelectedStudent(null)}
+                className="rounded-lg p-1.5 text-slate-400 hover:bg-white/10 hover:text-white"
+              >
+                <X size={18} />
+              </button>
+            </div>
+
+            {/* Statistiques pédagogiques dans les modules du formateur */}
+            {(() => {
+              const sharedMods = db.modules.filter((m) => selectedStudent.modules.includes(m.id) && teacher.modules.includes(m.id));
+              const myAtts = db.attendance.filter((a) => a.studentId === selectedStudent.id && teacher.modules.includes(a.moduleId));
+              const presents = myAtts.filter((a) => a.statut === "present").length;
+              const lates = myAtts.filter((a) => a.statut === "retard").length;
+              const absents = myAtts.filter((a) => a.statut === "absent").length;
+              const myGrades = db.grades.filter((g) => g.studentId === selectedStudent.id && teacher.modules.includes(g.moduleId));
+              const avgNote = myGrades.length > 0 ? (myGrades.reduce((a, b) => a + b.note, 0) / myGrades.length).toFixed(1) : "—";
+
+              return (
+                <div className="space-y-4">
+                  <div className="grid grid-cols-2 gap-3 sm:grid-cols-4">
+                    <div className="rounded-xl border border-white/10 bg-white/[0.02] p-3 text-center">
+                      <p className="text-[10px] uppercase tracking-wider text-slate-500">Modules communs</p>
+                      <p className="font-display text-lg font-black text-cyan-300">{sharedMods.length}</p>
+                    </div>
+                    <div className="rounded-xl border border-white/10 bg-white/[0.02] p-3 text-center">
+                      <p className="text-[10px] uppercase tracking-wider text-slate-500">Présences</p>
+                      <p className="font-display text-lg font-black text-emerald-300">{presents}</p>
+                    </div>
+                    <div className="rounded-xl border border-white/10 bg-white/[0.02] p-3 text-center">
+                      <p className="text-[10px] uppercase tracking-wider text-slate-500">Retards / Absences</p>
+                      <p className="font-display text-lg font-black text-amber-300">{lates} / {absents}</p>
+                    </div>
+                    <div className="rounded-xl border border-white/10 bg-white/[0.02] p-3 text-center">
+                      <p className="text-[10px] uppercase tracking-wider text-slate-500">Moyenne tests</p>
+                      <p className="font-display text-lg font-black text-purple-300">{avgNote} / 20</p>
+                    </div>
+                  </div>
+
+                  {/* Modules suivis avec ce formateur */}
+                  <div>
+                    <h4 className="text-xs font-bold uppercase tracking-wider text-cyan-300 mb-2">Modules partagés</h4>
+                    <div className="space-y-1.5">
+                      {sharedMods.map((m) => (
+                        <div key={m.id} className="flex items-center justify-between rounded-lg border border-white/5 bg-white/[0.02] px-3 py-2 text-xs">
+                          <span className="font-semibold text-slate-200">{m.numero}. {m.titre}</span>
+                          <Badge color="cyan">Actif</Badge>
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+
+                  {/* Historique récent des présences */}
+                  <div>
+                    <h4 className="text-xs font-bold uppercase tracking-wider text-cyan-300 mb-2">Historique récent des séances</h4>
+                    {myAtts.length === 0 ? (
+                      <p className="text-xs text-slate-500 italic">Aucune séance enregistrée pour cet apprenant dans vos cours.</p>
+                    ) : (
+                      <div className="space-y-1.5 max-h-36 overflow-y-auto">
+                        {myAtts.slice(0, 5).map((att) => (
+                          <div key={att.id} className="flex items-center justify-between rounded-lg border border-white/5 bg-white/[0.01] px-3 py-1.5 text-xs">
+                            <span className="font-mono text-slate-400">{att.date} à {att.heure || "—"}</span>
+                            <Badge color={att.statut === "present" ? "green" : att.statut === "retard" ? "gold" : "red"}>
+                              {att.statut.toUpperCase()}
+                            </Badge>
+                          </div>
+                        ))}
+                      </div>
+                    )}
+                  </div>
+
+                  {/* Avertissement de confidentialité (Point 8) */}
+                  <div className="rounded-xl border border-emerald-500/20 bg-emerald-950/20 p-3 flex items-center gap-3">
+                    <Shield size={18} className="text-emerald-400 shrink-0" />
+                    <p className="text-[11px] text-emerald-200 leading-tight">
+                      <b>Accès Pédagogique Conforme :</b> Les données financières privées (soldes, factures, encaissements) sont strictement réservées à l'administration et à l'apprenant.
+                    </p>
+                  </div>
+                </div>
+              );
+            })()}
+
+            <div className="flex justify-end pt-2">
+              <Btn onClick={() => setSelectedStudent(null)} className="px-5">
+                Fermer la fiche
+              </Btn>
+            </div>
+          </Card>
+        </div>
+      )}
     </div>
   );
 }
 
-/* ---------- profil formateur ---------- */
+/* ---------- profil formateur (Points 16-17) ---------- */
 export function TeacherProfile() {
   const { db, user, update, log } = useStore();
   const teacher = db.teachers.find((t) => t.userId === user?.id);
   if (!teacher) return <Empty icon={<GraduationCap size={40} />} title="Profil enseignant introuvable" />;
 
   const [phone, setPhone] = useState(teacher.phone || "");
+  const [whatsapp, setWhatsapp] = useState((teacher as any).whatsapp || teacher.phone || "");
+  const [emailPro, setEmailPro] = useState(teacher.email || user?.email || "");
+  const [bio, setBio] = useState((teacher as any).bio || teacher.specialite || "");
   const [photo, setPhoto] = useState(teacher.photo || "");
   const [saving, setSaving] = useState(false);
   const [uploading, setUploading] = useState(false);
@@ -265,6 +475,9 @@ export function TeacherProfile() {
     setSaving(true);
     const changedFields: string[] = [];
     if (phone !== teacher.phone) changedFields.push("Téléphone");
+    if (whatsapp !== (teacher as any).whatsapp) changedFields.push("WhatsApp");
+    if (emailPro !== teacher.email) changedFields.push("Email Pro");
+    if (bio !== (teacher as any).bio) changedFields.push("Biographie");
     if (photo !== teacher.photo) changedFields.push("Photo");
 
     if (changedFields.length === 0) {
@@ -276,17 +489,18 @@ export function TeacherProfile() {
     if (isSupabaseConfigured) {
       try {
         // 1. Mise à jour table teachers
-        const { error: tErr } = await supabase.from("teachers").update({
+        await supabase.from("teachers").update({
           phone: phone || null,
           photo_url: photo || null,
+          email: emailPro || null,
         }).eq("id", teacher.id);
-        if (tErr) throw tErr;
 
         // 2. Mise à jour table profiles
         if (user?.id) {
           await supabase.from("profiles").update({
             phone: phone || null,
             avatar_url: photo || null,
+            email: emailPro || null,
           }).eq("id", user.id);
         }
 
@@ -296,23 +510,23 @@ export function TeacherProfile() {
           try {
             await supabase.from("notifications").insert({
               user_id: adm.id,
-              title: "Modification de profil formateur",
-              body: `L'enseignant ${teacher.prenom} ${teacher.nom} (${teacher.id}) a mis à jour ses coordonnées (${changedFields.join(", ")}).`,
+              title: "Mise à jour coordonnées formateur",
+              body: `L'enseignant ${teacher.prenom} ${teacher.nom} (${teacher.id}) a modifié son profil : ${changedFields.join(", ")}.`,
               type: "teacher_profile_updated",
             });
-          } catch { /* ignore notification failure */ }
+          } catch { /* ignore */ }
         }
 
-        // 4. Audit log
+        // 4. Audit log obligatoire (Point 17)
         try {
           await supabase.from("audit_logs").insert({
             user_id: user?.id || null,
             action: "PROFILE_UPDATED",
             entity_type: "teachers",
             entity_id: teacher.id,
-            description: `Mise à jour du profil par le formateur ${teacher.prenom} ${teacher.nom} : champs [${changedFields.join(", ")}]`,
+            description: `Mise à jour du profil par le formateur ${teacher.prenom} ${teacher.nom} : champs modifiés [${changedFields.join(", ")}]`,
           });
-        } catch { /* ignore audit */ }
+        } catch { /* ignore */ }
 
         toastMsg.success("Profil mis à jour côté serveur ✓");
         window.dispatchEvent(new Event("sentinelles:supabase-refresh"));
@@ -327,9 +541,9 @@ export function TeacherProfile() {
 
     update((d) => ({
       ...d,
-      teachers: d.teachers.map((t) => (t.id === teacher.id ? { ...t, phone, photo } : t)),
+      teachers: d.teachers.map((t) => (t.id === teacher.id ? { ...t, phone, photo, email: emailPro, whatsapp, bio } as any : t)),
     }));
-    log(`Profil formateur mis à jour par ${teacher.prenom} ${teacher.nom}`);
+    log(`Mise à jour profil formateur : ${teacher.prenom} ${teacher.nom} (${changedFields.join(", ")})`);
     setSaving(false);
   };
 
@@ -346,30 +560,30 @@ export function TeacherProfile() {
           <Card className="p-6">
             <div className="flex items-center gap-5">
               {photo ? (
-                <img src={photo} alt="" className="h-20 w-20 rounded-2xl border-2 border-cyan-400/50 object-cover" />
+                <img src={photo} alt="" className="h-20 w-20 rounded-2xl border-2 border-cyan-400/50 object-cover shadow-[0_0_15px_rgba(6,182,212,0.3)]" />
               ) : (
-                <div className="flex h-20 w-20 items-center justify-center rounded-2xl bg-gradient-to-br from-cyan-500/30 to-blue-600/30">
+                <div className="flex h-20 w-20 items-center justify-center rounded-2xl bg-gradient-to-br from-cyan-500/30 to-blue-600/30 border border-cyan-400/40">
                   <UserCircle2 size={44} className="text-cyan-300" />
                 </div>
               )}
               <div>
                 <p className="font-display text-xl font-black text-white">{teacher.prenom} {teacher.nom}</p>
-                <p className="font-mono text-xs text-cyan-300">{teacher.id}</p>
+                <p className="font-mono text-xs text-cyan-300 font-semibold">{teacher.id}</p>
                 <p className="text-xs text-slate-400 mt-0.5">{teacher.specialite}</p>
-                <div className="mt-2 flex gap-2">
+                <div className="mt-2 flex flex-wrap gap-2">
                   <Badge color="cyan">{teacher.typeContrat || "Prestation"}</Badge>
-                  <Badge color="gold">{money(teacher.tarifHoraire || 0)} / h</Badge>
+                  <Badge color="gold">2 500 FCFA / séance</Badge>
                 </div>
               </div>
             </div>
 
             <div className="mt-6 border-t border-white/5 pt-4">
-              <h4 className="font-display text-xs font-bold uppercase tracking-wider text-cyan-300 mb-3">Modifier mes coordonnées</h4>
+              <h4 className="font-display text-xs font-bold uppercase tracking-wider text-cyan-300 mb-3">Modifier mes coordonnées professionnelles</h4>
               <div className="space-y-4">
                 <Field label="Photo de profil">
                   <div className="flex items-center gap-3">
                     <label className="cursor-pointer">
-                      <span className="inline-flex items-center gap-2 rounded-xl border border-cyan-400/40 px-3 py-2 text-xs font-bold text-cyan-300 hover:bg-cyan-400/10">
+                      <span className="inline-flex items-center gap-2 rounded-xl border border-cyan-400/40 px-3 py-2 text-xs font-bold text-cyan-300 hover:bg-cyan-400/10 transition">
                         <Upload size={14} /> {uploading ? "Téléversement..." : "Changer la photo"}
                       </span>
                       <input type="file" accept="image/*" onChange={onPhotoUpload} disabled={uploading} className="hidden" />
@@ -382,16 +596,25 @@ export function TeacherProfile() {
                   </div>
                 </Field>
 
-                <Field label="Téléphone / WhatsApp">
-                  <Input value={phone} onChange={(e) => setPhone(e.target.value)} placeholder="+242 06..." />
+                <div className="grid gap-3 sm:grid-cols-2">
+                  <Field label="Téléphone professionnel">
+                    <Input value={phone} onChange={(e) => setPhone(e.target.value)} placeholder="+242 06..." />
+                  </Field>
+                  <Field label="Numéro WhatsApp direct">
+                    <Input value={whatsapp} onChange={(e) => setWhatsapp(e.target.value)} placeholder="+242 05..." />
+                  </Field>
+                </div>
+
+                <Field label="Email professionnel">
+                  <Input value={emailPro} onChange={(e) => setEmailPro(e.target.value)} placeholder="nom@sentinellesnumeriques.cg" />
                 </Field>
 
-                <Field label="Email professionnel" hint="Non modifiable directement. Contactez l'administration si besoin.">
-                  <Input value={teacher.email || ""} disabled className="opacity-60 cursor-not-allowed" />
+                <Field label="Biographie / Présentation pédagogique">
+                  <Textarea value={bio} onChange={(e) => setBio(e.target.value)} placeholder="Décrivez votre parcours d'expert, vos certifications et domaines d'intervention..." />
                 </Field>
 
-                <Btn onClick={handleSaveProfile} disabled={saving}>
-                  {saving ? "Enregistrement..." : "Enregistrer les coordonnées"}
+                <Btn onClick={handleSaveProfile} disabled={saving} className="w-full sm:w-auto">
+                  {saving ? "Enregistrement..." : "Enregistrer mes modifications"}
                 </Btn>
               </div>
             </div>

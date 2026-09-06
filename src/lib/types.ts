@@ -306,6 +306,12 @@ export interface Notification {
   type: string;
 }
 
+export interface NotificationRead {
+  userId: string;
+  notificationId: string;
+  readAt: string;
+}
+
 export interface Certificate {
   id: string;
   studentId: string;
@@ -464,6 +470,7 @@ export interface DB {
   grades: Grade[];
   messages: Message[];
   notifications: Notification[];
+  notificationReads?: NotificationRead[];
   certificates: Certificate[];
   scholarships: Scholarship[];
   advantages: Advantage[];

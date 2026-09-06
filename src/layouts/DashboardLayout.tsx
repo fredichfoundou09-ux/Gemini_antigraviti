@@ -16,6 +16,7 @@ import { useBackgroundSync } from "@/hooks/useBackgroundSync";
 import { isSupabaseConfigured } from "@/lib/supabase/client";
 import { subscribeToAllMessages, subscribeToNotifications } from "@/lib/supabase/communication";
 import { toastMsg } from "@/lib/toast";
+import { getUnreadNotificationCount, syncNotificationReadsFromSupabase } from "@/lib/notifications";
 
 const roleLabel: Record<string, string> = {
   superadmin: "SUPER ADMIN",
@@ -243,10 +244,21 @@ export default function DashboardLayout() {
     return { students, teachers, modules, scheduleSlots, courses, documents, messages, total };
   }, [searchQuery, db]);
 
+  const [, setNotifTicker] = useState(0);
+
+  useEffect(() => {
+    if (user?.id) {
+      syncNotificationReadsFromSupabase(user.id).then(() => setNotifTicker((t) => t + 1));
+    }
+    const onNotifChanged = () => setNotifTicker((t) => t + 1);
+    window.addEventListener("sn:notifications-changed", onNotifChanged);
+    return () => window.removeEventListener("sn:notifications-changed", onNotifChanged);
+  }, [user?.id]);
+
   if (!user) return null;
 
   const items = MENU.filter((m) => m.roles.includes(user.role));
-  const unreadNotifications = db.notifications.filter((n) => !n.lu && (n.toId === user.id || n.toId === "all")).length;
+  const unreadNotifications = getUnreadNotificationCount(db.notifications, user.id);
   const unreadMessages = Math.max(
     unreadCount,
     db.messages.filter((m) => !m.lu && (m.toId === user.id || m.toId === "all_students" || m.toId === "all_teachers")).length

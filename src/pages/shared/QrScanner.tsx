@@ -1,6 +1,7 @@
 import { useEffect, useRef, useState } from "react";
-import { Camera, RefreshCw, ShieldAlert, WifiOff } from "lucide-react";
+import { Camera, RefreshCw, ShieldAlert, WifiOff, CheckCircle2 } from "lucide-react";
 import { useStore } from "@/lib/store";
+import { cn } from "@/utils/cn";
 import { Badge, Btn, Card, Empty, Field, Input, PageHead, Select, uid, today } from "@/lib/ui";
 
 type ScanStatus = "pending" | "synced" | "failed";
@@ -48,18 +49,33 @@ export function QrScannerPage() {
 
   const validateScan = (raw: string) => {
     const parsed = parseToken(raw.trim());
-    if (!parsed.studentId) return { ok: false, reason: "invalid_token" };
+    if (!parsed.studentId) return { ok: false, reason: "ACCÈS REFUSÉ : Format de QR Code non reconnu ou altéré." };
     const student = db.students.find((s) => s.id === parsed.studentId);
-    if (!student) return { ok: false, reason: "student_not_found" };
+    if (!student) return { ok: false, reason: "ACCÈS REFUSÉ : Apprenant introuvable dans la base de données." };
     const targetScheduleId = parsed.scheduleId || scheduleId;
     const schedule = db.schedule.find((s) => s.id === targetScheduleId);
-    if (!schedule && !moduleId) return { ok: false, reason: "session_required" };
+    if (!schedule && !moduleId) return { ok: false, reason: "ACCÈS REFUSÉ : Veuillez sélectionner la séance ou le module cible." };
     const targetModule = schedule?.moduleId || moduleId;
-    if (!student.modules.includes(targetModule)) return { ok: false, reason: "outside_session" };
+
+    // Règle impérative Point 12 : Si l'apprenant n'est pas inscrit dans le module -> ACCÈS REFUSÉ
+    if (!student.modules.includes(targetModule)) {
+      const modObj = db.modules.find((m) => m.id === targetModule);
+      return {
+        ok: false,
+        reason: `ACCÈS REFUSÉ : Apprenant non inscrit dans le module « ${modObj?.titre || targetModule} ». Présence interdite.`,
+      };
+    }
+
     const now = new Date();
-    if ((parsed as any).expiresAt && new Date((parsed as any).expiresAt).getTime() < now.getTime()) return { ok: false, reason: "expired_token" };
+    if ((parsed as any).expiresAt && new Date((parsed as any).expiresAt).getTime() < now.getTime()) {
+      return { ok: false, reason: "ACCÈS REFUSÉ : Ce QR Code dynamique a expiré." };
+    }
+
     const already = db.attendance.some((a) => a.studentId === student.id && a.date === today() && a.moduleId === targetModule);
-    if (already) return { ok: false, reason: "duplicate_scan" };
+    if (already) {
+      return { ok: false, reason: `PRÉSENCE DÉJÀ VALIDÉE : ${student.prenom} ${student.nom} est déjà enregistré(e) aujourd'hui pour ce cours.` };
+    }
+
     return { ok: true, student, schedule, moduleId: targetModule };
   };
 
@@ -68,7 +84,8 @@ export function QrScannerPage() {
     const validation = validateScan(raw);
     if (!validation.ok) {
       setQueue((q) => [{ ...scan, status: "failed", reason: validation.reason }, ...q]);
-      setMessage(`Scan refusé : ${validation.reason}`);
+      setMessage(validation.reason);
+      toastMsg.error("Validation de présence refusée", validation.reason);
       return;
     }
     const student = validation.student!;
@@ -82,10 +99,12 @@ export function QrScannerPage() {
       ...d,
       attendance: [{ id: uid("ATT"), studentId: student.id, date: today(), moduleId: targetModuleId, statut: "present", heure: scan.heure, salle: validation.schedule?.salle || "", teacherId: validation.schedule?.teacherId || user!.id }, ...d.attendance]
     }));
-    if (student.userId) notify(student.userId, "Présence enregistrée", `Présence validée à ${scan.heure}.`, "presence");
-    log(`Présence QR enregistrée : ${student.prenom} ${student.nom}`);
+    if (student.userId) notify(student.userId, "Présence validée ✓", `Votre présence a été validée avec succès pour le module à ${scan.heure}.`, "presence");
+    log(`Présence QR validée : ${student.prenom} ${student.nom} [Module: ${targetModuleId}]`);
     setQueue((q) => [{ ...scan, studentId: student.id, scheduleId: validation.schedule?.id, status: "synced" }, ...q]);
-    setMessage("Présence enregistrée.");
+    const successMsg = `PRÉSENCE VALIDÉE ✓ : ${student.prenom} ${student.nom} (${student.id}) présent(e) à ${scan.heure}.`;
+    setMessage(successMsg);
+    toastMsg.success("Présence validée avec succès ✓", `${student.prenom} ${student.nom}`);
   };
 
   const syncQueue = () => {
@@ -119,7 +138,12 @@ export function QrScannerPage() {
       <Card className="p-5">
         <Field label="Token QR / QR legacy"><Input value={manualToken} onChange={(e) => setManualToken(e.target.value)} placeholder="QR_TOKEN|... ou SN|..." /></Field>
         <Btn className="mt-3" onClick={() => { record(manualToken); setManualToken(""); }}>Valider le scan</Btn>
-        {message && <p className="mt-3 text-sm text-cyan-300">{message}</p>}
+        {message && (
+          <div className={cn("mt-4 p-3.5 rounded-xl border flex items-center gap-3 text-sm font-semibold", message.includes("REFUSÉ") ? "border-red-500/40 bg-red-950/30 text-red-300 shadow-[0_0_15px_rgba(239,68,68,0.15)]" : "border-emerald-500/40 bg-emerald-950/30 text-emerald-300 shadow-[0_0_15px_rgba(16,185,129,0.15)]")}>
+            {message.includes("REFUSÉ") ? <ShieldAlert className="text-red-400 shrink-0" size={20} /> : <CheckCircle2 className="text-emerald-400 shrink-0" size={20} />}
+            <span>{message}</span>
+          </div>
+        )}
       </Card>
       <Card className="p-5">
         <div className="mb-3 flex items-center gap-2"><WifiOff size={16} className="text-amber-300"/><h3 className="font-display text-sm font-bold text-white">File offline / audit ({queue.length})</h3></div>

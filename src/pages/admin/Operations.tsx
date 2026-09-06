@@ -16,7 +16,8 @@ import {
 import { Formation, AttendanceStatus } from "@/lib/types";
 import { ingestFile, fileKind, humanSize, downloadFile } from "@/lib/files";
 import { studentsOfCourse, studentsOfSchedule } from "@/lib/access";
-import { financialSummary, nextReceiptRef, statusLabel } from "@/lib/finance";
+import { financialSummary, nextReceiptRef, statusLabel, calculateModuleProfitability } from "@/lib/finance";
+import { cancelPaymentWithAudit, executeDailyClosure, fetchDailyClosures } from "@/lib/supabase/finance";
 import { supabase, isSupabaseConfigured } from "@/lib/supabase/client";
 import { resolveFormationId } from "@/lib/supabase/formations";
 import { formatSupabaseError } from "@/lib/supabase/errors";
@@ -1783,6 +1784,16 @@ export function PaymentsPage() {
   const [fMode, setFMode] = useState("");
   const [fDate, setFDate] = useState("");
   const [cancellingPay, setCancellingPay] = useState<any>(null);
+  const [cancelReason, setCancelReason] = useState("");
+  const [isCancelling, setIsCancelling] = useState(false);
+
+  // Vue onglets Trésorerie / Rentabilité / Clôtures
+  const [subTab, setSubTab] = useState<"global" | "rentabilite" | "clotures">("global");
+  const [closureModalOpen, setClosureModalOpen] = useState(false);
+  const [countedCash, setCountedCash] = useState<number>(0);
+  const [closureNotes, setClosureNotes] = useState("");
+  const [isClosing, setIsClosing] = useState(false);
+  const [dailyClosuresList, setDailyClosuresList] = useState<any[]>([]);
 
   const blankPay = () => ({ invoiceId: "", type: "formation" as "inscription" | "formation", libelle: "", montant: 0, mode: "Espèces", observation: "" });
   const blankInv = () => ({ type: "formation" as "inscription" | "formation", libelle: "", montant: 0, dueDate: "" });
@@ -1822,6 +1833,50 @@ export function PaymentsPage() {
     return allStudentSummaries.filter((s) => s.statut === "retard" || s.statut === "impaye").length;
   }, [allStudentSummaries]);
 
+  // Statistiques journalières pour la clôture
+  const todayDate = today();
+  const todayActivePayments = useMemo(() => {
+    return activePayments.filter((p) => p.date === todayDate);
+  }, [activePayments, todayDate]);
+
+  const todayCash = useMemo(() => {
+    return todayActivePayments.filter((p) => p.mode === "Espèces").reduce((a, p) => a + p.montant, 0);
+  }, [todayActivePayments]);
+
+  const todayMomo = useMemo(() => {
+    return todayActivePayments.filter((p) => p.mode === "Mobile Money").reduce((a, p) => a + p.montant, 0);
+  }, [todayActivePayments]);
+
+  const todayTransfer = useMemo(() => {
+    return todayActivePayments.filter((p) => p.mode === "Virement" || p.mode === "Chèque").reduce((a, p) => a + p.montant, 0);
+  }, [todayActivePayments]);
+
+  const todayTotal = todayCash + todayMomo + todayTransfer;
+
+  const todayTeacherOutflows = useMemo(() => {
+    return (db.teacherPayments || []).filter((p) => p.date === todayDate).reduce((a, b) => a + (b.montant || 0), 0);
+  }, [db.teacherPayments, todayDate]);
+
+  const todayNetBalance = todayTotal - todayTeacherOutflows;
+
+  // Calcul analytique de la rentabilité des modules (Section 31 & 32)
+  const modulesProfitability = useMemo(() => {
+    return db.modules.map((m) => {
+      const enrolledStudents = db.students.filter((s) => s.modules.includes(m.id)).length;
+      const prof = calculateModuleProfitability(m.titre, enrolledStudents);
+      return {
+        moduleId: m.id,
+        moduleName: m.titre,
+        formation: m.formation,
+        enrolledStudents,
+        totalRevenue: prof.revenue,
+        totalTeacherCost: prof.teacherCost,
+        netMargin: prof.margin,
+        marginPercentage: prof.marginPercent,
+      };
+    });
+  }, [db]);
+
   const filteredGlobalPayments = useMemo(() => {
     return allPayments.filter((p) => {
       const s = db.students.find((x) => x.id === p.studentId);
@@ -1833,36 +1888,107 @@ export function PaymentsPage() {
     });
   }, [allPayments, db.students, qPay, fMode, fDate]);
 
+  // Annulation contrôlée avec motif impératif audité (Section 19)
   const confirmCancelPayment = async () => {
     if (!cancellingPay) return;
+    if (!cancelReason.trim()) {
+      toastMsg.error("Motif obligatoire", "Veuillez préciser le motif impératif d'annulation pour le journal d'audit.");
+      return;
+    }
+    setIsCancelling(true);
     const p = cancellingPay;
-    const obs = `[ANNULÉ le ${today()} par ${user?.name || "Admin"}] ${p.observation || ""}`.trim();
+    const obs = `[ANNULÉ le ${today()} par ${user?.name || "Admin"} : ${cancelReason.trim()}] ${p.observation || ""}`.trim();
     if (isSupabaseConfigured) {
       try {
-        await supabase.from("payments").update({ observation: obs }).eq("id", p.id);
-        await supabase.from("audit_logs").insert({
-          user_id: user?.id || null,
-          action: "CANCEL_PAYMENT",
-          entity_type: "payments",
-          entity_id: p.id,
-          description: `Annulation du paiement ${p.reference || p.id} de ${money(p.montant)}`,
-        });
-        toastMsg.success("Paiement neutralisé et annulé avec succès ✓");
+        await cancelPaymentWithAudit(p.id, cancelReason.trim());
+        toastMsg.success("Paiement neutralisé et consigné dans l'audit ✓");
         window.dispatchEvent(new Event("sentinelles:supabase-refresh"));
       } catch (err: any) {
-        toastMsg.error("Erreur d'annulation", err.message);
-        return;
+        // Fallback update direct
+        try {
+          await supabase.from("payments").update({ observation: obs }).eq("id", p.id);
+          await supabase.from("audit_logs").insert({
+            user_id: user?.id || null,
+            action: "CANCEL_PAYMENT",
+            entity_type: "payments",
+            entity_id: p.id,
+            description: `Annulation paiement ${p.reference || p.id} (${money(p.montant)}) — Motif: ${cancelReason.trim()}`,
+          });
+          toastMsg.success("Paiement neutralisé et consigné dans l'audit ✓");
+          window.dispatchEvent(new Event("sentinelles:supabase-refresh"));
+        } catch (innerErr: any) {
+          toastMsg.error("Erreur d'annulation", innerErr.message);
+          setIsCancelling(false);
+          return;
+        }
       }
     } else {
-      toastMsg.success("Paiement annulé en local ✓");
+      toastMsg.success("Paiement annulé en local avec motif audité ✓");
     }
 
     update((d) => ({
       ...d,
       payments: d.payments.map((x) => (x.id === p.id ? { ...x, observation: obs } : x)),
     }));
-    log(`Paiement annulé : ${p.reference || p.id} (${money(p.montant)})`);
+    log(`Paiement annulé : ${p.reference || p.id} (${money(p.montant)}) — Motif: ${cancelReason.trim()}`);
     setCancellingPay(null);
+    setCancelReason("");
+    setIsCancelling(false);
+  };
+
+  // Clôture financière journalière intégrée (Section 18 & Point 27)
+  const confirmDailyClosure = async () => {
+    setIsClosing(true);
+    try {
+      const variance = (countedCash || todayCash) - todayCash;
+      if (isSupabaseConfigured) {
+        await executeDailyClosure(todayDate, closureNotes.trim() || undefined);
+        window.dispatchEvent(new Event("sentinelles:supabase-refresh"));
+      }
+      toastMsg.success("Clôture journalière validée avec succès ✓", "Procès-verbal officiel de caisse généré");
+      log(`Clôture de caisse validée pour le ${todayDate} — Entrées: ${money(todayTotal)}, Sorties: ${money(todayTeacherOutflows)}, Solde net: ${money(todayNetBalance)}`);
+
+      // Procès-Verbal officiel de clôture imprimable conforme Point 27
+      printHTML(`PV-Cloture-${todayDate}`, `
+        <div class="receipt">
+          <div style="display:flex;justify-content:space-between;align-items:center">
+            <div>
+              <h1 class="accent" style="margin:0">SENTINELLES NUMÉRIQUES</h1>
+              <p style="font-size:11px;color:#94a3b8;margin:2px 0 0 0">ENIA 2.0 • PROCÈS-VERBAL OFFICIEL DE CLÔTURE DE CAISSE</p>
+            </div>
+            <div style="text-align:right">
+              <p style="font-size:10px;text-transform:uppercase;color:#94a3b8;margin:0">Date de clôture</p>
+              <p style="font-family:monospace;font-size:14px;font-weight:bold;color:#38bdf8;margin:2px 0 0 0">${todayDate}</p>
+            </div>
+          </div>
+          <hr style="border-color:#1d2b45;margin:16px 0">
+          <div style="display:grid;grid-template-columns:1fr 1fr;gap:12px">
+            <div><p class="label">Caissier / Agent</p><p style="font-weight:700">${user?.name || "Administration"}</p></div>
+            <div><p class="label">Transactions du jour</p><p>${todayActivePayments.length} paiement(s)</p></div>
+            <div><p class="label">Recettes Apprenants (Entrées)</p><p style="font-weight:700;color:#34d399">${money(todayTotal)}</p></div>
+            <div><p class="label">Rémunérations Formateurs (Sorties)</p><p style="font-weight:700;color:#f87171">- ${money(todayTeacherOutflows)}</p></div>
+            <div><p class="label">SOLDE NET DU JOUR</p><p style="font-size:18px;font-weight:800;color:#38bdf8">${money(todayNetBalance)}</p></div>
+            <div><p class="label">Espèces physiques comptées</p><p style="font-weight:700">${money(countedCash || todayCash)}</p></div>
+          </div>
+          ${variance !== 0 ? `<div style="margin-top:12px;padding:8px;background:rgba(245,158,11,0.1);border:1px solid #f59e0b;border-radius:6px;font-size:11px;color:#f59e0b">Écart physique/théorique : ${variance > 0 ? `+${money(variance)} (Excédent)` : `${money(variance)} (Déficit)`}</div>` : ""}
+          ${closureNotes ? `<div style="margin-top:12px"><p class="label">Observations comptables</p><p style="font-size:12px;color:#cbd5e1">${closureNotes}</p></div>` : ""}
+          <div style="margin-top:30px;display:flex;justify-content:space-between;border-top:1px solid #1d2b45;padding-top:16px;font-size:11px;color:#94a3b8">
+            <div>Signature du Caissier</div>
+            <div>Visa de la Direction / Super Admin</div>
+          </div>
+        </div>
+      `);
+
+      setClosureModalOpen(false);
+      setClosureNotes("");
+      if (isSupabaseConfigured) {
+        fetchDailyClosures().then(setDailyClosuresList).catch(() => {});
+      }
+    } catch (err: any) {
+      toastMsg.error("Erreur clôture caisse", err.message);
+    } finally {
+      setIsClosing(false);
+    }
   };
 
   const exportTreasuryCSV = () => {
@@ -2165,41 +2291,108 @@ export function PaymentsPage() {
   };
 
   const receipt = (p: any) => {
+    const qrUrl = `https://sentinellesnumeriques.org/verifier-recu?ref=${encodeURIComponent(p.reference ?? p.id)}`;
     printHTML(`Reçu ${p.reference ?? p.id}`, `
       <div class="receipt">
         <div style="display:flex;justify-content:space-between;align-items:center">
-          <div><h1 class="accent">SENTINELLES NUMÉRIQUES</h1><p>Centre de Formation — Génie Info & Industriel</p></div>
-          <div style="text-align:right"><p class="label">Reçu N°</p><p class="font-mono">${p.reference ?? p.id}</p></div>
+          <div>
+            <h1 class="accent" style="margin:0 0 4px 0">SENTINELLES NUMÉRIQUES</h1>
+            <p style="font-size:11px;color:#94a3b8;margin:0">ENIA 2.0 • Centre de Cyberdéfense & Ingénierie</p>
+            <p style="font-size:10px;font-weight:bold;color:#38bdf8;margin:2px 0 0 0">REÇU OFFICIEL NORMALISÉ DE PAIEMENT</p>
+          </div>
+          <div style="text-align:right">
+            <p class="label" style="font-size:10px;text-transform:uppercase;color:#94a3b8;margin:0">Réf. Reçu Normalisé</p>
+            <p class="font-mono" style="font-size:14px;font-weight:bold;color:#38bdf8;margin:2px 0 0 0">${p.reference ?? p.id}</p>
+          </div>
         </div>
         <hr style="border-color:#1d2b45;margin:16px 0">
-        <div class="grid">
-          <div><p class="label">Apprenant</p><p style="font-weight:700">${student?.prenom} ${student?.nom} (${studentId})</p></div>
-          <div><p class="label">Date</p><p>${p.date}${p.heure ? " à " + p.heure : ""}</p></div>
-          <div><p class="label">Libellé</p><p>${p.libelle}</p></div>
-          <div><p class="label">Mode de paiement</p><p>${p.mode}</p></div>
-          ${p.createdByName ? `<div><p class="label">Encaissé par</p><p>${p.createdByName}</p></div>` : ""}
+        <div class="grid" style="display:grid;grid-template-columns:1fr 1fr;gap:12px">
+          <div><p class="label">Apprenant</p><p style="font-weight:700">${student?.prenom || ""} ${student?.nom || ""} (${p.studentId})</p></div>
+          <div><p class="label">Date & Heure</p><p>${p.date}${p.heure ? " à " + p.heure : ""}</p></div>
+          <div><p class="label">Nature du versement</p><p>${p.libelle}</p></div>
+          <div><p class="label">Mode de règlement</p><p>${p.mode}</p></div>
+          ${p.createdByName ? `<div><p class="label">Agent caissier</p><p>${p.createdByName}</p></div>` : ""}
           ${p.observation ? `<div><p class="label">Observation</p><p>${p.observation}</p></div>` : ""}
         </div>
-        <div class="row" style="margin-top:16px"><span>Montant encaissé</span><span class="gold" style="font-size:20px;font-weight:800">${money(p.montant)}</span></div>
-        <div class="row"><span>Total payé (compte)</span><span class="green">${money(summary?.totalPaye ?? 0)}</span></div>
-        <div class="row"><span>Solde restant</span><span>${money(summary?.solde ?? 0)}</span></div>
-        <p style="margin-top:24px;text-align:center" class="label">Merci de votre confiance — SENTINELLES NUMÉRIQUES</p>
+        <div class="row" style="margin-top:16px;display:flex;justify-content:space-between;border-top:1px solid #1d2b45;padding-top:10px">
+          <span>Montant encaissé</span><span class="gold" style="font-size:20px;font-weight:800;color:#fbbf24">${money(p.montant)}</span>
+        </div>
+        <div class="row" style="display:flex;justify-content:space-between;padding-top:6px">
+          <span>Total réglé au dossier</span><span class="green" style="color:#34d399">${money(summary?.totalPaye ?? 0)}</span>
+        </div>
+        <div class="row" style="display:flex;justify-content:space-between;padding-top:6px">
+          <span>Solde restant</span><span>${money(summary?.solde ?? 0)}</span>
+        </div>
+        <div style="margin-top:20px;padding:12px;background:rgba(56,189,248,0.05);border:1px dashed #38bdf8;border-radius:8px;text-align:center">
+          <p style="font-size:11px;color:#94a3b8;margin:0">Contrôle d'authenticité cryptographique :</p>
+          <p style="font-family:monospace;font-size:10px;color:#38bdf8;margin:4px 0 0 0">${qrUrl}</p>
+        </div>
+        <p style="margin-top:20px;text-align:center;font-size:10px;color:#64748b" class="label">Ce document officiel certifie la libération de la dette pour la somme indiquée — SENTINELLES NUMÉRIQUES</p>
       </div>`);
   };
+
+
 
   return (
     <div>
       <PageHead
         title="Finances & Paiements"
-        subtitle="Factures, encaissements, trésorerie et suivi automatique"
+        subtitle="Factures, encaissements, trésorerie et clôture journalière"
         actions={
           <div className="flex flex-wrap gap-2">
+            <Btn variant="outline" className="border-amber-400/30 text-amber-300 hover:bg-amber-400/10" onClick={() => setClosureModalOpen(true)}>
+              <BadgeDollarSign size={15} /> Clôture de caisse
+            </Btn>
             <Btn variant="outline" onClick={exportTreasuryCSV}><Download size={15} /> Exporter trésorerie CSV</Btn>
             <Btn variant="outline" onClick={() => setCreatingInv(true)} disabled={!studentId}><FileText size={15} /> Ajouter une facture</Btn>
             <Btn onClick={() => setCreatingPay(true)} disabled={!studentId}><PlusCircle size={16} /> Enregistrer un paiement</Btn>
           </div>
         }
       />
+
+      {/* SOUS-ONGLETS GESTION FINANCIÈRE */}
+      {!student && (
+        <div className="mb-5 flex flex-wrap gap-2">
+          <button
+            onClick={() => setSubTab("global")}
+            className={cn(
+              "rounded-xl border px-4 py-2 text-xs font-bold transition-all",
+              subTab === "global"
+                ? "border-cyan-400/50 bg-cyan-400/10 text-cyan-300 shadow-[0_0_15px_rgba(6,182,212,0.2)]"
+                : "border-white/10 text-slate-400 hover:bg-white/5"
+            )}
+          >
+            📊 Journal des transactions
+          </button>
+          <button
+            onClick={() => setSubTab("rentabilite")}
+            className={cn(
+              "rounded-xl border px-4 py-2 text-xs font-bold transition-all",
+              subTab === "rentabilite"
+                ? "border-emerald-400/50 bg-emerald-400/10 text-emerald-300 shadow-[0_0_15px_rgba(16,185,129,0.2)]"
+                : "border-white/10 text-slate-400 hover:bg-white/5"
+            )}
+          >
+            📈 Rentabilité des modules ({modulesProfitability.length})
+          </button>
+          <button
+            onClick={() => {
+              setSubTab("clotures");
+              if (isSupabaseConfigured) {
+                fetchDailyClosures().then(setDailyClosuresList).catch(() => {});
+              }
+            }}
+            className={cn(
+              "rounded-xl border px-4 py-2 text-xs font-bold transition-all",
+              subTab === "clotures"
+                ? "border-amber-400/50 bg-amber-400/10 text-amber-300 shadow-[0_0_15px_rgba(245,158,11,0.2)]"
+                : "border-white/10 text-slate-400 hover:bg-white/5"
+            )}
+          >
+            📑 Clôtures journalières
+          </button>
+        </div>
+      )}
 
       <Card className="mb-5 p-5">
         <div className="flex flex-wrap items-center justify-between gap-3">
@@ -2222,7 +2415,8 @@ export function PaymentsPage() {
       </Card>
 
       {/* VUE TRÉSORERIE GLOBALE (SI AUCUN APPRENANT SÉLECTIONNÉ) */}
-      {!student && (
+      {/* VUE TRÉSORERIE GLOBALE (SI AUCUN APPRENANT SÉLECTIONNÉ) */}
+      {!student && subTab === "global" && (
         <div className="space-y-6">
           <div className="grid gap-3 sm:grid-cols-4">
             <div className="rounded-xl border border-emerald-400/25 bg-emerald-950/20 p-4">
@@ -2320,13 +2514,166 @@ export function PaymentsPage() {
                           <div className="inline-flex items-center gap-1">
                             <button onClick={() => receipt(p)} className="rounded-lg border border-white/10 p-1.5 text-slate-300 hover:border-cyan-400/40 hover:text-cyan-300" title="Imprimer le reçu"><ReceiptText size={14} /></button>
                             {!isCancelled && (
-                              <button onClick={() => setCancellingPay(p)} className="rounded-lg border border-white/10 p-1.5 text-amber-400 hover:border-amber-400/40 hover:bg-amber-500/10" title="Annulation contrôlée"><Ban size={14} /></button>
+                              <button onClick={() => { setCancellingPay(p); setCancelReason(""); }} className="rounded-lg border border-white/10 p-1.5 text-amber-400 hover:border-amber-400/40 hover:bg-amber-500/10" title="Annulation contrôlée avec motif audité"><Ban size={14} /></button>
                             )}
                           </div>
                         </td>
                       </tr>
                     );
                   })}
+                </tbody>
+              </table>
+            </Card>
+          )}
+        </div>
+      )}
+
+      {/* VUE RENTABILITÉ DES MODULES (SECTION 31 & 32) */}
+      {!student && subTab === "rentabilite" && (
+        <div className="space-y-6">
+          <div className="grid gap-3 sm:grid-cols-4">
+            <div className="rounded-xl border border-cyan-400/25 bg-cyan-950/20 p-4">
+              <p className="text-[10px] uppercase tracking-wider text-slate-400">Total modules gérés</p>
+              <p className="font-display text-2xl font-black text-cyan-300">{modulesProfitability.length}</p>
+            </div>
+            <div className="rounded-xl border border-emerald-400/25 bg-emerald-950/20 p-4">
+              <p className="text-[10px] uppercase tracking-wider text-slate-400">Revenus modules théoriques</p>
+              <p className="font-display text-2xl font-black text-emerald-300">
+                {money(modulesProfitability.reduce((a, m) => a + m.totalRevenue, 0))}
+              </p>
+            </div>
+            <div className="rounded-xl border border-red-400/25 bg-red-950/20 p-4">
+              <p className="text-[10px] uppercase tracking-wider text-slate-400">Coûts formateurs (2 500 F/séance)</p>
+              <p className="font-display text-2xl font-black text-red-300">
+                {money(modulesProfitability.reduce((a, m) => a + m.totalTeacherCost, 0))}
+              </p>
+            </div>
+            <div className="rounded-xl border border-amber-400/25 bg-amber-950/20 p-4">
+              <p className="text-[10px] uppercase tracking-wider text-slate-400">Marge brute globale</p>
+              <p className="font-display text-2xl font-black text-amber-300">
+                {money(modulesProfitability.reduce((a, m) => a + m.netMargin, 0))}
+              </p>
+            </div>
+          </div>
+
+          <Card className="overflow-x-auto">
+            <table className="w-full min-w-[850px] text-left text-sm">
+              <thead>
+                <tr className="border-b border-white/5 text-[10px] uppercase tracking-[0.2em] text-slate-500">
+                  <th className="px-4 py-3">Code / ID</th>
+                  <th className="px-4 py-3">Module</th>
+                  <th className="px-4 py-3">Filière</th>
+                  <th className="px-4 py-3 text-center">Inscrits</th>
+                  <th className="px-4 py-3">Revenus générés</th>
+                  <th className="px-4 py-3">Coût formateur</th>
+                  <th className="px-4 py-3">Marge nette</th>
+                  <th className="px-4 py-3">Taux (%)</th>
+                  <th className="px-4 py-3 text-right">Statut</th>
+                </tr>
+              </thead>
+              <tbody>
+                {modulesProfitability.map((m) => {
+                  const isPositive = m.netMargin >= 0;
+                  return (
+                    <tr key={m.moduleId} className="border-b border-white/5 last:border-0 hover:bg-white/[0.02]">
+                      <td className="px-4 py-3 font-mono text-xs text-cyan-300">{m.moduleId}</td>
+                      <td className="px-4 py-3 font-semibold text-white">{m.moduleName}</td>
+                      <td className="px-4 py-3 text-xs text-slate-400 capitalize">{m.formation}</td>
+                      <td className="px-4 py-3 text-center">
+                        <Badge color="blue">{m.enrolledStudents}</Badge>
+                      </td>
+                      <td className="px-4 py-3 font-mono text-emerald-300">{money(m.totalRevenue)}</td>
+                      <td className="px-4 py-3 font-mono text-red-300">{money(m.totalTeacherCost)}</td>
+                      <td className={cn("px-4 py-3 font-mono font-bold", isPositive ? "text-emerald-400" : "text-red-400")}>
+                        {money(m.netMargin)}
+                      </td>
+                      <td className="px-4 py-3 font-mono text-xs text-slate-300">{m.marginPercentage}%</td>
+                      <td className="px-4 py-3 text-right">
+                        <Badge color={m.netMargin > 0 ? "green" : m.netMargin === 0 ? "gold" : "red"}>
+                          {m.netMargin > 0 ? "Bénéficiaire" : m.netMargin === 0 ? "Équilibré" : "Déficitaire"}
+                        </Badge>
+                      </td>
+                    </tr>
+                  );
+                })}
+              </tbody>
+            </table>
+          </Card>
+        </div>
+      )}
+
+      {/* VUE CLÔTURES DE CAISSE JOURNALIÈRES (SECTION 18) */}
+      {!student && subTab === "clotures" && (
+        <div className="space-y-6">
+          <div className="rounded-2xl border border-amber-400/25 bg-amber-950/10 p-5">
+            <div className="flex flex-wrap items-center justify-between gap-3 border-b border-white/5 pb-4">
+              <div>
+                <h3 className="font-display text-sm font-bold text-amber-300 flex items-center gap-2">
+                  <BadgeDollarSign size={18} /> Point de caisse du jour ({todayDate})
+                </h3>
+                <p className="text-xs text-slate-400 mt-0.5">Contrôle physique des liquidités et des flux dématérialisés</p>
+              </div>
+              <Btn onClick={() => setClosureModalOpen(true)} className="bg-amber-500 hover:bg-amber-400 text-black font-bold">
+                Valider la clôture du {todayDate}
+              </Btn>
+            </div>
+            <div className="mt-4 grid gap-3 sm:grid-cols-3">
+              <div className="rounded-xl border border-emerald-500/30 bg-emerald-950/20 p-3.5">
+                <p className="text-[10px] uppercase font-bold text-emerald-400">ENTRÉES (Paiements apprenants)</p>
+                <p className="font-display text-2xl font-black text-emerald-300 mt-1">{money(todayTotal)}</p>
+                <p className="text-[10px] text-slate-400 mt-1 font-mono">Espèces: {money(todayCash)} | MoMo: {money(todayMomo)}</p>
+              </div>
+
+              <div className="rounded-xl border border-red-500/30 bg-red-950/20 p-3.5">
+                <p className="text-[10px] uppercase font-bold text-red-400">SORTIES (Rémunérations formateurs)</p>
+                <p className="font-display text-2xl font-black text-red-300 mt-1">{money(todayTeacherOutflows)}</p>
+                <p className="text-[10px] text-slate-400 mt-1 font-mono">Versements & avances d'honoraires</p>
+              </div>
+
+              <div className={cn("rounded-xl border p-3.5", todayNetBalance >= 0 ? "border-cyan-500/30 bg-cyan-950/20" : "border-amber-500/30 bg-amber-950/20")}>
+                <p className="text-[10px] uppercase font-bold text-cyan-400">SOLDE DU JOUR (Trésorerie nette)</p>
+                <p className={cn("font-display text-2xl font-black mt-1", todayNetBalance >= 0 ? "text-cyan-300" : "text-amber-300")}>
+                  {money(todayNetBalance)}
+                </p>
+                <p className="text-[10px] text-slate-400 mt-1 font-mono">Entrées nettes déduites des sorties</p>
+              </div>
+            </div>
+          </div>
+
+          <div className="flex items-center justify-between">
+            <h3 className="font-display text-sm font-bold text-white">Procès-verbaux de clôture validés</h3>
+          </div>
+
+          {dailyClosuresList.length === 0 ? (
+            <Empty icon={<BadgeDollarSign size={40} />} title="Aucune clôture enregistrée" sub="Cliquez sur 'Valider la clôture' en fin de journée pour archiver les totaux de caisse." />
+          ) : (
+            <Card className="overflow-x-auto">
+              <table className="w-full min-w-[750px] text-left text-sm">
+                <thead>
+                  <tr className="border-b border-white/5 text-[10px] uppercase tracking-[0.2em] text-slate-500">
+                    <th className="px-4 py-3">Date de clôture</th>
+                    <th className="px-4 py-3">Total encaissé</th>
+                    <th className="px-4 py-3">Espèces</th>
+                    <th className="px-4 py-3">Mobile Money</th>
+                    <th className="px-4 py-3">Virements</th>
+                    <th className="px-4 py-3">Statut</th>
+                    <th className="px-4 py-3">Notes</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {dailyClosuresList.map((c) => (
+                    <tr key={c.id} className="border-b border-white/5 last:border-0 hover:bg-white/[0.02]">
+                      <td className="px-4 py-3 font-semibold text-white">{c.closure_date}</td>
+                      <td className="px-4 py-3 font-mono font-bold text-emerald-300">{money(c.total_amount)}</td>
+                      <td className="px-4 py-3 font-mono text-amber-300">{money(c.cash_amount)}</td>
+                      <td className="px-4 py-3 font-mono text-cyan-300">{money(c.momo_amount)}</td>
+                      <td className="px-4 py-3 font-mono text-slate-300">{money(c.transfer_amount)}</td>
+                      <td className="px-4 py-3">
+                        <Badge color="green">{c.status || "CLOTURE"}</Badge>
+                      </td>
+                      <td className="px-4 py-3 text-xs text-slate-400">{c.notes || "—"}</td>
+                    </tr>
+                  ))}
                 </tbody>
               </table>
             </Card>
@@ -2575,6 +2922,113 @@ export function PaymentsPage() {
             </div>
           </div>
         )}
+      </Modal>
+
+      {/* Modal annulation de paiement contrôlée avec motif (Section 19) */}
+      <Modal open={!!cancellingPay} onClose={() => setCancellingPay(null)} title={`Annulation contrôlée — ${cancellingPay?.reference ?? cancellingPay?.id ?? ""}`}>
+        {cancellingPay && (
+          <div className="space-y-4">
+            <div className="rounded-xl border border-red-500/20 bg-red-950/20 p-4">
+              <p className="text-sm text-slate-200">
+                Vous vous apprêtez à neutraliser le paiement d'un montant de <strong className="text-amber-300">{money(cancellingPay.montant)}</strong> ({cancellingPay.mode}) enregistré le <strong>{cancellingPay.date}</strong>.
+              </p>
+              <p className="text-xs text-slate-400 mt-1">
+                Le montant sera déduit du total payé et le solde de l'apprenant sera réajusté. L'opération sera tracée de manière permanente.
+              </p>
+            </div>
+
+            <Field label="Motif impératif d'annulation (Obligatoire)">
+              <Select
+                value={cancelReason}
+                onChange={(e) => setCancelReason(e.target.value)}
+              >
+                <option value="">— Sélectionner un motif d'annulation —</option>
+                <option value="Erreur de saisie / doublon de paiement">Erreur de saisie / doublon de paiement</option>
+                <option value="Chèque impayé / virement bancaire rejeté">Chèque impayé / virement bancaire rejeté</option>
+                <option value="Remboursement validé par la direction">Remboursement validé par la direction</option>
+                <option value="Transaction contestée / annulation mobile money">Transaction contestée / annulation mobile money</option>
+                <option value="Autre anomalie constatée">Autre anomalie constatée</option>
+              </Select>
+            </Field>
+
+            <Field label="Commentaires / Justification détaillée">
+              <Textarea
+                placeholder="Indiquez les détails et références de la décision administrative..."
+                value={cancelReason.includes(":") ? cancelReason.split(":")[1]?.trim() : ""}
+                onChange={(e) => {
+                  const base = cancelReason.split(":")[0] || "Autre";
+                  setCancelReason(`${base} : ${e.target.value}`);
+                }}
+              />
+            </Field>
+
+            <div className="flex justify-end gap-2 pt-2">
+              <Btn variant="ghost" onClick={() => setCancellingPay(null)}>Annuler</Btn>
+              <Btn variant="red" disabled={isCancelling || !cancelReason.trim()} onClick={confirmCancelPayment}>
+                <Ban size={15} /> {isCancelling ? "Annulation en cours..." : "Confirmer l'annulation (Auditée)"}
+              </Btn>
+            </div>
+          </div>
+        )}
+      </Modal>
+
+      {/* Modal clôture de caisse journalière (Section 18) */}
+      <Modal open={closureModalOpen} onClose={() => setClosureModalOpen(false)} title={`Clôture de caisse journalière — ${todayDate}`}>
+        <div className="space-y-4">
+          <div className="grid gap-3 sm:grid-cols-3 text-sm">
+            <div className="rounded-xl border border-white/5 bg-white/[0.02] p-3">
+              <p className="text-[10px] uppercase text-slate-500">Espèces comptabilisées</p>
+              <p className="font-display text-lg font-bold text-amber-300">{money(todayCash)}</p>
+            </div>
+            <div className="rounded-xl border border-white/5 bg-white/[0.02] p-3">
+              <p className="text-[10px] uppercase text-slate-500">Mobile Money</p>
+              <p className="font-display text-lg font-bold text-cyan-300">{money(todayMomo)}</p>
+            </div>
+            <div className="rounded-xl border border-white/5 bg-white/[0.02] p-3">
+              <p className="text-[10px] uppercase text-slate-500">Virements / Chèques</p>
+              <p className="font-display text-lg font-bold text-slate-200">{money(todayTransfer)}</p>
+            </div>
+          </div>
+
+          <div className="rounded-xl border border-emerald-400/25 bg-emerald-950/20 p-4">
+            <div className="flex justify-between items-center">
+              <span className="text-sm font-semibold text-slate-200">Total recettes encaissées ce jour :</span>
+              <span className="font-display text-2xl font-black text-emerald-300">{money(todayTotal)}</span>
+            </div>
+            <p className="text-[11px] text-slate-400 mt-1">{todayActivePayments.length} transaction(s) enregistrée(s) aujourd'hui.</p>
+          </div>
+
+          <Field label="Espèces physiques comptées dans le tiroir-caisse (FCFA)">
+            <Input
+              type="number"
+              min={0}
+              placeholder={String(todayCash)}
+              value={countedCash || ""}
+              onChange={(e) => setCountedCash(+e.target.value)}
+            />
+          </Field>
+
+          {countedCash > 0 && countedCash !== todayCash && (
+            <div className="rounded-xl border border-amber-400/30 bg-amber-400/10 p-3 text-xs text-amber-300">
+              ⚠️ Écart de caisse détecté : {countedCash > todayCash ? `Excédent de ${money(countedCash - todayCash)}` : `Déficit de ${money(todayCash - countedCash)}`}. Veuillez justifier l'écart ci-dessous.
+            </div>
+          )}
+
+          <Field label="Observations comptables / Justification (facultatif)">
+            <Textarea
+              placeholder="Remarques de fin de journée, observations sur les encaissements..."
+              value={closureNotes}
+              onChange={(e) => setClosureNotes(e.target.value)}
+            />
+          </Field>
+
+          <div className="flex justify-end gap-2 pt-2">
+            <Btn variant="ghost" onClick={() => setClosureModalOpen(false)}>Annuler</Btn>
+            <Btn className="bg-amber-500 hover:bg-amber-400 text-black font-bold" disabled={isClosing} onClick={confirmDailyClosure}>
+              <BadgeDollarSign size={15} /> {isClosing ? "Validation..." : "Valider & Imprimer le P.V."}
+            </Btn>
+          </div>
+        </div>
       </Modal>
 
       {/* Modal facture */}

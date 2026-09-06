@@ -4,13 +4,14 @@ import {
   Users, GraduationCap, BookOpen, Wallet, ClipboardCheck, UserX, Timer,
   TestTube2, Award, BadgeDollarSign, TrendingUp, Activity, AlertTriangle, PlusCircle, RotateCcw,
   CalendarDays, DollarSign, Download, FileSpreadsheet, FileJson, Archive, Radio, ShieldCheck,
-  CheckCircle2, XCircle, Search, Clock
+  CheckCircle2, XCircle, Search, Clock, Printer
 } from "lucide-react";
 import { useStore } from "@/lib/store";
-import { Card, Stat, PageHead, Badge, Btn, Field, Input, Modal, today, money, Empty, formationLabel } from "@/lib/ui";
+import { Card, Stat, PageHead, Badge, Btn, Field, Input, Modal, today, money, Empty, formationLabel, printHTML } from "@/lib/ui";
 import { supabase, isSupabaseConfigured } from "@/lib/supabase/client";
 import { toastMsg } from "@/lib/toast";
 import { usePresence, isUserActiveOnline } from "@/hooks/usePresence";
+import { cn } from "@/utils/cn";
 
 /* ---------- helpers ---------- */
 function Bar({ label, value, max, color }: { label: string; value: number; max: number; color: string }) {
@@ -943,14 +944,27 @@ export function JournalPage() {
     return Array.from(set).sort();
   }, [db.log]);
 
-  // Filtrage
+  const [filterPeriod, setFilterPeriod] = useState<"all" | "today" | "week" | "month">("all");
+
   const filteredLogs = useMemo(() => {
+    const todayStr = today();
+    const now = new Date();
+    const sevenDaysAgo = new Date(now.getTime() - 7 * 24 * 60 * 60 * 1000).toISOString().slice(0, 10);
+    const thirtyDaysAgo = new Date(now.getTime() - 30 * 24 * 60 * 60 * 1000).toISOString().slice(0, 10);
+
     return db.log.filter((l) => {
       const matchU = filterUser === "tous" || l.user === filterUser;
       const matchQ = !searchTerm.trim() || l.action.toLowerCase().includes(searchTerm.toLowerCase()) || l.user.toLowerCase().includes(searchTerm.toLowerCase());
-      return matchU && matchQ;
+
+      const logDay = l.date.slice(0, 10);
+      let matchPeriod = true;
+      if (filterPeriod === "today") matchPeriod = logDay === todayStr;
+      else if (filterPeriod === "week") matchPeriod = logDay >= sevenDaysAgo;
+      else if (filterPeriod === "month") matchPeriod = logDay >= thirtyDaysAgo;
+
+      return matchU && matchQ && matchPeriod;
     });
-  }, [db.log, filterUser, searchTerm]);
+  }, [db.log, filterUser, searchTerm, filterPeriod]);
 
   // Regroupement par jour
   const groupedByDay = useMemo(() => {
@@ -962,6 +976,44 @@ export function JournalPage() {
     });
     return Array.from(map.entries()).sort((a, b) => b[0].localeCompare(a[0]));
   }, [filteredLogs]);
+
+  // Export PDF
+  const exportPDF = () => {
+    printHTML(`Journal_Audit_${today()}`, `
+      <div class="receipt" style="max-width:850px;margin:auto;font-family:sans-serif">
+        <div style="display:flex;justify-content:space-between;align-items:center">
+          <div>
+            <h1 class="accent" style="margin:0;color:#38bdf8">SENTINELLES NUMÉRIQUES</h1>
+            <p style="font-size:11px;color:#94a3b8;margin:2px 0 0 0">ENIA 2.0 • REGISTRE OFFICIEL D'AUDIT ET DE TRAÇABILITÉ</p>
+          </div>
+          <div style="text-align:right">
+            <p style="font-size:10px;text-transform:uppercase;color:#94a3b8;margin:0">Émis le</p>
+            <p style="font-family:monospace;font-size:13px;color:#38bdf8;margin:2px 0 0 0">${today()}</p>
+          </div>
+        </div>
+        <hr style="border-color:#1d2b45;margin:16px 0">
+        <table style="width:100%;border-collapse:collapse;font-size:11px;text-align:left">
+          <thead>
+            <tr style="border-bottom:2px solid #334155;color:#94a3b8">
+              <th style="padding:6px">Horodatage</th>
+              <th style="padding:6px">Utilisateur</th>
+              <th style="padding:6px">Action / Événement tracé</th>
+            </tr>
+          </thead>
+          <tbody>
+            ${filteredLogs.map(l => `
+              <tr style="border-bottom:1px solid #1e293b">
+                <td style="padding:6px;font-family:monospace;color:#94a3b8">${l.date}</td>
+                <td style="padding:6px;font-weight:bold;color:#38bdf8">${l.user}</td>
+                <td style="padding:6px;color:#f1f5f9">${l.action}</td>
+              </tr>
+            `).join("")}
+          </tbody>
+        </table>
+        <p style="margin-top:20px;text-align:center;font-size:10px;color:#64748b">Document certifié conforme issu du système d'audit intégré de Sentinelles Numériques v2.1</p>
+      </div>
+    `);
+  };
 
   // Export CSV
   const exportCSV = () => {
@@ -1019,6 +1071,9 @@ export function JournalPage() {
         subtitle="Traçabilité complète, regroupement par date et export administratif"
         actions={
           <div className="flex flex-wrap items-center gap-2">
+            <Btn variant="outline" className="px-3 py-1.5 text-xs" onClick={exportPDF} disabled={filteredLogs.length === 0}>
+              <Printer size={14} /> Imprimer / PDF
+            </Btn>
             <Btn variant="outline" className="px-3 py-1.5 text-xs" onClick={exportCSV} disabled={filteredLogs.length === 0}>
               <FileSpreadsheet size={14} /> Exporter CSV
             </Btn>
@@ -1032,8 +1087,29 @@ export function JournalPage() {
         }
       />
 
-      {/* Barre de recherche et filtres */}
-      <Card className="p-4">
+      {/* Barre de recherche et filtres de période */}
+      <Card className="p-4 space-y-3">
+        <div className="flex flex-wrap gap-1.5 border-b border-white/5 pb-2.5">
+          {[
+            { id: "all", label: "Toute la période" },
+            { id: "today", label: "Aujourd'hui" },
+            { id: "week", label: "7 derniers jours" },
+            { id: "month", label: "30 derniers jours" },
+          ].map((p) => (
+            <button
+              key={p.id}
+              onClick={() => setFilterPeriod(p.id as any)}
+              className={cn(
+                "rounded-lg px-2.5 py-1 text-xs font-semibold transition-all",
+                filterPeriod === p.id
+                  ? "bg-cyan-500/20 text-cyan-300 border border-cyan-500/40"
+                  : "bg-white/[0.02] text-slate-400 border border-white/5 hover:bg-white/5"
+              )}
+            >
+              {p.label}
+            </button>
+          ))}
+        </div>
         <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
           <div className="relative flex-1">
             <Search size={16} className="absolute left-3.5 top-1/2 -translate-y-1/2 text-slate-500" />

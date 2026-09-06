@@ -1,12 +1,16 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import {
   Clock, CheckCircle2, XCircle, Timer, BadgeDollarSign, Save, ReceiptText, Wallet,
-  CalendarDays, TrendingUp,
+  CalendarDays, TrendingUp, FileText, PlusCircle, MinusCircle, Printer, ShieldCheck,
 } from "lucide-react";
 import { useStore } from "@/lib/store";
 import { cn } from "@/utils/cn";
-import { Btn, Badge, Card, Empty, Field, Input, Modal, PageHead, Select, Stat, uid, today, money, printHTML } from "@/lib/ui";
+import { Btn, Badge, Card, Empty, Field, Input, Modal, PageHead, Select, Stat, Textarea, uid, today, money, printHTML } from "@/lib/ui";
 import { teacherFinanceSummary, hoursBetween, tarifFor, nextTeacherPayRef } from "@/lib/teacher";
+import { TEACHER_SESSION_RATE, nextPayslipRef } from "@/lib/finance";
+import { fetchTeacherAdvances, recordTeacherAdvance, fetchTeacherPayslips, generateTeacherPayslip } from "@/lib/supabase/finance";
+import { isSupabaseConfigured } from "@/lib/supabase/client";
+import { toastMsg } from "@/lib/toast";
 
 // Peut valider les heures : superadmin, admin (responsable financier).
 const canValidate = (role?: string) => role === "superadmin" || role === "admin";
@@ -15,8 +19,14 @@ export function TeacherHoursPage() {
   const { db, user, update, log } = useStore();
   const [teacherId, setTeacherId] = useState("");
   const [creatingPay, setCreatingPay] = useState(false);
+  const [creatingAdvance, setCreatingAdvance] = useState(false);
+  const [creatingPayslip, setCreatingPayslip] = useState(false);
   const [pay, setPay] = useState({ montant: 0, mode: "Espèces", observation: "" });
-  const [tab, setTab] = useState<"a_valider" | "historique" | "mensuel" | "paiements">("a_valider");
+  const [advanceForm, setAdvanceForm] = useState({ montant: 0, reason: "", date: today() });
+  const [payslipPeriod, setPayslipPeriod] = useState(() => today().slice(0, 7)); // YYYY-MM
+  const [tab, setTab] = useState<"a_valider" | "historique" | "avances" | "bulletins" | "mensuel" | "paiements">("a_valider");
+  const [advancesList, setAdvancesList] = useState<any[]>([]);
+  const [payslipsList, setPayslipsList] = useState<any[]>([]);
 
   const teacher = db.teachers.find((t) => t.id === teacherId);
   const summary = teacherFinanceSummary(db, teacherId);
@@ -28,27 +38,149 @@ export function TeacherHoursPage() {
     .filter((s) => s.teacherId === teacherId)
     .filter((s) => !db.teacherHours.some((h) => h.scheduleId === s.id));
 
+  useEffect(() => {
+    if (!teacherId) return;
+    if (isSupabaseConfigured) {
+      fetchTeacherAdvances(teacherId).then(setAdvancesList).catch(() => {});
+      fetchTeacherPayslips(teacherId).then(setPayslipsList).catch(() => {});
+    }
+  }, [teacherId]);
+
   const sortedHours = [...summary.hours].sort((a, b) => b.date.localeCompare(a.date));
 
   const validate = (slot: any) => {
     if (!teacher) return;
     const d = today();
-    const heures = hoursBetween(slot.heureDebut, slot.heureFin) || 0;
-    const tarif = tarifFor(db, teacherId, slot.moduleId);
-    const montant = Math.round(heures * tarif * 100) / 100;
+    const heures = hoursBetween(slot.heureDebut, slot.heureFin) || 2;
+    // Rémunération officielle : 2 500 FCFA par séance validée (Section 26)
+    const tarif = tarifFor(db, teacherId, slot.moduleId) || TEACHER_SESSION_RATE;
+    const montant = tarif;
     const th = {
       id: uid("TH"), scheduleId: slot.id, teacherId: slot.teacherId ?? teacherId,
       moduleId: slot.moduleId, date: slot.date ?? d, heureDebut: slot.heureDebut, heureFin: slot.heureFin,
       heures, tarifApplique: tarif, montant, valide: true, validePar: user?.name, dateValidation: d,
     };
     update((d2) => ({ ...d2, teacherHours: [th, ...d2.teacherHours] }));
-    log(`Heure validée : ${teacher.prenom} ${teacher.nom} — ${heures} h · ${money(montant)}`);
+    log(`Séance validée : ${teacher.prenom} ${teacher.nom} — ${heures} h · ${money(montant)}`);
   };
 
   const invalidate = (hId: string) => {
     if (!canEdit) return;
     update((d) => ({ ...d, teacherHours: d.teacherHours.filter((h) => h.id !== hId) }));
-    log(`Heure retirée : ${hId}`);
+    log(`Séance retirée : ${hId}`);
+  };
+
+  const saveAdvance = async () => {
+    if (!teacher || advanceForm.montant <= 0) {
+      toastMsg.error("Montant invalide", "Veuillez saisir un montant positif pour l'avance.");
+      return;
+    }
+    if (isSupabaseConfigured) {
+      try {
+        await recordTeacherAdvance({
+          teacherId,
+          amount: +advanceForm.montant,
+          reason: advanceForm.reason || "Avance sur honoraires de formation",
+          date: advanceForm.date || today(),
+        });
+        toastMsg.success("Avance enregistrée en base de données ✓");
+        fetchTeacherAdvances(teacherId).then(setAdvancesList).catch(() => {});
+      } catch (err: any) {
+        toastMsg.error("Erreur enregistrement avance", err.message);
+      }
+    } else {
+      toastMsg.success("Avance enregistrée en local ✓");
+    }
+
+    const adv = {
+      id: uid("ADV"),
+      teacherId,
+      amount: +advanceForm.montant,
+      reason: advanceForm.reason || "Avance sur honoraires",
+      date: advanceForm.date || today(),
+      status: "APPROUVE",
+    };
+    setAdvancesList((prev) => [adv, ...prev]);
+    log(`Avance accordée à ${teacher.prenom} ${teacher.nom} : ${money(adv.amount)} (${adv.reason})`);
+    setAdvanceForm({ montant: 0, reason: "", date: today() });
+    setCreatingAdvance(false);
+  };
+
+  const generateAndPrintPayslip = async () => {
+    if (!teacher) return;
+    const periodHours = summary.hours.filter((h) => h.valide && h.date.startsWith(payslipPeriod));
+    const totalSessions = periodHours.length;
+    const grossAmount = totalSessions * TEACHER_SESSION_RATE;
+    const periodAdvances = advancesList.filter((a) => (a.date || "").startsWith(payslipPeriod));
+    const totalAdvances = periodAdvances.reduce((acc, a) => acc + (a.amount || 0), 0);
+    const netAmount = Math.max(0, grossAmount - totalAdvances);
+    const payslipRef = nextPayslipRef(parseInt(payslipPeriod.slice(0, 4), 10), payslipsList.length + 101);
+
+    if (isSupabaseConfigured) {
+      try {
+        await generateTeacherPayslip(teacherId, payslipPeriod, TEACHER_SESSION_RATE);
+        toastMsg.success("Bulletin de paie généré dans le système ✓");
+        fetchTeacherPayslips(teacherId).then(setPayslipsList).catch(() => {});
+      } catch (err: any) {
+        console.warn("generateTeacherPayslip error:", err.message);
+      }
+    }
+
+    const pSlip = {
+      id: uid("SLIP"),
+      payslip_number: payslipRef,
+      teacher_id: teacherId,
+      period_month: payslipPeriod,
+      sessions_count: totalSessions,
+      gross_amount: grossAmount,
+      advances_deducted: totalAdvances,
+      net_payable: netAmount,
+      created_at: new Date().toISOString(),
+    };
+    setPayslipsList((prev) => [pSlip, ...prev]);
+
+    printHTML(`Bulletin ${payslipRef}`, `
+      <div class="receipt">
+        <div style="display:flex;justify-content:space-between;align-items:center">
+          <div>
+            <h1 class="accent" style="margin:0 0 4px 0">SENTINELLES NUMÉRIQUES</h1>
+            <p style="font-size:11px;color:#94a3b8;margin:0">ENIA 2.0 • Centre de Cyberdéfense & Ingénierie</p>
+            <p style="font-size:12px;font-weight:bold;color:#38bdf8;margin:3px 0 0 0">BULLETIN OFFICIEL DE PAIE FORMATEUR</p>
+          </div>
+          <div style="text-align:right">
+            <p class="label" style="font-size:10px;text-transform:uppercase;color:#94a3b8;margin:0">N° Bulletin</p>
+            <p class="font-mono" style="font-size:14px;font-weight:bold;color:#38bdf8;margin:2px 0 0 0">${payslipRef}</p>
+          </div>
+        </div>
+        <hr style="border-color:#1d2b45;margin:16px 0">
+        <div class="grid" style="display:grid;grid-template-columns:1fr 1fr;gap:12px">
+          <div><p class="label">Formateur</p><p style="font-weight:700">${teacher.prenom} ${teacher.nom} (${teacherId})</p></div>
+          <div><p class="label">Période concernée</p><p style="font-weight:700">${payslipPeriod}</p></div>
+          <div><p class="label">Taux unitaire officiel</p><p class="cyan font-bold">${money(TEACHER_SESSION_RATE)} / séance validée</p></div>
+          <div><p class="label">Séances validées</p><p class="font-bold">${totalSessions} séance(s)</p></div>
+        </div>
+        <hr style="border-color:#1d2b45;margin:16px 0">
+        <div class="row" style="display:flex;justify-content:space-between;padding:6px 0">
+          <span>Rémunération brute (${totalSessions} séances × ${money(TEACHER_SESSION_RATE)})</span>
+          <span class="gold" style="font-weight:bold">${money(grossAmount)}</span>
+        </div>
+        <div class="row" style="display:flex;justify-content:space-between;padding:6px 0;color:#f87171">
+          <span>Déductions : Avances sur honoraires</span>
+          <span style="font-weight:bold">- ${money(totalAdvances)}</span>
+        </div>
+        <div class="row" style="margin-top:12px;display:flex;justify-content:space-between;border-top:2px solid #1d2b45;padding-top:12px">
+          <span style="font-size:15px;font-weight:bold">NET À PAYER</span>
+          <span class="green" style="font-size:22px;font-weight:900;color:#34d399">${money(netAmount)}</span>
+        </div>
+        <div style="margin-top:30px;display:flex;justify-content:space-between;text-align:center;font-size:11px;color:#64748b">
+          <div><p>Émargement Formateur</p><br><br><p>______________________</p></div>
+          <div><p>Visa Direction Administrative & Financière</p><br><br><p>______________________</p></div>
+        </div>
+        <p style="margin-top:24px;text-align:center;font-size:10px;color:#64748b">SENTINELLES NUMÉRIQUES — Rémunération des formateurs</p>
+      </div>
+    `);
+
+    setCreatingPayslip(false);
   };
 
   const savePay = () => {
@@ -86,8 +218,20 @@ export function TeacherHoursPage() {
 
   return (
     <div>
-      <PageHead title="Heures & rémunération des enseignants" subtitle="Validation automatique basée sur l'emploi du temps"
-        actions={<Btn onClick={() => setCreatingPay(true)} disabled={!teacherId || !canEdit}><BadgeDollarSign size={15} /> Enregistrer un versement</Btn>} />
+      <PageHead title="Heures & rémunération des enseignants" subtitle="Validation automatique basée sur l'emploi du temps — 2 500 FCFA / séance validée"
+        actions={
+          <div className="flex flex-wrap gap-2">
+            <Btn variant="outline" className="border-amber-400/30 text-amber-300 hover:bg-amber-400/10" onClick={() => setCreatingAdvance(true)} disabled={!teacherId || !canEdit}>
+              <MinusCircle size={15} /> Avance sur honoraires
+            </Btn>
+            <Btn variant="outline" className="border-cyan-400/30 text-cyan-300 hover:bg-cyan-400/10" onClick={() => setCreatingPayslip(true)} disabled={!teacherId || !canEdit}>
+              <FileText size={15} /> Bulletin de paie
+            </Btn>
+            <Btn onClick={() => setCreatingPay(true)} disabled={!teacherId || !canEdit}>
+              <BadgeDollarSign size={15} /> Enregistrer un versement
+            </Btn>
+          </div>
+        } />
 
       <Card className="mb-5 p-4">
         <Field label="Enseignant">
@@ -113,7 +257,9 @@ export function TeacherHoursPage() {
           <div className="mb-5 flex flex-wrap gap-2">
             {([
               { k: "a_valider", l: `À valider (${pendingSlots.length})` },
-              { k: "historique", l: `Historique (${summary.hours.length})` },
+              { k: "historique", l: `Séances validées (${summary.hours.length})` },
+              { k: "avances", l: `Avances (${advancesList.length})` },
+              { k: "bulletins", l: `Bulletins (${payslipsList.length})` },
               { k: "mensuel", l: "Mensuel" },
               { k: "paiements", l: `Versements (${summary.payments.length})` },
             ] as const).map((t) => (
@@ -187,6 +333,117 @@ export function TeacherHoursPage() {
                           {canEdit && (
                             <button onClick={() => { if (confirm("Retirer cette heure validée ? Cette action est journalisée.")) invalidate(h.id); }} className="text-slate-500 hover:text-red-400"><XCircle size={15} /></button>
                           )}
+                        </td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </Card>
+            )
+          )}
+
+          {tab === "avances" && (
+            advancesList.length === 0 ? (
+              <div className="space-y-4">
+                <Empty icon={<MinusCircle size={40} />} title="Aucune avance accordée" sub="Les avances sur honoraires déductibles des bulletins apparaîtront ici." />
+                <div className="text-center">
+                  <Btn onClick={() => setCreatingAdvance(true)}><MinusCircle size={15} /> Enregistrer une première avance</Btn>
+                </div>
+              </div>
+            ) : (
+              <Card className="overflow-x-auto">
+                <div className="p-4 border-b border-white/5 flex justify-between items-center">
+                  <span className="text-xs text-slate-400">Total avances : <b className="text-amber-300 font-bold">{money(advancesList.reduce((a, x) => a + (x.amount || 0), 0))}</b></span>
+                  <Btn variant="outline" className="text-xs px-3 py-1.5" onClick={() => setCreatingAdvance(true)}><MinusCircle size={14} /> Nouvelle avance</Btn>
+                </div>
+                <table className="w-full min-w-[700px] text-left text-sm">
+                  <thead>
+                    <tr className="border-b border-white/5 text-[10px] uppercase tracking-[0.2em] text-slate-500">
+                      <th className="px-4 py-3">Date</th>
+                      <th className="px-4 py-3">Motif de l'avance</th>
+                      <th className="px-4 py-3">Montant</th>
+                      <th className="px-4 py-3">Statut</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {advancesList.map((a) => (
+                      <tr key={a.id} className="border-b border-white/5 last:border-0 hover:bg-white/[0.02]">
+                        <td className="px-4 py-3 font-semibold text-white">{a.date}</td>
+                        <td className="px-4 py-3 text-slate-300">{a.reason || "Avance sur honoraires"}</td>
+                        <td className="px-4 py-3 font-mono font-bold text-amber-300">{money(a.amount)}</td>
+                        <td className="px-4 py-3">
+                          <Badge color="gold">{a.status || "DÉDUCTIBLE"}</Badge>
+                        </td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </Card>
+            )
+          )}
+
+          {tab === "bulletins" && (
+            payslipsList.length === 0 ? (
+              <div className="space-y-4">
+                <Empty icon={<FileText size={40} />} title="Aucun bulletin généré" sub="Générez un bulletin mensuel normalisé SN-PAIE-YYYY-XXXXXX." />
+                <div className="text-center">
+                  <Btn onClick={() => setCreatingPayslip(true)}><FileText size={15} /> Générer le bulletin du mois</Btn>
+                </div>
+              </div>
+            ) : (
+              <Card className="overflow-x-auto">
+                <div className="p-4 border-b border-white/5 flex justify-between items-center">
+                  <span className="text-xs text-slate-400">Bulletins officiels émis : <b>{payslipsList.length}</b></span>
+                  <Btn variant="outline" className="text-xs px-3 py-1.5" onClick={() => setCreatingPayslip(true)}><FileText size={14} /> Nouveau bulletin</Btn>
+                </div>
+                <table className="w-full min-w-[750px] text-left text-sm">
+                  <thead>
+                    <tr className="border-b border-white/5 text-[10px] uppercase tracking-[0.2em] text-slate-500">
+                      <th className="px-4 py-3">N° Bulletin</th>
+                      <th className="px-4 py-3">Période</th>
+                      <th className="px-4 py-3">Séances</th>
+                      <th className="px-4 py-3">Brut (2 500 F/s)</th>
+                      <th className="px-4 py-3">Avances déduites</th>
+                      <th className="px-4 py-3">Net à payer</th>
+                      <th className="px-4 py-3 text-right">Imprimer</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {payslipsList.map((p) => (
+                      <tr key={p.id} className="border-b border-white/5 last:border-0 hover:bg-white/[0.02]">
+                        <td className="px-4 py-3 font-mono text-xs font-bold text-cyan-300">{p.payslip_number || p.id}</td>
+                        <td className="px-4 py-3 font-semibold text-white">{p.period_month}</td>
+                        <td className="px-4 py-3 text-xs text-slate-400">{p.sessions_count} séance(s)</td>
+                        <td className="px-4 py-3 font-mono text-slate-300">{money(p.gross_amount)}</td>
+                        <td className="px-4 py-3 font-mono text-red-400">{p.advances_deducted ? `- ${money(p.advances_deducted)}` : "—"}</td>
+                        <td className="px-4 py-3 font-mono font-bold text-emerald-300">{money(p.net_payable)}</td>
+                        <td className="px-4 py-3 text-right">
+                          <button
+                            onClick={() => {
+                              printHTML(`Bulletin ${p.payslip_number}`, `
+                                <div class="receipt">
+                                  <div style="display:flex;justify-content:space-between;align-items:center">
+                                    <div><h1 class="accent">SENTINELLES NUMÉRIQUES</h1><p>ENIA 2.0 • Bulletin Officiel de Paie</p></div>
+                                    <div style="text-align:right"><p class="label">N° Bulletin</p><p class="font-mono">${p.payslip_number}</p></div>
+                                  </div>
+                                  <hr style="border-color:#1d2b45;margin:16px 0">
+                                  <div class="grid">
+                                    <div><p class="label">Formateur</p><p style="font-weight:700">${teacher?.prenom} ${teacher?.nom} (${teacherId})</p></div>
+                                    <div><p class="label">Période</p><p>${p.period_month}</p></div>
+                                    <div><p class="label">Séances validées</p><p>${p.sessions_count} séance(s)</p></div>
+                                    <div><p class="label">Taux séance</p><p>2 500 FCFA</p></div>
+                                  </div>
+                                  <div class="row" style="margin-top:16px"><span>Total brut</span><span class="gold">${money(p.gross_amount)}</span></div>
+                                  <div class="row" style="color:#f87171"><span>Avances déduites</span><span>- ${money(p.advances_deducted || 0)}</span></div>
+                                  <div class="row" style="border-top:2px solid #1d2b45;padding-top:10px"><span>NET PAYABLE</span><span class="green" style="font-size:20px;font-weight:800">${money(p.net_payable)}</span></div>
+                                </div>
+                              `);
+                            }}
+                            className="rounded-lg border border-white/10 p-2 text-slate-300 hover:border-cyan-400/40 hover:text-cyan-300"
+                            title="Imprimer le bulletin"
+                          >
+                            <Printer size={14} />
+                          </button>
                         </td>
                       </tr>
                     ))}
@@ -275,6 +532,96 @@ export function TeacherHoursPage() {
           <div className="flex justify-end gap-2">
             <Btn variant="ghost" onClick={() => setCreatingPay(false)}>Annuler</Btn>
             <Btn onClick={savePay}><Save size={15} /> Enregistrer</Btn>
+          </div>
+        </div>
+      </Modal>
+
+      {/* Modal avance sur honoraires (Section 27) */}
+      <Modal open={creatingAdvance} onClose={() => setCreatingAdvance(false)} title={`Avance sur honoraires — ${teacher?.prenom ?? ""} ${teacher?.nom ?? ""}`}>
+        <div className="space-y-4">
+          <div className="rounded-xl border border-amber-400/25 bg-amber-950/20 p-4 text-xs text-amber-200">
+            💡 Toute avance accordée sera automatiquement déduite du net payable sur le prochain bulletin de paie du formateur.
+          </div>
+          <div className="grid gap-4 sm:grid-cols-2">
+            <Field label="Montant de l'avance (FCFA)">
+              <Input
+                type="number"
+                min={1000}
+                step={500}
+                value={advanceForm.montant || ""}
+                onChange={(e) => setAdvanceForm({ ...advanceForm, montant: +e.target.value })}
+                placeholder="ex: 20000"
+              />
+            </Field>
+            <Field label="Date d'octroi">
+              <Input
+                type="date"
+                value={advanceForm.date}
+                onChange={(e) => setAdvanceForm({ ...advanceForm, date: e.target.value })}
+              />
+            </Field>
+          </div>
+          <Field label="Motif ou justification de l'avance">
+            <Textarea
+              placeholder="ex: Avance demandée pour frais de mission / mi-parcours..."
+              value={advanceForm.reason}
+              onChange={(e) => setAdvanceForm({ ...advanceForm, reason: e.target.value })}
+            />
+          </Field>
+          <div className="flex justify-end gap-2 pt-2">
+            <Btn variant="ghost" onClick={() => setCreatingAdvance(false)}>Annuler</Btn>
+            <Btn className="bg-amber-500 hover:bg-amber-400 text-black font-bold" onClick={saveAdvance}>
+              <MinusCircle size={15} /> Enregistrer l'avance
+            </Btn>
+          </div>
+        </div>
+      </Modal>
+
+      {/* Modal génération bulletin de paie (Section 26) */}
+      <Modal open={creatingPayslip} onClose={() => setCreatingPayslip(false)} title={`Générer un bulletin de paie — ${teacher?.prenom ?? ""} ${teacher?.nom ?? ""}`}>
+        <div className="space-y-4">
+          <Field label="Période mensuelle (Mois de paie)">
+            <Input
+              type="month"
+              value={payslipPeriod}
+              onChange={(e) => setPayslipPeriod(e.target.value)}
+            />
+          </Field>
+          {(() => {
+            const periodHours = summary.hours.filter((h) => h.valide && h.date.startsWith(payslipPeriod));
+            const count = periodHours.length;
+            const gross = count * TEACHER_SESSION_RATE;
+            const adv = advancesList.filter((a) => (a.date || "").startsWith(payslipPeriod)).reduce((acc, a) => acc + (a.amount || 0), 0);
+            const net = Math.max(0, gross - adv);
+            return (
+              <div className="space-y-3">
+                <div className="grid gap-3 sm:grid-cols-3 text-sm">
+                  <div className="rounded-xl border border-white/5 bg-white/[0.02] p-3">
+                    <p className="text-[10px] uppercase text-slate-500">Séances validées</p>
+                    <p className="font-display text-lg font-bold text-cyan-300">{count} séance(s)</p>
+                    <p className="text-[10px] text-slate-400">à 2 500 F / séance</p>
+                  </div>
+                  <div className="rounded-xl border border-white/5 bg-white/[0.02] p-3">
+                    <p className="text-[10px] uppercase text-slate-500">Rémunération brute</p>
+                    <p className="font-display text-lg font-bold text-amber-300">{money(gross)}</p>
+                  </div>
+                  <div className="rounded-xl border border-white/5 bg-white/[0.02] p-3">
+                    <p className="text-[10px] uppercase text-slate-500">Avances déduites</p>
+                    <p className="font-display text-lg font-bold text-red-400">- {money(adv)}</p>
+                  </div>
+                </div>
+                <div className="rounded-xl border border-emerald-400/30 bg-emerald-950/20 p-4 flex justify-between items-center">
+                  <span className="font-semibold text-white">Net à verser au formateur :</span>
+                  <span className="font-display text-2xl font-black text-emerald-300">{money(net)}</span>
+                </div>
+              </div>
+            );
+          })()}
+          <div className="flex justify-end gap-2 pt-2">
+            <Btn variant="ghost" onClick={() => setCreatingPayslip(false)}>Annuler</Btn>
+            <Btn className="bg-cyan-500 hover:bg-cyan-400 text-black font-bold" onClick={generateAndPrintPayslip}>
+              <Printer size={15} /> Générer & Imprimer le bulletin
+            </Btn>
           </div>
         </div>
       </Modal>

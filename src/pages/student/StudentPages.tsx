@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, useMemo } from "react";
 import { Link } from "react-router-dom";
 import { QRCodeSVG } from "qrcode.react";
 import {
@@ -44,9 +44,95 @@ export function StudentDashboard() {
   const tranche2Amount = formationTotal - tranche1Amount;
   const hasRemainingFees = summary.solde > 0 || summary.statut !== "paye";
 
+  const todoItems = useMemo(() => {
+    const list: { id: string; title: string; desc: string; link: string; badge: string; color: "amber" | "cyan" | "red" | "green" }[] = [];
+
+    // 1. Échéancier financier en retard ou à venir
+    const pendingSch = (summary.schedules || []).find((s) => s.status !== "paye" && s.paidAmount < s.amount);
+    if (pendingSch) {
+      const isLate = pendingSch.dueDate < today();
+      list.push({
+        id: "schedule",
+        title: `Régularisation : ${pendingSch.label}`,
+        desc: `Reste à payer : ${money(pendingSch.amount - pendingSch.paidAmount)} (date limite : ${pendingSch.dueDate})`,
+        link: "/app/mes-paiements",
+        badge: isLate ? "Retard de paiement" : "Échéance à régler",
+        color: isLate ? "red" : "amber",
+      });
+    }
+
+    // 2. Profil incomplet
+    if (!student.telephone || !student.photo) {
+      list.push({
+        id: "profile",
+        title: "Compléter votre fiche apprenant",
+        desc: "Ajoutez votre photo d'identité pour le badge et votre numéro WhatsApp.",
+        link: "/app/mon-profil",
+        badge: "Requis",
+        color: "cyan",
+      });
+    }
+
+    // 3. Prochaine session de cours aujourd'hui
+    if (todaySessions.length > 0) {
+      const mod = db.modules.find((m) => m.id === todaySessions[0].moduleId);
+      list.push({
+        id: "session",
+        title: `Cours du jour : ${mod?.titre || "Module"}`,
+        desc: `${todaySessions[0].heureDebut} à ${todaySessions[0].heureFin} • Salle ${todaySessions[0].salle}`,
+        link: "/app/emploi-du-temps",
+        badge: "Aujourd'hui",
+        color: "green",
+      });
+    }
+
+    return list;
+  }, [summary.schedules, student, todaySessions, db.modules]);
+
   return (
     <div>
       <PageHead title={`Bonjour, ${student.prenom} 👋`} subtitle={`${student.id} — ${formationLabel(student.formation)}`} />
+
+      {/* CENTRE D'ACTIONS & À FAIRE (SECTION 34 & 35) */}
+      {todoItems.length > 0 && (
+        <div className="mb-6 rounded-2xl border border-cyan-400/25 bg-[#081021]/80 p-5">
+          <div className="flex items-center justify-between mb-3 border-b border-white/5 pb-2.5">
+            <h3 className="font-display text-sm font-bold text-white flex items-center gap-2">
+              <span>⚡ Centre d'actions & À FAIRE ({todoItems.length})</span>
+            </h3>
+            <span className="text-[11px] text-slate-400">Priorités du parcours apprenant</span>
+          </div>
+          <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
+            {todoItems.map((item) => (
+              <Link
+                key={item.id}
+                to={item.link}
+                className={cn(
+                  "flex flex-col justify-between rounded-xl border p-3.5 transition-all hover:scale-[1.01]",
+                  item.color === "red"
+                    ? "border-red-500/30 bg-red-950/20 hover:border-red-400/50"
+                    : item.color === "amber"
+                    ? "border-amber-400/30 bg-amber-950/20 hover:border-amber-400/50"
+                    : item.color === "green"
+                    ? "border-emerald-400/30 bg-emerald-950/20 hover:border-emerald-400/50"
+                    : "border-cyan-400/30 bg-cyan-950/20 hover:border-cyan-400/50"
+                )}
+              >
+                <div>
+                  <div className="flex items-center justify-between gap-2 mb-1.5">
+                    <p className="font-bold text-xs text-white truncate">{item.title}</p>
+                    <Badge color={item.color as any}>{item.badge}</Badge>
+                  </div>
+                  <p className="text-[11px] text-slate-300 leading-relaxed">{item.desc}</p>
+                </div>
+                <div className="mt-3 flex items-center justify-end text-[11px] font-bold text-cyan-300 gap-1 border-t border-white/5 pt-2">
+                  <span>Accéder</span> <ArrowRight size={12} />
+                </div>
+              </Link>
+            ))}
+          </div>
+        </div>
+      )}
 
       {/* Rappel Frais de Formation & Cycle de Règlement */}
       {hasRemainingFees && (
@@ -824,24 +910,43 @@ export function MyPayments() {
   const payments = [...summary.payments].sort((a, b) => (b.date + (b.heure ?? "")).localeCompare(a.date + (a.heure ?? "")));
 
   const receipt = (p: any) => {
+    const qrUrl = `https://sentinellesnumeriques.org/verifier-recu?ref=${encodeURIComponent(p.reference ?? p.id)}`;
     printHTML(`Reçu ${p.reference ?? p.id}`, `
       <div class="receipt">
         <div style="display:flex;justify-content:space-between;align-items:center">
-          <div><h1 class="accent">SENTINELLES NUMÉRIQUES</h1><p>Centre de Formation — Génie Info & Industriel</p></div>
-          <div style="text-align:right"><p class="label">Reçu N°</p><p class="font-mono">${p.reference ?? p.id}</p></div>
+          <div>
+            <h1 class="accent" style="margin:0 0 4px 0">SENTINELLES NUMÉRIQUES</h1>
+            <p style="font-size:11px;color:#94a3b8;margin:0">ENIA 2.0 • Centre de Cyberdéfense & Ingénierie</p>
+            <p style="font-size:10px;font-weight:bold;color:#38bdf8;margin:2px 0 0 0">REÇU OFFICIEL NORMALISÉ DE PAIEMENT</p>
+          </div>
+          <div style="text-align:right">
+            <p class="label" style="font-size:10px;text-transform:uppercase;color:#94a3b8;margin:0">Réf. Reçu Normalisé</p>
+            <p class="font-mono" style="font-size:14px;font-weight:bold;color:#38bdf8;margin:2px 0 0 0">${p.reference ?? p.id}</p>
+          </div>
         </div>
         <hr style="border-color:#1d2b45;margin:16px 0">
-        <div class="grid">
+        <div class="grid" style="display:grid;grid-template-columns:1fr 1fr;gap:12px">
           <div><p class="label">Apprenant</p><p style="font-weight:700">${student.prenom} ${student.nom} (${student.id})</p></div>
-          <div><p class="label">Date</p><p>${p.date}${p.heure ? " à " + p.heure : ""}</p></div>
-          <div><p class="label">Libellé</p><p>${p.libelle}</p></div>
-          <div><p class="label">Mode</p><p>${p.mode}</p></div>
-          ${p.createdByName ? `<div><p class="label">Encaissé par</p><p>${p.createdByName}</p></div>` : ""}
+          <div><p class="label">Date & Heure</p><p>${p.date}${p.heure ? " à " + p.heure : ""}</p></div>
+          <div><p class="label">Nature du versement</p><p>${p.libelle}</p></div>
+          <div><p class="label">Mode de règlement</p><p>${p.mode}</p></div>
+          ${p.createdByName ? `<div><p class="label">Agent caissier</p><p>${p.createdByName}</p></div>` : ""}
+          ${p.observation ? `<div><p class="label">Observation</p><p>${p.observation}</p></div>` : ""}
         </div>
-        <div class="row" style="margin-top:16px"><span>Montant encaissé</span><span class="gold" style="font-size:20px;font-weight:800">${money(p.montant)}</span></div>
-        <div class="row"><span>Total payé</span><span class="green">${money(summary.totalPaye)}</span></div>
-        <div class="row"><span>Solde restant</span><span>${money(summary.solde)}</span></div>
-        <p style="margin-top:24px;text-align:center" class="label">SENTINELLES NUMÉRIQUES</p>
+        <div class="row" style="margin-top:16px;display:flex;justify-content:space-between;border-top:1px solid #1d2b45;padding-top:10px">
+          <span>Montant encaissé</span><span class="gold" style="font-size:20px;font-weight:800;color:#fbbf24">${money(p.montant)}</span>
+        </div>
+        <div class="row" style="display:flex;justify-content:space-between;padding-top:6px">
+          <span>Total réglé au dossier</span><span class="green" style="color:#34d399">${money(summary.totalPaye)}</span>
+        </div>
+        <div class="row" style="display:flex;justify-content:space-between;padding-top:6px">
+          <span>Solde restant</span><span>${money(summary.solde)}</span>
+        </div>
+        <div style="margin-top:20px;padding:12px;background:rgba(56,189,248,0.05);border:1px dashed #38bdf8;border-radius:8px;text-align:center">
+          <p style="font-size:11px;color:#94a3b8;margin:0">Contrôle d'authenticité cryptographique :</p>
+          <p style="font-family:monospace;font-size:10px;color:#38bdf8;margin:4px 0 0 0">${qrUrl}</p>
+        </div>
+        <p style="margin-top:20px;text-align:center;font-size:10px;color:#64748b" class="label">Ce document officiel certifie la libération de la dette pour la somme indiquée — SENTINELLES NUMÉRIQUES</p>
       </div>`);
   };
 

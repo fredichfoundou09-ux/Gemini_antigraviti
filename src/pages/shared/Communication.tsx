@@ -1,11 +1,12 @@
 import { useEffect, useMemo, useState } from "react";
-import { Send, Mail, Bell, CheckCheck, Users, UserCircle2, Inbox, ChevronRight, MessageSquare, Reply, CornerDownRight, Trash2 } from "lucide-react";
+import { Send, Mail, Bell, CheckCheck, Users, UserCircle2, Inbox, ChevronRight, MessageSquare, Reply, CornerDownRight, Trash2, Search, ShieldCheck } from "lucide-react";
 import { useStore } from "@/lib/store";
 import { cn } from "@/utils/cn";
 import { Btn, Card, Field, Input, Textarea, Empty, PageHead, Badge, uid, today } from "@/lib/ui";
 import { isSupabaseConfigured, getSupabase } from "@/lib/supabase/client";
 import { fetchMyConversations, startConversation, replyToConversation, subscribeToAllMessages, deleteConversation, deleteMessage } from "@/lib/supabase/communication";
 import { toastMsg } from "@/lib/toast";
+import { isNotificationRead, markNotificationAsRead, markAllNotificationsAsRead, getReadNotificationIds } from "@/lib/notifications";
 
 const notifColor: Record<string, string> = {
   info: "border-cyan-400/30 text-cyan-300",
@@ -29,6 +30,8 @@ export function MessageCenter() {
   const [sendingReply, setSendingReply] = useState(false);
 
   const [remoteProfiles, setRemoteProfiles] = useState<any[]>([]);
+  const [recipientRoleFilter, setRecipientRoleFilter] = useState<"all" | "broadcast" | "admin" | "teacher" | "student">("all");
+  const [recipientSearch, setRecipientSearch] = useState("");
 
   // Charger les profils Supabase réels
   const loadProfiles = async () => {
@@ -239,19 +242,19 @@ export function MessageCenter() {
       toastMsg.success("Message supprimé ✓");
     } catch (err: any) {
       console.error("Erreur suppression message:", err);
-      toastMsg.error("Échec de suppression du message", err.message || "Erreur réseau");
+      toastMsg.error("Échec de suppression du message", err.message);
     }
   };
 
   const targets = useMemo(() => {
-    const opts: { id: string; label: string; icon: React.ReactNode }[] = [];
+    const opts: { id: string; label: string; icon: React.ReactNode; category: "broadcast" | "admin" | "teacher" | "student" }[] = [];
     const isStudent = user?.role === "student";
 
     if (!isStudent && ["superadmin", "admin", "teacher"].includes(user!.role)) {
-      opts.push({ id: "all_students", label: "Tous les apprenants", icon: <Users size={14} /> });
+      opts.push({ id: "all_students", label: "📢 Tous les apprenants (Diffusion générale)", icon: <Users size={14} />, category: "broadcast" });
     }
     if (!isStudent && ["superadmin", "admin"].includes(user!.role)) {
-      opts.push({ id: "all_teachers", label: "Tous les enseignants", icon: <UserCircle2 size={14} /> });
+      opts.push({ id: "all_teachers", label: "📢 Tous les formateurs (Diffusion générale)", icon: <UserCircle2 size={14} />, category: "broadcast" });
     }
 
     const seen = new Set<string>();
@@ -274,41 +277,50 @@ export function MessageCenter() {
             id: p.id,
             label: "🛡️ Direction (Super Administrateur)",
             icon: <ShieldCheck size={14} className="text-red-400" />,
+            category: "admin",
           });
         } else if (p.role === "admin" || p.role === "partner_admin") {
           opts.push({
             id: p.id,
             label: "🛡️ Scolarité & Support (Administration)",
             icon: <ShieldCheck size={14} className="text-cyan-400" />,
+            category: "admin",
           });
         } else if (p.role === "teacher") {
-          // Nom du formateur visible en clair
           opts.push({
             id: p.id,
             label: `👨‍🏫 ${p.name || p.username} (Formateur)`,
             icon: <UserCircle2 size={14} className="text-emerald-400" />,
+            category: "teacher",
           });
         } else if (p.role === "student") {
-          // Nom de l'autre apprenant visible en clair
           opts.push({
             id: p.id,
             label: `🎓 ${p.name || p.username} (Apprenant)`,
             icon: <Users size={14} className="text-purple-400" />,
+            category: "student",
           });
         }
       } else {
-        // Pour le staff et les enseignants : affichage complet
+        const isAdm = p.role === "superadmin" || p.role === "admin" || p.role === "partner_admin";
+        const isTeach = p.role === "teacher";
+        const cat = isAdm ? "admin" : isTeach ? "teacher" : "student";
         const rTag = p.role === "superadmin" ? "Super Admin" : p.role === "admin" ? "Admin" : p.role === "teacher" ? "Formateur" : "Apprenant";
         opts.push({
           id: p.id,
           label: `${p.name || p.username} (${rTag})`,
           icon: <UserCircle2 size={14} />,
+          category: cat,
         });
       }
     });
 
-    return opts;
-  }, [remoteProfiles, db.users, user]);
+    return opts.filter((t) => {
+      if (recipientRoleFilter !== "all" && t.category !== recipientRoleFilter) return false;
+      if (recipientSearch && !t.label.toLowerCase().includes(recipientSearch.toLowerCase())) return false;
+      return true;
+    });
+  }, [remoteProfiles, db.users, user, recipientRoleFilter, recipientSearch]);
 
   return (
     <div>
@@ -326,17 +338,59 @@ export function MessageCenter() {
         <Card className="mx-auto max-w-2xl p-6">
           <form onSubmit={send} className="space-y-4">
             <Field label="Destinataire">
-              <div className="grid max-h-52 grid-cols-1 gap-1.5 overflow-y-auto sm:grid-cols-2">
-                {targets.map((t) => (
-                  <button type="button" key={t.id} onClick={() => setTo(t.id)}
+              {/* Filtres par rôle */}
+              <div className="mb-2 flex flex-wrap gap-1.5">
+                {[
+                  { id: "all", label: "Tous" },
+                  ...(user?.role !== "student" ? [{ id: "broadcast", label: "📢 Diffusions" }] : []),
+                  { id: "admin", label: "🛡️ Direction & Admin" },
+                  { id: "teacher", label: "👨‍🏫 Formateurs" },
+                  { id: "student", label: "🎓 Apprenants" },
+                ].map((f) => (
+                  <button
+                    key={f.id}
+                    type="button"
+                    onClick={() => setRecipientRoleFilter(f.id as any)}
                     className={cn(
-                      "flex items-center gap-2 rounded-xl border px-3 py-2.5 text-left text-sm transition-all",
-                      to === t.id ? "border-cyan-400/50 bg-cyan-400/10 text-cyan-200" : "border-white/10 text-slate-300 hover:bg-white/5"
-                    )}>
-                    {t.icon} <span className="truncate">{t.label}</span>
+                      "rounded-lg px-2.5 py-1 text-[11px] font-semibold transition-all",
+                      recipientRoleFilter === f.id
+                        ? "bg-cyan-500/20 text-cyan-300 border border-cyan-500/40"
+                        : "bg-white/[0.02] text-slate-400 border border-white/5 hover:bg-white/5"
+                    )}
+                  >
+                    {f.label}
                   </button>
                 ))}
               </div>
+
+              {/* Recherche rapide de destinataire */}
+              <div className="relative mb-2">
+                <Search size={14} className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-slate-500" />
+                <Input
+                  placeholder="Rechercher un destinataire par nom..."
+                  value={recipientSearch}
+                  onChange={(e) => setRecipientSearch(e.target.value)}
+                  className="pl-8 text-xs py-1.5"
+                />
+              </div>
+
+              {targets.length === 0 ? (
+                <div className="rounded-xl border border-white/5 p-4 text-center text-xs text-slate-500">
+                  Aucun contact correspondant à votre filtre.
+                </div>
+              ) : (
+                <div className="grid max-h-52 grid-cols-1 gap-1.5 overflow-y-auto sm:grid-cols-2">
+                  {targets.map((t) => (
+                    <button type="button" key={t.id} onClick={() => setTo(t.id)}
+                      className={cn(
+                        "flex items-center gap-2 rounded-xl border px-3 py-2.5 text-left text-sm transition-all",
+                        to === t.id ? "border-cyan-400/50 bg-cyan-400/10 text-cyan-200" : "border-white/10 text-slate-300 hover:bg-white/5"
+                      )}>
+                      {t.icon} <span className="truncate">{t.label}</span>
+                    </button>
+                  ))}
+                </div>
+              )}
             </Field>
             <Field label="Objet"><Input required value={subject} onChange={(e) => setSubject(e.target.value)} placeholder="Objet de la discussion" /></Field>
             <Field label="Message"><Textarea required value={body} onChange={(e) => setBody(e.target.value)} placeholder="Rédigez votre message..." /></Field>
@@ -381,13 +435,40 @@ export function MessageCenter() {
                     if (isStudentUser && isAdminSender && !fromMe) {
                       authorName = senderObj?.role === "superadmin" ? "Super Administrateur" : "Administration";
                     }
+                    const role = senderObj?.role || (fromMe ? user?.role : "admin");
+                    const roleBadge =
+                      role === "superadmin" || role === "admin"
+                        ? { label: "🛡️ Direction", cls: "bg-red-500/20 text-red-300 border-red-500/40" }
+                        : role === "teacher"
+                        ? { label: "👨‍🏫 Formateur", cls: "bg-emerald-500/20 text-emerald-300 border-emerald-500/40" }
+                        : role === "partner" || role === "partner_admin"
+                        ? { label: "🤝 Partenaire", cls: "bg-amber-500/20 text-amber-300 border-amber-500/40" }
+                        : { label: "🎓 Apprenant", cls: "bg-cyan-500/20 text-cyan-300 border-cyan-500/40" };
+
+                    const bubbleBorder =
+                      fromMe
+                        ? "border-white/10 bg-white/[0.04] ml-6"
+                        : role === "superadmin" || role === "admin"
+                        ? "border-red-500/30 bg-red-950/20 mr-6 shadow-[0_0_12px_rgba(239,68,68,0.08)]"
+                        : role === "teacher"
+                        ? "border-emerald-500/30 bg-emerald-950/20 mr-6 shadow-[0_0_12px_rgba(16,185,129,0.08)]"
+                        : role === "partner" || role === "partner_admin"
+                        ? "border-amber-500/30 bg-amber-950/20 mr-6 shadow-[0_0_12px_rgba(245,158,11,0.08)]"
+                        : "border-cyan-400/30 bg-cyan-950/20 mr-6 shadow-[0_0_12px_rgba(6,182,212,0.08)]";
+
                     const canDelete = fromMe || user?.role === "superadmin" || user?.role === "admin";
+
                     return (
-                      <div key={m.id || idx} className={cn("group relative rounded-xl p-3 text-sm transition", fromMe ? "bg-white/[0.04] border border-white/10 ml-6" : "bg-cyan-950/20 border border-cyan-400/20 mr-6")}>
-                        <div className="flex justify-between items-center mb-1 text-[11px] text-slate-400">
-                          <span className={cn("font-semibold", fromMe ? "text-slate-300" : "text-cyan-300")}>{authorName}</span>
+                      <div key={m.id || idx} className={cn("group relative rounded-xl border p-3.5 text-sm transition", bubbleBorder)}>
+                        <div className="flex justify-between items-center mb-1.5 text-[11px] text-slate-400">
                           <div className="flex items-center gap-2">
-                            {m.created_at && <span>{new Date(m.created_at).toLocaleTimeString("fr-FR", { hour: "2-digit", minute: "2-digit" })}</span>}
+                            <span className={cn("font-semibold", fromMe ? "text-slate-200" : "text-white")}>{authorName}</span>
+                            <span className={cn("rounded px-1.5 py-0.2 text-[9px] font-bold uppercase tracking-wider border", roleBadge.cls)}>
+                              {roleBadge.label}
+                            </span>
+                          </div>
+                          <div className="flex items-center gap-2">
+                            {m.created_at && <span className="font-mono text-[10px] text-slate-500">{new Date(m.created_at).toLocaleTimeString("fr-FR", { hour: "2-digit", minute: "2-digit" })}</span>}
                             {canDelete && (
                               <button
                                 onClick={() => handleDeleteMessage(m, item)}
@@ -399,7 +480,7 @@ export function MessageCenter() {
                             )}
                           </div>
                         </div>
-                        <p className="whitespace-pre-wrap text-slate-200">{m.body}</p>
+                        <p className="whitespace-pre-wrap text-slate-200 leading-relaxed">{m.body}</p>
                       </div>
                     );
                   })}
@@ -443,47 +524,124 @@ export function MessageCenter() {
 
 export function NotificationsPage() {
   const { db, user, update } = useStore();
-  const mine = db.notifications
-    .filter((n) => n.toId === user!.id || n.toId === "all")
-    .sort((a, b) => b.date.localeCompare(a.date));
+  const [filterType, setFilterType] = useState<"all" | "unread" | "info" | "paiement" | "presence">("all");
+  const [, setRefreshTicker] = useState(0);
 
-  const markAll = () =>
-    update((d) => ({ ...d, notifications: d.notifications.map((n) => (n.toId === user!.id || n.toId === "all") ? { ...n, lu: true } : n) }));
+  const mine = useMemo(() => {
+    return db.notifications
+      .filter((n) => n.toId === user!.id || n.toId === "all")
+      .sort((a, b) => b.date.localeCompare(a.date));
+  }, [db.notifications, user]);
+
+  const filtered = useMemo(() => {
+    return mine.filter((n) => {
+      const read = isNotificationRead(n, user?.id);
+      if (filterType === "unread") return !read;
+      if (filterType === "info") return n.type === "info" || n.type === "inscription";
+      if (filterType === "paiement") return n.type === "paiement" || n.type === "bourse";
+      if (filterType === "presence") return n.type === "presence" || n.type === "test";
+      return true;
+    });
+  }, [mine, filterType, user?.id]);
+
+  const handleMarkOne = async (n: any) => {
+    if (!user?.id) return;
+    await markNotificationAsRead(n.id, user.id);
+    update((d) => ({
+      ...d,
+      notifications: d.notifications.map((x) => x.id === n.id ? { ...x, lu: true } : x),
+    }));
+    setRefreshTicker((t) => t + 1);
+  };
+
+  const handleMarkAll = async () => {
+    if (!user?.id) return;
+    await markAllNotificationsAsRead(mine, user.id);
+    update((d) => ({
+      ...d,
+      notifications: d.notifications.map((n) => (n.toId === user.id || n.toId === "all") ? { ...n, lu: true } : n),
+    }));
+    setRefreshTicker((t) => t + 1);
+    toastMsg.success("Toutes les notifications sont marquées comme lues ✓");
+  };
 
   return (
-    <div>
+    <div className="space-y-4">
       <PageHead
-        title="Notifications"
-        subtitle="Alertes, annonces et suivi de votre dossier"
-        actions={<Btn variant="outline" onClick={markAll}><CheckCheck size={16} /> Tout marquer comme lu</Btn>}
+        title="Notifications & Alertes"
+        subtitle="Suivi en temps réel de votre dossier, alertes académiques et financières"
+        actions={
+          <Btn variant="outline" onClick={handleMarkAll}>
+            <CheckCheck size={16} /> Tout marquer comme lu
+          </Btn>
+        }
       />
-      {mine.length === 0 ? (
-        <Empty icon={<Bell size={40} />} title="Aucune notification" />
+
+      {/* Filtres de catégorie */}
+      <div className="flex flex-wrap gap-2">
+        {[
+          { id: "all", label: `Toutes (${mine.length})` },
+          { id: "unread", label: `Non lues (${mine.filter((n) => !isNotificationRead(n, user?.id)).length})` },
+          { id: "info", label: "📢 Annonces & Info" },
+          { id: "paiement", label: "💳 Finances" },
+          { id: "presence", label: "🛡️ Présences & Examens" },
+        ].map((f) => (
+          <button
+            key={f.id}
+            onClick={() => setFilterType(f.id as any)}
+            className={cn(
+              "rounded-xl border px-3.5 py-1.5 text-xs font-bold transition-all",
+              filterType === f.id
+                ? "border-cyan-400/50 bg-cyan-400/10 text-cyan-300 shadow-[0_0_12px_rgba(6,182,212,0.2)]"
+                : "border-white/10 text-slate-400 hover:bg-white/5"
+            )}
+          >
+            {f.label}
+          </button>
+        ))}
+      </div>
+
+      {filtered.length === 0 ? (
+        <Empty icon={<Bell size={40} />} title="Aucune notification" sub="Toutes vos alertes sont à jour." />
       ) : (
         <div className="space-y-3">
-          {mine.map((n) => (
-            <div key={n.id} className={cn("flex items-start gap-3 rounded-2xl border bg-[#0A1224]/70 p-4", notifColor[n.type] ?? "border-white/10")}>
-              <div className={cn("mt-0.5 rounded-xl border p-2", notifColor[n.type] ?? "")}><Bell size={16} /></div>
-              <div className="min-w-0 flex-1">
-                <div className="flex items-center justify-between gap-2">
-                  <p className="text-sm font-bold text-white">{n.title}</p>
-                  <span className="flex shrink-0 items-center gap-2">
-                    {!n.lu && <span className="h-2 w-2 rounded-full bg-red-500" />}
-                    <span className="text-[11px] text-slate-500">{n.date}</span>
-                  </span>
-                </div>
-                <p className="mt-1 text-sm text-slate-300">{n.body}</p>
-                {!n.lu && (
-                  <button
-                    onClick={() => update((d) => ({ ...d, notifications: d.notifications.map((x) => x.id === n.id ? { ...x, lu: true } : x) }))}
-                    className="mt-2 text-xs font-bold text-cyan-300 hover:underline"
-                  >
-                    Marquer comme lu
-                  </button>
+          {filtered.map((n) => {
+            const isRead = isNotificationRead(n, user?.id);
+            return (
+              <div
+                key={n.id}
+                className={cn(
+                  "flex items-start gap-3 rounded-2xl border p-4 transition-all",
+                  isRead ? "bg-[#070D1A]/50 border-white/5 opacity-80" : "bg-[#0A1628] border-cyan-500/30 shadow-[0_0_15px_rgba(6,182,212,0.08)]",
+                  notifColor[n.type] ?? ""
                 )}
+              >
+                <div className={cn("mt-0.5 rounded-xl border p-2", notifColor[n.type] ?? "border-white/10")}>
+                  <Bell size={16} />
+                </div>
+                <div className="min-w-0 flex-1">
+                  <div className="flex items-center justify-between gap-2">
+                    <div className="flex items-center gap-2">
+                      <p className={cn("text-sm font-bold", isRead ? "text-slate-300" : "text-white")}>{n.title}</p>
+                      {!isRead && <span className="h-2 w-2 rounded-full bg-red-500 animate-pulse" />}
+                    </div>
+                    <span className="text-[11px] text-slate-500 font-mono">{n.date}</span>
+                  </div>
+                  <p className="mt-1 text-sm text-slate-300 leading-relaxed">{n.body}</p>
+                  {!isRead && (
+                    <div className="mt-3 flex items-center justify-end">
+                      <button
+                        onClick={() => handleMarkOne(n)}
+                        className="inline-flex items-center gap-1.5 rounded-lg border border-cyan-500/20 bg-cyan-500/10 px-2.5 py-1 text-xs font-semibold text-cyan-300 hover:bg-cyan-500/20 hover:border-cyan-500/40 transition"
+                      >
+                        <CheckCheck size={13} /> Marquer comme lu
+                      </button>
+                    </div>
+                  )}
+                </div>
               </div>
-            </div>
-          ))}
+            );
+          })}
         </div>
       )}
     </div>

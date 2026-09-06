@@ -1,4 +1,4 @@
-import { useState, useEffect } from "react";
+import { useState, useEffect, useMemo } from "react";
 import { Link, useNavigate, useSearchParams } from "react-router-dom";
 import { QRCodeSVG } from "qrcode.react";
 import {
@@ -2338,65 +2338,161 @@ export function UsersPage() {
     setDeleteTarget(null);
   };
 
+  const [userTab, setUserTab] = useState<"all" | "admin" | "teacher" | "student" | "partner" | "disabled">("all");
+  const [userSearch, setUserSearch] = useState("");
+
   const roleColor = (r: string) => r === "superadmin" ? "red" : r === "admin" ? "gold" : r === "teacher" ? "cyan" : "green";
   const roleLabel = (r: string) => r === "superadmin" ? "Super Admin" : r === "admin" ? "Administration" : r === "partner_admin" ? "Admin partenaire" : r === "teacher" ? "Enseignant" : r === "partner" ? "Partenaire" : "Apprenant";
 
+  const adminCount = db.users.filter((u) => (u.role === "admin" || u.role === "superadmin") && u.actif !== false).length;
+  const teacherCount = db.users.filter((u) => u.role === "teacher" && u.actif !== false).length;
+  const studentCount = db.users.filter((u) => u.role === "student" && u.actif !== false).length;
+  const partnerCount = db.users.filter((u) => (u.role === "partner" || u.role === "partner_admin") && u.actif !== false).length;
+  const disabledCount = db.users.filter((u) => u.actif === false).length;
+
+  const filteredUsers = useMemo(() => {
+    return db.users.filter((u) => {
+      const q = userSearch.toLowerCase().trim();
+      const matchText = !q || u.name.toLowerCase().includes(q) || u.username.toLowerCase().includes(q) || (u.email || "").toLowerCase().includes(q);
+
+      let matchTab = true;
+      if (userTab === "disabled") matchTab = u.actif === false;
+      else if (u.actif === false && userTab !== "all") matchTab = false;
+      else if (userTab === "admin") matchTab = u.role === "admin" || u.role === "superadmin";
+      else if (userTab === "teacher") matchTab = u.role === "teacher";
+      else if (userTab === "student") matchTab = u.role === "student";
+      else if (userTab === "partner") matchTab = u.role === "partner" || u.role === "partner_admin";
+
+      return matchText && matchTab;
+    });
+  }, [db.users, userTab, userSearch]);
+
   return (
-    <div>
-      <PageHead title="Gestion des utilisateurs" subtitle="Comptes, rôles et permissions"
+    <div className="space-y-4">
+      <PageHead title="Gestion des utilisateurs" subtitle="Comptes, habilitations, sécurité et séparation stricte des tables"
         actions={<Btn onClick={() => setAdding(true)}><PlusCircle size={16} /> Nouvel utilisateur</Btn>} />
-      <div className="mb-4 flex flex-wrap gap-2">
-        {["superadmin", "admin", "partner_admin", "teacher", "student", "partner"].map((r) => (
-          <Badge key={r} color={roleColor(r) as any}>{roleLabel(r)}</Badge>
+
+      {/* 5 Onglets séparés conformes au Point 34 */}
+      <div className="flex flex-wrap gap-2">
+        {[
+          { id: "all", label: `Tous les comptes (${db.users.length})` },
+          { id: "admin", label: `🛡️ Administrateurs (${adminCount})` },
+          { id: "teacher", label: `👨‍🏫 Formateurs (${teacherCount})` },
+          { id: "student", label: `🎓 Apprenants (${studentCount})` },
+          { id: "partner", label: `🤝 Partenaires (${partnerCount})` },
+          { id: "disabled", label: `🚫 Comptes désactivés (${disabledCount})` },
+        ].map((t) => (
+          <button
+            key={t.id}
+            onClick={() => setUserTab(t.id as any)}
+            className={cn(
+              "rounded-xl border px-3.5 py-1.5 text-xs font-bold transition-all",
+              userTab === t.id
+                ? "border-cyan-400/50 bg-cyan-400/10 text-cyan-300 shadow-[0_0_12px_rgba(6,182,212,0.2)]"
+                : "border-white/10 text-slate-400 hover:bg-white/5"
+            )}
+          >
+            {t.label}
+          </button>
         ))}
       </div>
+
+      {/* Barre de recherche */}
+      <Card className="p-3">
+        <div className="relative">
+          <Search size={15} className="absolute left-3.5 top-1/2 -translate-y-1/2 text-slate-500" />
+          <input
+            type="text"
+            value={userSearch}
+            onChange={(e) => setUserSearch(e.target.value)}
+            placeholder="Rechercher un utilisateur par nom, identifiant ou email..."
+            className="w-full rounded-xl border border-white/10 bg-white/[0.03] pl-10 pr-4 py-2 text-xs text-white placeholder-slate-500 outline-none focus:border-cyan-400/50"
+          />
+        </div>
+      </Card>
+
       <Card className="overflow-x-auto">
-        <table className="w-full min-w-[700px] text-left">
+        <table className="w-full min-w-[750px] text-left">
           <thead>
             <tr className="border-b border-white/5 text-[10px] uppercase tracking-[0.2em] text-slate-500">
-              <th className="px-4 py-3">Utilisateur</th><th className="px-4 py-3">Identifiant</th><th className="px-4 py-3">Rôle</th><th className="px-4 py-3">Contact</th><th className="px-4 py-3 text-right">Actions</th>
+              <th className="px-4 py-3">Utilisateur</th>
+              <th className="px-4 py-3">Identifiant</th>
+              <th className="px-4 py-3">Rôle</th>
+              <th className="px-4 py-3">Email & Contact</th>
+              <th className="px-4 py-3">Statut</th>
+              <th className="px-4 py-3 text-right">Actions</th>
             </tr>
           </thead>
           <tbody>
-            {db.users.map((u) => (
-              <tr key={u.id} className="border-b border-white/5 last:border-0 hover:bg-white/[0.02]">
-                <td className="px-4 py-3">
-                  <p className="text-sm font-bold text-white">{u.name}</p>
-                  <p className="text-[11px] text-slate-500">{u.linkedId ? `Lié à ${u.linkedId}` : "—"}</p>
-                </td>
-                <td className="px-4 py-3 font-mono text-xs text-cyan-300">{u.username}</td>
-                <td className="px-4 py-3">
-                  <div className="flex flex-col gap-1">
-                    <Badge color={roleColor(u.role) as any}>{roleLabel(u.role)}</Badge>
-                    {u.actif === false && <Badge color="red">Désactivé</Badge>}
-                  </div>
-                </td>
-                <td className="px-4 py-3 text-xs text-slate-400">{u.email || "—"}</td>
-                <td className="px-4 py-3">
-                  <div className="flex justify-end gap-1.5">
-                    {u.role !== "superadmin" && (
-                      <button title={u.actif === false ? "Activer" : "Désactiver"}
-                        onClick={() => { update((d) => ({ ...d, users: d.users.map((x) => x.id === u.id ? { ...x, actif: x.actif === false } : x) })); log(`Compte ${u.actif === false ? "activé" : "désactivé"} : ${u.username}`); }}
-                        className={cn("rounded-lg border p-2", u.actif === false ? "border-emerald-400/40 text-emerald-300" : "border-white/10 text-slate-300 hover:border-amber-400/40 hover:text-amber-300")}>
-                        {u.actif === false ? <Eye size={14} /> : <EyeOff size={14} />}
-                      </button>
-                    )}
-                    <button title="Réinitialiser le mot de passe"
-                      onClick={() => { setResetTarget({ id: u.id, username: u.username }); setNewPw(""); setNewPwErr(""); }}
-                      className="rounded-lg border border-white/10 p-2 text-slate-300 hover:border-cyan-400/40 hover:text-cyan-300"><KeyRound size={14} /></button>
-                    {user?.id !== u.id && (
-                      <button
-                        title="Supprimer cet utilisateur"
-                        onClick={() => setDeleteTarget(u)}
-                        className="rounded-lg border border-white/10 p-2 text-slate-300 hover:border-red-500/40 hover:text-red-400"
-                      >
-                        <Trash2 size={14} />
-                      </button>
-                    )}
-                  </div>
+            {filteredUsers.length === 0 ? (
+              <tr>
+                <td colSpan={6} className="px-4 py-8 text-center text-xs text-slate-500">
+                  Aucun compte trouvé dans cette section.
                 </td>
               </tr>
-            ))}
+            ) : (
+              filteredUsers.map((u) => (
+                <tr key={u.id} className="border-b border-white/5 last:border-0 hover:bg-white/[0.02]">
+                  <td className="px-4 py-3">
+                    <p className="text-sm font-bold text-white">{u.name}</p>
+                    <p className="text-[11px] text-slate-500">{u.linkedId ? `Lié à ${u.linkedId}` : "—"}</p>
+                  </td>
+                  <td className="px-4 py-3 font-mono text-xs text-cyan-300 font-semibold">{u.username}</td>
+                  <td className="px-4 py-3">
+                    <Badge color={roleColor(u.role) as any}>{roleLabel(u.role)}</Badge>
+                  </td>
+                  <td className="px-4 py-3 text-xs text-slate-400">{u.email || "—"}</td>
+                  <td className="px-4 py-3">
+                    {u.actif === false ? (
+                      <Badge color="red">Désactivé</Badge>
+                    ) : (
+                      <Badge color="green">Actif</Badge>
+                    )}
+                  </td>
+                  <td className="px-4 py-3">
+                    <div className="flex justify-end gap-1.5">
+                      {u.role !== "superadmin" && (
+                        <button
+                          title={u.actif === false ? "Activer le compte" : "Désactiver le compte"}
+                          onClick={() => {
+                            update((d) => ({
+                              ...d,
+                              users: d.users.map((x) => x.id === u.id ? { ...x, actif: x.actif === false } : x),
+                            }));
+                            log(`Compte ${u.actif === false ? "activé" : "désactivé"} : ${u.username}`);
+                            toastMsg.info(`Compte ${u.actif === false ? "activé" : "désactivé"} : ${u.username}`);
+                          }}
+                          className={cn(
+                            "rounded-lg border p-2",
+                            u.actif === false
+                              ? "border-emerald-400/40 text-emerald-300 hover:bg-emerald-400/10"
+                              : "border-white/10 text-slate-300 hover:border-amber-400/40 hover:text-amber-300"
+                          )}
+                        >
+                          {u.actif === false ? <Eye size={14} /> : <EyeOff size={14} />}
+                        </button>
+                      )}
+                      <button
+                        title="Réinitialiser le mot de passe"
+                        onClick={() => { setResetTarget({ id: u.id, username: u.username }); setNewPw(""); setNewPwErr(""); }}
+                        className="rounded-lg border border-white/10 p-2 text-slate-300 hover:border-cyan-400/40 hover:text-cyan-300"
+                      >
+                        <KeyRound size={14} />
+                      </button>
+                      {user?.id !== u.id && (
+                        <button
+                          title="Supprimer cet utilisateur"
+                          onClick={() => setDeleteTarget(u)}
+                          className="rounded-lg border border-white/10 p-2 text-slate-300 hover:border-red-500/40 hover:text-red-400"
+                        >
+                          <Trash2 size={14} />
+                        </button>
+                      )}
+                    </div>
+                  </td>
+                </tr>
+              ))
+            )}
           </tbody>
         </table>
       </Card>
