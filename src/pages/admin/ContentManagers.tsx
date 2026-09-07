@@ -7,6 +7,7 @@ import { useStore } from "@/lib/store";
 import { cn } from "@/utils/cn";
 import { Btn, Badge, Card, Empty, Field, Input, Textarea, Modal, PageHead, readImage, uid, today } from "@/lib/ui";
 import { Advantage, Partner, Announcement } from "@/lib/types";
+import { supabase, isSupabaseConfigured } from "@/lib/supabase/client";
 
 /* ================= AVANTAGES ================= */
 export function AdvantagesManager() {
@@ -163,20 +164,54 @@ export function PartnersManager() {
   const { db, update, log } = useStore();
   const [editing, setEditing] = useState<Partner | null>(null);
   const [creating, setCreating] = useState(false);
-  const empty = (): Partner => ({ id: uid("PRT"), nom: "", description: "", contact: "", logo: "", actif: true });
+  const empty = (): Partner => ({ id: uid("PRT"), nom: "", description: "", contact: "", logo: "", url: "", actif: true });
   const [form, setForm] = useState<Partner>(empty());
 
   const save = () => {
     if (!form.nom) return;
-    if (editing) update((d) => ({ ...d, partners: d.partners.map((p) => (p.id === editing.id ? form : p)) }));
-    else update((d) => ({ ...d, partners: [...d.partners, form] }));
+    let nextPartners: Partner[];
+    if (editing) {
+      nextPartners = db.partners.map((p) => (p.id === editing.id ? form : p));
+    } else {
+      nextPartners = [...db.partners, form];
+    }
+    update((d) => ({
+      ...d,
+      partners: nextPartners,
+      settings: {
+        ...d.settings,
+        partenaires: nextPartners.map((p) => p.nom),
+      },
+    }));
     log(`Partenaire ${editing ? "modifié" : "ajouté"} : ${form.nom}`);
     setCreating(false); setEditing(null);
   };
 
   const onLogo = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const f = e.target.files?.[0];
-    if (f) setForm({ ...form, logo: await readImage(f, 300) });
+    if (!f) return;
+    try {
+      const b64 = await readImage(f, 400);
+      let logoUrl = b64;
+      if (isSupabaseConfigured) {
+        try {
+          const ext = (f.name || "png").split(".").pop() || "png";
+          const path = `partners/partner-${Date.now()}.${ext}`;
+          const { error: upErr } = await supabase.storage.from("public-media").upload(path, f, { upsert: true });
+          if (!upErr) {
+            const { data: pub } = supabase.storage.from("public-media").getPublicUrl(path);
+            if (pub?.publicUrl) {
+              logoUrl = pub.publicUrl;
+            }
+          }
+        } catch (storageErr) {
+          console.warn("Stockage Supabase non dispo, fallback base64 local", storageErr);
+        }
+      }
+      setForm((prev) => ({ ...prev, logo: logoUrl }));
+    } catch (err) {
+      console.warn("Erreur logo", err);
+    }
   };
 
   return (
@@ -191,7 +226,7 @@ export function PartnersManager() {
             <Card key={p.id} className={cn("p-5", !p.actif && "opacity-60")} glow="cyan">
               <div className="flex items-start justify-between">
                 <div className="flex items-center gap-3">
-                  {p.logo ? <img src={p.logo} alt="" className="h-12 w-12 rounded-xl object-cover" />
+                  {p.logo ? <img src={p.logo} alt="" className="h-12 w-12 rounded-xl object-contain bg-white/5 p-1 border border-white/10" />
                     : <div className="flex h-12 w-12 items-center justify-center rounded-xl bg-gradient-to-br from-cyan-500/30 to-blue-600/30"><Handshake size={20} className="text-cyan-300" /></div>}
                   <div>
                     <p className="font-display text-sm font-bold text-white">{p.nom}</p>
@@ -206,7 +241,8 @@ export function PartnersManager() {
                 </div>
               </div>
               {p.description && <p className="mt-3 text-sm text-slate-400">{p.description}</p>}
-              {p.contact && <p className="mt-2 text-xs text-slate-500">{p.contact}</p>}
+              {p.url && <a href={p.url} target="_blank" rel="noreferrer" className="mt-2 block text-xs text-cyan-400 hover:underline truncate">{p.url}</a>}
+              {p.contact && <p className="mt-1 text-xs text-slate-500">{p.contact}</p>}
             </Card>
           ))}
         </div>
@@ -215,16 +251,17 @@ export function PartnersManager() {
       <Modal open={creating} onClose={() => setCreating(false)} title={editing ? "Modifier le partenaire" : "Nouveau partenaire"}>
         <div className="space-y-4">
           <div className="flex items-center gap-4">
-            {form.logo ? <img src={form.logo} alt="" className="h-16 w-16 rounded-xl border border-cyan-400/40 object-cover" />
+            {form.logo ? <img src={form.logo} alt="" className="h-16 w-16 rounded-xl border border-cyan-400/40 object-contain bg-white/5 p-1" />
               : <div className="flex h-16 w-16 items-center justify-center rounded-xl border border-white/10 bg-white/[0.03]"><Handshake size={24} className="text-slate-500" /></div>}
             <label className="cursor-pointer">
               <span className="inline-flex items-center gap-2 rounded-xl border border-cyan-400/40 px-3.5 py-2.5 text-xs font-bold text-cyan-300 hover:bg-cyan-400/10"><Upload size={14} /> Logo</span>
               <input type="file" accept="image/*" onChange={onLogo} className="hidden" />
             </label>
           </div>
-          <Field label="Nom du partenaire"><Input value={form.nom} onChange={(e) => setForm({ ...form, nom: e.target.value })} /></Field>
-          <Field label="Description"><Textarea value={form.description} onChange={(e) => setForm({ ...form, description: e.target.value })} /></Field>
-          <Field label="Contact"><Input value={form.contact} onChange={(e) => setForm({ ...form, contact: e.target.value })} /></Field>
+          <Field label="Nom du partenaire *"><Input value={form.nom} onChange={(e) => setForm({ ...form, nom: e.target.value })} placeholder="Ex: ENIA 2.0" /></Field>
+          <Field label="Description / Rôle"><Textarea value={form.description} onChange={(e) => setForm({ ...form, description: e.target.value })} placeholder="Ex: École du Numérique..." /></Field>
+          <Field label="Site Web officiel (URL)"><Input value={form.url || ""} onChange={(e) => setForm({ ...form, url: e.target.value })} placeholder="https://..." /></Field>
+          <Field label="Contact"><Input value={form.contact} onChange={(e) => setForm({ ...form, contact: e.target.value })} placeholder="Ex: 06 63 28 87 4" /></Field>
           <label className="flex items-center gap-2 text-sm text-slate-300">
             <input type="checkbox" checked={form.actif} onChange={(e) => setForm({ ...form, actif: e.target.checked })} /> Partenaire actif
           </label>

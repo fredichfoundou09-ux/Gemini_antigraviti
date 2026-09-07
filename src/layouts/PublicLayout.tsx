@@ -1,5 +1,5 @@
 import { Link, NavLink, Outlet, useLocation } from "react-router-dom";
-import { ShieldCheck, LogIn, Menu, X, MessageCircle } from "lucide-react";
+import { ShieldCheck, LogIn, Menu, X, MessageCircle, Handshake } from "lucide-react";
 import { useState } from "react";
 import { cn } from "@/utils/cn";
 import { useStore } from "@/lib/store";
@@ -202,12 +202,46 @@ export default function PublicLayout() {
             <p className="mb-3 text-xs font-mono font-bold uppercase tracking-[0.2em] text-[#00E5FF]">
               PARTENAIRES OFFICIELS
             </p>
-            <div className="flex flex-wrap gap-2">
-              {db.partners.filter((p) => p.actif).map((p) => (
-                <span key={p.id} className="rounded border border-[#006DFF]/30 bg-[#071A2B] px-2.5 py-1 text-xs font-semibold text-[#B8F3FF]">
-                  {p.nom}
-                </span>
-              ))}
+            <div className="flex flex-wrap gap-2.5">
+              {db.partners.filter((p) => p.actif).map((p) => {
+                const badgeContent = (
+                  <div
+                    key={p.id}
+                    className="flex items-center gap-2 rounded-lg border border-[#006DFF]/40 bg-[#071A2B]/85 px-3 py-1.5 backdrop-blur-sm transition-all duration-200 hover:border-[#00E5FF] hover:bg-[#0B253D] hover:shadow-[0_0_12px_rgba(0,229,255,0.25)]"
+                  >
+                    {p.logo ? (
+                      <img
+                        src={p.logo}
+                        alt={p.nom}
+                        className="h-5 w-5 rounded object-contain bg-white/5 p-0.5 shrink-0"
+                        onError={(e) => { (e.target as HTMLElement).style.display = "none"; }}
+                      />
+                    ) : (
+                      <div className="flex h-5 w-5 items-center justify-center rounded bg-[#00E5FF]/10 text-[#00E5FF] shrink-0">
+                        <Handshake size={12} />
+                      </div>
+                    )}
+                    <span className="text-xs font-semibold text-[#B8F3FF] tracking-wide">
+                      {p.nom}
+                    </span>
+                  </div>
+                );
+
+                return p.url ? (
+                  <a
+                    key={p.id}
+                    href={p.url}
+                    target="_blank"
+                    rel="noreferrer"
+                    className="cursor-pointer"
+                    title={`Visiter le site officiel de ${p.nom}`}
+                  >
+                    {badgeContent}
+                  </a>
+                ) : (
+                  badgeContent
+                );
+              })}
               {db.partners.filter((p) => p.actif).length === 0 && (
                 <span className="text-xs text-[#4C91B5] italic">Aucun partenaire externe</span>
               )}

@@ -128,9 +128,13 @@ export function PartnerPortal() {
           <div className="space-y-2">
             {db.partners.filter((p) => p.actif).map((p) => (
               <div key={p.id} className="flex items-center gap-3 rounded-xl border border-white/5 bg-white/[0.02] p-2.5">
-                <div className="flex h-9 w-9 items-center justify-center rounded-lg bg-cyan-400/10 text-cyan-300">
-                  <Building2 size={16} />
-                </div>
+                {p.logo ? (
+                  <img src={p.logo} alt={p.nom} className="h-9 w-9 rounded-lg object-contain bg-white/5 p-1 border border-white/10 shrink-0" />
+                ) : (
+                  <div className="flex h-9 w-9 items-center justify-center rounded-lg bg-cyan-400/10 text-cyan-300 shrink-0">
+                    <Building2 size={16} />
+                  </div>
+                )}
                 <div className="min-w-0 flex-1">
                   <p className="truncate text-xs font-bold text-slate-200">{p.nom}</p>
                   <p className="truncate text-[10px] text-slate-500">{p.description || "Partenaire institutionnel"}</p>

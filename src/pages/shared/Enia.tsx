@@ -246,8 +246,8 @@ export function EniaPage() {
             <div className="space-y-3">
               {partners.map((p) => (
                 <div key={p.id} className="flex items-center gap-3 rounded-xl border border-white/10 bg-white/[0.02] p-3">
-                  {p.logoUrl ? (
-                    <img src={p.logoUrl} alt={p.nom} className="h-12 w-12 rounded-lg object-cover" />
+                  {(p.logoUrl || (p as any).logo) ? (
+                    <img src={p.logoUrl || (p as any).logo} alt={p.nom} className="h-12 w-12 rounded-lg object-contain bg-white/5 p-1 border border-white/10" />
                   ) : (
                     <div className="flex h-12 w-12 items-center justify-center rounded-lg bg-cyan-400/10 text-cyan-300">
                       <Building2 size={18} />

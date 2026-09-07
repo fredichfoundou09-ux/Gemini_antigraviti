@@ -2,7 +2,7 @@ import { useState, useEffect, useRef } from "react";
 import { Link } from "react-router-dom";
 import {
   Info, UserCircle2, BookOpen, Wallet, Medal, FileText, PlusCircle, Trash2, Save, ExternalLink,
-  Upload, ImageOff, MessageCircle,
+  Upload, ImageOff, MessageCircle, Handshake, Building2, Globe, Eye, EyeOff,
 } from "lucide-react";
 import { useStore } from "@/lib/store";
 import { cn } from "@/utils/cn";
@@ -10,6 +10,7 @@ import { Btn, Card, Field, Input, Textarea, PageHead, readImage, uid } from "@/l
 import { supabase, isSupabaseConfigured } from "@/lib/supabase/client";
 import { toastMsg } from "@/lib/toast";
 import { sanitizeJsonPayload } from "@/lib/validation/jsonPayload";
+import type { Partner } from "@/lib/types";
 
 const TABS = [
   { k: "infos", l: "Informations", icon: <Info size={15} /> },
@@ -17,6 +18,7 @@ const TABS = [
   { k: "formations", l: "Nos formations", icon: <BookOpen size={15} /> },
   { k: "frais", l: "Frais de formation", icon: <Wallet size={15} /> },
   { k: "avantages", l: "Avantages", icon: <Medal size={15} /> },
+  { k: "partenaires", l: "Partenaires", icon: <Handshake size={15} /> },
   { k: "preinscription", l: "Pré-inscription", icon: <FileText size={15} /> },
 ];
 
@@ -40,7 +42,23 @@ export function ContentEditor() {
     whatsapp: Array.isArray(s.infos?.whatsapp) ? [...s.infos.whatsapp] : [],
   });
 
-  const [partenaires, setPartenaires] = useState<string[]>(Array.isArray(s.partenaires) ? [...s.partenaires] : []);
+  const [partners, setPartners] = useState<Partner[]>(() => {
+    if (Array.isArray(db.partners) && db.partners.length > 0) {
+      return db.partners.map((p) => ({ ...p }));
+    }
+    if (Array.isArray(s.partenaires) && s.partenaires.length > 0) {
+      return s.partenaires.map((nom: any, idx: number) => ({
+        id: typeof nom === "object" && nom.id ? nom.id : `p-${idx + 1}`,
+        nom: typeof nom === "string" ? nom : nom?.nom || "",
+        description: typeof nom === "object" ? nom?.description || "" : "",
+        contact: typeof nom === "object" ? nom?.contact || "" : "",
+        logo: typeof nom === "object" ? (nom?.logo || nom?.logoUrl || nom?.image || "") : "",
+        url: typeof nom === "object" ? nom?.url || "" : "",
+        actif: typeof nom === "object" ? nom?.actif !== false : true,
+      }));
+    }
+    return [];
+  });
 
   const [hero, setHero] = useState({
     responsibleName: s.hero?.responsibleName || "",
@@ -90,7 +108,21 @@ export function ContentEditor() {
       setInfos({ ...cur.infos, whatsapp: Array.isArray(cur.infos.whatsapp) ? [...cur.infos.whatsapp] : [] });
       setWhatsappRaw((cur.infos.whatsapp || []).join("\n"));
     }
-    if (Array.isArray(cur.partenaires)) setPartenaires([...cur.partenaires]);
+    if (Array.isArray(db.partners) && db.partners.length > 0) {
+      setPartners(db.partners.map((p) => ({ ...p })));
+    } else if (Array.isArray(cur.partenaires) && cur.partenaires.length > 0) {
+      setPartners(
+        cur.partenaires.map((nom: any, idx: number) => ({
+          id: typeof nom === "object" && nom.id ? nom.id : `p-${idx + 1}`,
+          nom: typeof nom === "string" ? nom : nom?.nom || "",
+          description: typeof nom === "object" ? nom?.description || "" : "",
+          contact: typeof nom === "object" ? nom?.contact || "" : "",
+          logo: typeof nom === "object" ? (nom?.logo || nom?.logoUrl || nom?.image || "") : "",
+          url: typeof nom === "object" ? nom?.url || "" : "",
+          actif: typeof nom === "object" ? nom?.actif !== false : true,
+        }))
+      );
+    }
     if (cur.hero) setHero({ ...cur.hero });
     if (cur.formations) {
       setFormations({
@@ -114,15 +146,75 @@ export function ContentEditor() {
     if (Array.isArray(cur.avantages)) setAvantages([...cur.avantages]);
     if (cur.advantageImage !== undefined) setAdvantageImage(cur.advantageImage || "");
     if (cur.preInscription) setPre({ ...cur.preInscription });
-  }, [db.settings]);
+  }, [db.settings, db.partners]);
+
+  const onPartnerLogo = async (e: React.ChangeEvent<HTMLInputElement>, partnerId: string) => {
+    const f = e.target.files?.[0];
+    if (!f) return;
+    setUploading(true);
+    try {
+      const b64 = await readImage(f, 500);
+      let logoUrl = b64;
+      if (isSupabaseConfigured) {
+        try {
+          const ext = (f.name || "png").split(".").pop() || "png";
+          const path = `partners/partner-${Date.now()}.${ext}`;
+          const { error: upErr } = await supabase.storage.from("public-media").upload(path, f, { upsert: true });
+          if (!upErr) {
+            const { data: pub } = supabase.storage.from("public-media").getPublicUrl(path);
+            if (pub?.publicUrl) {
+              logoUrl = pub.publicUrl;
+            }
+          }
+        } catch (storageErr) {
+          console.warn("Stockage Supabase non dispo, fallback base64 local", storageErr);
+        }
+      }
+      const updated = partners.map((p) => (p.id === partnerId ? { ...p, logo: logoUrl } : p));
+      setPartners(updated);
+      toastMsg.success("Logo du partenaire chargé ✓", "Affiché immédiatement");
+    } catch (err: any) {
+      toastMsg.error("Erreur lors du traitement de l'image", err.message);
+    } finally {
+      setUploading(false);
+      e.target.value = "";
+    }
+  };
+
+  const onRemovePartnerLogo = (partnerId: string) => {
+    setPartners((prev) => prev.map((p) => (p.id === partnerId ? { ...p, logo: "" } : p)));
+    toastMsg.info("Logo retiré");
+  };
+
+  const addPartner = () => {
+    const newP: Partner = {
+      id: uid("PRT"),
+      nom: "",
+      description: "",
+      contact: "",
+      logo: "",
+      url: "",
+      actif: true,
+    };
+    setPartners((prev) => [...prev, newP]);
+  };
+
+  const removePartner = (id: string) => {
+    setPartners((prev) => prev.filter((p) => p.id !== id));
+  };
+
+  const updatePartnerField = (id: string, field: keyof Partner, value: any) => {
+    setPartners((prev) => prev.map((p) => (p.id === id ? { ...p, [field]: value } : p)));
+  };
 
   const [saving, setSaving] = useState(false);
 
-  const persist = async (customHero?: any, customAdvantageImg?: string) => {
+  const persist = async (customHero?: any, customAdvantageImg?: string, customPartners?: Partner[]) => {
     // Éviter qu'un événement React de type SyntheticEvent/MouseEvent soit pris pour customHero
     const isEvent = customHero && (typeof customHero !== "object" || "nativeEvent" in customHero || "target" in customHero || "__reactFiber$" in customHero);
     const activeHero = (customHero && !isEvent) ? customHero : hero;
     const activeAdvantageImg = customAdvantageImg !== undefined ? customAdvantageImg : advantageImage;
+    const activePartners = (customPartners !== undefined ? customPartners : partners).filter((p) => p.nom.trim().length > 0);
     const finalWhatsapp = whatsappRaw.split("\n").map((s) => s.trim()).filter(Boolean);
     const activeInfos = { ...infos, whatsapp: finalWhatsapp };
 
@@ -130,7 +222,7 @@ export function ContentEditor() {
       ...db.settings,
       branding,
       infos: activeInfos,
-      partenaires: partenaires.filter((p) => typeof p === "string" && p.trim().length > 0),
+      partenaires: activePartners.map((p) => p.nom),
       hero: activeHero,
       formations,
       frais: {
@@ -154,8 +246,9 @@ export function ContentEditor() {
     update((d) => ({
       ...d,
       settings: updatedSettings,
+      partners: activePartners,
     }));
-    log("Contenu du site public mis à jour");
+    log("Contenu du site public et partenaires mis à jour");
 
     // 2. Persistance distante Supabase (si configuré)
     if (isSupabaseConfigured) {
@@ -163,7 +256,7 @@ export function ContentEditor() {
         const payload = sanitizeJsonPayload({
           settings: updatedSettings,
           advantages: db.advantages || [],
-          partners: db.partners || [],
+          partners: activePartners,
           announcements: db.announcements || [],
           enia: db.enia || null,
         });
@@ -330,15 +423,34 @@ export function ContentEditor() {
           </Card>
 
           <Card className="p-6">
-            <h3 className="font-display mb-4 text-sm font-bold text-white">Partenaires institutionnels</h3>
-            <div className="space-y-2">
-              {partenaires.map((p, i) => (
-                <div key={i} className="flex gap-2">
-                  <Input value={p} onChange={(e) => setPartenaires(partenaires.map((x, j) => (j === i ? e.target.value : x)))} />
-                  <Btn variant="ghost" onClick={() => setPartenaires(partenaires.filter((_, j) => j !== i))}><Trash2 size={15} /></Btn>
+            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+              <div>
+                <h3 className="font-display text-sm font-bold text-white flex items-center gap-2">
+                  <Handshake size={16} className="text-cyan-400" />
+                  Partenaires institutionnels & Alliances
+                </h3>
+                <p className="text-xs text-slate-400 mt-1">
+                  {partners.filter((p) => p.nom.trim().length > 0).length} partenaire(s) configuré(s). Gérez les photos et informations dans l'onglet Partenaires.
+                </p>
+              </div>
+              <Btn variant="outline" onClick={() => setTab("partenaires")}>
+                <Handshake size={14} /> Gérer les partenaires & logos →
+              </Btn>
+            </div>
+            <div className="mt-4 flex flex-wrap gap-2">
+              {partners.filter((p) => p.nom.trim().length > 0).map((p) => (
+                <div key={p.id} className="flex items-center gap-2 rounded-lg border border-cyan-500/30 bg-[#071A2B] px-3 py-1.5 text-xs text-cyan-200">
+                  {p.logo ? (
+                    <img src={p.logo} alt="" className="h-4 w-4 object-contain rounded bg-white/5" />
+                  ) : (
+                    <Handshake size={12} className="text-cyan-400" />
+                  )}
+                  <span>{p.nom}</span>
                 </div>
               ))}
-              <Btn variant="outline" onClick={() => setPartenaires([...partenaires, ""])}><PlusCircle size={14} /> Ajouter un partenaire</Btn>
+              {partners.filter((p) => p.nom.trim().length > 0).length === 0 && (
+                <span className="text-xs text-slate-500 italic">Aucun partenaire configuré.</span>
+              )}
             </div>
           </Card>
         </div>
@@ -491,6 +603,179 @@ export function ContentEditor() {
               ))}
               <Btn variant="outline" onClick={() => setAvantages([...avantages, ""])}><PlusCircle size={14} /> Ajouter un avantage</Btn>
             </div>
+          </Card>
+        </div>
+      )}
+
+      {/* ============ PARTENAIRES ============ */}
+      {tab === "partenaires" && (
+        <div className="space-y-6">
+          <Card className="p-6">
+            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 border-b border-white/10 pb-5 mb-5">
+              <div>
+                <div className="flex items-center gap-2">
+                  <Handshake size={20} className="text-cyan-400" />
+                  <h3 className="font-display text-base font-bold text-white">
+                    Partenaires institutionnels & Alliances
+                  </h3>
+                </div>
+                <p className="text-xs text-slate-400 mt-1">
+                  Les logos et informations enregistrés ici sont directement liés et affichés sur la vitrine publique (page d'accueil et pied de page).
+                </p>
+              </div>
+              <Btn onClick={addPartner} variant="primary">
+                <PlusCircle size={15} /> Ajouter un partenaire
+              </Btn>
+            </div>
+
+            {partners.length === 0 ? (
+              <div className="py-12 text-center rounded-xl border border-dashed border-white/15 bg-white/[0.01]">
+                <Handshake size={44} className="mx-auto text-slate-600 mb-3" />
+                <p className="text-sm font-semibold text-slate-300">Aucun partenaire configuré</p>
+                <p className="text-xs text-slate-500 mt-1 max-w-sm mx-auto">
+                  Ajoutez vos partenaires officiels avec leur logo pour les afficher sur la page publique.
+                </p>
+                <Btn onClick={addPartner} variant="outline" className="mt-4">
+                  <PlusCircle size={14} /> Créer le premier partenaire
+                </Btn>
+              </div>
+            ) : (
+              <div className="grid gap-5">
+                {partners.map((p, idx) => (
+                  <div
+                    key={p.id}
+                    className={cn(
+                      "relative rounded-xl border p-5 transition-all",
+                      p.actif
+                        ? "border-cyan-500/30 bg-[#071322]/80 shadow-[0_0_20px_rgba(0,217,255,0.06)]"
+                        : "border-white/10 bg-white/[0.02] opacity-75"
+                    )}
+                  >
+                    {/* Header de la carte partenaire */}
+                    <div className="flex items-center justify-between border-b border-white/10 pb-3 mb-4">
+                      <div className="flex items-center gap-3">
+                        <span className="flex h-6 w-6 items-center justify-center rounded-full bg-cyan-400/20 text-cyan-300 font-mono text-xs font-bold">
+                          {idx + 1}
+                        </span>
+                        <span className="text-xs font-bold uppercase tracking-wider text-slate-300">
+                          {p.nom || "Nouveau partenaire"}
+                        </span>
+                      </div>
+                      <div className="flex items-center gap-3">
+                        <label className="flex items-center gap-2 text-xs font-semibold text-slate-300 cursor-pointer">
+                          <input
+                            type="checkbox"
+                            checked={p.actif}
+                            onChange={(e) => updatePartnerField(p.id, "actif", e.target.checked)}
+                            className="rounded border-white/20 text-cyan-500 focus:ring-cyan-500"
+                          />
+                          <span>{p.actif ? "Visible sur le site" : "Masqué"}</span>
+                        </label>
+                        <button
+                          type="button"
+                          onClick={() => removePartner(p.id)}
+                          className="rounded-lg border border-white/10 p-2 text-slate-400 hover:border-red-500/40 hover:text-red-400 hover:bg-red-500/10 transition"
+                          title="Supprimer ce partenaire"
+                        >
+                          <Trash2 size={15} />
+                        </button>
+                      </div>
+                    </div>
+
+                    {/* Contenu : Logo à gauche, Champs à droite */}
+                    <div className="grid grid-cols-1 md:grid-cols-12 gap-5 items-start">
+                      {/* Section Logo / Image */}
+                      <div className="md:col-span-4 flex flex-col items-center sm:items-start gap-3">
+                        <span className="text-xs font-bold text-slate-300 uppercase tracking-wider">
+                          Logo / Photo du partenaire
+                        </span>
+                        <div className="relative group">
+                          <div className="h-28 w-28 rounded-2xl border-2 border-cyan-400/40 bg-[#0A1224] flex items-center justify-center overflow-hidden p-2 shadow-inner">
+                            {p.logo ? (
+                              <img
+                                src={p.logo}
+                                alt={p.nom || "Logo"}
+                                className="h-full w-full object-contain filter drop-shadow"
+                              />
+                            ) : (
+                              <div className="flex flex-col items-center gap-1 text-slate-600">
+                                <Handshake size={32} />
+                                <span className="text-[10px] uppercase font-mono">Sans logo</span>
+                              </div>
+                            )}
+                          </div>
+                          {p.logo && (
+                            <button
+                              type="button"
+                              onClick={() => onRemovePartnerLogo(p.id)}
+                              className="absolute -top-2 -right-2 rounded-full border border-red-500/40 bg-[#05070D] p-1.5 text-slate-400 hover:text-red-400 hover:bg-red-500/10 transition shadow"
+                              title="Retirer le logo"
+                            >
+                              <ImageOff size={13} />
+                            </button>
+                          )}
+                        </div>
+                        <label className="cursor-pointer">
+                          <span className="inline-flex items-center gap-1.5 rounded-xl border border-cyan-400/40 px-3.5 py-2 text-xs font-bold text-cyan-300 hover:bg-cyan-400/10 transition">
+                            <Upload size={13} /> {uploading ? "Chargement..." : p.logo ? "Changer le logo" : "Téléverser logo"}
+                          </span>
+                          <input
+                            type="file"
+                            accept="image/*"
+                            onChange={(e) => onPartnerLogo(e, p.id)}
+                            disabled={uploading}
+                            className="hidden"
+                          />
+                        </label>
+                        <p className="text-[10px] text-slate-500">
+                          Format JPG/PNG/WebP. Enregistré immédiatement sur la partie publique.
+                        </p>
+                      </div>
+
+                      {/* Champs textuels */}
+                      <div className="md:col-span-8 space-y-3">
+                        <Field label="Nom officiel du partenaire *">
+                          <Input
+                            value={p.nom}
+                            placeholder="Ex: ENIA 2.0, FSH Company, Société Générale..."
+                            onChange={(e) => updatePartnerField(p.id, "nom", e.target.value)}
+                          />
+                        </Field>
+                        <Field label="Description / Rôle (affiché sur la page d'accueil)">
+                          <Input
+                            value={p.description || ""}
+                            placeholder="Ex: École du Numérique et de l’IA, Entreprise Partenaire..."
+                            onChange={(e) => updatePartnerField(p.id, "description", e.target.value)}
+                          />
+                        </Field>
+                        <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                          <Field label="Site Web officiel (URL)">
+                            <Input
+                              value={p.url || ""}
+                              placeholder="https://..."
+                              onChange={(e) => updatePartnerField(p.id, "url", e.target.value)}
+                            />
+                          </Field>
+                          <Field label="Contact / Téléphone">
+                            <Input
+                              value={p.contact || ""}
+                              placeholder="Ex: 06 63 28 87 4"
+                              onChange={(e) => updatePartnerField(p.id, "contact", e.target.value)}
+                            />
+                          </Field>
+                        </div>
+                      </div>
+                    </div>
+                  </div>
+                ))}
+
+                <div className="pt-2 flex justify-start">
+                  <Btn onClick={addPartner} variant="outline">
+                    <PlusCircle size={15} /> Ajouter un autre partenaire
+                  </Btn>
+                </div>
+              </div>
+            )}
           </Card>
         </div>
       )}

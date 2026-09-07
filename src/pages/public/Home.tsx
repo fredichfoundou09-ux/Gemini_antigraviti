@@ -2,7 +2,7 @@ import { Link } from "react-router-dom";
 import {
   ShieldCheck, CalendarDays, MapPin, Clock, MessageCircle, FileText,
   Code2, Medal, Award, GraduationCap, TrendingUp, ChevronRight, ChevronDown, UserCircle2, ArrowRight,
-  BookOpen, Settings,
+  BookOpen, Settings, Handshake,
 } from "lucide-react";
 import { useStore } from "@/lib/store";
 import { moduleIcon, money, Btn, SectionTitle, formationLabel, SentinelLogo } from "@/lib/ui";
@@ -444,6 +444,72 @@ export default function Home() {
           </div>
         </div>
       </section>
+
+      {/* ============ NOS PARTENAIRES OFFICIELS ============ */}
+      {db.partners && db.partners.filter((p) => p.actif).length > 0 && (
+        <section className="relative mx-auto max-w-7xl px-4 pb-16 sm:px-6">
+          <div className="mb-6 flex items-center justify-between">
+            <div className="flex items-center gap-3">
+              <span className="flex h-8 w-8 items-center justify-center rounded-lg border border-[#00C8FF]/40 bg-[#071A2B] text-[#00E5FF] shadow-[0_0_15px_rgba(0,229,255,0.3)]">
+                <Handshake size={18} />
+              </span>
+              <div>
+                <h3 className="font-display text-lg sm:text-xl font-black text-white tracking-wide">
+                  NOS PARTENAIRES OFFICIELS
+                </h3>
+                <p className="text-xs text-[#4C91B5] font-mono">
+                  ALLIANCES STRATÉGIQUES & INSTITUTIONNELLES
+                </p>
+              </div>
+            </div>
+          </div>
+
+          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
+            {db.partners.filter((p) => p.actif).map((p) => (
+              <div
+                key={p.id}
+                className="group relative flex items-center gap-4 rounded-xl border border-[#006DFF]/30 bg-gradient-to-r from-[#071A2B]/85 to-[#0B111A]/95 p-4 backdrop-blur-md shadow-[0_0_20px_rgba(0,0,0,0.5)] transition-all duration-300 hover:border-[#00E5FF]/60 hover:shadow-[0_0_25px_rgba(0,229,255,0.2)] hover:-translate-y-0.5"
+              >
+                {p.logo ? (
+                  <div className="flex h-14 w-14 shrink-0 items-center justify-center overflow-hidden rounded-xl border border-white/10 bg-black/50 p-1.5 shadow-inner">
+                    <img
+                      src={p.logo}
+                      alt={p.nom}
+                      className="h-full w-full object-contain filter drop-shadow group-hover:scale-105 transition-transform"
+                      onError={(e) => { (e.target as HTMLElement).style.display = "none"; }}
+                    />
+                  </div>
+                ) : (
+                  <div className="flex h-14 w-14 shrink-0 items-center justify-center rounded-xl border border-[#00C8FF]/30 bg-[#00C8FF]/10 text-[#00E5FF]">
+                    <Handshake size={24} />
+                  </div>
+                )}
+                <div className="min-w-0 flex-1">
+                  <h4 className="font-display text-sm font-bold text-white group-hover:text-[#00E5FF] transition-colors truncate">
+                    {p.nom}
+                  </h4>
+                  {p.description && (
+                    <p className="text-xs text-slate-400 line-clamp-2 mt-0.5">
+                      {p.description}
+                    </p>
+                  )}
+                  {p.url && (
+                    <a
+                      href={p.url}
+                      target="_blank"
+                      rel="noreferrer"
+                      className="mt-2 inline-flex items-center gap-1 text-[11px] font-semibold text-[#00E5FF] hover:underline"
+                    >
+                      <span>Consulter le site officiel</span>
+                      <ArrowRight size={11} />
+                    </a>
+                  )}
+                </div>
+              </div>
+            ))}
+          </div>
+        </section>
+      )}
 
       {/* ============ BOURSE BANNER ============ */}
       <section className="relative mx-auto max-w-7xl px-4 pb-20 sm:px-6">

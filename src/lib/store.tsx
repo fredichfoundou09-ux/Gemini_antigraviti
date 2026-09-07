@@ -219,11 +219,34 @@ export function StoreProvider({ children }: { children: React.ReactNode }) {
               })
             : prev.modules;
 
+          let loadedPartners = prev.partners;
+          if (Array.isArray(remoteSettings?.partners) && remoteSettings.partners.length > 0) {
+            loadedPartners = remoteSettings.partners.map((p: any, idx: number) => ({
+              id: p.id || `p-${idx + 1}`,
+              nom: p.nom || (typeof p === "string" ? p : ""),
+              description: p.description || "",
+              contact: p.contact || "",
+              logo: p.logo || p.logoUrl || p.image || "",
+              url: p.url || "",
+              actif: p.actif !== false,
+            }));
+          } else if (Array.isArray(remoteSettings?.settings?.partenaires) && remoteSettings.settings.partenaires.length > 0) {
+            loadedPartners = remoteSettings.settings.partenaires.map((p: any, idx: number) => ({
+              id: typeof p === "object" && p.id ? p.id : `p-${idx + 1}`,
+              nom: typeof p === "string" ? p : p.nom || "",
+              description: typeof p === "object" ? p.description || "" : "",
+              contact: typeof p === "object" ? p.contact || "" : "",
+              logo: typeof p === "object" ? (p.logo || p.logoUrl || p.image || "") : "",
+              url: typeof p === "object" ? p.url || "" : "",
+              actif: typeof p === "object" ? p.actif !== false : true,
+            }));
+          }
+
           return {
             ...prev,
             settings: remoteSettings?.settings ? { ...prev.settings, ...remoteSettings.settings } : prev.settings,
             advantages: remoteSettings?.advantages || prev.advantages,
-            partners: remoteSettings?.partners || prev.partners,
+            partners: loadedPartners,
             announcements: remoteSettings?.announcements || prev.announcements,
             enia: remoteSettings?.enia || prev.enia,
             modules: loadedModules,
