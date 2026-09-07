@@ -6,7 +6,15 @@ import { Btn, Card, Field, Input, Textarea, Empty, PageHead, Badge, uid, today }
 import { isSupabaseConfigured, getSupabase } from "@/lib/supabase/client";
 import { fetchMyConversations, startConversation, replyToConversation, subscribeToAllMessages, deleteConversation, deleteMessage } from "@/lib/supabase/communication";
 import { toastMsg } from "@/lib/toast";
-import { isNotificationRead, markNotificationAsRead, markAllNotificationsAsRead, getReadNotificationIds } from "@/lib/notifications";
+import {
+  isNotificationRead,
+  markNotificationAsRead,
+  markAllNotificationsAsRead,
+  getReadNotificationIds,
+  getDeletedNotificationIds,
+  deleteNotification,
+  deleteAllNotifications,
+} from "@/lib/notifications";
 
 const notifColor: Record<string, string> = {
   info: "border-cyan-400/30 text-cyan-300",
@@ -525,24 +533,33 @@ export function MessageCenter() {
 export function NotificationsPage() {
   const { db, user, update } = useStore();
   const [filterType, setFilterType] = useState<"all" | "unread" | "info" | "paiement" | "presence">("all");
-  const [, setRefreshTicker] = useState(0);
+  const [refreshTicker, setRefreshTicker] = useState(0);
+
+  useEffect(() => {
+    const onNotifChanged = () => setRefreshTicker((t) => t + 1);
+    window.addEventListener("sn:notifications-changed", onNotifChanged);
+    return () => window.removeEventListener("sn:notifications-changed", onNotifChanged);
+  }, []);
+
+  const deletedSet = useMemo(() => getDeletedNotificationIds(user?.id), [user?.id, refreshTicker]);
+  const readSet = useMemo(() => getReadNotificationIds(user?.id), [user?.id, refreshTicker]);
 
   const mine = useMemo(() => {
     return db.notifications
-      .filter((n) => n.toId === user!.id || n.toId === "all")
+      .filter((n) => (n.toId === user!.id || n.toId === "all") && !deletedSet.has(n.id))
       .sort((a, b) => b.date.localeCompare(a.date));
-  }, [db.notifications, user]);
+  }, [db.notifications, user, deletedSet]);
 
   const filtered = useMemo(() => {
     return mine.filter((n) => {
-      const read = isNotificationRead(n, user?.id);
+      const read = Boolean(n.lu || readSet.has(n.id));
       if (filterType === "unread") return !read;
       if (filterType === "info") return n.type === "info" || n.type === "inscription";
       if (filterType === "paiement") return n.type === "paiement" || n.type === "bourse";
       if (filterType === "presence") return n.type === "presence" || n.type === "test";
       return true;
     });
-  }, [mine, filterType, user?.id]);
+  }, [mine, filterType, readSet]);
 
   const handleMarkOne = async (n: any) => {
     if (!user?.id) return;
@@ -552,6 +569,7 @@ export function NotificationsPage() {
       notifications: d.notifications.map((x) => x.id === n.id ? { ...x, lu: true } : x),
     }));
     setRefreshTicker((t) => t + 1);
+    toastMsg.success("Notification marquée comme lue ✓");
   };
 
   const handleMarkAll = async () => {
@@ -565,32 +583,84 @@ export function NotificationsPage() {
     toastMsg.success("Toutes les notifications sont marquées comme lues ✓");
   };
 
+  const [confirmDeleteAll, setConfirmDeleteAll] = useState(false);
+
+  const handleDeleteOne = async (n: any) => {
+    if (!user?.id) return;
+    await deleteNotification(n.id, user.id);
+    update((d) => ({
+      ...d,
+      notifications: d.notifications.filter((x) => x.id !== n.id),
+    }));
+    setRefreshTicker((t) => t + 1);
+    toastMsg.success("Notification supprimée");
+  };
+
+  const handleDeleteAll = async () => {
+    if (!user?.id || mine.length === 0) return;
+    if (!confirmDeleteAll) {
+      setConfirmDeleteAll(true);
+      setTimeout(() => setConfirmDeleteAll(false), 4000);
+      return;
+    }
+    setConfirmDeleteAll(false);
+    await deleteAllNotifications(mine, user.id);
+    const mineIds = new Set(mine.map((x) => x.id));
+    update((d) => ({
+      ...d,
+      notifications: d.notifications.filter((x) => !mineIds.has(x.id)),
+    }));
+    setRefreshTicker((t) => t + 1);
+    toastMsg.success("Toutes les notifications ont été supprimées");
+  };
+
+  const unreadCount = mine.filter((n) => !n.lu && !readSet.has(n.id)).length;
+
   return (
     <div className="space-y-4">
       <PageHead
         title="Notifications & Alertes"
         subtitle="Suivi en temps réel de votre dossier, alertes académiques et financières"
         actions={
-          <Btn variant="outline" onClick={handleMarkAll}>
-            <CheckCheck size={16} /> Tout marquer comme lu
-          </Btn>
+          <div className="flex flex-wrap items-center gap-2">
+            {unreadCount > 0 && (
+              <Btn variant="outline" onClick={handleMarkAll} className="rounded-md">
+                <CheckCheck size={16} /> Tout marquer comme lu
+              </Btn>
+            )}
+            {mine.length > 0 && (
+              <button
+                type="button"
+                onClick={handleDeleteAll}
+                className={cn(
+                  "inline-flex items-center gap-1.5 rounded-md border px-3 py-2 text-xs font-bold transition",
+                  confirmDeleteAll
+                    ? "border-red-500 bg-red-600 text-white animate-pulse shadow-[0_0_12px_#FF174F]"
+                    : "border-red-500/30 bg-red-500/10 text-red-300 hover:bg-red-500/20 hover:border-red-500/50"
+                )}
+              >
+                <Trash2 size={14} /> {confirmDeleteAll ? "Confirmer la suppression ?" : "Tout supprimer"}
+              </button>
+            )}
+          </div>
         }
       />
 
-      {/* Filtres de catégorie */}
+      {/* Filtres de catégorie : boutons rectangulaires aux coins légèrement arrondis */}
       <div className="flex flex-wrap gap-2">
         {[
           { id: "all", label: `Toutes (${mine.length})` },
-          { id: "unread", label: `Non lues (${mine.filter((n) => !isNotificationRead(n, user?.id)).length})` },
+          { id: "unread", label: `Non lues (${unreadCount})` },
           { id: "info", label: "📢 Annonces & Info" },
           { id: "paiement", label: "💳 Finances" },
           { id: "presence", label: "🛡️ Présences & Examens" },
         ].map((f) => (
           <button
             key={f.id}
+            type="button"
             onClick={() => setFilterType(f.id as any)}
             className={cn(
-              "rounded-xl border px-3.5 py-1.5 text-xs font-bold transition-all",
+              "rounded-md border px-3.5 py-1.5 text-xs font-bold transition-all",
               filterType === f.id
                 ? "border-cyan-400/50 bg-cyan-400/10 text-cyan-300 shadow-[0_0_12px_rgba(6,182,212,0.2)]"
                 : "border-white/10 text-slate-400 hover:bg-white/5"
@@ -606,33 +676,46 @@ export function NotificationsPage() {
       ) : (
         <div className="space-y-3">
           {filtered.map((n) => {
-            const isRead = isNotificationRead(n, user?.id);
+            const isRead = Boolean(n.lu || readSet.has(n.id));
             return (
               <div
                 key={n.id}
                 className={cn(
-                  "flex items-start gap-3 rounded-2xl border p-4 transition-all",
-                  isRead ? "bg-[#070D1A]/50 border-white/5 opacity-80" : "bg-[#0A1628] border-cyan-500/30 shadow-[0_0_15px_rgba(6,182,212,0.08)]",
+                  "flex items-start gap-3 rounded-lg border p-4 transition-all duration-150",
+                  isRead ? "bg-[#070D1A]/60 border-white/10 opacity-85" : "bg-[#0A1628] border-cyan-500/40 shadow-[0_0_15px_rgba(6,182,212,0.1)]",
                   notifColor[n.type] ?? ""
                 )}
               >
-                <div className={cn("mt-0.5 rounded-xl border p-2", notifColor[n.type] ?? "border-white/10")}>
+                <div className={cn("mt-0.5 rounded-md border p-2 shrink-0", notifColor[n.type] ?? "border-white/10")}>
                   <Bell size={16} />
                 </div>
                 <div className="min-w-0 flex-1">
                   <div className="flex items-center justify-between gap-2">
                     <div className="flex items-center gap-2">
                       <p className={cn("text-sm font-bold", isRead ? "text-slate-300" : "text-white")}>{n.title}</p>
-                      {!isRead && <span className="h-2 w-2 rounded-full bg-red-500 animate-pulse" />}
+                      {!isRead && (
+                        <span className="inline-block h-2 w-2 rounded-sm bg-red-500 shadow-[0_0_6px_#FF174F] animate-pulse" />
+                      )}
                     </div>
-                    <span className="text-[11px] text-slate-500 font-mono">{n.date}</span>
+                    <div className="flex items-center gap-2">
+                      <span className="text-[11px] text-slate-500 font-mono">{n.date}</span>
+                      <button
+                        type="button"
+                        onClick={() => handleDeleteOne(n)}
+                        className="rounded-md p-1 text-slate-500 hover:text-red-400 hover:bg-red-500/10 border border-transparent hover:border-red-500/30 transition"
+                        title="Supprimer cette notification"
+                      >
+                        <Trash2 size={14} />
+                      </button>
+                    </div>
                   </div>
                   <p className="mt-1 text-sm text-slate-300 leading-relaxed">{n.body}</p>
                   {!isRead && (
                     <div className="mt-3 flex items-center justify-end">
                       <button
+                        type="button"
                         onClick={() => handleMarkOne(n)}
-                        className="inline-flex items-center gap-1.5 rounded-lg border border-cyan-500/20 bg-cyan-500/10 px-2.5 py-1 text-xs font-semibold text-cyan-300 hover:bg-cyan-500/20 hover:border-cyan-500/40 transition"
+                        className="inline-flex items-center gap-1.5 rounded-md border border-cyan-500/30 bg-cyan-500/15 px-2.5 py-1 text-xs font-semibold text-cyan-300 hover:bg-cyan-500/25 hover:border-cyan-400 transition"
                       >
                         <CheckCheck size={13} /> Marquer comme lu
                       </button>

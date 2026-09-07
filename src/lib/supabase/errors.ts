@@ -13,8 +13,10 @@ export function formatSupabaseError(error: any): string {
   const message = error.message || error?.error?.message || "";
   const details = error.details || error?.error?.details || "";
 
-  // Journalisation technique dans la console développeur
-  console.error("Supabase Error Caught:", { code, message, details, error });
+  // Journalisation technique dans la console développeur (en dev uniquement pour éviter les fuites)
+  if (import.meta.env.DEV) {
+    console.error("Supabase Error Caught:", { code, message, details, error });
+  }
 
   // Codes PostgreSQL standards
   switch (code) {

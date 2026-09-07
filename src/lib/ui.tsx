@@ -143,7 +143,7 @@ export function Btn({
   }[variant];
   return (
     <button type={type} disabled={disabled} onClick={onClick}
-      className={cn("inline-flex items-center justify-center gap-2 rounded px-4 py-2.5 text-sm font-semibold transition-all active:scale-[0.98] disabled:opacity-50 disabled:pointer-events-none", v, className)}>
+      className={cn("inline-flex items-center justify-center gap-2 rounded-md px-4 py-2.5 text-sm font-semibold transition-all active:scale-[0.98] disabled:opacity-50 disabled:pointer-events-none", v, className)}>
       {children}
     </button>
   );
@@ -158,7 +158,7 @@ export function Badge({ children, color = "cyan", className }: { children: React
     gray: "bg-[#0B111A] text-[#4C91B5] border-[#006DFF]/25",
     blue: "bg-[#081830] text-[#008CFF] border-[#006DFF]/40",
   }[color];
-  return <span className={cn("inline-flex items-center gap-1 rounded border px-2.5 py-0.5 text-[11px] font-semibold uppercase tracking-wider", c, className)}>{children}</span>;
+  return <span className={cn("inline-flex items-center gap-1 rounded-md border px-2.5 py-0.5 text-[11px] font-semibold uppercase tracking-wider", c, className)}>{children}</span>;
 }
 
 export function Field({ label, children, hint }: { label: string; children: ReactNode; hint?: string }) {
@@ -172,7 +172,7 @@ export function Field({ label, children, hint }: { label: string; children: Reac
 }
 
 export const inputCls =
-  "w-full rounded border border-[#006DFF]/30 bg-[#0B111A]/90 px-3.5 py-2.5 text-sm text-[#B8F3FF] placeholder-[#4C91B5]/60 outline-none transition-all focus:border-[#00C8FF] focus:shadow-[0_0_16px_rgba(0,229,255,0.4)]";
+  "w-full rounded-md border border-[#006DFF]/30 bg-[#0B111A]/90 px-3.5 py-2.5 text-sm text-[#B8F3FF] placeholder-[#4C91B5]/60 outline-none transition-all focus:border-[#00C8FF] focus:shadow-[0_0_16px_rgba(0,229,255,0.4)]";
 
 export function Input(props: React.InputHTMLAttributes<HTMLInputElement>) {
   return <input {...props} className={cn(inputCls, props.className)} />;
@@ -247,8 +247,8 @@ export function Empty({ icon, title, sub }: { icon: ReactNode; title: string; su
 export function Progress({ value, color = "cyan" }: { value: number; color?: "cyan" | "red" | "green" | "gold" }) {
   const c = { cyan: "from-cyan-400 to-blue-500", red: "from-red-500 to-rose-500", green: "from-emerald-400 to-teal-500", gold: "from-amber-300 to-orange-400" }[color];
   return (
-    <div className="h-2 w-full overflow-hidden rounded-full bg-white/5">
-      <div className={cn("h-full rounded-full bg-gradient-to-r transition-all", c)} style={{ width: `${Math.min(100, Math.max(0, value))}%` }} />
+    <div className="h-2 w-full overflow-hidden rounded-md bg-white/5">
+      <div className={cn("h-full rounded-md bg-gradient-to-r transition-all", c)} style={{ width: `${Math.min(100, Math.max(0, value))}%` }} />
     </div>
   );
 }
@@ -262,8 +262,8 @@ export function SectionTitle({ children, color = "cyan" }: { children: ReactNode
     gold: "text-amber-300 border-amber-400/30",
   }[color];
   return (
-    <div className={cn("mb-4 inline-flex items-center gap-2 rounded-full border bg-white/[0.03] px-4 py-1.5 text-xs font-bold uppercase tracking-[0.2em]", c)}>
-      <span className="h-1.5 w-1.5 rounded-full bg-current animate-pulse" />
+    <div className={cn("mb-4 inline-flex items-center gap-2 rounded-md border bg-white/[0.03] px-3.5 py-1.5 text-xs font-bold uppercase tracking-[0.2em]", c)}>
+      <span className="h-1.5 w-1.5 rounded-sm bg-current animate-pulse" />
       {children}
     </div>
   );

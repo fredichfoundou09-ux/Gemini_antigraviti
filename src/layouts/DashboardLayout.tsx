@@ -268,7 +268,7 @@ export default function DashboardLayout() {
     <div className="flex h-full flex-col bg-[#080A0F]">
       {/* Brand Header */}
       <div className="flex items-center gap-3 border-b border-[#006DFF]/20 px-5 py-4 bg-[#0B111A]/50">
-        <div className="relative p-1.5 rounded-xl border border-[#FF174F]/40 bg-[#071A2B] shadow-[0_0_12px_rgba(255,23,79,0.3)]">
+        <div className="relative p-1.5 rounded-lg border border-[#FF174F]/40 bg-[#071A2B] shadow-[0_0_12px_rgba(255,23,79,0.3)]">
           <SentinelLogo
             variant="symbol"
             alt="Symbole SENTINEL'S"
@@ -291,7 +291,7 @@ export default function DashboardLayout() {
             onClick={() => setOpen(false)}
             className={({ isActive }) =>
               cn(
-                "flex items-center gap-3 rounded-xl px-3.5 py-2.5 text-sm font-semibold transition-all duration-200",
+                "flex items-center gap-3 rounded-lg px-3.5 py-2.5 text-sm font-semibold transition-all duration-200",
                 isActive
                   ? "bg-[#071A2B] text-[#00E5FF] border border-[#00C8FF] shadow-[0_0_16px_-4px_rgba(0,229,255,0.5)] font-bold"
                   : "text-[#4C91B5] hover:bg-[#0B111A] hover:text-[#B8F3FF] hover:border-[#006DFF]/30 border border-transparent"
@@ -306,8 +306,8 @@ export default function DashboardLayout() {
 
       {/* User Footer in Sidebar */}
       <div className="border-t border-[#006DFF]/20 p-3 bg-[#080A0F]">
-        <div className="flex items-center gap-3 rounded-xl border border-[#006DFF]/30 bg-[#0B111A] p-2.5 shadow-inner">
-          <div className="flex h-9 w-9 items-center justify-center rounded-lg bg-gradient-to-br from-[#006DFF] to-[#00E5FF] font-display font-black text-white text-sm shadow-[0_0_10px_rgba(0,229,255,0.4)]">
+        <div className="flex items-center gap-3 rounded-lg border border-[#006DFF]/30 bg-[#0B111A] p-2.5 shadow-inner">
+          <div className="flex h-9 w-9 items-center justify-center rounded-md bg-gradient-to-br from-[#006DFF] to-[#00E5FF] font-display font-black text-white text-sm shadow-[0_0_10px_rgba(0,229,255,0.4)]">
             {user.name.charAt(0).toUpperCase()}
           </div>
           <div className="min-w-0 flex-1">
@@ -788,12 +788,12 @@ export default function DashboardLayout() {
           <div className="flex items-center gap-1.5 sm:gap-2.5">
             <NavLink
               to="/app/messages"
-              className="relative rounded-xl border border-[#006DFF]/30 bg-[#0B111A] p-2 sm:p-2.5 text-[#4C91B5] transition hover:border-[#00C8FF] hover:text-[#00E5FF] hover:shadow-[0_0_12px_rgba(0,229,255,0.25)] shrink-0"
+              className="relative rounded-lg border border-[#006DFF]/30 bg-[#0B111A] p-2 sm:p-2.5 text-[#4C91B5] transition hover:border-[#00C8FF] hover:text-[#00E5FF] hover:shadow-[0_0_12px_rgba(0,229,255,0.25)] shrink-0"
               title={unreadMessages > 0 ? `${unreadMessages} message(s) non lu(s)` : "Messagerie interne"}
             >
               <MessagesSquare size={18} />
               {unreadMessages > 0 && (
-                <span className="absolute -right-1.5 -top-1.5 flex h-5 min-w-5 animate-pulse items-center justify-center rounded-full bg-[#FF174F] px-1 text-[10px] font-black text-white shadow-[0_0_12px_#FF174F] border border-white/40">
+                <span className="absolute -right-1.5 -top-1.5 flex h-4.5 min-w-4.5 animate-pulse items-center justify-center rounded-md bg-[#FF174F] px-1 text-[10px] font-black text-white shadow-[0_0_10px_#FF174F] border border-white/40 leading-none">
                   {unreadMessages}
                 </span>
               )}
@@ -801,12 +801,12 @@ export default function DashboardLayout() {
 
             <NavLink
               to="/app/notifications"
-              className="relative rounded-xl border border-[#006DFF]/30 bg-[#0B111A] p-2 sm:p-2.5 text-[#4C91B5] transition hover:border-[#00C8FF] hover:text-[#00E5FF] hover:shadow-[0_0_12px_rgba(0,229,255,0.25)] shrink-0"
+              className="relative rounded-lg border border-[#006DFF]/30 bg-[#0B111A] p-2 sm:p-2.5 text-[#4C91B5] transition hover:border-[#00C8FF] hover:text-[#00E5FF] hover:shadow-[0_0_12px_rgba(0,229,255,0.25)] shrink-0"
               title={unreadNotifications > 0 ? `${unreadNotifications} notification(s) non lue(s)` : "Notifications"}
             >
               <Bell size={18} />
               {unreadNotifications > 0 && (
-                <span className="absolute -right-1.5 -top-1.5 flex h-5 min-w-5 animate-pulse items-center justify-center rounded-full bg-[#FF174F] px-1 text-[10px] font-black text-white shadow-[0_0_12px_#FF174F] border border-white/40">
+                <span className="absolute -right-1.5 -top-1.5 flex h-4.5 min-w-4.5 animate-pulse items-center justify-center rounded-md bg-[#FF174F] px-1 text-[10px] font-black text-white shadow-[0_0_10px_#FF174F] border border-white/40 leading-none">
                   {unreadNotifications}
                 </span>
               )}
@@ -814,7 +814,7 @@ export default function DashboardLayout() {
 
             <NavLink
               to="/"
-              className="hidden rounded-xl border border-[#006DFF]/30 bg-[#0B111A] px-3.5 py-2 text-xs font-semibold text-[#B8F3FF] transition hover:border-[#00C8FF] hover:text-[#00E5FF] hover:shadow-[0_0_14px_rgba(0,229,255,0.25)] sm:block"
+              className="hidden rounded-lg border border-[#006DFF]/30 bg-[#0B111A] px-3.5 py-2 text-xs font-semibold text-[#B8F3FF] transition hover:border-[#00C8FF] hover:text-[#00E5FF] hover:shadow-[0_0_14px_rgba(0,229,255,0.25)] sm:block"
             >
               Site public
             </NavLink>
@@ -826,7 +826,7 @@ export default function DashboardLayout() {
                 navigate("/connexion", { replace: true });
                 setTimeout(() => window.location.reload(), 50);
               }}
-              className="rounded-xl border border-[#FF174F]/40 bg-[#0B111A] p-2 sm:p-2.5 text-[#FF174F] transition hover:bg-[#FF174F]/15 hover:shadow-[0_0_12px_rgba(255,23,79,0.35)] shrink-0"
+              className="rounded-lg border border-[#FF174F]/40 bg-[#0B111A] p-2 sm:p-2.5 text-[#FF174F] transition hover:bg-[#FF174F]/15 hover:shadow-[0_0_12px_rgba(255,23,79,0.35)] shrink-0"
               title="Déconnexion"
             >
               <LogOut size={18} />

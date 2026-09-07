@@ -14,6 +14,7 @@ import {
 } from "./supabase/auth";
 import { writeAudit } from "./supabase/audit";
 import { sanitizeJsonPayload } from "./validation/jsonPayload";
+import { getDeletedNotificationIds, getReadNotificationIds } from "./notifications";
 
 const DB_KEY = "sn_db_v2";
 const SESSION_KEY = "sn_session_v2";
@@ -70,7 +71,17 @@ function loadDB(): DB {
     const raw = localStorage.getItem(DB_KEY);
     if (raw) {
       const parsed = JSON.parse(raw) as DB;
-      if (parsed && parsed.version && parsed.settings) return migrateDB(parsed);
+      if (parsed && parsed.version && parsed.settings) {
+        const migrated = migrateDB(parsed);
+        const deletedSet = getDeletedNotificationIds();
+        const readSet = getReadNotificationIds();
+        if (Array.isArray(migrated.notifications)) {
+          migrated.notifications = migrated.notifications
+            .filter((n) => !deletedSet.has(n.id))
+            .map((n) => (readSet.has(n.id) ? { ...n, lu: true } : n));
+        }
+        return migrated;
+      }
     }
   } catch { /* ignore */ }
   const fresh = emptyDB([]);
@@ -463,7 +474,17 @@ export function StoreProvider({ children }: { children: React.ReactNode }) {
           })),
           results: (resultsRes.data || []).map((r: any) => ({ id: r.id, testId: r.test_id, studentId: r.student_id, note: Number(r.note), pourcentage: Number(r.pourcentage), date: r.date?.slice(0, 10) || "", heure: r.heure, valide: r.valide, statut: r.statut })),
           grades: (gradesRes.data || []).map((g: any) => ({ id: g.id, studentId: g.student_id, moduleId: g.module_id, note: Number(g.note), appreciation: g.appreciation || "", date: g.date })),
-          notifications: (notificationsRes.data || []).map((n: any) => ({ id: n.id, toId: n.user_id || "all", title: n.title, body: n.body, date: n.created_at?.slice(0, 10) || "", lu: n.read, type: n.type })),
+          notifications: (notificationsRes.data || [])
+            .filter((n: any) => !getDeletedNotificationIds(sessionUser.id).has(n.id))
+            .map((n: any) => ({
+              id: n.id,
+              toId: n.user_id || "all",
+              title: n.title,
+              body: n.body,
+              date: n.created_at?.slice(0, 10) || "",
+              lu: Boolean(n.read || getReadNotificationIds(sessionUser.id).has(n.id)),
+              type: n.type,
+            })),
           certificates: (certificatesRes.data || []).map((c: any) => ({ id: c.id, studentId: c.student_id, numero: c.numero, formation: (formationById.get(c.formation_id) || "informatique") as Formation, modules: (c.modules || []).map((x: any) => x.module_id), periode: c.periode, resultat: c.resultat, note: Number(c.note), date: c.date })),
           scholarships: (scholarshipsRes.data || []).map((s: any) => ({ id: s.id, studentId: s.student_id, statut: s.statut, date: s.date })),
           registrations: activeRegs,

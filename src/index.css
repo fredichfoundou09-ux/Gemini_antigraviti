@@ -265,16 +265,36 @@ body {
 }
 
 /* ========================================================
-   HARMONISATION CYBER HUD :
-   Bords techniques sur les modules de supervision
+   CHARTE GÉOMÉTRIQUE GLOBALE SENTINEL'S :
+   Formes carrées / rectangulaires avec angles très légèrement arrondis (4px à 8px).
+   Conformité stricte sur l'ensemble du logiciel : boutons, tableaux, cartes, conteneurs.
    ======================================================== */
-.dashboard-scope .rounded-3xl,
-.dashboard-scope .rounded-2xl {
+.rounded-3xl,
+.rounded-2xl {
+  border-radius: 8px !important;
+}
+
+.rounded-xl {
   border-radius: 6px !important;
 }
 
-.dashboard-scope .rounded-xl {
-  border-radius: 4px !important;
+button:not([class*="h-1"]):not([class*="h-1.5"]):not([class*="h-2"]):not([class*="h-2.5"]):not([class*="w-1"]):not([class*="w-1.5"]):not([class*="w-2"]):not([class*="w-2.5"]),
+input,
+select,
+textarea {
+  border-radius: 6px;
+}
+
+table {
+  border-collapse: separate;
+  border-spacing: 0;
+  border-radius: 8px;
+}
+
+.table-wrap,
+.table-container {
+  border-radius: 8px !important;
+  overflow: hidden;
 }
 
 /* ========================================================
