@@ -122,7 +122,7 @@ export function Card({ children, className, glow = "cyan" }: { children: ReactNo
       ? "border-[#006DFF]/25"
       : "border-[#006DFF]/35 hover:border-[#00C8FF]/70 hover:shadow-[0_0_24px_-4px_rgba(0,229,255,0.35)]";
   return (
-    <div className={cn("rounded-lg border bg-gradient-to-br from-[#092033]/95 via-[#0A1726]/95 to-[#080A0F]/98 backdrop-blur-md transition-all duration-250 shadow-[0_8px_32px_-4px_rgba(0,0,0,0.6)]", g, className)}>
+    <div className={cn("rounded-lg border bg-gradient-to-br from-[#092033]/75 via-[#0A1726]/75 to-[#080A0F]/80 backdrop-blur-lg transition-all duration-250 shadow-[0_8px_32px_-4px_rgba(0,0,0,0.6)]", g, className)}>
       {children}
     </div>
   );

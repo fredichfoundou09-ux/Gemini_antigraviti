@@ -12,6 +12,7 @@ import { Btn, Field, Input, Card, SentinelLogo } from "@/lib/ui";
 import { checkPassword, passwordScore, getLockState, formatDuration } from "@/lib/auth";
 import { isSupabaseConfigured } from "@/lib/supabase/client";
 import { hasAnySuperadmin as sbHasAnySuperadmin } from "@/lib/supabase/auth";
+import { Sentinel3DBackground } from "@/components/Sentinel3DBackground";
 
 type Group = "admin" | "teacher" | "student" | "partner";
 
@@ -114,15 +115,15 @@ export function LoginPage() {
   const [showForgot, setShowForgot] = useState(false);
 
   return (
-    <div className="bg-circuit scanlines relative flex min-h-[calc(100vh-65px)] items-center justify-center p-4 sm:p-6 lg:p-10">
-      <div className="bg-grid-hex pointer-events-none absolute inset-0 opacity-40" />
+    <div className="relative min-h-[calc(100vh-88px)] overflow-hidden bg-black text-white flex items-center justify-center p-4 sm:p-6 lg:p-10">
+      <Sentinel3DBackground />
 
       {/* Conteneur Principal Split-Screen */}
-      <div className="relative z-10 w-full max-w-5xl overflow-hidden rounded-lg border border-[#00C8FF]/40 bg-[#0B111A]/95 shadow-[0_0_50px_rgba(0,109,255,0.3)] backdrop-blur-xl">
+      <div className="relative z-10 w-full max-w-5xl overflow-hidden rounded-lg border border-[#00C8FF]/40 bg-[#071322]/75 shadow-[0_0_50px_rgba(0,109,255,0.3)] backdrop-blur-xl">
         <div className="grid grid-cols-1 lg:grid-cols-12">
 
           {/* ================= PANNEAU GAUCHE : PRÉSENTATION OFFICIELLE ================= */}
-          <div className="relative flex flex-col justify-between border-b border-[#006DFF]/30 bg-gradient-to-br from-[#071A2B] via-[#092033] to-[#1a0815] p-6 sm:p-10 lg:col-span-6 lg:border-b-0 lg:border-r">
+          <div className="relative flex flex-col justify-between border-b border-[#006DFF]/30 bg-gradient-to-br from-[#071A2B]/75 via-[#092033]/70 to-[#1a0815]/75 p-6 sm:p-10 lg:col-span-6 lg:border-b-0 lg:border-r backdrop-blur-md">
             {/* Lueur d'ambiance */}
             <div className="pointer-events-none absolute -left-20 -top-20 h-64 w-64 rounded-full bg-[#00E5FF]/15 blur-3xl" />
             <div className="pointer-events-none absolute -bottom-20 -right-20 h-64 w-64 rounded-full bg-[#FF174F]/15 blur-3xl" />
@@ -172,7 +173,7 @@ export function LoginPage() {
           </div>
 
           {/* ================= PANNEAU DROIT : FORMULAIRE SÉCURISÉ ================= */}
-          <div className="flex flex-col justify-center p-6 sm:p-10 lg:col-span-6 bg-[#0B111A]">
+          <div className="flex flex-col justify-center p-6 sm:p-10 lg:col-span-6 bg-[#0B111A]/75 backdrop-blur-md">
             <div className="mb-6 flex flex-col items-center justify-center text-center">
               <SentinelLogo
                 variant="symbol"

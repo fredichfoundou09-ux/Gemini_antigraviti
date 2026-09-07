@@ -9,6 +9,7 @@ import { cn } from "@/utils/cn";
 import { moduleIcon, money, Btn, Field, Input, Card, SectionTitle, formationLabel } from "@/lib/ui";
 import { Formation } from "@/lib/types";
 import { supabase, isSupabaseConfigured } from "@/lib/supabase/client";
+import { Sentinel3DBackground } from "@/components/Sentinel3DBackground";
 
 export { LoginPage } from "./Login";
 
@@ -21,7 +22,9 @@ export function FormationsPage() {
   const isInfo = tab === "informatique";
 
   return (
-    <div className="mx-auto max-w-7xl px-4 py-14 sm:px-6">
+    <div className="relative min-h-[calc(100vh-88px)] overflow-hidden bg-black text-white">
+      <Sentinel3DBackground />
+      <div className="relative z-10 mx-auto max-w-7xl px-4 py-14 sm:px-6">
       <div className="mb-10 text-center">
         <SectionTitle color="cyan">Catalogue officiel</SectionTitle>
         <h1 className="font-display text-3xl font-black text-white sm:text-4xl">Nos formations & modules</h1>
@@ -51,7 +54,7 @@ export function FormationsPage() {
       <div className="grid gap-5 md:grid-cols-2 xl:grid-cols-3">
         {modules.map((m) => (
           <div key={m.id} className={cn(
-            "group rounded-lg border bg-[#0B111A]/95 p-6 transition-all hover:-translate-y-1",
+            "group rounded-lg border bg-[#071322]/70 backdrop-blur-md p-6 transition-all hover:-translate-y-1 shadow-[0_8px_32px_rgba(0,0,0,0.5)]",
             isInfo
               ? "border-[#FF174F]/30 hover:border-[#FF174F] hover:shadow-[0_0_30px_-5px_rgba(255,23,79,0.4)]"
               : "border-[#00C8FF]/30 hover:border-[#00C8FF] hover:shadow-[0_0_30px_-5px_rgba(0,229,255,0.4)]"
@@ -82,7 +85,7 @@ export function FormationsPage() {
         ))}
       </div>
 
-      <div className="mt-12 grid gap-4 rounded-lg border border-[#006DFF]/30 bg-[#0B111A]/90 p-6 sm:grid-cols-4">
+      <div className="mt-12 grid gap-4 rounded-lg border border-[#006DFF]/30 bg-[#071322]/70 backdrop-blur-md p-6 sm:grid-cols-4">
         {[
           { icon: <CalendarDays size={18} className="text-cyan-300" />, t: "Début", v: infos.debut },
           { icon: <Clock size={18} className="text-red-400" />, t: "Durée", v: infos.duree },
@@ -98,6 +101,7 @@ export function FormationsPage() {
           </div>
         ))}
       </div>
+    </div>
     </div>
   );
 }
@@ -116,17 +120,18 @@ export function TarifsPage() {
     ));
 
   return (
-    <div className="bg-circuit relative mx-auto max-w-7xl px-4 py-14 sm:px-6">
-      <div className="bg-grid-hex pointer-events-none absolute inset-0" />
-      <div className="relative">
-        <div className="mb-10 text-center">
-          <SectionTitle color="gold">Tarification transparente</SectionTitle>
-          <h1 className="font-display text-3xl font-black text-white sm:text-4xl">Frais de formation</h1>
-          <p className="mx-auto mt-3 max-w-xl text-slate-400">Des formules adaptées à votre projet. L'inscription est de {money(f.inscription)}.</p>
-        </div>
+    <div className="relative min-h-[calc(100vh-88px)] overflow-hidden bg-black text-white">
+      <Sentinel3DBackground />
+      <div className="relative z-10 mx-auto max-w-7xl px-4 py-14 sm:px-6">
+        <div className="relative">
+          <div className="mb-10 text-center">
+            <SectionTitle color="gold">Tarification transparente</SectionTitle>
+            <h1 className="font-display text-3xl font-black text-white sm:text-4xl">Frais de formation</h1>
+            <p className="mx-auto mt-3 max-w-xl text-slate-400">Des formules adaptées à votre projet. L'inscription est de {money(f.inscription)}.</p>
+          </div>
 
         <div className="grid gap-8 lg:grid-cols-2">
-          <Card className="overflow-hidden" glow="red">
+          <Card className="overflow-hidden bg-[#071322]/70 backdrop-blur-md" glow="red">
             <div className="border-b border-red-500/30 bg-gradient-to-r from-red-500/15 to-transparent px-6 py-4">
               <h3 className="font-display text-lg font-black text-red-400">GÉNIE INFORMATIQUE</h3>
             </div>
@@ -140,7 +145,7 @@ export function TarifsPage() {
             </table>
           </Card>
 
-          <Card className="overflow-hidden" glow="cyan">
+          <Card className="overflow-hidden bg-[#071322]/70 backdrop-blur-md" glow="cyan">
             <div className="border-b border-cyan-400/30 bg-gradient-to-r from-cyan-500/15 to-transparent px-6 py-4">
               <h3 className="font-display text-lg font-black text-cyan-300">GÉNIE INDUSTRIEL</h3>
             </div>
@@ -156,7 +161,7 @@ export function TarifsPage() {
         </div>
 
         {/* Modalités officielles de règlement en 3 tranches */}
-        <div className="mt-8 rounded-lg border border-[#00C8FF]/30 bg-[#0B111A]/95 p-6 shadow-[0_0_30px_rgba(0,109,255,0.25)]">
+        <div className="mt-8 rounded-lg border border-[#00C8FF]/30 bg-[#071322]/70 backdrop-blur-md p-6 shadow-[0_0_30px_rgba(0,109,255,0.25)]">
           <div className="flex flex-wrap items-center justify-between gap-3 border-b border-[#006DFF]/25 pb-4 mb-4">
             <div>
               <p className="text-xs font-mono font-bold uppercase tracking-wider text-[#00E5FF]">Modalités & Cycle de règlement officiel</p>
@@ -193,13 +198,14 @@ export function TarifsPage() {
             { icon: <Medal size={22} className="text-[#00E5FF]" />, t: db.settings.avantages[1], b: "border-[#00C8FF]/30" },
             { icon: <TrendingUp size={22} className="text-[#00FF88]" />, t: db.settings.avantages[2], b: "border-[#00FF88]/30" },
           ].map((a, i) => (
-            <div key={i} className={cn("flex items-start gap-3 rounded-lg border bg-[#0B111A]/90 p-5", a.b)}>
+            <div key={i} className={cn("flex items-start gap-3 rounded-lg border bg-[#071322]/70 backdrop-blur-md p-5", a.b)}>
               <div className="mt-0.5 shrink-0">{a.icon}</div>
               <p className="text-sm font-semibold text-[#B8F3FF]">{a.t}</p>
             </div>
           ))}
         </div>
       </div>
+    </div>
     </div>
   );
 }
@@ -276,14 +282,17 @@ export function PreInscriptionPage() {
 
   if (s.preInscription && s.preInscription.enabled === false) {
     return (
-      <div className="mx-auto max-w-xl px-4 py-20 text-center">
-        <div className="mx-auto mb-5 flex h-20 w-20 items-center justify-center rounded-full border border-amber-400/40 bg-amber-400/10">
-          <Clock size={36} className="text-amber-300" />
-        </div>
-        <h1 className="font-display text-2xl font-black text-white">{s.preInscription.title || "Inscriptions suspendues"}</h1>
-        <p className="mt-3 text-slate-300">{s.preInscription.description || "Les pré-inscriptions en ligne sont momentanément fermées. Veuillez contacter le centre pour plus d'informations."}</p>
-        <div className="mt-6">
-          <Link to="/"><Btn variant="outline">Retour à l'accueil</Btn></Link>
+      <div className="relative min-h-[calc(100vh-88px)] overflow-hidden bg-black text-white flex items-center justify-center">
+        <Sentinel3DBackground />
+        <div className="relative z-10 mx-auto max-w-xl px-4 py-20 text-center">
+          <div className="mx-auto mb-5 flex h-20 w-20 items-center justify-center rounded-full border border-amber-400/40 bg-amber-400/10">
+            <Clock size={36} className="text-amber-300" />
+          </div>
+          <h1 className="font-display text-2xl font-black text-white">{s.preInscription.title || "Inscriptions suspendues"}</h1>
+          <p className="mt-3 text-slate-300">{s.preInscription.description || "Les pré-inscriptions en ligne sont momentanément fermées. Veuillez contacter le centre pour plus d'informations."}</p>
+          <div className="mt-6">
+            <Link to="/"><Btn variant="outline">Retour à l'accueil</Btn></Link>
+          </div>
         </div>
       </div>
     );
@@ -291,27 +300,30 @@ export function PreInscriptionPage() {
 
   if (done) {
     return (
-      <div className="mx-auto max-w-xl px-4 py-20 text-center">
-        <div className="mx-auto mb-5 flex h-20 w-20 items-center justify-center rounded-full border border-emerald-400/40 bg-emerald-400/10 shadow-[0_0_40px_-8px_rgba(0,255,136,0.6)]">
-          <CheckCircle2 size={38} className="text-emerald-300" />
-        </div>
-        <h1 className="font-display text-2xl font-black text-white">Pré-inscription enregistrée !</h1>
-        <p className="mt-3 text-slate-300">Merci <span className="font-bold text-cyan-300">{done.nom}</span>, votre demande a bien été reçue.</p>
-        <p className="mt-2 font-mono text-sm text-slate-400">Référence : <span className="text-emerald-300">{done.id}</span></p>
-        <div className="mt-8 rounded-2xl border border-white/10 bg-white/[0.03] p-5 text-left">
-          <p className="mb-3 text-xs font-bold uppercase tracking-[0.2em] text-cyan-300">Prochaines étapes</p>
-          <ul className="space-y-2 text-sm text-slate-300">
-            <li>1. Présentez-vous au centre avec une pièce d'identité.</li>
-            <li>2. Réglez les frais d'inscription de {money(f.inscription)}.</li>
-            <li>3. Recevez votre carte d'apprenant avec QR Code.</li>
-          </ul>
-          <div className="mt-4 flex flex-wrap gap-2">
-            <Link to="/"><Btn variant="outline">Retour à l'accueil</Btn></Link>
-            {s.infos.whatsapp[0] && (
-              <a href={`https://wa.me/242${s.infos.whatsapp[0].replace(/\s/g, "")}`} target="_blank" rel="noreferrer">
-                <Btn variant="green"><MessageCircle size={16} /> Contact WhatsApp</Btn>
-              </a>
-            )}
+      <div className="relative min-h-[calc(100vh-88px)] overflow-hidden bg-black text-white flex items-center justify-center">
+        <Sentinel3DBackground />
+        <div className="relative z-10 mx-auto max-w-xl px-4 py-20 text-center">
+          <div className="mx-auto mb-5 flex h-20 w-20 items-center justify-center rounded-full border border-emerald-400/40 bg-emerald-400/10 shadow-[0_0_40px_-8px_rgba(0,255,136,0.6)]">
+            <CheckCircle2 size={38} className="text-emerald-300" />
+          </div>
+          <h1 className="font-display text-2xl font-black text-white">Pré-inscription enregistrée !</h1>
+          <p className="mt-3 text-slate-300">Merci <span className="font-bold text-cyan-300">{done.nom}</span>, votre demande a bien été reçue.</p>
+          <p className="mt-2 font-mono text-sm text-slate-400">Référence : <span className="text-emerald-300">{done.id}</span></p>
+          <div className="mt-8 rounded-2xl border border-white/10 bg-white/[0.03] p-5 text-left">
+            <p className="mb-3 text-xs font-bold uppercase tracking-[0.2em] text-cyan-300">Prochaines étapes</p>
+            <ul className="space-y-2 text-sm text-slate-300">
+              <li>1. Présentez-vous au centre avec une pièce d'identité.</li>
+              <li>2. Réglez les frais d'inscription de {money(f.inscription)}.</li>
+              <li>3. Recevez votre carte d'apprenant avec QR Code.</li>
+            </ul>
+            <div className="mt-4 flex flex-wrap gap-2">
+              <Link to="/"><Btn variant="outline">Retour à l'accueil</Btn></Link>
+              {s.infos.whatsapp[0] && (
+                <a href={`https://wa.me/242${s.infos.whatsapp[0].replace(/\s/g, "")}`} target="_blank" rel="noreferrer">
+                  <Btn variant="green"><MessageCircle size={16} /> Contact WhatsApp</Btn>
+                </a>
+              )}
+            </div>
           </div>
         </div>
       </div>
@@ -319,7 +331,9 @@ export function PreInscriptionPage() {
   }
 
   return (
-    <div className="mx-auto max-w-3xl px-4 py-14 sm:px-6">
+    <div className="relative min-h-[calc(100vh-88px)] overflow-hidden bg-black text-white">
+      <Sentinel3DBackground />
+      <div className="relative z-10 mx-auto max-w-3xl px-4 py-14 sm:px-6">
       <div className="mb-8 text-center">
         <SectionTitle color="green">Formulaire en ligne</SectionTitle>
         <h1 className="font-display text-3xl font-black text-white">{s.preInscription.title}</h1>
@@ -452,6 +466,7 @@ export function PreInscriptionPage() {
           </div>
         ))}
       </div>
+    </div>
     </div>
   );
 }

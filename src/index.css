@@ -1,11 +1,28 @@
 @import "tailwindcss";
 
+:root {
+  --background: #020508;
+  --sentinel-bg: #020508;
+  --sentinel-red: #FF1018;
+  --sentinel-red-dark: #B90000;
+  --sentinel-red-deep: #700000;
+  --sentinel-cyan: #00D9FF;
+  --sentinel-cyan-dark: #0088AA;
+  --sentinel-blue-deep: #003B55;
+  --sentinel-white: #F5F7FA;
+  --sentinel-white-pure: #FFFFFF;
+  --sentinel-gray: #B8BEC5;
+  --sentinel-gray-dark: #151C22;
+  --sentinel-orange: #FF9D00;
+  --sentinel-green: #00E676;
+}
+
 @theme {
   --font-display: "Oxanium", "Orbitron", "Rajdhani", sans-serif;
   --font-sans: "Rajdhani", "Inter", system-ui, sans-serif;
   --font-mono: "JetBrains Mono", "Fira Code", monospace;
   --font-sentinel: "Oxanium", "Orbitron", sans-serif;
-  --color-night: #080a0f;
+  --color-night: #020508;
   --color-night2: #0b111a;
   --color-night3: #071a2b;
   --color-panel: #092033;
@@ -15,15 +32,15 @@
   --color-electric2: #008cff;
   --color-cyber: #00c8ff;
   --color-neon: #00e5ff;
-  --color-magenta: #ff174f;
-  --color-magentadark: #8b0035;
-  --color-neonpink: #ff174f;
-  --color-neonred: #ff174f;
-  --color-reddark: #8b0035;
+  --color-magenta: #ff1018;
+  --color-magentadark: #700000;
+  --color-neonpink: #ff1018;
+  --color-neonred: #ff1018;
+  --color-reddark: #700000;
   --color-hudtext: #b8f3ff;
   --color-hudmuted: #4c91b5;
   --color-huddim: #27506b;
-  --color-neongreen: #00ff88;
+  --color-neongreen: #00e676;
 }
 
 html {
@@ -31,7 +48,7 @@ html {
 }
 
 body {
-  background: #080a0f;
+  background: #020508;
   color: #b8f3ff;
   font-family: var(--font-sans);
   -webkit-font-smoothing: antialiased;
@@ -248,16 +265,44 @@ body {
 }
 
 /* ========================================================
-   HARMONISATION CYBER HUD UNIVERSELLE :
-   Bords droits / biseautés techniques sur TOUT le logiciel
-   (remplace les angles ronds par des arêtes nettes HUD)
+   HARMONISATION CYBER HUD :
+   Bords techniques sur les modules de supervision
    ======================================================== */
-.rounded-3xl,
-.rounded-2xl {
+.dashboard-scope .rounded-3xl,
+.dashboard-scope .rounded-2xl {
   border-radius: 6px !important;
 }
 
-.rounded-xl {
+.dashboard-scope .rounded-xl {
   border-radius: 4px !important;
+}
+
+/* ========================================================
+   SENTINEL 3D TEXT & GLOW EFFECTS
+   ======================================================== */
+.sentinel-3d-red {
+  background: linear-gradient(180deg, #ff6b6b 0%, #ff1018 35%, #b90000 65%, #700000 85%, #3d0000 100%);
+  -webkit-background-clip: text;
+  -webkit-text-fill-color: transparent;
+  filter: drop-shadow(0 15px 25px rgba(0, 0, 0, 0.95)) drop-shadow(0 0 45px rgba(255, 16, 24, 0.35));
+}
+
+.sentinel-3d-chrome {
+  background: linear-gradient(180deg, #ffffff 0%, #e2e8f0 25%, #94a3b8 50%, #475569 75%, #1e293b 100%);
+  -webkit-background-clip: text;
+  -webkit-text-fill-color: transparent;
+  filter: drop-shadow(0 15px 25px rgba(0, 0, 0, 0.95));
+}
+
+.glow-cyan-sm {
+  box-shadow: 0 0 10px rgba(0, 217, 255, 0.25);
+}
+
+.glow-cyan-md {
+  box-shadow: 0 0 20px rgba(0, 217, 255, 0.15), inset 0 0 10px rgba(0, 217, 255, 0.05);
+}
+
+.glow-red-logo {
+  filter: drop-shadow(0 0 25px rgba(255, 16, 24, 0.45));
 }
 

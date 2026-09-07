@@ -23,11 +23,12 @@ export default function PublicLayout() {
       {/* HUD Scanline & Grid Effect */}
       <div className="fixed inset-0 pointer-events-none z-0 hud-grid-pattern opacity-40" />
 
-      {/* Nav Header */}
-      <header className="sticky top-0 z-40 border-b border-[#006DFF]/30 bg-[#0B111A]/95 shadow-[0_4px_20px_rgba(0,0,0,0.7)] backdrop-blur-md">
-        <div className="mx-auto flex max-w-7xl items-center justify-between gap-4 px-4 py-3 sm:px-6">
-          <Link to="/" className="flex items-center gap-3 group">
-            <div className="relative flex h-10 w-10 items-center justify-center rounded-xl border border-[#FF174F]/40 bg-[#071A2B] p-1 shadow-[0_0_15px_rgba(255,23,79,0.3)] transition group-hover:border-[#FF174F]">
+      {/* Nav Header — 88px, #02080E, fine cyan line */}
+      <header className="sticky top-0 z-50 h-[88px] border-b border-[#00D9FF] bg-[#02080E]/95 shadow-[0_1px_15px_rgba(0,217,255,0.35)] backdrop-blur-md">
+        <div className="mx-auto flex h-full max-w-[1648px] items-center justify-between gap-4 px-4 sm:px-8">
+          {/* Logo & Brand */}
+          <Link to="/" className="flex items-center gap-3.5 group">
+            <div className="relative flex h-[60px] w-[60px] items-center justify-center rounded-[8px] border border-[#FF1018] bg-[#071A2B] p-1.5 shadow-[0_0_14px_rgba(255,16,24,0.45)] transition group-hover:shadow-[0_0_20px_rgba(255,16,24,0.65)]">
               <SentinelLogo
                 variant="symbol"
                 alt="Symbole SENTINEL'S"
@@ -35,65 +36,126 @@ export default function PublicLayout() {
               />
             </div>
             <div>
-              <p className="font-display text-sm font-black tracking-wider text-white sm:text-base">
-                SENTINELLE <span className="text-[#FF174F] drop-shadow-[0_0_8px_#FF174F]">NUMÉRIQUE</span>
+              <p className="font-display text-[20px] sm:text-[22px] font-black tracking-wider text-[#FF1530] drop-shadow-[0_0_12px_rgba(255,21,48,0.55)] leading-tight">
+                SENTINELLE NUMÉRIQUE
               </p>
-              <p className="hidden text-[9px] uppercase tracking-[0.25em] text-[#00E5FF] sm:block font-mono font-bold">
-                ENIA 2.0 • CENTRE DE CYBERDÉFENSE & INGÉNIERIE
+              <p className="text-[10px] sm:text-[11px] uppercase tracking-[2px] text-[#00D9FF] font-mono font-bold mt-0.5">
+                ENIA 2.0 - CENTRE DE CYBERDÉFENSE & INGÉNIERIE
               </p>
             </div>
           </Link>
 
-          <nav className="hidden items-center gap-1 md:flex">
-            {LINKS.map((l) => (
-              <NavLink
-                key={l.to}
-                to={l.to}
-                className={({ isActive }) =>
-                  cn(
-                    "rounded border px-3.5 py-1.5 text-xs font-semibold uppercase tracking-wider transition-all",
-                    isActive
-                      ? "border-[#00C8FF] bg-[#071A2B] text-[#00E5FF] shadow-[0_0_12px_rgba(0,229,255,0.35)]"
-                      : "border-transparent text-[#4C91B5] hover:border-[#006DFF]/50 hover:bg-[#0B111A] hover:text-[#B8F3FF]"
-                  )
-                }
+          {/* Desktop Navigation */}
+          <nav className="hidden items-center gap-2 lg:flex">
+            <NavLink
+              to="/"
+              className={({ isActive }) =>
+                cn(
+                  "flex h-[38px] items-center rounded-md border px-4 sm:px-5 font-display text-xs font-bold tracking-wider uppercase transition-all",
+                  isActive
+                    ? "border-[#00D9FF] bg-[#00263A] text-[#00F0FF] shadow-[0_0_12px_rgba(0,217,255,0.35)]"
+                    : "border-white/15 bg-[#060D15]/80 text-[#F5F7FA] hover:border-[#00D9FF]/50 hover:text-[#00D9FF]"
+                )
+              }
+            >
+              ACCUEIL
+            </NavLink>
+            <NavLink
+              to="/formations"
+              className={({ isActive }) =>
+                cn(
+                  "flex h-[38px] items-center rounded-md border px-4 sm:px-5 font-display text-xs font-bold tracking-wider uppercase transition-all",
+                  isActive
+                    ? "border-[#00D9FF] bg-[#00263A] text-[#00F0FF] shadow-[0_0_12px_rgba(0,217,255,0.35)]"
+                    : "border-white/15 bg-[#060D15]/80 text-[#F5F7FA] hover:border-[#00D9FF]/50 hover:text-[#00D9FF]"
+                )
+              }
+            >
+              FORMATIONS
+            </NavLink>
+            <NavLink
+              to="/tarifs"
+              className={({ isActive }) =>
+                cn(
+                  "flex h-[38px] items-center rounded-md border px-4 sm:px-5 font-display text-xs font-bold tracking-wider uppercase transition-all",
+                  isActive
+                    ? "border-[#00D9FF] bg-[#00263A] text-[#00F0FF] shadow-[0_0_12px_rgba(0,217,255,0.35)]"
+                    : "border-white/15 bg-[#060D15]/80 text-[#F5F7FA] hover:border-[#00D9FF]/50 hover:text-[#00D9FF]"
+                )
+              }
+            >
+              FRAIS & TARIFS
+            </NavLink>
+            <NavLink
+              to="/pre-inscription"
+              className={({ isActive }) =>
+                cn(
+                  "flex h-[38px] items-center rounded-md border px-4 sm:px-5 font-display text-xs font-bold tracking-wider uppercase transition-all",
+                  isActive
+                    ? "border-[#00D9FF] bg-[#00263A] text-[#00F0FF] shadow-[0_0_12px_rgba(0,217,255,0.35)]"
+                    : "border-white/15 bg-[#060D15]/80 text-[#F5F7FA] hover:border-[#00D9FF]/50 hover:text-[#00D9FF]"
+                )
+              }
+            >
+              PRÉ-INSCRIPTION
+            </NavLink>
+            <Link to="/connexion">
+              <button
+                type="button"
+                className="flex h-[38px] items-center gap-2 rounded-md border border-[#00D9FF] bg-[#060D15]/80 px-4 sm:px-5 font-display text-xs font-bold tracking-wider uppercase text-[#00D9FF] shadow-[0_0_10px_rgba(0,217,255,0.25)] transition-all hover:bg-[#00D9FF]/15 hover:shadow-[0_0_16px_rgba(0,217,255,0.45)]"
               >
-                {l.label}
-              </NavLink>
-            ))}
-            <Link to="/connexion" className="ml-3">
-              <Btn variant={user ? "outline" : "primary"} className="px-4 py-1.5 text-xs font-bold tracking-wider uppercase">
-                <LogIn size={14} /> {user ? "Mon Espace" : "Connexion"}
-              </Btn>
+                <LogIn size={15} className="text-[#00D9FF]" />
+                <span>MON ESPACE</span>
+              </button>
             </Link>
           </nav>
 
+          {/* Mobile hamburger button */}
           <button
             onClick={() => setOpen(!open)}
-            className="rounded border border-[#006DFF]/40 bg-[#071A2B] p-2 text-[#00E5FF] md:hidden"
+            className="flex h-11 w-11 items-center justify-center rounded-lg border border-[#00D9FF]/40 bg-[#071A2B] p-2 text-[#00D9FF] lg:hidden"
           >
-            {open ? <X size={20} /> : <Menu size={20} />}
+            {open ? <X size={22} /> : <Menu size={22} />}
           </button>
         </div>
 
         {open && (
-          <nav className="border-t border-[#006DFF]/30 bg-[#0B111A] px-4 py-3 md:hidden space-y-1">
-            {LINKS.map((l) => (
-              <NavLink
-                key={l.to}
-                to={l.to}
-                onClick={() => setOpen(false)}
-                className="block rounded border border-transparent px-4 py-2 text-xs font-bold uppercase tracking-wider text-[#4C91B5] hover:border-[#00C8FF] hover:bg-[#071A2B] hover:text-[#00E5FF]"
-              >
-                {l.label}
-              </NavLink>
-            ))}
+          <nav className="border-t border-[#00D9FF]/30 bg-[#02080E]/95 px-5 py-4 lg:hidden space-y-2">
+            <NavLink
+              to="/"
+              onClick={() => setOpen(false)}
+              className="block rounded-lg border border-transparent px-4 py-2.5 text-xs font-bold uppercase tracking-wider text-[#F5F7FA] hover:border-[#00D9FF] hover:bg-[#071A2B] hover:text-[#00D9FF]"
+            >
+              ACCUEIL
+            </NavLink>
+            <NavLink
+              to="/formations"
+              onClick={() => setOpen(false)}
+              className="block rounded-lg border border-transparent px-4 py-2.5 text-xs font-bold uppercase tracking-wider text-[#F5F7FA] hover:border-[#00D9FF] hover:bg-[#071A2B] hover:text-[#00D9FF]"
+            >
+              FORMATIONS
+            </NavLink>
+            <NavLink
+              to="/tarifs"
+              onClick={() => setOpen(false)}
+              className="block rounded-lg border border-transparent px-4 py-2.5 text-xs font-bold uppercase tracking-wider text-[#F5F7FA] hover:border-[#00D9FF] hover:bg-[#071A2B] hover:text-[#00D9FF]"
+            >
+              FRAIS & TARIFS
+            </NavLink>
+            <NavLink
+              to="/pre-inscription"
+              onClick={() => setOpen(false)}
+              className="block rounded-lg border border-transparent px-4 py-2.5 text-xs font-bold uppercase tracking-wider text-[#F5F7FA] hover:border-[#00D9FF] hover:bg-[#071A2B] hover:text-[#00D9FF]"
+            >
+              PRÉ-INSCRIPTION
+            </NavLink>
             <Link
               to="/connexion"
               onClick={() => setOpen(false)}
-              className="mt-2 block rounded border border-[#00E5FF]/40 bg-gradient-to-r from-[#006DFF] to-[#00C8FF] px-4 py-2 text-center text-xs font-bold uppercase tracking-wider text-white shadow-[0_0_15px_rgba(0,229,255,0.4)]"
+              className="mt-3 flex items-center justify-center gap-2 rounded-lg border border-[#00D9FF] bg-[#00D9FF]/15 px-4 py-2.5 text-center text-xs font-bold uppercase tracking-wider text-[#00D9FF] shadow-[0_0_15px_rgba(0,217,255,0.3)]"
             >
-              {user ? "Mon Espace" : "Connexion"}
+              <LogIn size={15} />
+              <span>MON ESPACE</span>
             </Link>
           </nav>
         )}

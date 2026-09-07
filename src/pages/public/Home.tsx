@@ -1,21 +1,17 @@
 import { Link } from "react-router-dom";
 import {
-  ShieldCheck, CalendarDays, MapPin, Clock, MessageCircle, FileText, Lock, Cloud, Network,
-  Cpu, Code2, Medal, Award, GraduationCap, TrendingUp, ChevronRight, UserCircle2, ArrowRight,
-  BookOpen, Terminal,
+  ShieldCheck, CalendarDays, MapPin, Clock, MessageCircle, FileText,
+  Code2, Medal, Award, GraduationCap, TrendingUp, ChevronRight, ChevronDown, UserCircle2, ArrowRight,
+  BookOpen, Settings,
 } from "lucide-react";
 import { useStore } from "@/lib/store";
-import { moduleIcon, money, Btn, SectionTitle, formationLabel } from "@/lib/ui";
+import { moduleIcon, money, Btn, SectionTitle, formationLabel, SentinelLogo } from "@/lib/ui";
 import avantageImg from "@/assets/avantage-etudiants.jpg";
+import responsableImg from "@/assets/responsable.jpg";
+import sentinelSymbolImg from "@/assets/branding/sentinel-symbol.png";
+import heroSentinels3dImg from "@/assets/branding/hero-sentinels-3d-bg.jpg";
+import { Sentinel3DBackground } from "@/components/Sentinel3DBackground";
 
-const codeLines = [
-  { t: "const sentinel = new Academy();", c: "text-emerald-300" },
-  { t: "sentinel.train('hackers_ethiques');", c: "text-cyan-300" },
-  { t: "while (learning) { code(); }", c: "text-red-400" },
-  { t: "if (success) bourse('3 ANS');", c: "text-amber-300" },
-  { t: "// Génie Informatique + Industriel", c: "text-slate-500" },
-  { t: "return 'AVENIR NUMÉRIQUE';", c: "text-emerald-300" },
-];
 
 export default function Home() {
   const { db } = useStore();
@@ -38,172 +34,237 @@ export default function Home() {
       })
     : [...db.advantages].sort((a, b) => a.ordre - b.ordre);
 
-  const displayPartners = (s.partenaires && s.partenaires.length > 0)
-    ? s.partenaires.filter(Boolean).map((nom, idx) => {
-        const found = db.partners?.find((p) => p.nom.toLowerCase() === nom.toLowerCase());
-        return {
-          id: found?.id || `sp-${idx}`,
-          nom,
-          logo: found?.logo || "",
-        };
-      })
-    : db.partners.filter((p) => p.actif);
-
   const activeAnnouncements = db.announcements.filter((a) => a.actif);
 
   return (
     <div>
-      {/* ============ HERO ============ */}
-      <section className="bg-circuit scanlines relative overflow-hidden">
-        <div className="bg-grid-hex pointer-events-none absolute inset-0 opacity-60" />
-        <div className="bg-code pointer-events-none absolute inset-0 opacity-40" />
+      {/* ============ HERO — 1648 × 940 PX CANONICAL FIDELITY REPRODUCTION ============ */}
+      <section className="relative w-full overflow-hidden bg-black text-white pt-2 sm:pt-3 pb-3 sm:pb-4 min-h-[760px] xl:h-[calc(100vh-88px)] xl:min-h-[780px] xl:max-h-[880px] flex flex-col justify-between select-none">
+        <Sentinel3DBackground />
 
-        {/* particles */}
-        {[
-          "left-[8%] top-[22%] h-1.5 w-1.5 bg-cyan-300", "left-[18%] top-[70%] h-1 w-1 bg-emerald-300",
-          "left-[45%] top-[12%] h-1 w-1 bg-red-400", "right-[12%] top-[55%] h-1.5 w-1.5 bg-cyan-300",
-          "right-[22%] top-[18%] h-1 w-1 bg-emerald-300", "left-[60%] top-[80%] h-1 w-1 bg-blue-400",
-        ].map((c, i) => (
-          <span key={i} className={`animate-pulse-glow pointer-events-none absolute rounded-full blur-[1px] ${c}`} />
-        ))}
-
-        <div className="relative mx-auto max-w-7xl px-4 pt-8 sm:px-6">
-          {/* annonces */}
+        <div className="relative z-20 mx-auto w-full max-w-[1648px] px-4 sm:px-8 flex flex-col justify-between flex-1">
+          {/* Active announcements if any */}
           {activeAnnouncements.length > 0 && (
-            <div className="mb-6 space-y-2">
-              {activeAnnouncements.slice(0, 2).map((a) => {
+            <div className="mb-3 space-y-2 z-30">
+              {activeAnnouncements.slice(0, 1).map((a) => {
                 const c = a.couleur === "red" ? "border-red-500/40 bg-red-500/5" : a.couleur === "green" ? "border-emerald-400/40 bg-emerald-400/5" : a.couleur === "gold" ? "border-amber-400/40 bg-amber-400/5" : "border-cyan-400/40 bg-cyan-400/5";
                 return (
-                  <div key={a.id} className={`flex items-start gap-2.5 rounded-xl border ${c} px-4 py-2.5 backdrop-blur`}>
+                  <div key={a.id} className={`flex items-start gap-2.5 rounded-xl border ${c} px-4 py-2 backdrop-blur`}>
                     <span className="text-base">📢</span>
-                    <div><p className="text-sm font-bold text-white">{a.titre}</p><p className="text-xs text-slate-300">{a.contenu}</p></div>
+                    <div><p className="text-xs font-bold text-white">{a.titre}</p><p className="text-[11px] text-slate-300">{a.contenu}</p></div>
                   </div>
                 );
               })}
             </div>
           )}
 
-          {/* partner strip */}
-          <div className="mb-10 flex flex-wrap items-center justify-center gap-3 sm:gap-5">
-            {displayPartners.length === 0 ? (
-              <span className="text-xs text-slate-600">Partenaires institutionnels</span>
-            ) : displayPartners.map((p) => (
-              <div key={p.id} className="flex items-center gap-2.5 rounded-xl border border-white/10 bg-white/[0.04] px-4 py-2.5 text-sm font-bold text-slate-200 backdrop-blur">
-                {p.logo ? <img src={p.logo} alt="" className="h-5 w-5 rounded object-cover" /> : <GraduationCap size={18} />}
-                {p.nom}
-              </div>
-            ))}
+          {/* ZONE: 3 INSTITUTIONAL BADGES (Centered horizontally, rounded-lg, glassmorphism) */}
+          <div className="flex flex-wrap items-center justify-center gap-3 sm:gap-3.5 mb-4 sm:mb-5 z-30 relative">
+            {/* Badge 1: ENIA 2.0 */}
+            <div className="flex h-[42px] sm:h-[44px] items-center gap-2.5 rounded-lg border border-white/20 bg-[#060D17]/85 px-5 sm:px-6 backdrop-blur-md shadow-[0_0_15px_rgba(0,0,0,0.8)] transition hover:border-[#00D9FF]/40">
+              <span className="flex h-4 w-4 items-center justify-center text-[#00D9FF]">
+                <svg className="h-4 w-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                  <circle cx="12" cy="12" r="3" />
+                  <path d="M2 12s3.5-7 10-7 10 7 10 7-3.5 7-10 7-10-7-10-7z" />
+                </svg>
+              </span>
+              <span className="text-xs sm:text-[13px] font-bold text-white tracking-wide">
+                ENIA 2.0 – École du Numérique et de l’Intelligence Artificielle
+              </span>
+            </div>
+
+            {/* Badge 2: OG ESNID-Company */}
+            <div className="flex h-[42px] sm:h-[44px] items-center gap-2 rounded-lg border border-white/20 bg-[#060D17]/85 px-5 backdrop-blur-md shadow-[0_0_15px_rgba(0,0,0,0.8)] transition hover:border-[#00D9FF]/40">
+              <span className="text-[10px] font-mono font-bold text-slate-400 bg-white/10 px-1.5 py-0.5 rounded">OG</span>
+              <span className="text-xs sm:text-[13px] font-bold text-white tracking-wide">
+                ESNID-Company
+              </span>
+            </div>
+
+            {/* Badge 3: SENTINEL'S */}
+            <div className="flex h-[42px] sm:h-[44px] items-center gap-2 rounded-lg border border-white/20 bg-[#060D17]/85 px-5 backdrop-blur-md shadow-[0_0_15px_rgba(0,0,0,0.8)] transition hover:border-[#FF1018]/40">
+              <img src={sentinelSymbolImg} alt="" className="h-3.5 w-3.5 object-contain filter drop-shadow-[0_0_6px_rgba(255,16,24,0.8)]" />
+              <span className="text-xs sm:text-[13px] font-bold text-white tracking-wide">
+                SENTINEL'S
+              </span>
+            </div>
           </div>
 
-          <div className="grid items-center gap-12 pb-16 lg:grid-cols-[1.15fr_1fr] lg:pb-24">
-            {/* left */}
-            <div>
-              <div className="mb-5 inline-flex items-center gap-2 rounded-full border border-cyan-400/30 bg-cyan-400/5 px-4 py-1.5 text-[11px] font-bold uppercase tracking-[0.3em] text-cyan-300">
-                <ShieldCheck size={13} className="animate-pulse-glow" /> {s.branding.badge}
+          {/* MAIN HERO CENTER AREA (Titles on left, Coach card on right, aligned on the exact same top horizontal line) */}
+          <div className="relative w-full flex items-start justify-between mt-1 sm:mt-2 mb-auto">
+            {/* HERO TITLES (Left Side - elevated and flush with right coach card) */}
+            <div className="relative z-[30] max-w-[560px] flex flex-col items-start self-start pt-0">
+              {/* Badge: • SENTINELLES - ACADEMY */}
+              <div className="inline-flex h-[34px] items-center gap-2 rounded-lg border border-[#00D9FF] bg-[#00D9FF]/10 px-4 text-xs font-bold uppercase tracking-[2px] text-[#00D9FF] shadow-[0_0_14px_rgba(0,217,255,0.3)] mb-3 backdrop-blur-sm">
+                <span className="h-1.5 w-1.5 rounded-full bg-[#00D9FF] animate-pulse" />
+                <span>SENTINELLES - ACADEMY</span>
               </div>
-              <h1 className="font-display text-3xl font-black leading-tight text-white sm:text-4xl xl:text-5xl">
-                {s.branding.name}
+
+              {/* Title: SENTINELLES NUMÉRIQUES */}
+              <h1 className="font-display text-[42px] sm:text-[54px] lg:text-[62px] font-black text-white leading-[0.92] tracking-tight uppercase drop-shadow-[0_4px_16px_rgba(0,0,0,0.95)]">
+                SENTINELLES<br />
+                NUMÉRIQUES
               </h1>
-              <p className="mt-2 text-sm font-semibold uppercase tracking-[0.2em] text-slate-400">{s.branding.subtitle}</p>
 
-              <div className="mt-7 space-y-1">
-                <p className="font-display text-lg font-bold text-slate-100 sm:text-xl">CENTRE DE FORMATION EN</p>
-                <p className="font-display text-3xl font-black leading-tight sm:text-4xl xl:text-5xl">
-                  <span className="bg-gradient-to-r from-sky-400 to-blue-500 bg-clip-text text-transparent drop-shadow-[0_0_18px_rgba(0,140,255,0.5)]">GÉNIE INFORMATIQUE</span>
+              {/* Fine separator line + Subtitle */}
+              <div className="mt-3.5 w-full">
+                <div className="flex items-center gap-2 mb-1.5">
+                  <div className="h-[1px] w-8 sm:w-12 bg-[#00D9FF]" />
+                  <div className="h-[1px] flex-1 bg-white/20" />
+                </div>
+                <p className="text-[10px] sm:text-[11px] font-mono font-bold tracking-[1.6px] sm:tracking-[2px] text-[#00D9FF] uppercase leading-snug drop-shadow-[0_2px_4px_rgba(0,0,0,0.8)]">
+                  CENTRE DE FORMATION EN GÉNIE INFORMATIQUE ET GÉNIE INDUSTRIEL
                 </p>
-                <p className="font-display text-2xl font-black leading-tight sm:text-3xl xl:text-4xl">
-                  <span className="bg-gradient-to-r from-red-500 to-rose-400 bg-clip-text text-transparent drop-shadow-[0_0_18px_rgba(255,23,68,0.5)]">ET GÉNIE INDUSTRIEL</span>
-                </p>
-              </div>
-
-              <p className="mt-6 max-w-xl text-base text-slate-300 sm:text-lg">{s.branding.tagline}</p>
-
-              <div className="mt-8 flex flex-wrap gap-3">
-                <Link to="/pre-inscription">
-                  <Btn variant="primary" className="px-7 py-3 text-base"><FileText size={18} /> S'inscrire</Btn>
-                </Link>
-                <Link to="/formations">
-                  <Btn variant="outline" className="px-7 py-3 text-base">Découvrir les formations <ChevronRight size={18} /></Btn>
-                </Link>
-              </div>
-
-              {/* info chips */}
-              <div className="mt-8 grid max-w-xl grid-cols-1 gap-3 sm:grid-cols-3">
-                {[
-                  { icon: <CalendarDays size={16} className="text-cyan-300" />, k: "Début", v: infos.debut },
-                  { icon: <Clock size={16} className="text-blue-400" />, k: "Durée", v: infos.duree },
-                  { icon: <MessageCircle size={16} className="text-emerald-300" />, k: "WhatsApp", v: infos.whatsapp[0] ?? "—" },
-                ].map((c, i) => (
-                  <div key={i} className="rounded-xl border border-white/10 bg-white/[0.03] p-3 backdrop-blur">
-                    <div className="flex items-center gap-2 text-xs text-slate-400">{c.icon}{c.k}</div>
-                    <p className="mt-1 text-sm font-bold text-slate-100">{c.v}</p>
-                  </div>
-                ))}
               </div>
             </div>
 
-            {/* right — responsable + laptop */}
-            <div className="relative">
-              {/* glow */}
-              <div className="absolute -inset-6 rounded-lg bg-gradient-to-tr from-[#00E5FF]/15 via-transparent to-[#FF174F]/15 blur-2xl" />
+            {/* CARTE RESPONSABLE (Right Side - aligned on same top line) */}
+            <div className="relative z-[30] shrink-0 self-start hidden md:block pt-0">
+              <div className="relative w-[400px] lg:w-[435px] rounded-lg border border-[#00D9FF] bg-[#020812]/92 p-4 shadow-[0_0_22px_rgba(0,217,255,0.25)] backdrop-blur-md">
+                {/* HUD Corner Angle Brackets */}
+                <span className="absolute -top-1.5 -left-1.5 h-3.5 w-3.5 border-t-2 border-l-2 border-[#00D9FF]" />
+                <span className="absolute -top-1.5 -right-1.5 h-3.5 w-3.5 border-t-2 border-r-2 border-[#00D9FF]" />
+                <span className="absolute -bottom-1.5 -left-1.5 h-3.5 w-3.5 border-b-2 border-l-2 border-[#00D9FF]" />
+                <span className="absolute -bottom-1.5 -right-1.5 h-3.5 w-3.5 border-b-2 border-r-2 border-[#00D9FF]" />
 
-              <div className="relative mx-auto max-w-md">
-                {/* responsable card */}
-                <div className="relative z-10 rounded-lg border border-[#00C8FF]/40 bg-[#0B111A]/95 p-4 shadow-[0_0_40px_-10px_rgba(0,229,255,0.4)] backdrop-blur">
-                  <div className="flex items-center gap-4">
-                    <div className="relative">
-                      <div className="flex h-24 w-24 items-center justify-center overflow-hidden rounded border-2 border-[#00C8FF]/50 bg-[#071A2B]">
-                        {respImg ? (
-                          <img src={respImg} alt="Responsable du centre" className="h-full w-full object-cover" />
-                        ) : (
-                          <UserCircle2 size={54} className="text-[#00E5FF]/80" />
-                        )}
-                      </div>
-                      <span className="absolute -bottom-1.5 -right-1.5 flex h-7 w-7 items-center justify-center rounded border border-[#00FF88]/50 bg-[#071A2B]">
-                        <ShieldCheck size={14} className="text-[#00FF88]" />
-                      </span>
+                {/* Top-Right Gear Icon */}
+                <div className="absolute top-3 right-3 text-[#00D9FF]">
+                  <Settings size={17} className="animate-spin-slow opacity-90" />
+                </div>
+
+                <div className="flex items-center gap-3.5">
+                  {/* Photo Container */}
+                  <div className="relative shrink-0">
+                    <div className="h-[102px] w-[94px] sm:w-[100px] overflow-hidden rounded-lg border border-[#00D9FF] bg-[#071A2B] shadow-[0_0_15px_rgba(0,217,255,0.3)]">
+                      <img
+                        src={respImg || responsableImg}
+                        alt="Coach Fredich FOUNDOU"
+                        className="h-full w-full object-cover"
+                      />
                     </div>
-                    <div className="min-w-0">
-                      <p className="text-[10px] font-bold uppercase tracking-[0.25em] text-[#00E5FF] font-mono">{s.hero.highlight || "DIRECTION"}</p>
-                      <p className="font-display mt-1 text-lg font-extrabold leading-tight text-amber-300 drop-shadow-[0_0_12px_rgba(255,179,0,0.45)]">{s.hero.responsibleName || "Direction du Centre"}</p>
-                      <p className="mt-1 text-xs text-[#4C91B5]">{s.hero.responsibleTitle || "Sentinelles Numériques"}</p>
+                    {/* Security Badge Under/At corner of Photo */}
+                    <div className="absolute -bottom-1.5 -right-1.5 flex h-5 w-5 items-center justify-center rounded-[4px] border border-[#00D9FF] bg-[#020B15] shadow-[0_0_8px_rgba(0,230,118,0.6)]">
+                      <ShieldCheck size={13} className="text-[#00E676]" />
                     </div>
+                  </div>
+
+                  {/* Responsible Info */}
+                  <div className="min-w-0 flex-1 pr-3">
+                    <p className="font-mono text-[10.5px] font-bold uppercase tracking-[1.5px] text-[#00D9FF]">
+                      RESPONSABLE DU CENTRE
+                    </p>
+                    <p className="font-display text-[18px] sm:text-[20px] font-black leading-tight text-[#FF9D00] mt-0.5 whitespace-nowrap drop-shadow-[0_0_10px_rgba(255,157,0,0.4)]">
+                      Coach Fredich FOUNDOU
+                    </p>
+                    <p className="text-[11.5px] sm:text-[12px] text-[#A6E9FF] font-medium leading-snug mt-1">
+                      Étudiant-chercheur en Génie Informatique
+                    </p>
+                    <p className="text-[10px] text-[#00D9FF] font-mono font-bold mt-0.5">
+                      © ENIA 2.0
+                    </p>
+                  </div>
+                </div>
+              </div>
+            </div>
+          </div>
+
+          {/* ZONE: BOTTOM PARALLEL CARDS & CENTERED TRIGGER BUTTON (Aligned on the exact same bottom baseline) */}
+          <div className="relative z-[30] mt-auto flex flex-col lg:flex-row items-center lg:items-end justify-between gap-4 lg:gap-6 xl:gap-8 w-full pb-2">
+            {/* LEFT CARD: TRAINING TITLE & QUOTE (Touching left extremity) */}
+            <div className="w-full lg:w-[480px] xl:w-[540px] 2xl:w-[580px] shrink-0 min-h-[180px] rounded-[16px] border border-[#00D9FF] bg-[#020812]/90 p-5 sm:p-6 shadow-[0_0_22px_rgba(0,217,255,0.2)] backdrop-blur-md flex flex-col justify-between">
+              <div>
+                <p className="font-mono text-[11px] sm:text-xs font-bold uppercase tracking-[1.5px] text-white/90">
+                  CENTRE DE FORMATION EN
+                </p>
+                <h3 className="font-display text-[24px] sm:text-[28px] xl:text-[30px] font-black text-[#00D9FF] leading-tight tracking-wide drop-shadow-[0_0_14px_rgba(0,217,255,0.45)] mt-0.5">
+                  GÉNIE INFORMATIQUE
+                </h3>
+                <h3 className="font-display text-[24px] sm:text-[28px] xl:text-[30px] font-black text-[#FF1018] leading-tight tracking-wide drop-shadow-[0_0_14px_rgba(255,16,24,0.45)]">
+                  ET GÉNIE INDUSTRIEL
+                </h3>
+              </div>
+              <p className="text-[12.5px] sm:text-[13.5px] text-[#E0EBF5] leading-relaxed italic mt-2">
+                « Formons aujourd'hui les talents numériques et industriels qui construisent l'avenir. »
+              </p>
+            </div>
+
+            {/* CENTER TRIGGER BUTTON: • INFORMATIONS PRATIQUES ∨ (Centered horizontally, rectangular with rounded corners) */}
+            <div className="shrink-0 flex items-center justify-center my-3 lg:my-0 lg:pb-0">
+              <a
+                href="#infos-pratiques"
+                className="inline-flex h-[42px] items-center gap-2 rounded-lg border border-[#00D9FF] bg-[#02080E]/90 px-5 text-xs font-bold uppercase tracking-[2px] text-[#00D9FF] shadow-[0_0_15px_rgba(0,217,255,0.25)] transition hover:bg-[#00D9FF]/15 hover:shadow-[0_0_22px_rgba(0,217,255,0.45)] whitespace-nowrap"
+              >
+                <span className="h-1.5 w-1.5 rounded-full bg-[#00D9FF] animate-pulse" />
+                <span>INFORMATIONS PRATIQUES</span>
+                <ChevronDown size={16} className="text-[#00D9FF]" />
+              </a>
+            </div>
+
+            {/* RIGHT CARD: REGISTRATION & MINI-INFO BLOCKS (Touching right extremity) */}
+            <div className="w-full lg:w-[480px] xl:w-[540px] 2xl:w-[580px] shrink-0 min-h-[180px] rounded-[16px] border border-[#00D9FF] bg-[#020812]/90 p-5 sm:p-6 shadow-[0_0_22px_rgba(0,217,255,0.2)] backdrop-blur-md flex flex-col justify-between gap-3">
+              {/* Top Buttons: S'INSCRIRE & DÉCOUVRIR LES FORMATIONS */}
+              <div className="flex flex-col sm:flex-row items-stretch sm:items-center gap-2.5">
+                <Link
+                  to="/pre-inscription"
+                  className="flex h-[34px] sm:w-[150px] items-center justify-center gap-1.5 rounded-[6px] bg-[#00B4D8] hover:bg-[#00C8FF] px-3.5 text-xs font-display font-black uppercase tracking-wider text-white shadow-[0_0_15px_rgba(0,180,216,0.55)] transition-all hover:scale-[1.02] active:scale-[0.98]"
+                >
+                  <FileText size={15} className="text-white" />
+                  <span>S'INSCRIRE</span>
+                </Link>
+
+                <Link
+                  to="/formations"
+                  className="flex h-[34px] flex-1 items-center justify-between rounded-[6px] border border-[#00D9FF] bg-transparent hover:bg-[#00D9FF]/10 px-3.5 text-xs font-display font-bold uppercase tracking-wider text-[#00D9FF] shadow-[0_0_12px_rgba(0,217,255,0.2)] transition-all"
+                >
+                  <span>DÉCOUVRIR LES FORMATIONS</span>
+                  <ChevronRight size={15} className="text-[#00D9FF]" />
+                </Link>
+              </div>
+
+              {/* Separator */}
+              <div className="w-full h-[1px] bg-white/[0.12]" />
+
+              {/* Mini-Cards: DÉBUT, DURÉE, WHATSAPP */}
+              <div className="grid grid-cols-3 gap-2 sm:gap-2.5 text-left">
+                {/* DÉBUT */}
+                <div className="flex items-center gap-1.5 sm:gap-2 rounded-lg bg-white/[0.02] p-1.5 sm:p-2 border border-white/5">
+                  <CalendarDays size={17} className="text-[#00D9FF] shrink-0" />
+                  <div className="min-w-0">
+                    <p className="text-[9px] uppercase font-mono font-bold tracking-wider text-slate-400 leading-none">
+                      DÉBUT
+                    </p>
+                    <p className="text-xs sm:text-[13px] font-bold text-white mt-1 truncate">
+                      {infos.debut || "10 août"}
+                    </p>
                   </div>
                 </div>
 
-                {/* laptop with code */}
-                <div className="relative z-10 -mt-2 ml-auto w-[88%]">
-                  <div className="rounded-t-lg border border-b-0 border-[#006DFF]/30 bg-[#071A2B] p-3 shadow-[0_20px_40px_-16px_rgba(0,0,0,0.8)]">
-                    <div className="mb-2 flex items-center gap-1.5">
-                      <span className="h-2.5 w-2.5 rounded-full bg-[#FF174F]" />
-                      <span className="h-2.5 w-2.5 rounded-full bg-amber-400" />
-                      <span className="h-2.5 w-2.5 rounded-full bg-[#00FF88]" />
-                      <span className="ml-2 flex items-center gap-1 rounded bg-[#0B111A] px-2 py-0.5 text-[9px] font-bold text-[#4C91B5]"><Terminal size={9} /> sentinelles@academy:~</span>
-                    </div>
-                    <div className="space-y-1 font-mono text-[10px] leading-relaxed sm:text-[11px]">
-                      {codeLines.map((l, i) => (
-                        <p key={i} className={l.c}>
-                          <span className="text-slate-600">{String(i + 1).padStart(2, "0")}.</span> {l.t}
-                        </p>
-                      ))}
-                      <p className="animate-caret inline-block h-3 w-2 bg-[#00E5FF] align-middle" />
-                    </div>
+                {/* DURÉE */}
+                <div className="flex items-center gap-1.5 sm:gap-2 rounded-lg bg-white/[0.02] p-1.5 sm:p-2 border border-white/5">
+                  <Clock size={17} className="text-[#00D9FF] shrink-0" />
+                  <div className="min-w-0">
+                    <p className="text-[9px] uppercase font-mono font-bold tracking-wider text-slate-400 leading-none">
+                      DURÉE
+                    </p>
+                    <p className="text-xs sm:text-[13px] font-bold text-white mt-1 truncate">
+                      {infos.duree || "3 mois"}
+                    </p>
                   </div>
-                  <div className="h-3 rounded-b-lg border border-[#006DFF]/30 bg-gradient-to-b from-[#071A2B] to-[#080A0F]" />
                 </div>
 
-                {/* floating icons */}
-                <div className="animate-floaty absolute -left-3 top-16 z-20 rounded border border-[#00FF88]/40 bg-[#071A2B]/90 p-2.5 shadow-[0_0_20px_-6px_rgba(0,255,136,0.7)]">
-                  <Lock size={18} className="text-[#00FF88]" />
-                </div>
-                <div className="animate-floaty-slow absolute -right-2 top-6 z-20 rounded border border-[#00E5FF]/40 bg-[#071A2B]/90 p-2.5 shadow-[0_0_20px_-6px_rgba(0,229,255,0.7)]">
-                  <Cloud size={18} className="text-[#00E5FF]" />
-                </div>
-                <div className="animate-floaty absolute -right-1 bottom-24 z-20 rounded border border-[#FF174F]/50 bg-[#2A0815]/90 p-2.5 shadow-[0_0_20px_-6px_rgba(255,23,79,0.7)]">
-                  <Network size={18} className="text-[#FF174F]" />
-                </div>
-                <div className="animate-floaty-slow absolute -left-1 bottom-8 z-20 rounded border border-[#006DFF]/40 bg-[#071A2B]/90 p-2.5 shadow-[0_0_20px_-6px_rgba(0,109,255,0.7)]">
-                  <Cpu size={18} className="text-[#008CFF]" />
+                {/* WHATSAPP */}
+                <div className="flex items-center gap-1.5 sm:gap-2 rounded-lg bg-white/[0.02] p-1.5 sm:p-2 border border-white/5">
+                  <div className="h-5 w-5 rounded-full bg-[#00E676]/15 flex items-center justify-center shrink-0">
+                    <MessageCircle size={14} className="text-[#00E676]" />
+                  </div>
+                  <div className="min-w-0">
+                    <p className="text-[9px] uppercase font-mono font-bold tracking-wider text-[#00E676] leading-none">
+                      WHATSAPP
+                    </p>
+                    <p className="text-xs sm:text-[13px] font-bold text-white mt-1 truncate">
+                      {infos.whatsapp[0] || "06 63 28 87 4"}
+                    </p>
+                  </div>
                 </div>
               </div>
             </div>
@@ -212,7 +273,7 @@ export default function Home() {
       </section>
 
       {/* ============ INFORMATIONS PRATIQUES ============ */}
-      <section className="relative mx-auto max-w-7xl px-4 py-14 sm:px-6">
+      <section id="infos-pratiques" className="relative mx-auto max-w-7xl px-4 py-14 sm:px-6">
         <SectionTitle color="cyan">Informations pratiques</SectionTitle>
         <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-5">
           {[
@@ -240,14 +301,14 @@ export default function Home() {
             <p className="mx-auto mt-3 max-w-2xl text-[#4C91B5]">{s.branding.subtitle}</p>
           </div>
 
-          <div className="grid gap-10 lg:grid-cols-2">
+          <div className="grid gap-10 lg:grid-cols-2 items-start">
             {/* Informatique */}
             <div>
-              <div className="mb-6 flex items-center gap-3 rounded-lg border-2 border-[#FF174F]/50 bg-gradient-to-r from-[#FF174F]/15 to-transparent p-4 shadow-[0_0_20px_rgba(255,23,79,0.25)]">
-                <Code2 size={28} className="text-[#FF174F]" />
-                <div>
+              <div className="mb-6 flex items-center gap-3.5 rounded-lg border-2 border-[#FF174F]/50 bg-gradient-to-r from-[#FF174F]/15 to-transparent p-4 min-h-[90px] shadow-[0_0_20px_rgba(255,23,79,0.25)]">
+                <Code2 size={28} className="text-[#FF174F] shrink-0" />
+                <div className="min-w-0">
                   <h3 className="font-display text-xl font-black text-[#FF174F]">{s.formations.informatique.titre}</h3>
-                  <p className="text-xs text-[#4C91B5]">{s.formations.informatique.description}</p>
+                  <p className="text-xs text-[#4C91B5] mt-0.5">{s.formations.informatique.description}</p>
                 </div>
               </div>
               <div className="space-y-4">
@@ -274,11 +335,11 @@ export default function Home() {
 
             {/* Industriel */}
             <div>
-              <div className="mb-6 flex items-center gap-3 rounded-lg border border-[#00C8FF]/40 bg-gradient-to-r from-[#00C8FF]/15 to-transparent p-4 shadow-[0_0_20px_rgba(0,200,255,0.25)]">
-                <BookOpen size={28} className="text-[#00E5FF]" />
-                <div>
+              <div className="mb-6 flex items-center gap-3.5 rounded-lg border-2 border-[#00C8FF]/50 bg-gradient-to-r from-[#00C8FF]/15 to-transparent p-4 min-h-[90px] shadow-[0_0_20px_rgba(0,200,255,0.25)]">
+                <BookOpen size={28} className="text-[#00E5FF] shrink-0" />
+                <div className="min-w-0">
                   <h3 className="font-display text-xl font-black text-[#00E5FF]">{s.formations.industriel.titre}</h3>
-                  <p className="text-xs text-[#4C91B5]">{s.formations.industriel.description}</p>
+                  <p className="text-xs text-[#4C91B5] mt-0.5">{s.formations.industriel.description}</p>
                 </div>
               </div>
               <div className="space-y-4">

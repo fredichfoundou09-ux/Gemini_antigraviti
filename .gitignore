@@ -32,3 +32,4 @@ backend/node_modules/
 backend/dist/
 
 .vercel
+public/assets/branding/test_imgs/
