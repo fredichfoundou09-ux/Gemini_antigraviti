@@ -24,7 +24,7 @@ export default defineConfig({
         "favicon-64.png",
         "apple-touch-icon.png",
         "sentinel-intro.mp4",
-        "REDUIT_LA_DUREE_EN_SEC (1).mp4",
+        "video-project.mp4",
         "assets/branding/sentinel-full.png",
         "assets/branding/sentinel-symbol.png",
       ],
@@ -90,7 +90,7 @@ export default defineConfig({
         ],
       },
       workbox: {
-        maximumFileSizeToCacheInBytes: 5 * 1024 * 1024,
+        maximumFileSizeToCacheInBytes: 15 * 1024 * 1024,
         globPatterns: ["**/*.{js,css,html,ico,png,jpg,svg,webmanifest,mp4}"],
         navigateFallback: "/index.html",
         navigateFallbackDenylist: [/^\/api/, /^https:\/\/.*\.supabase\.co/],

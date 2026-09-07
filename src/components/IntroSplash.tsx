@@ -1,20 +1,20 @@
 import React, { useState, useEffect, useRef } from "react";
-import { Volume2, VolumeX, X } from "lucide-react";
+import { Volume2, VolumeX, X, Play } from "lucide-react";
 
 interface IntroSplashProps {
   onFinish?: () => void;
   videoSrc?: string;
-  maxDurationMs?: number;
 }
 
 export function IntroSplash({
   onFinish,
   videoSrc = "/sentinel-intro.mp4",
-  maxDurationMs = 3400,
 }: IntroSplashProps) {
   const [visible, setVisible] = useState(true);
   const [fading, setFading] = useState(false);
   const [isMuted, setIsMuted] = useState(true);
+  const [progress, setProgress] = useState(0);
+  const [requiresUserClick, setRequiresUserClick] = useState(false);
   const videoRef = useRef<HTMLVideoElement>(null);
   const finishCalledRef = useRef(false);
 
@@ -29,47 +29,115 @@ export function IntroSplash({
   };
 
   useEffect(() => {
-    // 1. Démarrage de la lecture vidéo
     const video = videoRef.current;
-    if (video) {
-      video.muted = true;
-      const playPromise = video.play();
-      if (playPromise !== undefined) {
-        playPromise.catch((err) => {
-          // Autoplay bloqué ou erreur média : transition gracieuse sans bloquer l'application
-          console.info("Autoplay notice:", err?.message || "User interaction required");
-        });
-      }
+    if (!video) return;
+
+    // Tentative de lecture automatique (muet pour compatibilité universelle iOS / Android / Desktop)
+    video.muted = true;
+    const playPromise = video.play();
+    if (playPromise !== undefined) {
+      playPromise.catch((err) => {
+        console.info("Autoplay restriction detected:", err?.message);
+        setRequiresUserClick(true);
+      });
     }
 
-    // 2. Minuteur de sécurité infaillible (3.4s) pour garantir que l'application s'affiche toujours
-    const safetyTimer = setTimeout(() => {
+    // Minuteur de sécurité de repli (8 secondes max si la vidéo tarde à charger)
+    const fallbackTimer = setTimeout(() => {
       complete();
-    }, maxDurationMs);
+    }, 8000);
 
     return () => {
-      clearTimeout(safetyTimer);
+      clearTimeout(fallbackTimer);
     };
-  }, [maxDurationMs]);
+  }, []);
+
+  const handleTimeUpdate = () => {
+    const video = videoRef.current;
+    if (video && video.duration) {
+      setProgress((video.currentTime / video.duration) * 100);
+    }
+  };
+
+  const handleLoadedMetadata = () => {
+    const video = videoRef.current;
+    if (video && video.duration) {
+      // Ajuster le minuteur de secours précisément à la durée de la vidéo + marge de 800ms
+      const dynamicLimit = (video.duration * 1000) + 800;
+      setTimeout(() => {
+        complete();
+      }, dynamicLimit);
+    }
+  };
+
+  const toggleSound = (e: React.MouseEvent) => {
+    e.stopPropagation();
+    if (videoRef.current) {
+      const nextMuted = !isMuted;
+      videoRef.current.muted = nextMuted;
+      setIsMuted(nextMuted);
+    }
+  };
+
+  const handleManualPlay = () => {
+    if (videoRef.current) {
+      videoRef.current.play().then(() => {
+        setRequiresUserClick(false);
+      }).catch(() => {
+        complete();
+      });
+    }
+  };
 
   if (!visible) return null;
 
   return (
     <div
-      className={`fixed inset-0 z-[99999] flex items-center justify-center bg-[#020508] select-none transition-all duration-500 ease-out ${
-        fading ? "opacity-0 scale-[1.02] pointer-events-none" : "opacity-100 scale-100"
+      className={`fixed inset-0 z-[99999] w-screen h-screen bg-[#020508] select-none flex flex-col items-center justify-center overflow-hidden transition-all duration-500 ease-out ${
+        fading ? "opacity-0 scale-[1.01] pointer-events-none" : "opacity-100 scale-100"
       }`}
       style={{ willChange: "transform, opacity" }}
     >
-      {/* Halos d'ambiance Sentinel's pour fondre la vidéo dans l'écran */}
+      {/* Effet d'ambiance Cyber Sentinel en arrière-plan */}
       <div className="absolute inset-0 pointer-events-none overflow-hidden">
-        <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-[700px] h-[500px] bg-[#00D9FF]/[0.08] rounded-full blur-[140px]" />
-        <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-[550px] h-[400px] bg-[#FF1018]/[0.12] rounded-full blur-[120px]" />
+        <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-[80vw] max-w-[1200px] h-[60vh] max-h-[800px] bg-[#00D9FF]/[0.07] rounded-full blur-[160px]" />
+        <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-[65vw] max-w-[900px] h-[45vh] max-h-[600px] bg-[#FF1018]/[0.10] rounded-full blur-[140px]" />
       </div>
 
-      {/* Cadre vidéo cinématique responsive */}
-      <div className="relative w-full max-w-2xl px-4 flex flex-col items-center justify-center">
-        <div className="relative w-full overflow-hidden rounded-xl border border-cyan-500/20 shadow-[0_0_50px_rgba(0,217,255,0.15)] bg-black aspect-video flex items-center justify-center">
+      {/* Barre supérieure HUD avec branding et bouton Passer */}
+      <header className="absolute top-0 inset-x-0 z-30 flex items-center justify-between px-4 sm:px-8 py-4 sm:py-6 bg-gradient-to-b from-black/80 via-black/40 to-transparent backdrop-blur-[2px]">
+        <div className="flex items-center gap-2.5">
+          <span className="relative flex h-2 w-2">
+            <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-cyan-400 opacity-75" />
+            <span className="relative inline-flex rounded-full h-2 w-2 bg-cyan-500" />
+          </span>
+          <span className="font-sentinel text-xs sm:text-sm font-semibold tracking-widest text-cyan-300 uppercase">
+            SENTINEL'S
+          </span>
+          <span className="hidden sm:inline text-xs text-slate-500 uppercase tracking-wider">
+            | Initialisation
+          </span>
+        </div>
+
+        {/* Bouton Passer (Skip) haute visibilité */}
+        <button
+          type="button"
+          onClick={(e) => {
+            e.stopPropagation();
+            complete();
+          }}
+          className="group inline-flex items-center gap-2 rounded-full border border-cyan-500/30 bg-[#07131D]/80 backdrop-blur-md px-4 py-1.5 text-xs sm:text-sm font-bold text-slate-200 hover:text-white hover:border-cyan-400 hover:bg-cyan-500/20 hover:shadow-[0_0_18px_rgba(0,217,255,0.35)] transition-all duration-200 cursor-pointer"
+          title="Passer l'introduction et ouvrir l'application"
+          aria-label="Passer l'introduction"
+        >
+          <span>Passer</span>
+          <X size={15} className="text-cyan-400 group-hover:rotate-90 transition-transform duration-200" />
+        </button>
+      </header>
+
+      {/* Conteneur principal 100% responsive (Mobile & Desktop) */}
+      <main className="relative w-full h-full flex items-center justify-center p-0 sm:p-4 md:p-6">
+        <div className="relative w-full h-full max-w-full max-h-screen flex items-center justify-center">
           <video
             ref={videoRef}
             src={videoSrc}
@@ -77,68 +145,73 @@ export function IntroSplash({
             autoPlay
             muted={isMuted}
             preload="auto"
+            onTimeUpdate={handleTimeUpdate}
+            onLoadedMetadata={handleLoadedMetadata}
             onEnded={complete}
             onError={() => {
+              console.warn("Vidéo non disponible ou erreur lecture, ouverture directe de l'application");
               complete();
             }}
-            className="w-full h-full object-contain"
+            className="w-full h-full max-w-full max-h-screen object-contain drop-shadow-[0_0_35px_rgba(0,217,255,0.15)]"
           />
 
-          {/* Bouton pour réactiver le son si souhaité */}
+          {/* Bouton de reprise manuelle si le navigateur bloque l'autoplay strict */}
+          {requiresUserClick && (
+            <button
+              type="button"
+              onClick={handleManualPlay}
+              className="absolute z-20 flex flex-col items-center gap-3 p-6 rounded-2xl bg-[#020508]/90 border border-cyan-400/40 text-cyan-300 shadow-[0_0_40px_rgba(0,217,255,0.3)] hover:scale-105 transition-transform cursor-pointer"
+            >
+              <div className="w-14 h-14 rounded-full bg-cyan-500/20 border border-cyan-400 flex items-center justify-center text-cyan-300 animate-pulse">
+                <Play size={26} className="ml-1" />
+              </div>
+              <span className="text-sm font-semibold tracking-wider uppercase font-sentinel">
+                Lancer la vidéo
+              </span>
+            </button>
+          )}
+        </div>
+      </main>
+
+      {/* Barre inférieure HUD avec contrôle audio et progression */}
+      <footer className="absolute bottom-0 inset-x-0 z-30 flex flex-col bg-gradient-to-t from-black/85 via-black/45 to-transparent backdrop-blur-[2px]">
+        <div className="flex items-center justify-between px-4 sm:px-8 py-3 sm:py-4">
+          {/* Bouton de son interactif */}
           <button
             type="button"
-            onClick={(e) => {
-              e.stopPropagation();
-              if (videoRef.current) {
-                const nextMuted = !isMuted;
-                videoRef.current.muted = nextMuted;
-                setIsMuted(nextMuted);
-              }
-            }}
-            className="absolute bottom-3 left-3 rounded-md border border-white/10 bg-black/60 backdrop-blur-md p-2 text-slate-300 hover:text-cyan-300 hover:border-cyan-400/40 transition z-10"
+            onClick={toggleSound}
+            className="inline-flex items-center gap-2 rounded-lg border border-white/15 bg-black/60 backdrop-blur-md px-3 py-1.5 text-xs text-slate-300 hover:text-cyan-300 hover:border-cyan-400/50 hover:bg-cyan-500/10 transition cursor-pointer"
             title={isMuted ? "Activer le son" : "Couper le son"}
-            aria-label="Contrôle du son"
+            aria-label={isMuted ? "Activer le son" : "Couper le son"}
           >
-            {isMuted ? <VolumeX size={16} /> : <Volume2 size={16} />}
+            {isMuted ? (
+              <>
+                <VolumeX size={15} className="text-slate-400" />
+                <span className="hidden xs:inline">Son désactivé</span>
+              </>
+            ) : (
+              <>
+                <Volume2 size={15} className="text-cyan-400 animate-pulse" />
+                <span className="hidden xs:inline text-cyan-300">Son actif</span>
+              </>
+            )}
           </button>
 
-          {/* Bouton Passer (Skip) en haut à droite */}
-          <button
-            type="button"
-            onClick={(e) => {
-              e.stopPropagation();
-              complete();
-            }}
-            className="absolute top-3 right-3 inline-flex items-center gap-1.5 rounded-md border border-white/15 bg-black/60 backdrop-blur-md px-3 py-1.5 text-xs font-bold text-slate-300 hover:text-white hover:border-cyan-400/50 hover:bg-cyan-500/20 transition shadow-lg z-10"
-          >
-            <span>Passer</span>
-            <X size={14} />
-          </button>
-
-          {/* Barre de progression technologique en bas de vidéo */}
-          <div className="absolute bottom-0 inset-x-0 h-1 bg-white/10 overflow-hidden">
-            <div
-              className="h-full bg-gradient-to-r from-cyan-400 via-[#006DFF] to-[#FF174F]"
-              style={{
-                animation: `progressLinear ${maxDurationMs}ms linear forwards`,
-              }}
-            />
+          {/* Indicateur de chargement Sentinel */}
+          <div className="flex items-center gap-2 text-[10px] sm:text-xs text-slate-400 font-mono tracking-wider">
+            <span className="w-1.5 h-1.5 rounded-full bg-cyan-400 animate-pulse" />
+            <span>ACCÈS EN COURS</span>
           </div>
         </div>
 
-        {/* Branding compact discret sous la vidéo */}
-        <div className="mt-4 flex items-center gap-2 text-slate-400 text-xs font-sentinel tracking-widest uppercase">
-          <span className="h-1.5 w-1.5 rounded-sm bg-cyan-400 animate-pulse" />
-          <span>SENTINELLE NUMÉRIQUE — CHARGEMENT EN COURS</span>
+        {/* Barre de progression fluide en temps réel */}
+        <div className="w-full h-1 bg-white/10 overflow-hidden">
+          <div
+            className="h-full bg-gradient-to-r from-cyan-400 via-[#006DFF] to-[#FF174F] transition-all duration-150 ease-linear"
+            style={{ width: `${progress}%` }}
+          />
         </div>
-      </div>
-
-      <style>{`
-        @keyframes progressLinear {
-          from { width: 0%; }
-          to { width: 100%; }
-        }
-      `}</style>
+      </footer>
     </div>
   );
 }
