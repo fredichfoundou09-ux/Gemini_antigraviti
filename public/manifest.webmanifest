@@ -4,8 +4,8 @@
   "description": "Plateforme officielle SENTINEL'S — Centre de formation et de supervision",
   "start_url": "/",
   "display": "standalone",
-  "background_color": "#05070D",
-  "theme_color": "#FF174F",
+  "background_color": "#020508",
+  "theme_color": "#020508",
   "icons": [
     {
       "src": "/icon-64.png",

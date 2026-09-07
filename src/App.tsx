@@ -51,6 +51,7 @@ import { ImportPage } from "@/pages/admin/ImportPage";
 import { CertificateVerifyPage } from "@/pages/public/CertificateVerify";
 import { ShieldCheck } from "lucide-react";
 import { useAuth } from "@/contexts/AuthContext";
+import { IntroSplash } from "@/components/IntroSplash";
 
 function Gate({ roles, children }: { roles: string[]; children: ReactNode }) {
   const { user } = useStore();
@@ -96,6 +97,7 @@ function ScheduleRoute() {
 export default function App() {
   return (
     <StoreProvider>
+      <IntroSplash />
       <HashRouter>
         <Routes>
           {/* Public */}

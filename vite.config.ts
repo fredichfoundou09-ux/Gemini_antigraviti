@@ -23,6 +23,8 @@ export default defineConfig({
         "favicon-48.png",
         "favicon-64.png",
         "apple-touch-icon.png",
+        "sentinel-intro.mp4",
+        "REDUIT_LA_DUREE_EN_SEC (1).mp4",
         "assets/branding/sentinel-full.png",
         "assets/branding/sentinel-symbol.png",
       ],
@@ -30,8 +32,8 @@ export default defineConfig({
         name: "SENTINEL'S",
         short_name: "SENTINEL'S",
         description: "Plateforme officielle SENTINEL'S — Centre de formation et de supervision",
-        theme_color: "#FF174F",
-        background_color: "#05070D",
+        theme_color: "#020508",
+        background_color: "#020508",
         display: "standalone",
         orientation: "portrait-primary",
         start_url: "/",
@@ -88,7 +90,8 @@ export default defineConfig({
         ],
       },
       workbox: {
-        globPatterns: ["**/*.{js,css,html,ico,png,jpg,svg,webmanifest}"],
+        maximumFileSizeToCacheInBytes: 5 * 1024 * 1024,
+        globPatterns: ["**/*.{js,css,html,ico,png,jpg,svg,webmanifest,mp4}"],
         navigateFallback: "/index.html",
         navigateFallbackDenylist: [/^\/api/, /^https:\/\/.*\.supabase\.co/],
         runtimeCaching: [
@@ -130,10 +133,31 @@ export default defineConfig({
     chunkSizeWarningLimit: 1000,
     rollupOptions: {
       output: {
-        manualChunks: {
-          "vendor-react": ["react", "react-dom", "react-router-dom"],
-          "vendor-supabase": ["@supabase/supabase-js"],
-          "vendor-ui": ["lucide-react", "sonner", "clsx", "tailwind-merge"],
+        manualChunks(id) {
+          if (id.includes("node_modules")) {
+            if (id.includes("react") || id.includes("react-dom") || id.includes("react-router-dom")) {
+              return "vendor-react";
+            }
+            if (id.includes("@supabase")) {
+              return "vendor-supabase";
+            }
+            if (id.includes("lucide-react") || id.includes("sonner") || id.includes("clsx") || id.includes("tailwind-merge")) {
+              return "vendor-ui";
+            }
+            return "vendor-core";
+          }
+          if (id.includes("src/pages/admin")) {
+            return "pages-admin";
+          }
+          if (id.includes("src/pages/teacher")) {
+            return "pages-teacher";
+          }
+          if (id.includes("src/pages/student")) {
+            return "pages-student";
+          }
+          if (id.includes("src/pages/partner")) {
+            return "pages-partner";
+          }
         },
       },
     },
