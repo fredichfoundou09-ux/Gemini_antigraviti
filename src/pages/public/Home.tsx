@@ -86,38 +86,6 @@ export default function Home() {
             </div>
           )}
 
-          {/* ZONE: 3 INSTITUTIONAL BADGES (Centered horizontally, rounded-lg, glassmorphism) */}
-          <div className="flex flex-wrap items-center justify-center gap-3 sm:gap-3.5 mb-4 sm:mb-5 z-30 relative">
-            {/* Badge 1: ENIA 2.0 */}
-            <div className="flex h-[42px] sm:h-[44px] items-center gap-2.5 rounded-lg border border-white/20 bg-[#060D17]/85 px-5 sm:px-6 backdrop-blur-md shadow-[0_0_15px_rgba(0,0,0,0.8)] transition hover:border-[#00D9FF]/40">
-              <span className="flex h-4 w-4 items-center justify-center text-[#00D9FF]">
-                <svg className="h-4 w-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
-                  <circle cx="12" cy="12" r="3" />
-                  <path d="M2 12s3.5-7 10-7 10 7 10 7-3.5 7-10 7-10-7-10-7z" />
-                </svg>
-              </span>
-              <span className="text-xs sm:text-[13px] font-bold text-white tracking-wide">
-                ENIA 2.0 – École du Numérique et de l’Intelligence Artificielle
-              </span>
-            </div>
-
-            {/* Badge 2: OG ESNID-Company */}
-            <div className="flex h-[42px] sm:h-[44px] items-center gap-2 rounded-lg border border-white/20 bg-[#060D17]/85 px-5 backdrop-blur-md shadow-[0_0_15px_rgba(0,0,0,0.8)] transition hover:border-[#00D9FF]/40">
-              <span className="text-[10px] font-mono font-bold text-slate-400 bg-white/10 px-1.5 py-0.5 rounded">OG</span>
-              <span className="text-xs sm:text-[13px] font-bold text-white tracking-wide">
-                ESNID-Company
-              </span>
-            </div>
-
-            {/* Badge 3: SENTINEL'S */}
-            <div className="flex h-[42px] sm:h-[44px] items-center gap-2 rounded-lg border border-white/20 bg-[#060D17]/85 px-5 backdrop-blur-md shadow-[0_0_15px_rgba(0,0,0,0.8)] transition hover:border-[#FF1018]/40">
-              <img src={sentinelSymbolImg} alt="" className="h-3.5 w-3.5 object-contain filter drop-shadow-[0_0_6px_rgba(255,16,24,0.8)]" />
-              <span className="text-xs sm:text-[13px] font-bold text-white tracking-wide">
-                SENTINEL'S
-              </span>
-            </div>
-          </div>
-
           {/* MAIN HERO CENTER AREA (Titles on left, Coach card on right, aligned on the exact same top horizontal line) */}
           <div className="relative w-full flex items-start justify-between mt-1 sm:mt-2 mb-auto">
             {/* HERO TITLES (Left Side - elevated and flush with right coach card) */}
@@ -201,14 +169,11 @@ export default function Home() {
             {/* LEFT CARD: TRAINING TITLE & QUOTE (Touching left extremity) */}
             <div className="w-full lg:w-[480px] xl:w-[540px] 2xl:w-[580px] shrink-0 min-h-[180px] rounded-[16px] border border-[#00D9FF] bg-[#020812]/90 p-5 sm:p-6 shadow-[0_0_22px_rgba(0,217,255,0.2)] backdrop-blur-md flex flex-col justify-between">
               <div>
-                <p className="font-mono text-[11px] sm:text-xs font-bold uppercase tracking-[1.5px] text-white/90">
-                  CENTRE DE FORMATION EN
+                <p className="font-mono text-[11px] sm:text-xs font-bold uppercase tracking-[1.5px] text-[#00D9FF]">
+                  MISSION & IMPACT
                 </p>
-                <h3 className="font-display text-[24px] sm:text-[28px] xl:text-[30px] font-black text-[#00D9FF] leading-tight tracking-wide drop-shadow-[0_0_14px_rgba(0,217,255,0.45)] mt-0.5">
-                  GÉNIE INFORMATIQUE
-                </h3>
-                <h3 className="font-display text-[24px] sm:text-[28px] xl:text-[30px] font-black text-[#FF1018] leading-tight tracking-wide drop-shadow-[0_0_14px_rgba(255,16,24,0.45)]">
-                  ET GÉNIE INDUSTRIEL
+                <h3 className="font-display text-[20px] sm:text-[24px] xl:text-[26px] font-black text-white leading-tight tracking-wide drop-shadow-[0_0_14px_rgba(0,217,255,0.3)] mt-0.5">
+                  Excellence académique & pratique de terrain
                 </h3>
               </div>
               <p className="text-[12.5px] sm:text-[13.5px] text-[#E0EBF5] leading-relaxed italic mt-2">
@@ -326,7 +291,7 @@ export default function Home() {
           <div className="mb-10 text-center">
             <SectionTitle color="cyan">Nos formations</SectionTitle>
             <h2 className="font-display text-2xl font-black text-white sm:text-4xl">Deux parcours, un même avenir</h2>
-            <p className="mx-auto mt-3 max-w-2xl text-[#4C91B5]">{s.branding.subtitle}</p>
+            <p className="mx-auto mt-3 max-w-2xl text-[#4C91B5]">Des cursus intensifs et certifiants axés sur la pratique, l'innovation et les exigences du marché professionnel.</p>
           </div>
 
           <div className="grid gap-10 lg:grid-cols-2 items-start">
@@ -562,18 +527,6 @@ export default function Home() {
         </div>
       </section>
 
-      {/* formation chips */}
-      <div className="mx-auto max-w-7xl px-4 pb-4 sm:px-6">
-        <div className="flex flex-wrap items-center justify-center gap-3 text-xs text-slate-500">
-          <span className="flex items-center gap-1.5"><UserCircle2 size={14} /> {formationLabel("informatique")}</span>
-          <span className="h-1 w-1 rounded-full bg-slate-600" />
-          <span className="flex items-center gap-1.5"><UserCircle2 size={14} /> {formationLabel("industriel")}</span>
-          <span className="h-1 w-1 rounded-full bg-slate-600" />
-          <span>{infos.duree}</span>
-          <span className="h-1 w-1 rounded-full bg-slate-600" />
-          <span>Début : {infos.debut}</span>
-        </div>
-      </div>
     </div>
   );
 }
