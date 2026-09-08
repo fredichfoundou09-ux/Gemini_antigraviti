@@ -220,13 +220,13 @@ export function LoginPage() {
 
             {/* Formulaire */}
             <form onSubmit={submit} className="space-y-4" autoComplete="off">
-              <Field label="Nom d'utilisateur ou e-mail">
+              <Field label="Identifiant (Nom d'utilisateur, Matricule ETU/ENS, Téléphone ou Email)">
                 <div className="relative">
                   <UserIcon size={14} className="pointer-events-none absolute left-3.5 top-1/2 -translate-y-1/2 text-slate-500" />
                   <Input
                     value={username}
                     onChange={(e) => setUsername(e.target.value)}
-                    placeholder="Votre identifiant ou email"
+                    placeholder="ex: ETU-001, ENS-001, prenom.nom ou email"
                     autoComplete="username"
                     spellCheck={false}
                     required

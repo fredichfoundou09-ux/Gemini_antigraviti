@@ -28,13 +28,33 @@ export async function signInWithPassword(emailOrUsername: string, password: stri
   // Supabase Auth attend un email. Si username fourni, on résout via la fonction RPC sécurisée
   let email = emailOrUsername.trim();
   if (!email.includes("@")) {
-    const { data: rpcEmail } = await sb.rpc("get_email_by_username", { p_username: email });
-    if (rpcEmail) {
-      email = rpcEmail;
-    } else {
-      const { data: profile } = await sb.from("profiles").select("email").eq("username", email.toLowerCase()).maybeSingle();
-      if (!profile?.email) throw new Error("Identifiants incorrects.");
-      email = profile.email;
+    const clean = email.toLowerCase();
+    try {
+      const { data: rpcEmail } = await sb.rpc("get_email_by_username", { p_username: email });
+      if (rpcEmail) email = rpcEmail;
+    } catch { /* fallback */ }
+
+    if (!email.includes("@")) {
+      const { data: profile } = await sb.from("profiles").select("email").eq("username", clean).maybeSingle();
+      if (profile?.email) {
+        email = profile.email;
+      } else {
+        const { data: s } = await sb.from("students").select("email, user_id").ilike("id", email).maybeSingle();
+        if (s?.email) {
+          email = s.email;
+        } else if (s?.user_id) {
+          const { data: p } = await sb.from("profiles").select("email").eq("id", s.user_id).maybeSingle();
+          if (p?.email) email = p.email;
+        } else {
+          const { data: t } = await sb.from("teachers").select("email, user_id").ilike("id", email).maybeSingle();
+          if (t?.email) {
+            email = t.email;
+          } else if (t?.user_id) {
+            const { data: p } = await sb.from("profiles").select("email").eq("id", t.user_id).maybeSingle();
+            if (p?.email) email = p.email;
+          }
+        }
+      }
     }
   }
   const { data, error } = await sb.auth.signInWithPassword({ email, password });

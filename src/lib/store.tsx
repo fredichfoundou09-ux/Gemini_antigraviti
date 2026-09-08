@@ -631,20 +631,82 @@ export function StoreProvider({ children }: { children: React.ReactNode }) {
     const uname = (username || "").trim();
     if (!uname || !password) return { ok: false, error: "Veuillez renseigner votre identifiant et votre mot de passe." };
 
+    const cleanUname = uname.toLowerCase();
+    const cleanDigits = uname.replace(/[^0-9]/g, "");
+    let localResolvedEmail = "";
+
+    // Recherche apprenant local
+    const localStudent = db.students.find((s) =>
+      s.id.toLowerCase() === cleanUname ||
+      (s.email && s.email.toLowerCase() === cleanUname) ||
+      (cleanDigits.length >= 6 && (s.telephone || "").replace(/[^0-9]/g, "") === cleanDigits) ||
+      (cleanDigits.length >= 6 && (s.whatsapp || "").replace(/[^0-9]/g, "") === cleanDigits)
+    );
+    if (localStudent) {
+      const u = db.users.find((user) => user.id === localStudent.userId);
+      if (u?.email) localResolvedEmail = u.email;
+      else if (localStudent.email) localResolvedEmail = localStudent.email;
+    }
+
+    // Recherche formateur local
+    const localTeacher = !localResolvedEmail ? db.teachers.find((t) =>
+      t.id.toLowerCase() === cleanUname ||
+      (t.email && t.email.toLowerCase() === cleanUname) ||
+      (cleanDigits.length >= 6 && (t.phone || "").replace(/[^0-9]/g, "") === cleanDigits)
+    ) : undefined;
+    if (localTeacher) {
+      const u = db.users.find((user) => user.id === localTeacher.userId);
+      if (u?.email) localResolvedEmail = u.email;
+      else if (localTeacher.email) localResolvedEmail = localTeacher.email;
+    }
+
+    // Recherche utilisateur direct
+    if (!localResolvedEmail) {
+      const localUser = db.users.find((u) =>
+        u.username.toLowerCase() === cleanUname ||
+        (u.email && u.email.toLowerCase() === cleanUname) ||
+        (cleanDigits.length >= 6 && (u.phone || "").replace(/[^0-9]/g, "") === cleanDigits)
+      );
+      if (localUser?.email) localResolvedEmail = localUser.email;
+    }
+
     if (sbActive) {
       try {
-        let email = uname;
+        let email = uname.includes("@") ? uname : (localResolvedEmail || uname);
         if (uname.toLowerCase() === "fredich") {
           email = "fredichfoundou09@gmail.com";
         } else if (!email.includes("@")) {
-          // Résolution de l'identifiant pour Supabase Auth via RPC sécurisée
-          const { data: rpcEmail } = await supabase.rpc("get_email_by_username", { p_username: uname });
-          if (rpcEmail) {
-            email = rpcEmail;
-          } else {
-            const { data } = await supabase.from("profiles").select("email").eq("username", uname.toLowerCase()).maybeSingle();
-            if (data?.email) {
-              email = data.email;
+          // 1. Résolution via RPC Supabase
+          try {
+            const { data: rpcEmail } = await supabase.rpc("get_email_by_username", { p_username: uname });
+            if (rpcEmail) email = rpcEmail;
+          } catch { /* fallback direct */ }
+
+          // 2. Si non résolu, recherche directe dans profiles
+          if (!email.includes("@")) {
+            const { data: p } = await supabase.from("profiles").select("email").eq("username", cleanUname).maybeSingle();
+            if (p?.email) email = p.email;
+          }
+
+          // 3. Recherche dans students Supabase
+          if (!email.includes("@")) {
+            const { data: s } = await supabase.from("students").select("email, user_id").ilike("id", uname).maybeSingle();
+            if (s?.email) {
+              email = s.email;
+            } else if (s?.user_id) {
+              const { data: p } = await supabase.from("profiles").select("email").eq("id", s.user_id).maybeSingle();
+              if (p?.email) email = p.email;
+            }
+          }
+
+          // 4. Recherche dans teachers Supabase
+          if (!email.includes("@")) {
+            const { data: t } = await supabase.from("teachers").select("email, user_id").ilike("id", uname).maybeSingle();
+            if (t?.email) {
+              email = t.email;
+            } else if (t?.user_id) {
+              const { data: p } = await supabase.from("profiles").select("email").eq("id", t.user_id).maybeSingle();
+              if (p?.email) email = p.email;
             }
           }
         }
@@ -654,6 +716,23 @@ export function StoreProvider({ children }: { children: React.ReactNode }) {
           if (authErr.message?.toLowerCase().includes("email not confirmed")) {
             return { ok: false, error: "Email en cours de confirmation. Réactualisez la page et réessayez." };
           }
+
+          // Fallback local immédiat si le compte existe localement
+          const localFound = db.users.find((u) =>
+            u.username.toLowerCase() === cleanUname ||
+            (u.email && u.email.toLowerCase() === cleanUname) ||
+            (localStudent && u.id === localStudent.userId) ||
+            (localTeacher && u.id === localTeacher.userId)
+          );
+          if (localFound && localFound.actif !== false) {
+            const okLocal = await verifyPassword(password, localFound.password);
+            if (okLocal) {
+              persistSession(localFound);
+              setUser(localFound);
+              return { ok: true, user: localFound };
+            }
+          }
+
           if (authErr.message?.toLowerCase().includes("invalid login credentials")) {
             return { ok: false, error: "Identifiant ou mot de passe incorrect." };
           }
@@ -666,21 +745,8 @@ export function StoreProvider({ children }: { children: React.ReactNode }) {
           return { ok: false, error: "Compte inactif ou suspendu." };
         }
 
-        if (requestedGroup) {
-          const r = profile.role as string;
-          const inAdminGroup = r === "superadmin" || r === "admin" || r === "partner_admin";
-          const inPartnerGroup = r === "partner" || r === "partner_admin";
-          const groupOk =
-            (requestedGroup === "admin" && inAdminGroup) ||
-            (requestedGroup === "teacher" && r === "teacher") ||
-            (requestedGroup === "student" && r === "student") ||
-            (requestedGroup === ("partner" as any) && inPartnerGroup);
-          if (!groupOk) {
-            await supabase.auth.signOut();
-            return { ok: false, error: "Ce compte n'est pas autorisé pour cet espace. Sélectionnez le bon profil." };
-          }
-        }
-
+        // Si l'utilisateur s'est connecté alors qu'un autre onglet était sélectionné, on le redirige
+        // automatiquement vers son rôle réel sans le rejeter.
         const mappedUser: User = {
           id: profile.id, username: profile.username, password: "", role: profile.role,
           name: profile.name, email: profile.email || "", phone: profile.phone || "",
@@ -695,13 +761,19 @@ export function StoreProvider({ children }: { children: React.ReactNode }) {
         return { ok: false, error: err.message || "Erreur de connexion" };
       }
     } else {
-      // Anti brute-force local
+      // Mode local
       const lock = getLockState(uname);
       if (lock.locked) {
         return { ok: false, locked: true, remainingMs: lock.remainingMs, error: `Trop de tentatives. Réessayez dans ${formatDuration(lock.remainingMs)}.` };
       }
 
-      const found = db.users.find((u) => u.username.toLowerCase() === uname.toLowerCase());
+      const found = db.users.find((u) =>
+        u.username.toLowerCase() === cleanUname ||
+        (u.email && u.email.toLowerCase() === cleanUname) ||
+        (localStudent && u.id === localStudent.userId) ||
+        (localTeacher && u.id === localTeacher.userId)
+      );
+
       if (!found) {
         const f = registerFailure(uname);
         return { ok: false, locked: f.locked, remainingMs: f.remainingMs, error: "Identifiants incorrects." };
@@ -715,20 +787,6 @@ export function StoreProvider({ children }: { children: React.ReactNode }) {
       if (!ok) {
         const f = registerFailure(uname);
         return { ok: false, locked: f.locked, remainingMs: f.remainingMs, error: f.locked ? `Trop de tentatives. Verrouillé ${formatDuration(f.remainingMs)}.` : `Identifiants incorrects (${f.attempts} tentative${f.attempts > 1 ? "s" : ""}).` };
-      }
-
-      if (requestedGroup) {
-        const r = found.role as string;
-        const inAdminGroup = r === "superadmin" || r === "admin" || r === "partner_admin";
-        const inPartnerGroup = r === "partner" || r === "partner_admin";
-        const groupOk =
-          (requestedGroup === "admin" && inAdminGroup) ||
-          (requestedGroup === "teacher" && r === "teacher") ||
-          (requestedGroup === "student" && r === "student") ||
-          (requestedGroup === ("partner" as any) && inPartnerGroup);
-        if (!groupOk) {
-          return { ok: false, error: "Ce compte n'est pas autorisé pour cet espace. Sélectionnez le bon profil." };
-        }
       }
 
       clearFailures(uname);

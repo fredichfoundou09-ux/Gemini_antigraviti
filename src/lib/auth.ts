@@ -54,9 +54,10 @@ export async function hashPassword(password: string): Promise<string> {
 
 /** Vérifie qu'un mot de passe correspond à un hash stocké. */
 export async function verifyPassword(password: string, stored: string): Promise<boolean> {
-  if (!stored || !stored.startsWith("pbkdf2$")) {
-    // rétro-compatibilité impossible : refus par principe (pas de clair).
-    return false;
+  if (!stored) return false;
+  if (!stored.startsWith("pbkdf2$")) {
+    // Si le mot de passe est encore en clair (ex: compte tout juste généré avec mot de passe temporaire)
+    return stored === password;
   }
   const [, , saltB64, hashB64] = stored.split("$");
   const salt = b64ToBytes(saltB64);

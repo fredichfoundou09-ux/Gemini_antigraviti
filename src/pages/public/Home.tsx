@@ -36,6 +36,34 @@ export default function Home() {
 
   const activeAnnouncements = db.announcements.filter((a) => a.actif);
 
+  const activePartners = (db.partners || []).filter((p) => p.actif);
+  const displayPartners = activePartners.length > 0 ? activePartners : [
+    {
+      id: "p-enia",
+      nom: "ENIA 2.0",
+      description: "École du Numérique et de l’Intelligence Artificielle — Pôle d'excellence technologique",
+      logo: "/assets/branding/enia-affiche.jpg",
+      url: "https://enia.cg",
+      actif: true,
+    },
+    {
+      id: "p-esnid",
+      nom: "ESNID-Company",
+      description: "Cabinet d'ingénierie logicielle, infrastructures télécoms & solutions numériques",
+      logo: "/assets/branding/esnid-logo.png",
+      url: "https://esnid-company.com",
+      actif: true,
+    },
+    {
+      id: "p-sentinel",
+      nom: "SENTINEL'S ACADEMY",
+      description: "Centre d'élite en cybersécurité opérationnelle, génie informatique et audit réseau",
+      logo: sentinelSymbolImg,
+      url: "#",
+      actif: true,
+    },
+  ];
+
   return (
     <div>
       {/* ============ HERO — 1648 × 940 PX CANONICAL FIDELITY REPRODUCTION ============ */}
@@ -58,35 +86,72 @@ export default function Home() {
             </div>
           )}
 
-          {/* ZONE: 3 INSTITUTIONAL BADGES (Centered horizontally, rounded-lg, glassmorphism) */}
-          <div className="flex flex-wrap items-center justify-center gap-3 sm:gap-3.5 mb-4 sm:mb-5 z-30 relative">
-            {/* Badge 1: ENIA 2.0 */}
-            <div className="flex h-[42px] sm:h-[44px] items-center gap-2.5 rounded-lg border border-white/20 bg-[#060D17]/85 px-5 sm:px-6 backdrop-blur-md shadow-[0_0_15px_rgba(0,0,0,0.8)] transition hover:border-[#00D9FF]/40">
-              <span className="flex h-4 w-4 items-center justify-center text-[#00D9FF]">
-                <svg className="h-4 w-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
-                  <circle cx="12" cy="12" r="3" />
-                  <path d="M2 12s3.5-7 10-7 10 7 10 7-3.5 7-10 7-10-7-10-7z" />
-                </svg>
-              </span>
-              <span className="text-xs sm:text-[13px] font-bold text-white tracking-wide">
-                ENIA 2.0 – École du Numérique et de l’Intelligence Artificielle
-              </span>
+          {/* ============ BLOC CINÉMATIQUE HAUT : NOS PARTENAIRES OFFICIELS ============ */}
+          <div className="w-full mb-4 sm:mb-5 z-30 relative">
+            <div className="mb-2.5 flex flex-wrap items-center justify-between gap-2 px-1 border-b border-white/10 pb-1.5">
+              <div className="flex items-center gap-2">
+                <span className="flex h-6 w-6 items-center justify-center rounded border border-[#00C8FF]/40 bg-[#071A2B] text-[#00E5FF] shadow-[0_0_10px_rgba(0,229,255,0.3)]">
+                  <Handshake size={13} />
+                </span>
+                <div>
+                  <h3 className="font-display text-[11px] sm:text-xs font-black text-white tracking-wider uppercase">
+                    NOS PARTENAIRES OFFICIELS
+                  </h3>
+                  <p className="text-[9px] text-[#00D9FF] font-mono tracking-wider">
+                    ALLIANCES STRATÉGIQUES & INSTITUTIONNELLES
+                  </p>
+                </div>
+              </div>
+              <div className="hidden sm:flex items-center gap-2 text-[10px] font-mono text-slate-400">
+                <span className="h-1.5 w-1.5 rounded-full bg-emerald-400 animate-ping" />
+                <span>RÉSEAU OFFICIEL ENIA 2.0</span>
+              </div>
             </div>
 
-            {/* Badge 2: OG ESNID-Company */}
-            <div className="flex h-[42px] sm:h-[44px] items-center gap-2 rounded-lg border border-white/20 bg-[#060D17]/85 px-5 backdrop-blur-md shadow-[0_0_15px_rgba(0,0,0,0.8)] transition hover:border-[#00D9FF]/40">
-              <span className="text-[10px] font-mono font-bold text-slate-400 bg-white/10 px-1.5 py-0.5 rounded">OG</span>
-              <span className="text-xs sm:text-[13px] font-bold text-white tracking-wide">
-                ESNID-Company
-              </span>
-            </div>
-
-            {/* Badge 3: SENTINEL'S */}
-            <div className="flex h-[42px] sm:h-[44px] items-center gap-2 rounded-lg border border-white/20 bg-[#060D17]/85 px-5 backdrop-blur-md shadow-[0_0_15px_rgba(0,0,0,0.8)] transition hover:border-[#FF1018]/40">
-              <img src={sentinelSymbolImg} alt="" className="h-3.5 w-3.5 object-contain filter drop-shadow-[0_0_6px_rgba(255,16,24,0.8)]" />
-              <span className="text-xs sm:text-[13px] font-bold text-white tracking-wide">
-                SENTINEL'S
-              </span>
+            {/* Cartes interactives des partenaires */}
+            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-2.5">
+              {displayPartners.map((p) => (
+                <div
+                  key={p.id}
+                  className="group relative flex items-center gap-3 rounded-lg border border-white/15 bg-[#060D17]/85 p-2.5 sm:p-3 backdrop-blur-md shadow-[0_0_15px_rgba(0,0,0,0.7)] transition-all duration-300 hover:border-[#00D9FF]/60 hover:bg-[#071A2B]/95 hover:shadow-[0_0_18px_rgba(0,217,255,0.25)] hover:-translate-y-0.5"
+                >
+                  {p.logo ? (
+                    <div className="flex h-11 w-11 shrink-0 items-center justify-center overflow-hidden rounded-md border border-white/10 bg-black/60 p-1 shadow-inner">
+                      <img
+                        src={p.logo}
+                        alt={p.nom}
+                        className="h-full w-full object-contain filter drop-shadow group-hover:scale-105 transition-transform"
+                        onError={(e) => { (e.target as HTMLElement).style.display = "none"; }}
+                      />
+                    </div>
+                  ) : (
+                    <div className="flex h-11 w-11 shrink-0 items-center justify-center rounded-md border border-[#00C8FF]/30 bg-[#00C8FF]/10 text-[#00E5FF]">
+                      <Handshake size={18} />
+                    </div>
+                  )}
+                  <div className="min-w-0 flex-1">
+                    <h4 className="font-display text-xs font-bold text-white group-hover:text-[#00E5FF] transition-colors truncate">
+                      {p.nom}
+                    </h4>
+                    {p.description && (
+                      <p className="text-[10px] text-slate-400 line-clamp-1 mt-0.5 leading-tight">
+                        {p.description}
+                      </p>
+                    )}
+                    {p.url && (
+                      <a
+                        href={p.url}
+                        target="_blank"
+                        rel="noreferrer"
+                        className="mt-1 inline-flex items-center gap-1 text-[10px] font-semibold text-[#00E5FF] hover:underline"
+                      >
+                        <span>Consulter le site officiel</span>
+                        <ArrowRight size={10} />
+                      </a>
+                    )}
+                  </div>
+                </div>
+              ))}
             </div>
           </div>
 
@@ -445,71 +510,7 @@ export default function Home() {
         </div>
       </section>
 
-      {/* ============ NOS PARTENAIRES OFFICIELS ============ */}
-      {db.partners && db.partners.filter((p) => p.actif).length > 0 && (
-        <section className="relative mx-auto max-w-7xl px-4 pb-16 sm:px-6">
-          <div className="mb-6 flex items-center justify-between">
-            <div className="flex items-center gap-3">
-              <span className="flex h-8 w-8 items-center justify-center rounded-lg border border-[#00C8FF]/40 bg-[#071A2B] text-[#00E5FF] shadow-[0_0_15px_rgba(0,229,255,0.3)]">
-                <Handshake size={18} />
-              </span>
-              <div>
-                <h3 className="font-display text-lg sm:text-xl font-black text-white tracking-wide">
-                  NOS PARTENAIRES OFFICIELS
-                </h3>
-                <p className="text-xs text-[#4C91B5] font-mono">
-                  ALLIANCES STRATÉGIQUES & INSTITUTIONNELLES
-                </p>
-              </div>
-            </div>
-          </div>
 
-          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
-            {db.partners.filter((p) => p.actif).map((p) => (
-              <div
-                key={p.id}
-                className="group relative flex items-center gap-4 rounded-xl border border-[#006DFF]/30 bg-gradient-to-r from-[#071A2B]/85 to-[#0B111A]/95 p-4 backdrop-blur-md shadow-[0_0_20px_rgba(0,0,0,0.5)] transition-all duration-300 hover:border-[#00E5FF]/60 hover:shadow-[0_0_25px_rgba(0,229,255,0.2)] hover:-translate-y-0.5"
-              >
-                {p.logo ? (
-                  <div className="flex h-14 w-14 shrink-0 items-center justify-center overflow-hidden rounded-xl border border-white/10 bg-black/50 p-1.5 shadow-inner">
-                    <img
-                      src={p.logo}
-                      alt={p.nom}
-                      className="h-full w-full object-contain filter drop-shadow group-hover:scale-105 transition-transform"
-                      onError={(e) => { (e.target as HTMLElement).style.display = "none"; }}
-                    />
-                  </div>
-                ) : (
-                  <div className="flex h-14 w-14 shrink-0 items-center justify-center rounded-xl border border-[#00C8FF]/30 bg-[#00C8FF]/10 text-[#00E5FF]">
-                    <Handshake size={24} />
-                  </div>
-                )}
-                <div className="min-w-0 flex-1">
-                  <h4 className="font-display text-sm font-bold text-white group-hover:text-[#00E5FF] transition-colors truncate">
-                    {p.nom}
-                  </h4>
-                  {p.description && (
-                    <p className="text-xs text-slate-400 line-clamp-2 mt-0.5">
-                      {p.description}
-                    </p>
-                  )}
-                  {p.url && (
-                    <a
-                      href={p.url}
-                      target="_blank"
-                      rel="noreferrer"
-                      className="mt-2 inline-flex items-center gap-1 text-[11px] font-semibold text-[#00E5FF] hover:underline"
-                    >
-                      <span>Consulter le site officiel</span>
-                      <ArrowRight size={11} />
-                    </a>
-                  )}
-                </div>
-              </div>
-            ))}
-          </div>
-        </section>
-      )}
 
       {/* ============ BOURSE BANNER ============ */}
       <section className="relative mx-auto max-w-7xl px-4 pb-20 sm:px-6">

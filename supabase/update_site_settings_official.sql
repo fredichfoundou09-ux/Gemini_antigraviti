@@ -38,12 +38,13 @@ SET data = jsonb_set(
       }'::jsonb
     ),
     '{settings,partenaires}',
-    '["ENIA 2.0 — École du Numérique et de l’Intelligence Artificielle", "FSH Company"]'::jsonb
+    '["ENIA 2.0 — École du Numérique et de l’Intelligence Artificielle", "ESNID-Company", "SENTINEL''S ACADEMY"]'::jsonb
   ),
   '{partners}',
   '[
-    { "id": "p-1", "nom": "ENIA 2.0 — École du Numérique et de l’Intelligence Artificielle", "actif": true },
-    { "id": "p-2", "nom": "FSH Company", "actif": true }
+    { "id": "p-1", "nom": "ENIA 2.0", "description": "École du Numérique et de l’Intelligence Artificielle — Pôle d''excellence technologique", "logo": "/assets/branding/enia-affiche.jpg", "url": "https://enia.cg", "actif": true },
+    { "id": "p-2", "nom": "ESNID-Company", "description": "Cabinet d''ingénierie logicielle, infrastructures télécoms & solutions numériques", "logo": "/assets/branding/esnid-logo.png", "url": "https://esnid-company.com", "actif": true },
+    { "id": "p-3", "nom": "SENTINEL''S ACADEMY", "description": "Centre d''élite en cybersécurité opérationnelle, génie informatique et audit réseau", "logo": "/assets/branding/sentinel-symbol.png", "url": "#", "actif": true }
   ]'::jsonb
 ),
 updated_at = now()

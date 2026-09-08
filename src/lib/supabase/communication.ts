@@ -3,11 +3,27 @@ import { getSupabase } from "./client";
 /* ---------- Conversations & messages ---------- */
 export async function fetchMyConversations() {
   const sb = getSupabase();
+  const { data: { user } } = await sb.auth.getUser();
+  if (!user?.id) return [];
+
   const { data, error } = await sb
     .from("conversations")
-    .select("*, members:conversation_members(user_id), messages(*)")
+    .select("*, members:conversation_members!inner(user_id), messages(*)")
+    .eq("members.user_id", user.id)
     .order("created_at", { ascending: false });
-  if (error) throw error;
+
+  if (error) {
+    // Fallback sans join inner si besoin, tout en filtrant rigoureusement côté client
+    const { data: fallbackData, error: fbErr } = await sb
+      .from("conversations")
+      .select("*, members:conversation_members(user_id), messages(*)")
+      .order("created_at", { ascending: false });
+    if (fbErr) throw fbErr;
+    return (fallbackData || []).filter((c: any) =>
+      c.members?.some((m: any) => m.user_id === user.id) ||
+      c.messages?.some((m: any) => m.sender_id === user.id)
+    );
+  }
   return data || [];
 }
 

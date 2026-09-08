@@ -48,71 +48,79 @@ export function generateBulletin(db: DB, studentId: string, periode?: string) {
   printHTML(`Bulletin — ${student.prenom} ${student.nom}`, `
     <div style="max-width:800px;margin:0 auto;padding:20px">
       <!-- En-tête -->
-      <div style="display:flex;justify-content:space-between;align-items:center;border-bottom:2px solid #00E5FF;padding-bottom:16px;margin-bottom:20px">
+      <div style="display:flex;justify-content:space-between;align-items:center;border-bottom:2px solid #0f172a;padding-bottom:14px;margin-bottom:18px">
         <div>
-          <h1 style="color:#00E5FF;letter-spacing:3px;font-size:18px;margin:0">SENTINELLES NUMÉRIQUES</h1>
-          <p style="color:#8A94A6;font-size:12px;margin:4px 0">Centre de Formation — Génie Informatique & Génie Industriel</p>
+          <h1 style="color:#0f172a;letter-spacing:2px;font-size:18px;font-weight:900;margin:0">SENTINELLES NUMÉRIQUES</h1>
+          <p style="color:#475569;font-size:11.5px;margin:3px 0 0;font-weight:600">Centre de Formation — Génie Informatique & Génie Industriel (ENIA 2.0)</p>
         </div>
         <div style="text-align:right">
-          <p style="color:#8A94A6;font-size:11px;text-transform:uppercase;letter-spacing:2px">Bulletin de notes</p>
-          <p style="color:#F5F7FA;font-size:12px;font-weight:bold">${periodeStr}</p>
+          <p style="color:#0f172a;font-size:11px;text-transform:uppercase;letter-spacing:1.5px;font-weight:800;margin:0">Bulletin Officiel de Notes</p>
+          <p style="color:#334155;font-size:12px;font-weight:700;margin:2px 0 0">${periodeStr}</p>
         </div>
       </div>
 
       <!-- Infos apprenant -->
-      <div style="background:rgba(0,229,255,0.05);border:1px solid rgba(0,229,255,0.2);border-radius:12px;padding:16px;margin-bottom:20px">
-        <div class="grid" style="display:grid;grid-template-columns:1fr 1fr 1fr">
-          <div><p class="label">Apprenant</p><p style="font-weight:800;font-size:16px">${student.prenom} ${student.nom}</p></div>
-          <div><p class="label">N° Apprenant</p><p class="font-mono">${student.id}</p></div>
-          <div><p class="label">Formation</p><p style="font-weight:700;color:#00E5FF">${student.formation === "informatique" ? "Génie Informatique" : "Génie Industriel"}</p></div>
+      <div style="background:#f8fafc;border:1.5px solid #0f172a;border-radius:6px;padding:14px 18px;margin-bottom:18px">
+        <div class="grid" style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:12px">
+          <div><p class="label">Apprenant</p><p style="font-weight:800;font-size:15px;color:#0f172a;margin:0">${student.prenom} ${student.nom}</p></div>
+          <div><p class="label">N° Matricule</p><p class="font-mono" style="font-weight:700;color:#0f172a;margin:0">${student.id}</p></div>
+          <div><p class="label">Filière d'Excellence</p><p style="font-weight:700;color:#0f172a;margin:0">${student.formation === "informatique" ? "Génie Informatique" : "Génie Industriel"}</p></div>
         </div>
       </div>
 
       <!-- Notes -->
-      <table style="width:100%;border-collapse:collapse;margin-bottom:20px">
+      <table style="width:100%;border-collapse:collapse;margin-bottom:18px">
         <thead>
-          <tr style="background:rgba(0,229,255,0.08)">
-            <th style="padding:10px 4px;text-align:left;font-size:11px;text-transform:uppercase;letter-spacing:1px;color:#8A94A6">Module</th>
-            <th style="padding:10px;text-align:center;font-size:11px;text-transform:uppercase;letter-spacing:1px;color:#8A94A6">Note</th>
-            <th style="padding:10px;text-align:center;font-size:11px;text-transform:uppercase;letter-spacing:1px;color:#8A94A6">Mention</th>
-            <th style="padding:10px;text-align:left;font-size:11px;text-transform:uppercase;letter-spacing:1px;color:#8A94A6">Appréciation</th>
+          <tr style="background:#f1f5f9;border-bottom:2px solid #0f172a">
+            <th style="padding:8px 10px;text-align:left;font-size:11px;text-transform:uppercase;letter-spacing:0.8px;color:#0f172a">Module</th>
+            <th style="padding:8px 10px;text-align:center;font-size:11px;text-transform:uppercase;letter-spacing:0.8px;color:#0f172a">Note / 20</th>
+            <th style="padding:8px 10px;text-align:center;font-size:11px;text-transform:uppercase;letter-spacing:0.8px;color:#0f172a">Mention</th>
+            <th style="padding:8px 10px;text-align:left;font-size:11px;text-transform:uppercase;letter-spacing:0.8px;color:#0f172a">Appréciation</th>
           </tr>
         </thead>
-        <tbody>${rows || "<tr><td colspan='4' style='padding:20px;text-align:center;color:#8A94A6'>Aucune note enregistrée</td></tr>"}</tbody>
+        <tbody>${rows || "<tr><td colspan='4' style='padding:16px;text-align:center;color:#64748b'>Aucune note enregistrée</td></tr>"}</tbody>
         <tfoot>
-          <tr style="background:rgba(0,229,255,0.1);font-weight:bold">
-            <td style="padding:10px 4px;font-size:14px">Moyenne générale</td>
-            <td style="padding:10px;text-align:center;font-size:18px;color:${parseFloat(average) >= 10 ? "#00FF88" : "#FF174F"}">${average}</td>
+          <tr style="background:#f8fafc;font-weight:bold;border-top:2px solid #0f172a">
+            <td style="padding:10px 12px;font-size:13px;color:#0f172a">Moyenne générale</td>
+            <td style="padding:10px 12px;text-align:center;font-size:16px;font-weight:900;color:#0f172a">${average} / 20</td>
             <td></td>
-            <td style="padding:10px;font-size:14px;color:${decisionColor}">${decision}</td>
+            <td style="padding:10px 12px;font-size:13px;font-weight:800;color:#0f172a">${decision}</td>
           </tr>
         </tfoot>
       </table>
 
       <!-- Présences -->
-      <div style="display:grid;grid-template-columns:repeat(3,1fr);gap:12px;margin-bottom:20px">
-        <div style="border:1px solid #1d2b45;border-radius:8px;padding:12px;text-align:center">
-          <p class="label">Présences</p><p style="font-size:24px;font-weight:800;color:#00FF88">${present}</p>
+      <div style="display:grid;grid-template-columns:repeat(3,1fr);gap:12px;margin-bottom:18px">
+        <div style="border:1.5px solid #0f172a;border-radius:6px;padding:10px;text-align:center;background:#fff">
+          <p class="label">Séances Assistées</p><p style="font-size:20px;font-weight:900;color:#0f172a;margin:4px 0 0">${present}</p>
         </div>
-        <div style="border:1px solid #1d2b45;border-radius:8px;padding:12px;text-align:center">
-          <p class="label">Absences</p><p style="font-size:24px;font-weight:800;color:#FF174F">${absent}</p>
+        <div style="border:1.5px solid #0f172a;border-radius:6px;padding:10px;text-align:center;background:#fff">
+          <p class="label">Absences</p><p style="font-size:20px;font-weight:900;color:#0f172a;margin:4px 0 0">${absent}</p>
         </div>
-        <div style="border:1px solid #1d2b45;border-radius:8px;padding:12px;text-align:center">
-          <p class="label">Retards</p><p style="font-size:24px;font-weight:800;color:#FFB300">${retards}</p>
+        <div style="border:1.5px solid #0f172a;border-radius:6px;padding:10px;text-align:center;background:#fff">
+          <p class="label">Retards</p><p style="font-size:20px;font-weight:900;color:#0f172a;margin:4px 0 0">${retards}</p>
         </div>
       </div>
 
       <!-- Finance résumé -->
-      <div class="row"><span>Montant dû</span><span>${money(invoice)}</span></div>
-      <div class="row"><span>Montant payé</span><span class="green">${money(paid)}</span></div>
-      <div class="row"><span>Solde</span><span style="color:${invoice - paid > 0 ? "#FF174F" : "#00FF88"}">${money(Math.max(0, invoice - paid))}</span></div>
+      <div style="border:1px solid #cbd5e1;border-radius:6px;padding:10px 14px;margin-bottom:20px;background:#f8fafc">
+        <div class="row" style="border-bottom:1px solid #e2e8f0;padding:6px 0"><span>Frais totaux de scolarité</span><span style="font-weight:700">${money(invoice)}</span></div>
+        <div class="row" style="border-bottom:1px solid #e2e8f0;padding:6px 0"><span>Total versé à ce jour</span><span style="font-weight:800">${money(paid)}</span></div>
+        <div class="row" style="padding:6px 0;font-weight:800"><span>Reste à payer</span><span>${money(Math.max(0, invoice - paid))}</span></div>
+      </div>
 
       <!-- Signatures -->
-      <div style="display:flex;justify-content:space-between;margin-top:32px;padding-top:16px;border-top:1px solid #1d2b45">
-        <div style="text-align:center"><p style="border-top:1px solid #00E5FF;padding-top:6px;font-size:11px;color:#8A94A6">Responsable du Centre</p></div>
-        <div style="text-align:center"><p style="border-top:1px solid #00E5FF;padding-top:6px;font-size:11px;color:#8A94A6">Signature et cachet</p></div>
+      <div style="display:flex;justify-content:space-between;margin-top:28px;padding-top:14px;border-top:1.5px solid #0f172a">
+        <div style="text-align:center;width:220px">
+          <p style="font-size:11px;font-weight:700;color:#0f172a;margin:0 0 45px 0">Direction Pédagogique</p>
+          <div style="border-top:1px solid #0f172a;padding-top:4px;font-size:10px;color:#64748b">Visa & Cachet</div>
+        </div>
+        <div style="text-align:center;width:220px">
+          <p style="font-size:11px;font-weight:700;color:#0f172a;margin:0 0 45px 0">Direction Administrative</p>
+          <div style="border-top:1px solid #0f172a;padding-top:4px;font-size:10px;color:#64748b">Signature Officielle</div>
+        </div>
       </div>
-      <p style="text-align:center;margin-top:16px;color:#8A94A6;font-size:11px">Bulletin généré le ${format(new Date(), "d MMMM yyyy 'à' HH:mm", { locale: fr })} — SENTINELLES NUMÉRIQUES</p>
+      <p style="text-align:center;margin-top:20px;color:#64748b;font-size:10px">Document officiel généré le ${format(new Date(), "d MMMM yyyy 'à' HH:mm", { locale: fr })} — SENTINELLES NUMÉRIQUES</p>
     </div>
   `);
 }

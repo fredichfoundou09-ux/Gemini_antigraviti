@@ -42,42 +42,183 @@ export function readImage(file: File, maxW = 700): Promise<string> {
 }
 
 export function printHTML(title: string, body: string) {
-  const w = window.open("", "_blank", "width=900,height=700");
+  const w = window.open("", "_blank", "width=900,height=750");
   if (!w) return;
-  w.document.write(`<!doctype html><html><head><meta charset="utf-8"><title>${title}</title>
+  w.document.write(`<!doctype html>
+<html lang="fr">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>${title}</title>
   <style>
-    *{box-sizing:border-box;font-family:'Segoe UI',Arial,sans-serif}
-    body{margin:0;background:#05070D;color:#F5F7FA;padding:32px}
-    .receipt{max-width:720px;margin:0 auto;background:#0A1224;border:1px solid #00E5FF;border-radius:16px;padding:32px}
-    h1,h2,h3{margin:0 0 8px}
-    .row{display:flex;justify-content:space-between;padding:8px 0;border-bottom:1px dashed #1d2b45}
-    .grid{display:grid;grid-template-columns:1fr 1fr;gap:12px}
-    .label{color:#8A94A6;font-size:12px;text-transform:uppercase;letter-spacing:1px}
-    .accent{color:#00E5FF}.gold{color:#FFB300}.red{color:#FF174F}.green{color:#00FF88}
-    @media print{body{background:#fff;color:#000}.receipt{background:#fff;border:2px solid #000;color:#000}}
-  </style></head><body>${body}<script>window.onload=()=>setTimeout(()=>window.print(),300)</script></body></html>`);
+    @page {
+      size: A4 portrait;
+      margin: 12mm 15mm;
+    }
+    *, *:before, *:after {
+      box-sizing: border-box;
+      -webkit-font-smoothing: antialiased;
+      -moz-osx-font-smoothing: grayscale;
+    }
+    html, body {
+      margin: 0;
+      padding: 0;
+      background: #ffffff !important;
+      color: #0f172a !important;
+      font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif;
+      font-size: 13px;
+      line-height: 1.5;
+    }
+    body {
+      padding: 24px;
+    }
+    .receipt, .print-doc, .document-container {
+      max-width: 820px;
+      margin: 0 auto;
+      background: #ffffff !important;
+      border: 1.5px solid #0f172a !important;
+      border-radius: 8px;
+      padding: 28px 32px;
+      color: #0f172a !important;
+      box-shadow: none !important;
+    }
+    h1, h2, h3, h4, h5, h6 {
+      margin: 0 0 8px 0;
+      color: #0f172a !important;
+      font-weight: 800;
+      line-height: 1.2;
+    }
+    p {
+      margin: 0 0 6px 0;
+    }
+    .row {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      padding: 8px 0;
+      border-bottom: 1px solid #e2e8f0;
+      color: #0f172a !important;
+    }
+    .grid {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 16px;
+    }
+    .label {
+      color: #475569 !important;
+      font-size: 11px;
+      font-weight: 700;
+      text-transform: uppercase;
+      letter-spacing: 0.6px;
+      margin-bottom: 3px;
+    }
+    .font-mono {
+      font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace !important;
+    }
+    table {
+      width: 100%;
+      border-collapse: collapse;
+      margin: 16px 0;
+    }
+    th, td {
+      border: 1px solid #cbd5e1;
+      padding: 9px 12px;
+      text-align: left;
+      font-size: 12.5px;
+      color: #0f172a !important;
+    }
+    th {
+      background-color: #f1f5f9 !important;
+      color: #1e293b !important;
+      font-weight: 700;
+      text-transform: uppercase;
+      font-size: 11px;
+      letter-spacing: 0.5px;
+    }
+    hr {
+      border: none !important;
+      border-top: 1.5px solid #0f172a !important;
+      margin: 18px 0 !important;
+    }
+    /* Normalisation des styles colorés pour impression papier nette */
+    .accent, .cyan, .gold, .red, .green {
+      color: #0f172a !important;
+      font-weight: 700;
+    }
+    .badge-official {
+      display: inline-block;
+      padding: 3px 8px;
+      border-radius: 4px;
+      border: 1px solid #0f172a;
+      background: #f8fafc;
+      font-size: 10px;
+      font-weight: 700;
+      color: #0f172a;
+      text-transform: uppercase;
+    }
+    @media print {
+      body {
+        padding: 0 !important;
+        background: #ffffff !important;
+        color: #000000 !important;
+      }
+      .receipt, .print-doc, .document-container {
+        border: 1.5px solid #000000 !important;
+        border-radius: 0 !important;
+        padding: 20px 24px !important;
+        max-width: 100% !important;
+      }
+      * {
+        -webkit-print-color-adjust: exact !important;
+        print-color-adjust: exact !important;
+        text-shadow: none !important;
+        box-shadow: none !important;
+      }
+      [style*="color:#fff"], [style*="color: #fff"], [style*="color:white"], [style*="color: white"] {
+        color: #000000 !important;
+      }
+      [style*="color:#38bdf8"], [style*="color: #38bdf8"], [style*="color:#00E5FF"], [style*="color: #00E5FF"],
+      [style*="color:#34d399"], [style*="color: #34d399"], [style*="color:#00FF88"], [style*="color: #00FF88"],
+      [style*="color:#f87171"], [style*="color: #f87171"], [style*="color:#FF174F"], [style*="color: #FF174F"],
+      [style*="color:#FFB300"], [style*="color: #FFB300"] {
+        color: #000000 !important;
+      }
+      [style*="background:rgba"], [style*="background: rgba"], [style*="background:#0A1224"], [style*="background: #0A1224"] {
+        background: #ffffff !important;
+      }
+      [style*="border-color:#1d2b45"], [style*="border-color: #1d2b45"], [style*="border:1px solid #1d2b45"], [style*="border: 1px solid #1d2b45"] {
+        border-color: #000000 !important;
+      }
+    }
+  </style>
+</head>
+<body>
+  ${body}
+  <script>window.onload=()=>setTimeout(()=>window.print(),250)</script>
+</body>
+</html>`);
   w.document.close();
 }
 
 export function officialPrintDoc(title: string, contentHTML: string, docType = "DOCUMENT OFFICIEL") {
   return `
     <div class="receipt">
-      <div style="display:flex;align-items:center;justify-content:space-between;border-bottom:2px solid #00E5FF;padding-bottom:16px;margin-bottom:20px">
+      <div style="display:flex;align-items:center;justify-content:space-between;border-bottom:2px solid #0f172a;padding-bottom:14px;margin-bottom:18px">
         <div style="display:flex;align-items:center;gap:12px">
-          <img src="/assets/branding/sentinel-symbol.png" style="height:56px;width:56px;object-fit:contain" alt="SENTINEL'S" />
+          <img src="/assets/branding/sentinel-symbol.png" style="height:52px;width:52px;object-fit:contain" alt="SENTINEL'S" />
           <div>
-            <h2 style="margin:0;font-size:16px;font-weight:900;letter-spacing:1px;color:#fff">SENTINELLE NUMÉRIQUE</h2>
-            <p style="margin:2px 0 0;font-size:10px;color:#00E5FF;text-transform:uppercase;letter-spacing:1px">ENIA 2.0 · CONGO BRAZZAVILLE</p>
+            <h2 style="margin:0;font-size:16px;font-weight:900;letter-spacing:1px;color:#0f172a">SENTINELLE NUMÉRIQUE</h2>
+            <p style="margin:2px 0 0;font-size:10.5px;color:#334155;text-transform:uppercase;letter-spacing:1px;font-weight:700">ENIA 2.0 · RÉPUBLIQUE DU CONGO</p>
           </div>
         </div>
         <div style="text-align:right">
-          <span style="display:inline-block;padding:4px 8px;border-radius:6px;background:rgba(0,229,255,0.1);border:1px solid #00E5FF;font-size:10px;font-weight:bold;color:#00E5FF">${docType}</span>
-          <p style="margin:4px 0 0;font-size:11px;color:#8A94A6">${new Date().toLocaleDateString('fr-FR')}</p>
+          <span class="badge-official">${docType}</span>
+          <p style="margin:4px 0 0;font-size:11px;color:#475569;font-weight:600">${new Date().toLocaleDateString('fr-FR')}</p>
         </div>
       </div>
       ${contentHTML}
-      <div style="margin-top:30px;border-top:1px dashed #1d2b45;padding-top:12px;text-align:center;font-size:9px;color:#8A94A6;letter-spacing:2px">
-        APPRENDRE • INNOVER • CRÉER • CODER • SÉCURISER — SENTINELLE NUMÉRIQUE
+      <div style="margin-top:28px;border-top:1px dashed #cbd5e1;padding-top:12px;text-align:center;font-size:9.5px;color:#64748b;letter-spacing:1.5px;font-weight:600">
+        SENTINELLES NUMÉRIQUES — ÉCOLE DU NUMÉRIQUE ET DE L'INTELLIGENCE ARTIFICIELLE (ENIA 2.0)
       </div>
     </div>
   `;

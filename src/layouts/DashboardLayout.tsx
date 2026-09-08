@@ -237,22 +237,25 @@ export default function DashboardLayout() {
       .slice(0, 5);
 
     const messages = db.messages
-      .filter((m) => `${m.subject} ${m.body}`.toLowerCase().includes(q))
+      .filter((m) =>
+        (m.toId === user?.id || m.fromId === user?.id || (m.toId === "all_students" && user?.role === "student") || (m.toId === "all_teachers" && user?.role === "teacher")) &&
+        `${m.subject} ${m.body}`.toLowerCase().includes(q)
+      )
       .slice(0, 5);
 
     const total = students.length + teachers.length + modules.length + scheduleSlots.length + courses.length + documents.length + messages.length;
     return { students, teachers, modules, scheduleSlots, courses, documents, messages, total };
-  }, [searchQuery, db]);
+  }, [searchQuery, db, user]);
 
   const [, setNotifTicker] = useState(0);
 
   useEffect(() => {
     if (user?.id) {
-      syncNotificationReadsFromSupabase(user.id).then(() => setNotifTicker((t) => t + 1));
+      syncNotificationReadsFromSupabase(user.id).then(() => setNotifTicker((t) => t + 1)).catch(() => {});
+      const onNotifChanged = () => setNotifTicker((prev) => prev + 1);
+      window.addEventListener("sn:notifications-changed", onNotifChanged);
+      return () => window.removeEventListener("sn:notifications-changed", onNotifChanged);
     }
-    const onNotifChanged = () => setNotifTicker((t) => t + 1);
-    window.addEventListener("sn:notifications-changed", onNotifChanged);
-    return () => window.removeEventListener("sn:notifications-changed", onNotifChanged);
   }, [user?.id]);
 
   if (!user) return null;
@@ -261,7 +264,13 @@ export default function DashboardLayout() {
   const unreadNotifications = getUnreadNotificationCount(db.notifications, user.id);
   const unreadMessages = Math.max(
     unreadCount,
-    db.messages.filter((m) => !m.lu && (m.toId === user.id || m.toId === "all_students" || m.toId === "all_teachers")).length
+    db.messages.filter((m) =>
+      !m.lu && (
+        m.toId === user.id ||
+        (m.toId === "all_students" && user.role === "student") ||
+        (m.toId === "all_teachers" && user.role === "teacher")
+      )
+    ).length
   );
 
   const sidebar = (

@@ -56,12 +56,17 @@ export function MessageCenter() {
     if (!isSupabaseConfigured || !user?.id) return;
     try {
       const convs = await fetchMyConversations();
-      setRemoteConvs(convs);
+      // Filtrage strict : seules les conversations où l'utilisateur connecté est membre ou participant
+      const myConvs = (convs || []).filter((c: any) =>
+        c.members?.some((m: any) => m.user_id === user?.id) ||
+        c.messages?.some((m: any) => m.sender_id === user?.id)
+      );
+      setRemoteConvs(myConvs);
 
       // Marquer automatiquement les conversations actives comme lues côté Supabase
-      if (convs && convs.length > 0) {
+      if (myConvs && myConvs.length > 0) {
         const sb = getSupabase();
-        convs.forEach((c: any) => {
+        myConvs.forEach((c: any) => {
           sb.rpc("mark_conversation_as_read", { p_conversation_id: c.id }).then().catch(() => {});
         });
       }
@@ -70,7 +75,7 @@ export function MessageCenter() {
       update((d) => ({
         ...d,
         messages: (d.messages || []).map((m) =>
-          m.toId === user?.id || m.toId === "all_students" || m.toId === "all_teachers" ? { ...m, lu: true } : m
+          m.toId === user?.id || (m.toId === "all_students" && user?.role === "student") || (m.toId === "all_teachers" && user?.role === "teacher") ? { ...m, lu: true } : m
         ),
       }));
     } catch (err: any) {
@@ -106,9 +111,14 @@ export function MessageCenter() {
     return () => clearInterval(pollInterval);
   }, [user?.id]);
 
-  // Messages locaux (fallback ou mix)
+  // Messages locaux (fallback ou mix) - isolation stricte
   const localMessages = db.messages
-    .filter((m) => m.toId === user!.id || m.fromId === user!.id || m.toId === "all_students" || m.toId === "all_teachers")
+    .filter((m) =>
+      m.toId === user!.id ||
+      m.fromId === user!.id ||
+      (m.toId === "all_students" && user?.role === "student") ||
+      (m.toId === "all_teachers" && user?.role === "teacher")
+    )
     .sort((a, b) => b.date.localeCompare(a.date));
 
   // Fusionner les conversations distantes et locales
