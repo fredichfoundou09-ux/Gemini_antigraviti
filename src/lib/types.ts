@@ -80,6 +80,10 @@ export interface Teacher {
   tarifHoraire?: number;
   tarifsParModule?: Record<string, number>;
   heuresPrevues?: number;
+  heuresEffectueesOverride?: number;
+  heuresValideesOverride?: number;
+  montantDuOverride?: number;
+  montantPayeOverride?: number;
 }
 
 export interface Advantage {

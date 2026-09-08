@@ -200,7 +200,7 @@ export function Modal({ open, onClose, title, children, wide }: { open: boolean;
   );
 }
 
-export function Stat({ icon, label, value, color = "cyan", sub }: { icon: ReactNode; label: string; value: ReactNode; color?: "cyan" | "red" | "green" | "gold" | "blue"; sub?: string }) {
+export function Stat({ icon, label, value, color = "cyan", sub, action }: { icon: ReactNode; label: string; value: ReactNode; color?: "cyan" | "red" | "green" | "gold" | "blue"; sub?: string; action?: ReactNode }) {
   const c = {
     cyan: "text-[#00E5FF] bg-[#071A2B] border-[#00C8FF]/40",
     red: "text-[#FF174F] bg-[#2A0815] border-[#FF174F]/40",
@@ -209,14 +209,17 @@ export function Stat({ icon, label, value, color = "cyan", sub }: { icon: ReactN
     blue: "text-[#008CFF] bg-[#081830] border-[#006DFF]/40",
   }[color];
   return (
-    <Card className="p-4">
+    <Card className="p-4 relative group">
       <div className="flex items-start justify-between">
         <div>
           <p className="text-[11px] font-semibold uppercase tracking-wider text-[#4C91B5]">{label}</p>
           <p className="font-display mt-1.5 text-2xl font-bold text-[#B8F3FF]">{value}</p>
           {sub && <p className="mt-0.5 text-[11px] text-[#27506B]">{sub}</p>}
         </div>
-        <div className={cn("rounded border p-2.5", c)}>{icon}</div>
+        <div className="flex flex-col items-end gap-1.5">
+          <div className={cn("rounded border p-2.5", c)}>{icon}</div>
+          {action}
+        </div>
       </div>
     </Card>
   );

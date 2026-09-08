@@ -16,12 +16,17 @@ export interface TeacherFinanceSummary {
 export function teacherFinanceSummary(db: DB, teacherId: string): TeacherFinanceSummary {
   const hours = db.teacherHours.filter((h) => h.teacherId === teacherId).sort((a, b) => a.date.localeCompare(b.date));
   const payments = db.teacherPayments.filter((p) => p.teacherId === teacherId).sort((a, b) => a.date.localeCompare(b.date));
-  const heuresValidees = hours.filter((h) => h.valide).reduce((a, h) => a + h.heures, 0);
-  const heuresEffectuees = hours.reduce((a, h) => a + h.heures, 0);
-  const montantDu = hours.filter((h) => h.valide).reduce((a, h) => a + h.montant, 0);
-  const montantPaye = payments.reduce((a, p) => a + p.montant, 0);
+  const calcHeuresValidees = hours.filter((h) => h.valide).reduce((a, h) => a + h.heures, 0);
+  const calcHeuresEffectuees = hours.reduce((a, h) => a + h.heures, 0);
+  const calcMontantDu = hours.filter((h) => h.valide).reduce((a, h) => a + h.montant, 0);
+  const calcMontantPaye = payments.reduce((a, p) => a + p.montant, 0);
   const teacher = db.teachers.find((t) => t.id === teacherId);
   const heuresPrevues = teacher?.heuresPrevues ?? 0;
+
+  const heuresEffectuees = teacher?.heuresEffectueesOverride !== undefined ? Number(teacher.heuresEffectueesOverride) : calcHeuresEffectuees;
+  const heuresValidees = teacher?.heuresValideesOverride !== undefined ? Number(teacher.heuresValideesOverride) : calcHeuresValidees;
+  const montantDu = teacher?.montantDuOverride !== undefined ? Number(teacher.montantDuOverride) : calcMontantDu;
+  const montantPaye = teacher?.montantPayeOverride !== undefined ? Number(teacher.montantPayeOverride) : calcMontantPaye;
 
   const monthsMap = new Map<string, { effectuees: number; validees: number; montant: number }>();
   hours.forEach((h) => {

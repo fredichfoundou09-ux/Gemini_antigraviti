@@ -1,7 +1,7 @@
 import { useState, useEffect } from "react";
 import {
   Clock, CheckCircle2, XCircle, Timer, BadgeDollarSign, Save, ReceiptText, Wallet,
-  CalendarDays, TrendingUp, FileText, PlusCircle, MinusCircle, Printer, ShieldCheck,
+  CalendarDays, TrendingUp, FileText, PlusCircle, MinusCircle, Printer, ShieldCheck, Pencil, RotateCcw,
 } from "lucide-react";
 import { useStore } from "@/lib/store";
 import { cn } from "@/utils/cn";
@@ -9,7 +9,7 @@ import { Btn, Badge, Card, Empty, Field, Input, Modal, PageHead, Select, Stat, T
 import { teacherFinanceSummary, hoursBetween, tarifFor, nextTeacherPayRef } from "@/lib/teacher";
 import { TEACHER_SESSION_RATE, nextPayslipRef } from "@/lib/finance";
 import { fetchTeacherAdvances, recordTeacherAdvance, fetchTeacherPayslips, generateTeacherPayslip } from "@/lib/supabase/finance";
-import { isSupabaseConfigured } from "@/lib/supabase/client";
+import { isSupabaseConfigured, supabase } from "@/lib/supabase/client";
 import { toastMsg } from "@/lib/toast";
 
 // Peut valider les heures : superadmin, admin (responsable financier).
@@ -28,9 +28,60 @@ export function TeacherHoursPage() {
   const [advancesList, setAdvancesList] = useState<any[]>([]);
   const [payslipsList, setPayslipsList] = useState<any[]>([]);
 
+  const [editingStat, setEditingStat] = useState<{
+    key: "heuresPrevues" | "heuresEffectueesOverride" | "heuresValideesOverride" | "montantDuOverride" | "montantPayeOverride";
+    label: string;
+    unit: string;
+    currentVal: number;
+    isOverride: boolean;
+  } | null>(null);
+  const [editVal, setEditVal] = useState<number>(0);
+
   const teacher = db.teachers.find((t) => t.id === teacherId);
   const summary = teacherFinanceSummary(db, teacherId);
   const canEdit = canValidate(user?.role);
+
+  const saveStatEdit = async () => {
+    if (!teacher || !editingStat) return;
+    const val = Number(editVal);
+    if (isNaN(val) || val < 0) {
+      toastMsg("Valeur invalide", "Veuillez entrer un nombre positif ou nul.", "error");
+      return;
+    }
+
+    const { key } = editingStat;
+    update((d) => ({
+      ...d,
+      teachers: d.teachers.map((t) => (t.id === teacher.id ? { ...t, [key]: val } : t)),
+    }));
+
+    if (isSupabaseConfigured && key === "heuresPrevues") {
+      try {
+        await supabase.from("teachers").update({ heures_prevues: val }).eq("id", teacher.id);
+      } catch (err) {
+        console.warn("Could not sync heures_prevues to Supabase:", err);
+      }
+    }
+
+    log("update", "TeacherHours", `Modification manuelle de ${editingStat.label} (${val} ${editingStat.unit}) pour l'enseignant ${teacher.prenom} ${teacher.nom}`);
+    toastMsg("Statistique modifiée", `${editingStat.label} a été mis à jour avec succès.`, "success");
+    setEditingStat(null);
+  };
+
+  const resetStatOverride = (key: "heuresEffectueesOverride" | "heuresValideesOverride" | "montantDuOverride" | "montantPayeOverride", label: string) => {
+    if (!teacher) return;
+    update((d) => ({
+      ...d,
+      teachers: d.teachers.map((t) => {
+        if (t.id !== teacher.id) return t;
+        const copy = { ...t };
+        delete copy[key];
+        return copy;
+      }),
+    }));
+    toastMsg("Calcul automatique restauré", `Le calcul automatique pour ${label} a été rétabli.`, "info");
+    setEditingStat(null);
+  };
 
   // Créneaux passés non encore validés : on liste les slots planifiés
   // auxquels cet enseignant est rattaché et qui n'ont pas encore d'heure créée.
@@ -247,11 +298,193 @@ export function TeacherHoursPage() {
       ) : (
         <>
           <div className="mb-5 grid grid-cols-2 gap-3 sm:grid-cols-5">
-            <Stat icon={<Timer size={20} />} label="Prévues" value={`${teacher.heuresPrevues ?? 0} h`} color="blue" />
-            <Stat icon={<Clock size={20} />} label="Effectuées" value={`${summary.heuresEffectuees} h`} color="cyan" />
-            <Stat icon={<CheckCircle2 size={20} />} label="Validées" value={`${summary.heuresValidees} h`} color="green" />
-            <Stat icon={<TrendingUp size={20} />} label="Dû" value={money(summary.montantDu)} color="gold" />
-            <Stat icon={<BadgeDollarSign size={20} />} label="Payé" value={money(summary.montantPaye)} color="red" />
+            <Stat
+              icon={<Timer size={20} />}
+              label="Prévues"
+              value={`${teacher.heuresPrevues ?? 0} h`}
+              color="blue"
+              action={
+                canEdit ? (
+                  <button
+                    type="button"
+                    title="Modifier les heures prévues"
+                    onClick={() => {
+                      setEditingStat({
+                        key: "heuresPrevues",
+                        label: "Heures Prévues",
+                        unit: "h",
+                        currentVal: teacher.heuresPrevues ?? 0,
+                        isOverride: false,
+                      });
+                      setEditVal(teacher.heuresPrevues ?? 0);
+                    }}
+                    className="rounded p-1 text-slate-400 hover:text-cyan-300 hover:bg-white/5 transition"
+                  >
+                    <Pencil size={13} />
+                  </button>
+                ) : undefined
+              }
+            />
+            <Stat
+              icon={<Clock size={20} />}
+              label="Effectuées"
+              value={`${summary.heuresEffectuees} h`}
+              color="cyan"
+              sub={teacher.heuresEffectueesOverride !== undefined ? "Valeur ajustée" : undefined}
+              action={
+                canEdit ? (
+                  <div className="flex items-center gap-1">
+                    {teacher.heuresEffectueesOverride !== undefined && (
+                      <button
+                        type="button"
+                        title="Rétablir le calcul automatique"
+                        onClick={() => resetStatOverride("heuresEffectueesOverride", "Heures Effectuées")}
+                        className="rounded p-1 text-amber-400 hover:text-amber-300 hover:bg-white/5 transition"
+                      >
+                        <RotateCcw size={13} />
+                      </button>
+                    )}
+                    <button
+                      type="button"
+                      title="Modifier les heures effectuées"
+                      onClick={() => {
+                        setEditingStat({
+                          key: "heuresEffectueesOverride",
+                          label: "Heures Effectuées",
+                          unit: "h",
+                          currentVal: summary.heuresEffectuees,
+                          isOverride: teacher.heuresEffectueesOverride !== undefined,
+                        });
+                        setEditVal(summary.heuresEffectuees);
+                      }}
+                      className="rounded p-1 text-slate-400 hover:text-cyan-300 hover:bg-white/5 transition"
+                    >
+                      <Pencil size={13} />
+                    </button>
+                  </div>
+                ) : undefined
+              }
+            />
+            <Stat
+              icon={<CheckCircle2 size={20} />}
+              label="Validées"
+              value={`${summary.heuresValidees} h`}
+              color="green"
+              sub={teacher.heuresValideesOverride !== undefined ? "Valeur ajustée" : undefined}
+              action={
+                canEdit ? (
+                  <div className="flex items-center gap-1">
+                    {teacher.heuresValideesOverride !== undefined && (
+                      <button
+                        type="button"
+                        title="Rétablir le calcul automatique"
+                        onClick={() => resetStatOverride("heuresValideesOverride", "Heures Validées")}
+                        className="rounded p-1 text-amber-400 hover:text-amber-300 hover:bg-white/5 transition"
+                      >
+                        <RotateCcw size={13} />
+                      </button>
+                    )}
+                    <button
+                      type="button"
+                      title="Modifier les heures validées"
+                      onClick={() => {
+                        setEditingStat({
+                          key: "heuresValideesOverride",
+                          label: "Heures Validées",
+                          unit: "h",
+                          currentVal: summary.heuresValidees,
+                          isOverride: teacher.heuresValideesOverride !== undefined,
+                        });
+                        setEditVal(summary.heuresValidees);
+                      }}
+                      className="rounded p-1 text-slate-400 hover:text-cyan-300 hover:bg-white/5 transition"
+                    >
+                      <Pencil size={13} />
+                    </button>
+                  </div>
+                ) : undefined
+              }
+            />
+            <Stat
+              icon={<TrendingUp size={20} />}
+              label="Dû"
+              value={money(summary.montantDu)}
+              color="gold"
+              sub={teacher.montantDuOverride !== undefined ? "Valeur ajustée" : undefined}
+              action={
+                canEdit ? (
+                  <div className="flex items-center gap-1">
+                    {teacher.montantDuOverride !== undefined && (
+                      <button
+                        type="button"
+                        title="Rétablir le calcul automatique"
+                        onClick={() => resetStatOverride("montantDuOverride", "Montant Dû")}
+                        className="rounded p-1 text-amber-400 hover:text-amber-300 hover:bg-white/5 transition"
+                      >
+                        <RotateCcw size={13} />
+                      </button>
+                    )}
+                    <button
+                      type="button"
+                      title="Modifier le montant dû"
+                      onClick={() => {
+                        setEditingStat({
+                          key: "montantDuOverride",
+                          label: "Montant Dû",
+                          unit: "FCFA",
+                          currentVal: summary.montantDu,
+                          isOverride: teacher.montantDuOverride !== undefined,
+                        });
+                        setEditVal(summary.montantDu);
+                      }}
+                      className="rounded p-1 text-slate-400 hover:text-cyan-300 hover:bg-white/5 transition"
+                    >
+                      <Pencil size={13} />
+                    </button>
+                  </div>
+                ) : undefined
+              }
+            />
+            <Stat
+              icon={<BadgeDollarSign size={20} />}
+              label="Payé"
+              value={money(summary.montantPaye)}
+              color="red"
+              sub={teacher.montantPayeOverride !== undefined ? "Valeur ajustée" : undefined}
+              action={
+                canEdit ? (
+                  <div className="flex items-center gap-1">
+                    {teacher.montantPayeOverride !== undefined && (
+                      <button
+                        type="button"
+                        title="Rétablir le calcul automatique"
+                        onClick={() => resetStatOverride("montantPayeOverride", "Montant Payé")}
+                        className="rounded p-1 text-amber-400 hover:text-amber-300 hover:bg-white/5 transition"
+                      >
+                        <RotateCcw size={13} />
+                      </button>
+                    )}
+                    <button
+                      type="button"
+                      title="Modifier le montant payé"
+                      onClick={() => {
+                        setEditingStat({
+                          key: "montantPayeOverride",
+                          label: "Montant Payé",
+                          unit: "FCFA",
+                          currentVal: summary.montantPaye,
+                          isOverride: teacher.montantPayeOverride !== undefined,
+                        });
+                        setEditVal(summary.montantPaye);
+                      }}
+                      className="rounded p-1 text-slate-400 hover:text-cyan-300 hover:bg-white/5 transition"
+                    >
+                      <Pencil size={13} />
+                    </button>
+                  </div>
+                ) : undefined
+              }
+            />
           </div>
 
           <div className="mb-5 flex flex-wrap gap-2">
@@ -624,6 +857,62 @@ export function TeacherHoursPage() {
             </Btn>
           </div>
         </div>
+      </Modal>
+
+      {/* Modal d'ajustement direct d'une statistique */}
+      <Modal
+        open={Boolean(editingStat)}
+        onClose={() => setEditingStat(null)}
+        title={editingStat ? `Modifier : ${editingStat.label}` : "Modifier"}
+      >
+        {editingStat && (
+          <div className="space-y-4">
+            <div className="rounded-xl border border-white/10 bg-white/[0.02] p-3 text-xs text-slate-300 leading-relaxed">
+              Vous pouvez ajuster manuellement la valeur pour l'enseignant{" "}
+              <strong className="text-cyan-300">
+                {teacher?.prenom} {teacher?.nom}
+              </strong>
+              .
+              {editingStat.isOverride && (
+                <p className="mt-1 text-amber-400 font-medium">
+                  Une valeur manuelle personnalisée est actuellement appliquée. Vous pouvez la mettre à jour ou restaurer le calcul automatique.
+                </p>
+              )}
+            </div>
+
+            <Field label={`Nouvelle valeur (${editingStat.unit})`}>
+              <Input
+                type="number"
+                min={0}
+                step={editingStat.unit === "h" ? 0.5 : 500}
+                value={editVal}
+                onChange={(e) => setEditVal(parseFloat(e.target.value) || 0)}
+              />
+            </Field>
+
+            <div className="flex justify-between items-center gap-2 pt-3 border-t border-white/10">
+              {editingStat.key !== "heuresPrevues" && editingStat.isOverride ? (
+                <Btn
+                  variant="outline"
+                  className="text-amber-400 border-amber-400/30 hover:bg-amber-400/10 text-xs"
+                  onClick={() => resetStatOverride(editingStat.key as any, editingStat.label)}
+                >
+                  <RotateCcw size={13} /> Rétablir automatique
+                </Btn>
+              ) : (
+                <div />
+              )}
+              <div className="flex gap-2">
+                <Btn variant="ghost" onClick={() => setEditingStat(null)}>
+                  Annuler
+                </Btn>
+                <Btn className="bg-cyan-500 hover:bg-cyan-400 text-black font-bold" onClick={saveStatEdit}>
+                  <Save size={14} /> Enregistrer
+                </Btn>
+              </div>
+            </div>
+          </div>
+        )}
       </Modal>
     </div>
   );

@@ -421,12 +421,17 @@ export function StoreProvider({ children }: { children: React.ReactNode }) {
             const mods = (teacherModulesRes.data || [])
               .filter((tm: any) => tm.teacher_id === t.id)
               .map((tm: any) => tm.module_id);
+            const prevT = prev.teachers?.find((pt: any) => pt.id === t.id);
             return {
               id: t.id, nom: t.nom, prenom: t.prenom, specialite: t.specialite, email: t.email,
               phone: t.phone, modules: mods.length > 0 ? mods : t.modules || [], userId: t.user_id, photo: t.photo_url || t.photo,
               tarifHoraire: Number(t.tarif_horaire || t.tarifHoraire || 0), heuresPrevues: Number(t.heures_prevues || t.heuresPrevues || 0),
               typeContrat: t.type_contrat || t.typeContrat || "vacataire", diplomes: t.diplomes || "", infosPro: t.infos_pro || "",
-              formations: t.formations || [], actif: t.actif
+              formations: t.formations || [], actif: t.actif,
+              heuresEffectueesOverride: prevT?.heuresEffectueesOverride,
+              heuresValideesOverride: prevT?.heuresValideesOverride,
+              montantDuOverride: prevT?.montantDuOverride,
+              montantPayeOverride: prevT?.montantPayeOverride,
             };
           }),
           courses: (coursesRes.data && coursesRes.data.length > 0 ? coursesRes.data : prev.courses).map((c: any) => ({
