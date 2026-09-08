@@ -627,6 +627,69 @@ export function StoreProvider({ children }: { children: React.ReactNode }) {
     return db.users.some((u) => u.role === "superadmin");
   }, [db.users, sbActive, sbHasAdmin]);
 
+  const checkGroupRole = (role: string, group?: string): { allowed: boolean; error: string } => {
+    if (!group) return { allowed: true, error: "" };
+    const adminRoles = ["superadmin", "admin", "secretaire", "comptable", "surveillant"];
+
+    if (group === "admin") {
+      if (adminRoles.includes(role)) return { allowed: true, error: "" };
+      if (role === "student") {
+        return { allowed: false, error: "Accès refusé : cet espace est strictement réservé aux administrateurs. Vous disposez d'un compte Apprenant, veuillez vous connecter depuis l'onglet « Apprenant »." };
+      }
+      if (role === "teacher") {
+        return { allowed: false, error: "Accès refusé : cet espace est strictement réservé aux administrateurs. Vous disposez d'un compte Formateur, veuillez vous connecter depuis l'onglet « Formateur »." };
+      }
+      if (role === "partner" || role === "partner_admin") {
+        return { allowed: false, error: "Accès refusé : cet espace est strictement réservé aux administrateurs. Vous disposez d'un compte Partenaire, veuillez vous connecter depuis l'onglet « Partenaire »." };
+      }
+      return { allowed: false, error: "Accès refusé : cet espace est réservé au personnel administratif." };
+    }
+
+    if (group === "student") {
+      if (role === "student") return { allowed: true, error: "" };
+      if (adminRoles.includes(role)) {
+        return { allowed: false, error: "Accès refusé : cet espace est exclusivement réservé aux apprenants. Les administrateurs doivent se connecter depuis l'onglet « Administrateur »." };
+      }
+      if (role === "teacher") {
+        return { allowed: false, error: "Accès refusé : cet espace est exclusivement réservé aux apprenants. Les formateurs doivent se connecter depuis l'onglet « Formateur »." };
+      }
+      if (role === "partner" || role === "partner_admin") {
+        return { allowed: false, error: "Accès refusé : cet espace est exclusivement réservé aux apprenants. Les partenaires doivent se connecter depuis l'onglet « Partenaire »." };
+      }
+      return { allowed: false, error: "Accès refusé : cet espace est exclusivement réservé aux apprenants inscrits." };
+    }
+
+    if (group === "teacher") {
+      if (role === "teacher") return { allowed: true, error: "" };
+      if (adminRoles.includes(role)) {
+        return { allowed: false, error: "Accès refusé : cet espace est exclusivement réservé aux formateurs. Les administrateurs doivent se connecter depuis l'onglet « Administrateur »." };
+      }
+      if (role === "student") {
+        return { allowed: false, error: "Accès refusé : cet espace est exclusivement réservé aux formateurs. Les apprenants doivent se connecter depuis l'onglet « Apprenant »." };
+      }
+      if (role === "partner" || role === "partner_admin") {
+        return { allowed: false, error: "Accès refusé : cet espace est exclusivement réservé aux formateurs. Les partenaires doivent se connecter depuis l'onglet « Partenaire »." };
+      }
+      return { allowed: false, error: "Accès refusé : cet espace est exclusivement réservé aux formateurs." };
+    }
+
+    if (group === "partner") {
+      if (role === "partner" || role === "partner_admin") return { allowed: true, error: "" };
+      if (adminRoles.includes(role)) {
+        return { allowed: false, error: "Accès refusé : cet espace est réservé aux partenaires officiels. Les administrateurs doivent se connecter depuis l'onglet « Administrateur »." };
+      }
+      if (role === "student") {
+        return { allowed: false, error: "Accès refusé : cet espace est réservé aux partenaires officiels. Les apprenants doivent se connecter depuis l'onglet « Apprenant »." };
+      }
+      if (role === "teacher") {
+        return { allowed: false, error: "Accès refusé : cet espace est réservé aux partenaires officiels. Les formateurs doivent se connecter depuis l'onglet « Formateur »." };
+      }
+      return { allowed: false, error: "Accès refusé : cet espace est réservé aux partenaires institutionnels." };
+    }
+
+    return { allowed: true, error: "" };
+  };
+
   const login: StoreCtxType["login"] = async (username, password, requestedGroup) => {
     const uname = (username || "").trim();
     if (!uname || !password) return { ok: false, error: "Veuillez renseigner votre identifiant et votre mot de passe." };
@@ -635,13 +698,19 @@ export function StoreProvider({ children }: { children: React.ReactNode }) {
     const cleanDigits = uname.replace(/[^0-9]/g, "");
     let localResolvedEmail = "";
 
+    // Recherche ciblée selon le groupe sélectionné
+    const isTargetStudent = requestedGroup === "student";
+    const isTargetTeacher = requestedGroup === "teacher";
+    const isTargetAdmin = requestedGroup === "admin";
+    const isTargetPartner = requestedGroup === "partner";
+
     // Recherche apprenant local
-    const localStudent = db.students.find((s) =>
+    const localStudent = (isTargetStudent || !requestedGroup) ? db.students.find((s) =>
       s.id.toLowerCase() === cleanUname ||
       (s.email && s.email.toLowerCase() === cleanUname) ||
       (cleanDigits.length >= 6 && (s.telephone || "").replace(/[^0-9]/g, "") === cleanDigits) ||
       (cleanDigits.length >= 6 && (s.whatsapp || "").replace(/[^0-9]/g, "") === cleanDigits)
-    );
+    ) : undefined;
     if (localStudent) {
       const u = db.users.find((user) => user.id === localStudent.userId);
       if (u?.email) localResolvedEmail = u.email;
@@ -649,7 +718,7 @@ export function StoreProvider({ children }: { children: React.ReactNode }) {
     }
 
     // Recherche formateur local
-    const localTeacher = !localResolvedEmail ? db.teachers.find((t) =>
+    const localTeacher = ((isTargetTeacher || !requestedGroup) && !localResolvedEmail) ? db.teachers.find((t) =>
       t.id.toLowerCase() === cleanUname ||
       (t.email && t.email.toLowerCase() === cleanUname) ||
       (cleanDigits.length >= 6 && (t.phone || "").replace(/[^0-9]/g, "") === cleanDigits)
@@ -662,11 +731,17 @@ export function StoreProvider({ children }: { children: React.ReactNode }) {
 
     // Recherche utilisateur direct
     if (!localResolvedEmail) {
-      const localUser = db.users.find((u) =>
-        u.username.toLowerCase() === cleanUname ||
-        (u.email && u.email.toLowerCase() === cleanUname) ||
-        (cleanDigits.length >= 6 && (u.phone || "").replace(/[^0-9]/g, "") === cleanDigits)
-      );
+      const localUser = db.users.find((u) => {
+        const match = u.username.toLowerCase() === cleanUname ||
+          (u.email && u.email.toLowerCase() === cleanUname) ||
+          (cleanDigits.length >= 6 && (u.phone || "").replace(/[^0-9]/g, "") === cleanDigits);
+        if (!match) return false;
+        if (isTargetStudent) return u.role === "student";
+        if (isTargetTeacher) return u.role === "teacher";
+        if (isTargetPartner) return u.role === "partner" || u.role === "partner_admin";
+        if (isTargetAdmin) return ["superadmin", "admin", "secretaire", "comptable", "surveillant"].includes(u.role);
+        return true;
+      });
       if (localUser?.email) localResolvedEmail = localUser.email;
     }
 
@@ -682,14 +757,15 @@ export function StoreProvider({ children }: { children: React.ReactNode }) {
             if (rpcEmail) email = rpcEmail;
           } catch { /* fallback direct */ }
 
-          // 2. Si non résolu, recherche directe dans profiles
+          // 2. Si non résolu, recherche dans profiles avec filtrage de rôle si groupe spécifique
           if (!email.includes("@")) {
-            const { data: p } = await supabase.from("profiles").select("email").eq("username", cleanUname).maybeSingle();
+            let q = supabase.from("profiles").select("email, role").eq("username", cleanUname);
+            const { data: p } = await q.maybeSingle();
             if (p?.email) email = p.email;
           }
 
           // 3. Recherche dans students Supabase
-          if (!email.includes("@")) {
+          if (!email.includes("@") && (isTargetStudent || !requestedGroup)) {
             const { data: s } = await supabase.from("students").select("email, user_id").ilike("id", uname).maybeSingle();
             if (s?.email) {
               email = s.email;
@@ -700,7 +776,7 @@ export function StoreProvider({ children }: { children: React.ReactNode }) {
           }
 
           // 4. Recherche dans teachers Supabase
-          if (!email.includes("@")) {
+          if (!email.includes("@") && (isTargetTeacher || !requestedGroup)) {
             const { data: t } = await supabase.from("teachers").select("email, user_id").ilike("id", uname).maybeSingle();
             if (t?.email) {
               email = t.email;
@@ -727,6 +803,10 @@ export function StoreProvider({ children }: { children: React.ReactNode }) {
           if (localFound && localFound.actif !== false) {
             const okLocal = await verifyPassword(password, localFound.password);
             if (okLocal) {
+              const rCheck = checkGroupRole(localFound.role, requestedGroup);
+              if (!rCheck.allowed) {
+                return { ok: false, error: rCheck.error };
+              }
               persistSession(localFound);
               setUser(localFound);
               return { ok: true, user: localFound };
@@ -745,8 +825,16 @@ export function StoreProvider({ children }: { children: React.ReactNode }) {
           return { ok: false, error: "Compte inactif ou suspendu." };
         }
 
-        // Si l'utilisateur s'est connecté alors qu'un autre onglet était sélectionné, on le redirige
-        // automatiquement vers son rôle réel sans le rejeter.
+        // VÉRIFICATION STRICTE DE RÔLE : Si l'utilisateur tente de se connecter dans un autre espace,
+        // on REJETTE strictement sa connexion et on le déconnecte immédiatement.
+        const roleCheck = checkGroupRole(profile.role, requestedGroup);
+        if (!roleCheck.allowed) {
+          await supabase.auth.signOut();
+          persistSession(null);
+          setUser(null);
+          return { ok: false, error: roleCheck.error };
+        }
+
         const mappedUser: User = {
           id: profile.id, username: profile.username, password: "", role: profile.role,
           name: profile.name, email: profile.email || "", phone: profile.phone || "",
@@ -755,7 +843,7 @@ export function StoreProvider({ children }: { children: React.ReactNode }) {
 
         persistSession(mappedUser);
         setUser(mappedUser);
-        await writeAudit({ action: "LOGIN", entity_type: "profiles", entity_id: profile.id, description: `Connexion ${profile.username}` });
+        void writeAudit({ action: "LOGIN", entity_type: "profiles", entity_id: profile.id, description: `Connexion ${profile.username}` }).catch(() => {});
         return { ok: true, user: mappedUser };
       } catch (err: any) {
         return { ok: false, error: err.message || "Erreur de connexion" };
@@ -787,6 +875,11 @@ export function StoreProvider({ children }: { children: React.ReactNode }) {
       if (!ok) {
         const f = registerFailure(uname);
         return { ok: false, locked: f.locked, remainingMs: f.remainingMs, error: f.locked ? `Trop de tentatives. Verrouillé ${formatDuration(f.remainingMs)}.` : `Identifiants incorrects (${f.attempts} tentative${f.attempts > 1 ? "s" : ""}).` };
+      }
+
+      const roleCheck = checkGroupRole(found.role, requestedGroup);
+      if (!roleCheck.allowed) {
+        return { ok: false, error: roleCheck.error };
       }
 
       clearFailures(uname);

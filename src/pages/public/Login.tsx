@@ -101,10 +101,11 @@ export function LoginPage() {
     setBusy(false);
     if (res.ok) {
       setPassword("");
+      // Rafraîchissement asynchrone en arrière-plan pour transition instantanée
       if (isSupabaseConfigured) {
-        await auth.refresh();
+        auth.refresh().catch(() => {});
       }
-      navigate("/app/dashboard");
+      navigate("/app/dashboard", { replace: true });
     } else {
       setError(res.error || "Identifiants incorrects.");
       if ((res as any).locked && (res as any).remainingMs)
@@ -113,6 +114,37 @@ export function LoginPage() {
   };
   const [rememberMe, setRememberMe] = useState(true);
   const [showForgot, setShowForgot] = useState(false);
+
+  const groupInfo = {
+    admin: {
+      title: "Espace Administrateur",
+      desc: "Accès restreint au personnel de direction et gestionnaires autorisés.",
+      badgeColor: "border-cyan-400/40 bg-cyan-500/10 text-cyan-300",
+      fieldLabel: "Identifiant Administrateur (Nom d'utilisateur ou Email)",
+      placeholder: "ex: admin, direction ou email administrateur",
+    },
+    teacher: {
+      title: "Espace Formateur",
+      desc: "Accès réservé exclusivement aux enseignants et formateurs de l'académie.",
+      badgeColor: "border-emerald-400/40 bg-emerald-500/10 text-emerald-300",
+      fieldLabel: "Identifiant Formateur (Matricule ENS, Téléphone, Email ou Nom d'utilisateur)",
+      placeholder: "ex: ENS-001, 066328874, formateur@... ou nom d'utilisateur",
+    },
+    student: {
+      title: "Espace Apprenant",
+      desc: "Accès dédié exclusivement aux étudiants et apprenants inscrits.",
+      badgeColor: "border-blue-400/40 bg-blue-500/10 text-blue-300",
+      fieldLabel: "Identifiant Apprenant (Matricule ETU, Téléphone, Email ou Nom d'utilisateur)",
+      placeholder: "ex: ETU-001, 066328874, apprenant@... ou nom d'utilisateur",
+    },
+    partner: {
+      title: "Espace Partenaire",
+      desc: "Accès réservé aux institutions et partenaires officiels.",
+      badgeColor: "border-purple-400/40 bg-purple-500/10 text-purple-300",
+      fieldLabel: "Identifiant Partenaire (Code Partenaire, Email ou Nom d'utilisateur)",
+      placeholder: "ex: PAR-001, contact@... ou identifiant officiel",
+    },
+  }[group];
 
   return (
     <div className="relative min-h-[calc(100vh-88px)] overflow-hidden bg-black text-white flex items-center justify-center p-4 sm:p-6 lg:p-10">
@@ -195,9 +227,9 @@ export function LoginPage() {
               </div>
             )}
 
-            {/* Sélecteur de rôle */}
+            {/* Sélecteur d'espace */}
             <div className="mb-5">
-              <p className="mb-2 text-[10px] font-mono font-bold uppercase tracking-wider text-[#4C91B5]">Profil de connexion :</p>
+              <p className="mb-2 text-[10px] font-mono font-bold uppercase tracking-wider text-[#4C91B5]">Espace de connexion :</p>
               <div className="grid grid-cols-2 gap-2 sm:grid-cols-4">
                 {GROUPS.map((g) => (
                   <button
@@ -216,17 +248,26 @@ export function LoginPage() {
                   </button>
                 ))}
               </div>
+
+              {/* Indicateur explicite d'espace dédié */}
+              <div className={cn("mt-3 flex items-start gap-2.5 rounded-lg border p-2.5 text-xs transition-all", groupInfo.badgeColor)}>
+                <ShieldCheck size={16} className="mt-0.5 shrink-0" />
+                <div className="min-w-0 flex-1">
+                  <p className="font-bold">{groupInfo.title}</p>
+                  <p className="text-[11px] opacity-85 mt-0.5">{groupInfo.desc}</p>
+                </div>
+              </div>
             </div>
 
             {/* Formulaire */}
             <form onSubmit={submit} className="space-y-4" autoComplete="off">
-              <Field label="Identifiant (Nom d'utilisateur, Matricule ETU/ENS, Téléphone ou Email)">
+              <Field label={groupInfo.fieldLabel}>
                 <div className="relative">
                   <UserIcon size={14} className="pointer-events-none absolute left-3.5 top-1/2 -translate-y-1/2 text-slate-500" />
                   <Input
                     value={username}
                     onChange={(e) => setUsername(e.target.value)}
-                    placeholder="ex: ETU-001, ENS-001, prenom.nom ou email"
+                    placeholder={groupInfo.placeholder}
                     autoComplete="username"
                     spellCheck={false}
                     required

@@ -326,3 +326,24 @@ table {
   filter: drop-shadow(0 0 25px rgba(255, 16, 24, 0.45));
 }
 
+/* ========================================================
+   INSTANT CLICK RESPONSIVENESS & ZERO-LATENCY INTERACTION
+   ======================================================== */
+button, a, input, select, textarea, [role="button"] {
+  touch-action: manipulation;
+  -webkit-tap-highlight-color: transparent;
+}
+
+button:active:not(:disabled),
+a:active:not(.disabled) {
+  transform: scale(0.985);
+  transition-duration: 40ms !important;
+}
+
+/* Fast micro-transitions for UI elements */
+.transition-all,
+.transition {
+  transition-duration: 120ms !important;
+  transition-timing-function: cubic-bezier(0.4, 0, 0.2, 1) !important;
+}
+

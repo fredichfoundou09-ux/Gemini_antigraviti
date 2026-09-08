@@ -10,7 +10,19 @@ export function IntroSplash({
   onFinish,
   videoSrc = "/sentinel-intro.mp4",
 }: IntroSplashProps) {
-  const [visible, setVisible] = useState(true);
+  const [visible, setVisible] = useState(() => {
+    try {
+      if (typeof window === "undefined") return false;
+      const seen = sessionStorage.getItem("sentinel_intro_seen");
+      if (seen) return false;
+      const hash = window.location.hash || "";
+      // Only show on root public home
+      if (hash && hash !== "#/" && hash !== "#") return false;
+      return true;
+    } catch {
+      return false;
+    }
+  });
   const [fading, setFading] = useState(false);
   const [isMuted, setIsMuted] = useState(true);
   const [progress, setProgress] = useState(0);
@@ -21,11 +33,11 @@ export function IntroSplash({
   const complete = () => {
     if (finishCalledRef.current) return;
     finishCalledRef.current = true;
-    setFading(true);
-    setTimeout(() => {
-      setVisible(false);
-      onFinish?.();
-    }, 500);
+    try {
+      sessionStorage.setItem("sentinel_intro_seen", "1");
+    } catch { /* ignore */ }
+    setVisible(false);
+    onFinish?.();
   };
 
   useEffect(() => {
