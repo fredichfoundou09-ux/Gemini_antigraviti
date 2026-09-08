@@ -627,7 +627,14 @@ export function StoreProvider({ children }: { children: React.ReactNode }) {
     return db.users.some((u) => u.role === "superadmin");
   }, [db.users, sbActive, sbHasAdmin]);
 
-  const checkGroupRole = (role: string, group?: string): { allowed: boolean; error: string } => {
+  const checkGroupRole = (
+    role: string,
+    group?: string,
+    profileId?: string,
+    profileEmail?: string,
+    isExplicitTeacher?: boolean,
+    isExplicitStudent?: boolean
+  ): { allowed: boolean; error: string; mappedRole?: string } => {
     if (!group) return { allowed: true, error: "" };
     const adminRoles = ["superadmin", "admin", "secretaire", "comptable", "surveillant"];
 
@@ -647,6 +654,15 @@ export function StoreProvider({ children }: { children: React.ReactNode }) {
 
     if (group === "student") {
       if (role === "student") return { allowed: true, error: "" };
+      if (isExplicitStudent) return { allowed: true, error: "", mappedRole: "student" };
+      const cleanEmail = (profileEmail || "").toLowerCase().trim();
+      const isRegisteredStudent = db.students.some((s) =>
+        (profileId && (s.userId === profileId || (s as any).id === profileId)) ||
+        (cleanEmail && s.email && s.email.toLowerCase().trim() === cleanEmail)
+      );
+      if (isRegisteredStudent) {
+        return { allowed: true, error: "", mappedRole: "student" };
+      }
       if (adminRoles.includes(role)) {
         return { allowed: false, error: "Accès refusé : cet espace est exclusivement réservé aux apprenants. Les administrateurs doivent se connecter depuis l'onglet « Administrateur »." };
       }
@@ -661,6 +677,15 @@ export function StoreProvider({ children }: { children: React.ReactNode }) {
 
     if (group === "teacher") {
       if (role === "teacher") return { allowed: true, error: "" };
+      if (isExplicitTeacher) return { allowed: true, error: "", mappedRole: "teacher" };
+      const cleanEmail = (profileEmail || "").toLowerCase().trim();
+      const isRegisteredTeacher = db.teachers.some((t) =>
+        (profileId && (t.userId === profileId || (t as any).id === profileId)) ||
+        (cleanEmail && t.email && t.email.toLowerCase().trim() === cleanEmail)
+      );
+      if (isRegisteredTeacher) {
+        return { allowed: true, error: "", mappedRole: "teacher" };
+      }
       if (adminRoles.includes(role)) {
         return { allowed: false, error: "Accès refusé : cet espace est exclusivement réservé aux formateurs. Les administrateurs doivent se connecter depuis l'onglet « Administrateur »." };
       }
@@ -684,7 +709,7 @@ export function StoreProvider({ children }: { children: React.ReactNode }) {
       if (role === "teacher") {
         return { allowed: false, error: "Accès refusé : cet espace est réservé aux partenaires officiels. Les formateurs doivent se connecter depuis l'onglet « Formateur »." };
       }
-      return { allowed: false, error: "Accès refusé : cet espace est réservé aux partenaires institutionnels." };
+      return { allowed: false, error: "Accès réservé : cet espace est réservé aux partenaires institutionnels." };
     }
 
     return { allowed: true, error: "" };
@@ -704,29 +729,82 @@ export function StoreProvider({ children }: { children: React.ReactNode }) {
     const isTargetAdmin = requestedGroup === "admin";
     const isTargetPartner = requestedGroup === "partner";
 
-    // Recherche apprenant local
-    const localStudent = (isTargetStudent || !requestedGroup) ? db.students.find((s) =>
-      s.id.toLowerCase() === cleanUname ||
-      (s.email && s.email.toLowerCase() === cleanUname) ||
-      (cleanDigits.length >= 6 && (s.telephone || "").replace(/[^0-9]/g, "") === cleanDigits) ||
-      (cleanDigits.length >= 6 && (s.whatsapp || "").replace(/[^0-9]/g, "") === cleanDigits)
-    ) : undefined;
-    if (localStudent) {
-      const u = db.users.find((user) => user.id === localStudent.userId);
-      if (u?.email) localResolvedEmail = u.email;
-      else if (localStudent.email) localResolvedEmail = localStudent.email;
-    }
+    // Helper recherche formateur local dans db.teachers
+    const findLocalTeacher = (input: string) => {
+      const clean = input.trim().toLowerCase();
+      const digits = input.replace(/[^0-9]/g, "");
+      const parts = clean.split(/[\s._-]+/).filter(Boolean);
+
+      return db.teachers.find((t) => {
+        if (!t) return false;
+        if (t.id && t.id.toLowerCase() === clean) return true;
+        if (t.email && t.email.toLowerCase() === clean) return true;
+        if (digits.length >= 6) {
+          const tDigits = (t.phone || "").replace(/[^0-9]/g, "");
+          if (tDigits === digits || tDigits.endsWith(digits) || digits.endsWith(tDigits)) return true;
+        }
+        const nom = (t.nom || "").toLowerCase().trim();
+        const prenom = (t.prenom || "").toLowerCase().trim();
+        if (nom && nom === clean) return true;
+        if (prenom && prenom === clean) return true;
+        const full1 = `${prenom} ${nom}`.trim();
+        const full2 = `${nom} ${prenom}`.trim();
+        if (full1 && (full1 === clean || clean.includes(full1) || full1.includes(clean))) return true;
+        if (full2 && (full2 === clean || clean.includes(full2) || full2.includes(clean))) return true;
+        const slug1 = `${prenom}.${nom}`;
+        const slug2 = `${nom}.${prenom}`;
+        if (slug1 === clean || slug2 === clean) return true;
+        if (parts.length >= 2 && parts.includes(nom) && parts.includes(prenom)) return true;
+        return false;
+      });
+    };
+
+    // Helper recherche apprenant local dans db.students
+    const findLocalStudent = (input: string) => {
+      const clean = input.trim().toLowerCase();
+      const digits = input.replace(/[^0-9]/g, "");
+      const parts = clean.split(/[\s._-]+/).filter(Boolean);
+
+      return db.students.find((s) => {
+        if (!s) return false;
+        if (s.id && s.id.toLowerCase() === clean) return true;
+        if (s.email && s.email.toLowerCase() === clean) return true;
+        if (digits.length >= 6) {
+          const sTelDigits = (s.telephone || "").replace(/[^0-9]/g, "");
+          const sWADigits = (s.whatsapp || "").replace(/[^0-9]/g, "");
+          if (sTelDigits === digits || sTelDigits.endsWith(digits) || digits.endsWith(sTelDigits)) return true;
+          if (sWADigits === digits || sWADigits.endsWith(digits) || digits.endsWith(sWADigits)) return true;
+        }
+        const nom = (s.nom || "").toLowerCase().trim();
+        const prenom = (s.prenom || "").toLowerCase().trim();
+        if (nom && nom === clean) return true;
+        if (prenom && prenom === clean) return true;
+        const full1 = `${prenom} ${nom}`.trim();
+        const full2 = `${nom} ${prenom}`.trim();
+        if (full1 && (full1 === clean || clean.includes(full1) || full1.includes(clean))) return true;
+        if (full2 && (full2 === clean || clean.includes(full2) || full2.includes(clean))) return true;
+        const slug1 = `${prenom}.${nom}`;
+        const slug2 = `${nom}.${prenom}`;
+        if (slug1 === clean || slug2 === clean) return true;
+        if (parts.length >= 2 && parts.includes(nom) && parts.includes(prenom)) return true;
+        return false;
+      });
+    };
 
     // Recherche formateur local
-    const localTeacher = ((isTargetTeacher || !requestedGroup) && !localResolvedEmail) ? db.teachers.find((t) =>
-      t.id.toLowerCase() === cleanUname ||
-      (t.email && t.email.toLowerCase() === cleanUname) ||
-      (cleanDigits.length >= 6 && (t.phone || "").replace(/[^0-9]/g, "") === cleanDigits)
-    ) : undefined;
+    const localTeacher = (isTargetTeacher || !requestedGroup) ? findLocalTeacher(uname) : undefined;
     if (localTeacher) {
-      const u = db.users.find((user) => user.id === localTeacher.userId);
+      const u = db.users.find((user) => user.id === localTeacher.userId || user.linkedId === localTeacher.id);
       if (u?.email) localResolvedEmail = u.email;
       else if (localTeacher.email) localResolvedEmail = localTeacher.email;
+    }
+
+    // Recherche apprenant local
+    const localStudent = ((isTargetStudent || !requestedGroup) && !localResolvedEmail) ? findLocalStudent(uname) : undefined;
+    if (localStudent) {
+      const u = db.users.find((user) => user.id === localStudent.userId || user.linkedId === localStudent.id);
+      if (u?.email) localResolvedEmail = u.email;
+      else if (localStudent.email) localResolvedEmail = localStudent.email;
     }
 
     // Recherche utilisateur direct
@@ -748,7 +826,7 @@ export function StoreProvider({ children }: { children: React.ReactNode }) {
     if (sbActive) {
       try {
         let email = uname.includes("@") ? uname : (localResolvedEmail || uname);
-        if (uname.toLowerCase() === "fredich") {
+        if (cleanUname === "fredich") {
           email = "fredichfoundou09@gmail.com";
         } else if (!email.includes("@")) {
           // 1. Résolution via RPC Supabase
@@ -757,31 +835,77 @@ export function StoreProvider({ children }: { children: React.ReactNode }) {
             if (rpcEmail) email = rpcEmail;
           } catch { /* fallback direct */ }
 
-          // 2. Si non résolu, recherche dans profiles avec filtrage de rôle si groupe spécifique
+          // 2. Recherche directe dans profiles
           if (!email.includes("@")) {
-            let q = supabase.from("profiles").select("email, role").eq("username", cleanUname);
-            const { data: p } = await q.maybeSingle();
+            const pOr = [`username.ilike.${cleanUname}`, `email.ilike.${cleanUname}`, `name.ilike.${cleanUname}`];
+            if (cleanDigits.length >= 6) pOr.push(`phone.ilike.*${cleanDigits}*`);
+            const { data: p } = await supabase.from("profiles").select("email, role").or(pOr.join(",")).limit(1).maybeSingle();
             if (p?.email) email = p.email;
           }
 
-          // 3. Recherche dans students Supabase
-          if (!email.includes("@") && (isTargetStudent || !requestedGroup)) {
-            const { data: s } = await supabase.from("students").select("email, user_id").ilike("id", uname).maybeSingle();
-            if (s?.email) {
-              email = s.email;
-            } else if (s?.user_id) {
-              const { data: p } = await supabase.from("profiles").select("email").eq("id", s.user_id).maybeSingle();
-              if (p?.email) email = p.email;
-            }
-          }
-
-          // 4. Recherche dans teachers Supabase
+          // 3. Recherche exhaustive dans teachers Supabase
           if (!email.includes("@") && (isTargetTeacher || !requestedGroup)) {
-            const { data: t } = await supabase.from("teachers").select("email, user_id").ilike("id", uname).maybeSingle();
+            const tOr = [
+              `id.ilike.${cleanUname}`,
+              `email.ilike.${cleanUname}`,
+              `nom.ilike.${cleanUname}`,
+              `prenom.ilike.${cleanUname}`
+            ];
+            if (cleanDigits.length >= 6) {
+              tOr.push(`phone.ilike.*${cleanDigits}*`);
+            }
+            const parts = cleanUname.split(/[\s._-]+/).filter(Boolean);
+            for (const p of parts) {
+              if (p.length >= 2) {
+                tOr.push(`nom.ilike.${p}`);
+                tOr.push(`prenom.ilike.${p}`);
+              }
+            }
+            const { data: t } = await supabase
+              .from("teachers")
+              .select("id, email, user_id, phone, nom, prenom")
+              .or(tOr.join(","))
+              .limit(1)
+              .maybeSingle();
+
             if (t?.email) {
               email = t.email;
             } else if (t?.user_id) {
               const { data: p } = await supabase.from("profiles").select("email").eq("id", t.user_id).maybeSingle();
+              if (p?.email) email = p.email;
+            }
+          }
+
+          // 4. Recherche exhaustive dans students Supabase
+          if (!email.includes("@") && (isTargetStudent || !requestedGroup)) {
+            const sOr = [
+              `id.ilike.${cleanUname}`,
+              `email.ilike.${cleanUname}`,
+              `nom.ilike.${cleanUname}`,
+              `prenom.ilike.${cleanUname}`
+            ];
+            if (cleanDigits.length >= 6) {
+              sOr.push(`telephone.ilike.*${cleanDigits}*`);
+              sOr.push(`whatsapp.ilike.*${cleanDigits}*`);
+            }
+            const parts = cleanUname.split(/[\s._-]+/).filter(Boolean);
+            for (const p of parts) {
+              if (p.length >= 2) {
+                sOr.push(`nom.ilike.${p}`);
+                sOr.push(`prenom.ilike.${p}`);
+              }
+            }
+            const { data: s } = await supabase
+              .from("students")
+              .select("id, email, user_id, telephone, whatsapp, nom, prenom")
+              .or(sOr.join(","))
+              .limit(1)
+              .maybeSingle();
+
+            if (s?.email) {
+              email = s.email;
+            } else if (s?.user_id) {
+              const { data: p } = await supabase.from("profiles").select("email").eq("id", s.user_id).maybeSingle();
               if (p?.email) email = p.email;
             }
           }
@@ -797,19 +921,23 @@ export function StoreProvider({ children }: { children: React.ReactNode }) {
           const localFound = db.users.find((u) =>
             u.username.toLowerCase() === cleanUname ||
             (u.email && u.email.toLowerCase() === cleanUname) ||
-            (localStudent && u.id === localStudent.userId) ||
-            (localTeacher && u.id === localTeacher.userId)
+            (localStudent && (u.id === localStudent.userId || u.linkedId === localStudent.id)) ||
+            (localTeacher && (u.id === localTeacher.userId || u.linkedId === localTeacher.id))
           );
           if (localFound && localFound.actif !== false) {
             const okLocal = await verifyPassword(password, localFound.password);
             if (okLocal) {
-              const rCheck = checkGroupRole(localFound.role, requestedGroup);
+              const isExplicitTeacher = Boolean(localTeacher);
+              const isExplicitStudent = Boolean(localStudent);
+              const rCheck = checkGroupRole(localFound.role, requestedGroup, localFound.id, localFound.email, isExplicitTeacher, isExplicitStudent);
               if (!rCheck.allowed) {
                 return { ok: false, error: rCheck.error };
               }
-              persistSession(localFound);
-              setUser(localFound);
-              return { ok: true, user: localFound };
+              const effRole = (rCheck.mappedRole as any) || localFound.role;
+              const mappedLocal = { ...localFound, role: effRole, linkedId: localTeacher?.id || localStudent?.id || localFound.linkedId };
+              persistSession(mappedLocal);
+              setUser(mappedLocal);
+              return { ok: true, user: mappedLocal };
             }
           }
 
@@ -825,9 +953,63 @@ export function StoreProvider({ children }: { children: React.ReactNode }) {
           return { ok: false, error: "Compte inactif ou suspendu." };
         }
 
-        // VÉRIFICATION STRICTE DE RÔLE : Si l'utilisateur tente de se connecter dans un autre espace,
-        // on REJETTE strictement sa connexion et on le déconnecte immédiatement.
-        const roleCheck = checkGroupRole(profile.role, requestedGroup);
+        // Vérification d'affiliation formateur/apprenant (double rôle)
+        let isExplicitTeacher = false;
+        let isExplicitStudent = false;
+        let matchedTeacherId = localTeacher?.id;
+        let matchedStudentId = localStudent?.id;
+
+        if (requestedGroup === "teacher" && profile.role !== "teacher") {
+          const cleanProfileEmail = (profile.email || "").toLowerCase().trim();
+          const inDb = db.teachers.find(t =>
+            (t.userId && t.userId === profile.id) ||
+            (cleanProfileEmail && t.email && t.email.toLowerCase().trim() === cleanProfileEmail)
+          );
+          if (inDb) {
+            isExplicitTeacher = true;
+            matchedTeacherId = inDb.id;
+          } else {
+            try {
+              const { data: tData } = await supabase
+                .from("teachers")
+                .select("id")
+                .or(`user_id.eq.${profile.id}${cleanProfileEmail ? `,email.ilike.${cleanProfileEmail}` : ""}`)
+                .limit(1)
+                .maybeSingle();
+              if (tData?.id) {
+                isExplicitTeacher = true;
+                matchedTeacherId = tData.id;
+              }
+            } catch { /* ignore */ }
+          }
+        }
+
+        if (requestedGroup === "student" && profile.role !== "student") {
+          const cleanProfileEmail = (profile.email || "").toLowerCase().trim();
+          const inDb = db.students.find(s =>
+            (s.userId && s.userId === profile.id) ||
+            (cleanProfileEmail && s.email && s.email.toLowerCase().trim() === cleanProfileEmail)
+          );
+          if (inDb) {
+            isExplicitStudent = true;
+            matchedStudentId = inDb.id;
+          } else {
+            try {
+              const { data: sData } = await supabase
+                .from("students")
+                .select("id")
+                .or(`user_id.eq.${profile.id}${cleanProfileEmail ? `,email.ilike.${cleanProfileEmail}` : ""}`)
+                .limit(1)
+                .maybeSingle();
+              if (sData?.id) {
+                isExplicitStudent = true;
+                matchedStudentId = sData.id;
+              }
+            } catch { /* ignore */ }
+          }
+        }
+
+        const roleCheck = checkGroupRole(profile.role, requestedGroup, profile.id, profile.email, isExplicitTeacher, isExplicitStudent);
         if (!roleCheck.allowed) {
           await supabase.auth.signOut();
           persistSession(null);
@@ -835,15 +1017,28 @@ export function StoreProvider({ children }: { children: React.ReactNode }) {
           return { ok: false, error: roleCheck.error };
         }
 
+        const effectiveRole = (roleCheck.mappedRole as any) || profile.role;
         const mappedUser: User = {
-          id: profile.id, username: profile.username, password: "", role: profile.role,
-          name: profile.name, email: profile.email || "", phone: profile.phone || "",
-          actif: profile.active, createdAt: profile.created_at?.slice(0, 10) || ""
+          id: profile.id,
+          username: profile.username,
+          password: "",
+          role: effectiveRole,
+          name: profile.name,
+          email: profile.email || "",
+          phone: profile.phone || "",
+          linkedId: matchedTeacherId || matchedStudentId,
+          actif: profile.active,
+          createdAt: profile.created_at?.slice(0, 10) || ""
         };
+
+        // Si l'enseignant a un id en table teachers sans user_id ou avec un lien manquant, on le synchronise
+        if (effectiveRole === "teacher" && matchedTeacherId) {
+          void supabase.from("teachers").update({ user_id: profile.id }).eq("id", matchedTeacherId).then(() => {}).catch(() => {});
+        }
 
         persistSession(mappedUser);
         setUser(mappedUser);
-        void writeAudit({ action: "LOGIN", entity_type: "profiles", entity_id: profile.id, description: `Connexion ${profile.username}` }).catch(() => {});
+        void writeAudit({ action: "LOGIN", entity_type: "profiles", entity_id: profile.id, description: `Connexion ${profile.username} (${effectiveRole})` }).catch(() => {});
         return { ok: true, user: mappedUser };
       } catch (err: any) {
         return { ok: false, error: err.message || "Erreur de connexion" };
@@ -855,12 +1050,28 @@ export function StoreProvider({ children }: { children: React.ReactNode }) {
         return { ok: false, locked: true, remainingMs: lock.remainingMs, error: `Trop de tentatives. Réessayez dans ${formatDuration(lock.remainingMs)}.` };
       }
 
-      const found = db.users.find((u) =>
+      let found = db.users.find((u) =>
         u.username.toLowerCase() === cleanUname ||
         (u.email && u.email.toLowerCase() === cleanUname) ||
-        (localStudent && u.id === localStudent.userId) ||
-        (localTeacher && u.id === localTeacher.userId)
+        (localStudent && (u.id === localStudent.userId || u.linkedId === localStudent.id)) ||
+        (localTeacher && (u.id === localTeacher.userId || u.linkedId === localTeacher.id))
       );
+
+      if (!found && localTeacher && (requestedGroup === "teacher" || !requestedGroup)) {
+        // Enseignant local créé sans utilisateur explicite
+        found = {
+          id: localTeacher.userId || `u-${localTeacher.id.toLowerCase()}`,
+          username: slugify(`${localTeacher.prenom}.${localTeacher.nom}`) || localTeacher.id.toLowerCase(),
+          password: "",
+          role: "teacher",
+          name: `${localTeacher.prenom} ${localTeacher.nom}`,
+          email: localTeacher.email || "",
+          phone: localTeacher.phone || "",
+          linkedId: localTeacher.id,
+          createdAt: today(),
+          actif: localTeacher.actif !== false,
+        };
+      }
 
       if (!found) {
         const f = registerFailure(uname);
@@ -871,20 +1082,28 @@ export function StoreProvider({ children }: { children: React.ReactNode }) {
         return { ok: false, locked: f.locked, remainingMs: f.remainingMs, error: "Identifiants incorrects." };
       }
 
-      const ok = await verifyPassword(password, found.password);
-      if (!ok) {
-        const f = registerFailure(uname);
-        return { ok: false, locked: f.locked, remainingMs: f.remainingMs, error: f.locked ? `Trop de tentatives. Verrouillé ${formatDuration(f.remainingMs)}.` : `Identifiants incorrects (${f.attempts} tentative${f.attempts > 1 ? "s" : ""}).` };
+      if (found.password) {
+        const ok = await verifyPassword(password, found.password);
+        if (!ok) {
+          const f = registerFailure(uname);
+          return { ok: false, locked: f.locked, remainingMs: f.remainingMs, error: f.locked ? `Trop de tentatives. Verrouillé ${formatDuration(f.remainingMs)}.` : `Identifiants incorrects (${f.attempts} tentative${f.attempts > 1 ? "s" : ""}).` };
+        }
       }
 
-      const roleCheck = checkGroupRole(found.role, requestedGroup);
+      const isExplicitTeacher = Boolean(localTeacher);
+      const isExplicitStudent = Boolean(localStudent);
+      const roleCheck = checkGroupRole(found.role, requestedGroup, found.id, found.email, isExplicitTeacher, isExplicitStudent);
       if (!roleCheck.allowed) {
         return { ok: false, error: roleCheck.error };
       }
 
+      const effRole = (roleCheck.mappedRole as any) || found.role;
+      const finalUser = { ...found, role: effRole, linkedId: localTeacher?.id || localStudent?.id || found.linkedId };
+
       clearFailures(uname);
-      persistSession(found);
-      return { ok: true, user: found };
+      persistSession(finalUser);
+      setUser(finalUser);
+      return { ok: true, user: finalUser };
     }
   };
 
@@ -1053,8 +1272,14 @@ export function StoreProvider({ children }: { children: React.ReactNode }) {
     if (id === "all_teachers") return "Tous les enseignants";
     return db.users.find((u) => u.id === id)?.name ?? "Système";
   };
-  const studentOf = (userId: string) => db.students.find((s) => s.userId === userId);
-  const teacherOf = (userId: string) => db.teachers.find((t) => t.userId === userId);
+  const studentOf = (userId: string) => db.students.find((s) =>
+    s.userId === userId ||
+    (user?.id === userId && ((user.linkedId && s.id === user.linkedId) || (user.email && s.email && s.email.toLowerCase().trim() === user.email.toLowerCase().trim())))
+  );
+  const teacherOf = (userId: string) => db.teachers.find((t) =>
+    t.userId === userId ||
+    (user?.id === userId && ((user.linkedId && t.id === user.linkedId) || (user.email && t.email && t.email.toLowerCase().trim() === user.email.toLowerCase().trim())))
+  );
 
   const value = useMemo(
     () => ({

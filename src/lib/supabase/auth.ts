@@ -29,28 +29,54 @@ export async function signInWithPassword(emailOrUsername: string, password: stri
   let email = emailOrUsername.trim();
   if (!email.includes("@")) {
     const clean = email.toLowerCase();
+    const cleanDigits = email.replace(/[^0-9]/g, "");
     try {
       const { data: rpcEmail } = await sb.rpc("get_email_by_username", { p_username: email });
       if (rpcEmail) email = rpcEmail;
     } catch { /* fallback */ }
 
     if (!email.includes("@")) {
-      const { data: profile } = await sb.from("profiles").select("email").eq("username", clean).maybeSingle();
+      // 1. Profils
+      const pOr = [`username.ilike.${clean}`, `email.ilike.${clean}`, `name.ilike.${clean}`];
+      if (cleanDigits.length >= 6) pOr.push(`phone.ilike.*${cleanDigits}*`);
+      const { data: profile } = await sb.from("profiles").select("email").or(pOr.join(",")).limit(1).maybeSingle();
       if (profile?.email) {
         email = profile.email;
       } else {
-        const { data: s } = await sb.from("students").select("email, user_id").ilike("id", email).maybeSingle();
-        if (s?.email) {
-          email = s.email;
-        } else if (s?.user_id) {
-          const { data: p } = await sb.from("profiles").select("email").eq("id", s.user_id).maybeSingle();
+        // 2. Formateurs
+        const tOr = [`id.ilike.${clean}`, `email.ilike.${clean}`, `nom.ilike.${clean}`, `prenom.ilike.${clean}`];
+        if (cleanDigits.length >= 6) tOr.push(`phone.ilike.*${cleanDigits}*`);
+        const parts = clean.split(/[\s._-]+/).filter(Boolean);
+        for (const p of parts) {
+          if (p.length >= 2) {
+            tOr.push(`nom.ilike.${p}`);
+            tOr.push(`prenom.ilike.${p}`);
+          }
+        }
+        const { data: t } = await sb.from("teachers").select("email, user_id").or(tOr.join(",")).limit(1).maybeSingle();
+        if (t?.email) {
+          email = t.email;
+        } else if (t?.user_id) {
+          const { data: p } = await sb.from("profiles").select("email").eq("id", t.user_id).maybeSingle();
           if (p?.email) email = p.email;
         } else {
-          const { data: t } = await sb.from("teachers").select("email, user_id").ilike("id", email).maybeSingle();
-          if (t?.email) {
-            email = t.email;
-          } else if (t?.user_id) {
-            const { data: p } = await sb.from("profiles").select("email").eq("id", t.user_id).maybeSingle();
+          // 3. Apprenants
+          const sOr = [`id.ilike.${clean}`, `email.ilike.${clean}`, `nom.ilike.${clean}`, `prenom.ilike.${clean}`];
+          if (cleanDigits.length >= 6) {
+            sOr.push(`telephone.ilike.*${cleanDigits}*`);
+            sOr.push(`whatsapp.ilike.*${cleanDigits}*`);
+          }
+          for (const p of parts) {
+            if (p.length >= 2) {
+              sOr.push(`nom.ilike.${p}`);
+              sOr.push(`prenom.ilike.${p}`);
+            }
+          }
+          const { data: s } = await sb.from("students").select("email, user_id").or(sOr.join(",")).limit(1).maybeSingle();
+          if (s?.email) {
+            email = s.email;
+          } else if (s?.user_id) {
+            const { data: p } = await sb.from("profiles").select("email").eq("id", s.user_id).maybeSingle();
             if (p?.email) email = p.email;
           }
         }

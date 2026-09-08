@@ -11,9 +11,18 @@ import { supabase, isSupabaseConfigured } from "@/lib/supabase/client";
 import { toastMsg } from "@/lib/toast";
 import { PasswordChangeCard } from "@/pages/shared/PasswordChangeCard";
 
+function getTeacher(db: any, user: any) {
+  if (!user) return null;
+  return db.teachers.find((t: any) =>
+    t.userId === user.id ||
+    (user.linkedId && t.id === user.linkedId) ||
+    (user.email && t.email && t.email.toLowerCase().trim() === user.email.toLowerCase().trim())
+  ) || null;
+}
+
 export function TeacherDashboard() {
   const { db, user } = useStore();
-  const teacher = db.teachers.find((t) => t.userId === user!.id);
+  const teacher = getTeacher(db, user);
   if (!teacher) return <Empty icon={<GraduationCap size={40} />} title="Profil enseignant introuvable" />;
 
   const myModules = db.modules.filter((m) => teacher.modules.includes(m.id));
@@ -131,7 +140,7 @@ export function TeacherDashboard() {
 
 export function TeacherClasses() {
   const { db, user } = useStore();
-  const teacher = db.teachers.find((t) => t.userId === user!.id);
+  const teacher = getTeacher(db, user);
   if (!teacher) return <Empty icon={<GraduationCap size={40} />} title="Profil enseignant introuvable" />;
   const myModules = db.modules.filter((m) => teacher.modules.includes(m.id));
 
@@ -184,7 +193,7 @@ export function TeacherClasses() {
 
 export function TeacherStudents() {
   const { db, user } = useStore();
-  const teacher = db.teachers.find((t) => t.userId === user!.id);
+  const teacher = getTeacher(db, user);
   const [searchTerm, setSearchTerm] = useState("");
   const [filterModule, setFilterModule] = useState<string>("all");
   const [selectedStudent, setSelectedStudent] = useState<any | null>(null);
@@ -433,7 +442,7 @@ export function TeacherStudents() {
 /* ---------- profil formateur (Points 16-17) ---------- */
 export function TeacherProfile() {
   const { db, user, update, log } = useStore();
-  const teacher = db.teachers.find((t) => t.userId === user?.id);
+  const teacher = getTeacher(db, user);
   if (!teacher) return <Empty icon={<GraduationCap size={40} />} title="Profil enseignant introuvable" />;
 
   const [phone, setPhone] = useState(teacher.phone || "");

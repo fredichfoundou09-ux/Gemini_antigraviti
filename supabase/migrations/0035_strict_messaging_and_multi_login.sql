@@ -39,7 +39,7 @@ begin
     return v_email;
   end if;
 
-  -- B. Recherche par apprenant (Matricule ETU-xxx, Téléphone, Email)
+  -- B. Recherche par apprenant (Matricule ETU-xxx, Téléphone, Email, Nom, Prénom)
   select coalesce(p.email, s.email) into v_email
   from public.students s
   left join public.profiles p on p.id = s.user_id
@@ -47,6 +47,11 @@ begin
     and (
       lower(s.id) = v_cleaned
       or lower(coalesce(s.email, '')) = v_cleaned
+      or lower(coalesce(s.nom, '')) = v_cleaned
+      or lower(coalesce(s.prenom, '')) = v_cleaned
+      or lower(coalesce(s.prenom, '') || ' ' || coalesce(s.nom, '')) = v_cleaned
+      or lower(coalesce(s.nom, '') || ' ' || coalesce(s.prenom, '')) = v_cleaned
+      or lower(coalesce(s.prenom, '') || '.' || coalesce(s.nom, '')) = v_cleaned
       or (v_clean_phone <> '' and regexp_replace(coalesce(s.telephone, ''), '[^0-9]', '', 'g') = v_clean_phone)
       or (v_clean_phone <> '' and regexp_replace(coalesce(s.whatsapp, ''), '[^0-9]', '', 'g') = v_clean_phone)
     )
@@ -57,7 +62,7 @@ begin
     return v_email;
   end if;
 
-  -- C. Recherche par formateur (Matricule ENS-xxx, Téléphone, Email)
+  -- C. Recherche par formateur (Matricule ENS-xxx, Téléphone, Email, Nom, Prénom)
   select coalesce(p.email, t.email) into v_email
   from public.teachers t
   left join public.profiles p on p.id = t.user_id
@@ -65,6 +70,11 @@ begin
     and (
       lower(t.id) = v_cleaned
       or lower(coalesce(t.email, '')) = v_cleaned
+      or lower(coalesce(t.nom, '')) = v_cleaned
+      or lower(coalesce(t.prenom, '')) = v_cleaned
+      or lower(coalesce(t.prenom, '') || ' ' || coalesce(t.nom, '')) = v_cleaned
+      or lower(coalesce(t.nom, '') || ' ' || coalesce(t.prenom, '')) = v_cleaned
+      or lower(coalesce(t.prenom, '') || '.' || coalesce(t.nom, '')) = v_cleaned
       or (v_clean_phone <> '' and regexp_replace(coalesce(t.phone, ''), '[^0-9]', '', 'g') = v_clean_phone)
     )
   order by t.created_at desc
