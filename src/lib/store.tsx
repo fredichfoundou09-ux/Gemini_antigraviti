@@ -911,7 +911,16 @@ export function StoreProvider({ children }: { children: React.ReactNode }) {
           }
         }
 
-        const { data: authData, error: authErr } = await supabase.auth.signInWithPassword({ email, password });
+        let { data: authData, error: authErr } = await supabase.auth.signInWithPassword({ email, password });
+        if (authErr && (authErr.message?.toLowerCase().includes("email not confirmed") || authErr.message?.toLowerCase().includes("invalid login credentials"))) {
+          // Retry automatique transparent pour absorber la latence d'indexation Supabase Auth
+          await new Promise((r) => setTimeout(r, 400));
+          const retryRes = await supabase.auth.signInWithPassword({ email, password });
+          if (!retryRes.error) {
+            authData = retryRes.data;
+            authErr = null;
+          }
+        }
         if (authErr) {
           if (authErr.message?.toLowerCase().includes("email not confirmed")) {
             return { ok: false, error: "Email en cours de confirmation. Réactualisez la page et réessayez." };

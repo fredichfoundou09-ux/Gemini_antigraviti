@@ -20,19 +20,28 @@ import { supabase, isSupabaseConfigured } from "@/lib/supabase/client";
 import { toastMsg } from "@/lib/toast";
 import { PasswordChangeCard } from "@/pages/shared/PasswordChangeCard";
 
+function getStudent(db: any, user: any) {
+  if (!user) return null;
+  return db.students.find((s: any) =>
+    s.userId === user.id ||
+    (user.linkedId && s.id === user.linkedId) ||
+    (user.email && s.email && s.email.toLowerCase().trim() === user.email.toLowerCase().trim())
+  ) || null;
+}
+
 export function StudentDashboard() {
   const { db, user } = useStore();
-  const student = db.students.find((s) => s.userId === user!.id);
+  const student = getStudent(db, user);
   if (!student) return <Empty icon={<UserCircle2 size={40} />} title="Profil apprenant introuvable. Contactez l'administration." />;
 
-  const myMods = db.modules.filter((m) => student.modules.includes(m.id));
+  const myMods = db.modules.filter((m) => (student.modules || []).includes(m.id));
   const att = db.attendance.filter((a) => a.studentId === student.id);
   const grades = db.grades.filter((g) => g.studentId === student.id);
   const avg = grades.length ? (grades.reduce((a, g) => a + g.note, 0) / grades.length).toFixed(1) : "—";
   const present = att.filter((a) => a.statut === "present").length;
   const absent = att.filter((a) => a.statut === "absent").length;
   const progression = Math.min(100, Math.round(((grades.length + att.length) / Math.max(6, myMods.length * 3)) * 100));
-  const todaySessions = db.schedule.filter((s) => s.formation === student.formation && s.jour === new Date().toLocaleDateString("fr-FR", { weekday: "long" }).replace(/^\w/, (c) => c.toUpperCase()));
+  const todaySessions = scheduleFor(db, user).filter((s) => s.jour === new Date().toLocaleDateString("fr-FR", { weekday: "long" }).replace(/^\w/, (c) => c.toUpperCase()));
   const notifs = db.notifications.filter((n) => n.toId === user!.id || n.toId === "all").slice(0, 3);
 
   const summary = financialSummary(db, student.id);

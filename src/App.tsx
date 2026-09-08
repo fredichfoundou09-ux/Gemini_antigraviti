@@ -14,7 +14,6 @@ import {
   PaymentsPage, CertificatesPage, ScholarshipsPage,
 } from "@/pages/admin/Operations";
 import { ContentEditor } from "@/pages/admin/ContentEditor";
-import { AdvantagesManager, PartnersManager, AnnouncementsManager } from "@/pages/admin/ContentManagers";
 import { InitializationPage } from "@/pages/admin/Initialization";
 import { TeacherHoursPage } from "@/pages/admin/TeacherHours";
 import { TeacherSubmissions, StudentSubmission } from "@/pages/shared/Submissions";
@@ -165,9 +164,9 @@ export default function App() {
             <Route path="notifications" element={<NotificationsPage />} />
             <Route path="utilisateurs" element={<Gate roles={["superadmin"]}><UsersPage /></Gate>} />
             <Route path="contenu" element={<Gate roles={["superadmin", "admin"]}><ContentEditor /></Gate>} />
-            <Route path="avantages" element={<Gate roles={["superadmin", "admin"]}><AdvantagesManager /></Gate>} />
-            <Route path="partenaires" element={<Gate roles={["superadmin", "admin"]}><PartnersManager /></Gate>} />
-            <Route path="annonces" element={<Gate roles={["superadmin", "admin"]}><AnnouncementsManager /></Gate>} />
+            <Route path="avantages" element={<Navigate to="/app/contenu" replace />} />
+            <Route path="partenaires" element={<Navigate to="/app/contenu" replace />} />
+            <Route path="annonces" element={<Navigate to="/app/contenu" replace />} />
             <Route path="initialisation" element={<Gate roles={["superadmin"]}><InitializationPage /></Gate>} />
             <Route path="journal" element={<Gate roles={["superadmin", "admin"]}><JournalPage /></Gate>} />
             <Route path="rapports" element={<Gate roles={["superadmin", "admin", "partner_admin"]}><ReportsPage /></Gate>} />

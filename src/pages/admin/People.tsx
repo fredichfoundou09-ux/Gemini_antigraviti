@@ -175,6 +175,13 @@ export function StudentsPage() {
             sexe: form.sexe || null,
             photo_url: form.photo || null,
           }).eq("id", editing.id);
+          if (Array.isArray(form.modules)) {
+            await supabase.from("student_modules").delete().eq("student_id", editing.id);
+            if (form.modules.length > 0) {
+              const rows = form.modules.map((mid: string) => ({ student_id: editing.id, module_id: mid }));
+              await supabase.from("student_modules").insert(rows);
+            }
+          }
           window.dispatchEvent(new Event("sentinelles:supabase-refresh"));
           toastMsg.success("Apprenant mis à jour côté serveur ✓");
         } catch (err: any) {
@@ -1738,6 +1745,13 @@ export function TeachersPage() {
             tarif_horaire: form.tarifHoraire || 0,
             photo_url: form.photo || null,
           }).eq("id", editing.id);
+          if (Array.isArray(form.modules)) {
+            await supabase.from("teacher_modules").delete().eq("teacher_id", editing.id);
+            if (form.modules.length > 0) {
+              const rows = form.modules.map((mid: string) => ({ teacher_id: editing.id, module_id: mid }));
+              await supabase.from("teacher_modules").insert(rows);
+            }
+          }
           window.dispatchEvent(new Event("sentinelles:supabase-refresh"));
           toastMsg.success("Enseignant mis à jour côté serveur ✓");
         } catch (err: any) {

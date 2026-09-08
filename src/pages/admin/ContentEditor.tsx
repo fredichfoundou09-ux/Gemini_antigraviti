@@ -2,15 +2,15 @@ import { useState, useEffect, useRef } from "react";
 import { Link } from "react-router-dom";
 import {
   Info, UserCircle2, BookOpen, Wallet, Medal, FileText, PlusCircle, Trash2, Save, ExternalLink,
-  Upload, ImageOff, MessageCircle, Handshake, Building2, Globe, Eye, EyeOff,
+  Upload, ImageOff, MessageCircle, Handshake, Building2, Globe, Eye, EyeOff, Megaphone, Pencil,
 } from "lucide-react";
 import { useStore } from "@/lib/store";
 import { cn } from "@/utils/cn";
-import { Btn, Card, Field, Input, Textarea, PageHead, readImage, uid } from "@/lib/ui";
+import { Btn, Badge, Card, Field, Input, Textarea, Modal, PageHead, readImage, uid, today } from "@/lib/ui";
 import { supabase, isSupabaseConfigured } from "@/lib/supabase/client";
 import { toastMsg } from "@/lib/toast";
 import { sanitizeJsonPayload } from "@/lib/validation/jsonPayload";
-import type { Partner } from "@/lib/types";
+import type { Partner, Announcement } from "@/lib/types";
 
 const TABS = [
   { k: "infos", l: "Informations", icon: <Info size={15} /> },
@@ -19,6 +19,7 @@ const TABS = [
   { k: "frais", l: "Frais de formation", icon: <Wallet size={15} /> },
   { k: "avantages", l: "Avantages", icon: <Medal size={15} /> },
   { k: "partenaires", l: "Partenaires", icon: <Handshake size={15} /> },
+  { k: "annonces", l: "Annonces", icon: <Megaphone size={15} /> },
   { k: "preinscription", l: "Pré-inscription", icon: <FileText size={15} /> },
 ];
 
@@ -93,6 +94,21 @@ export function ContentEditor() {
     description: s.preInscription?.description || "",
   });
 
+  const [announcements, setAnnouncements] = useState<Announcement[]>(() =>
+    Array.isArray(db.announcements) ? [...db.announcements] : []
+  );
+  const [creatingAnn, setCreatingAnn] = useState(false);
+  const [editingAnn, setEditingAnn] = useState<Announcement | null>(null);
+  const emptyAnn = (): Announcement => ({
+    id: uid("ANN"),
+    titre: "",
+    contenu: "",
+    date: today(),
+    actif: true,
+    couleur: "cyan",
+  });
+  const [formAnn, setFormAnn] = useState<Announcement>(emptyAnn());
+
   const [saved, setSaved] = useState(false);
   const [uploading, setUploading] = useState(false);
   const [whatsappRaw, setWhatsappRaw] = useState(() => (s.infos?.whatsapp || []).join("\n"));
@@ -146,7 +162,37 @@ export function ContentEditor() {
     if (Array.isArray(cur.avantages)) setAvantages([...cur.avantages]);
     if (cur.advantageImage !== undefined) setAdvantageImage(cur.advantageImage || "");
     if (cur.preInscription) setPre({ ...cur.preInscription });
-  }, [db.settings, db.partners]);
+    if (Array.isArray(db.announcements) && db.announcements.length > 0) {
+      setAnnouncements([...db.announcements]);
+    }
+  }, [db.settings, db.partners, db.announcements]);
+
+  const saveAnnouncement = () => {
+    if (!formAnn.titre.trim()) return;
+    let nextAnn: Announcement[];
+    if (editingAnn) {
+      nextAnn = announcements.map((a) => (a.id === editingAnn.id ? formAnn : a));
+    } else {
+      nextAnn = [formAnn, ...announcements];
+    }
+    setAnnouncements(nextAnn);
+    setCreatingAnn(false);
+    setEditingAnn(null);
+    persist(undefined, undefined, undefined, nextAnn);
+  };
+
+  const toggleAnnouncement = (id: string) => {
+    const nextAnn = announcements.map((a) => (a.id === id ? { ...a, actif: !a.actif } : a));
+    setAnnouncements(nextAnn);
+    persist(undefined, undefined, undefined, nextAnn);
+  };
+
+  const deleteAnnouncement = (id: string) => {
+    if (!confirm("Supprimer cette annonce ?")) return;
+    const nextAnn = announcements.filter((a) => a.id !== id);
+    setAnnouncements(nextAnn);
+    persist(undefined, undefined, undefined, nextAnn);
+  };
 
   const onPartnerLogo = async (e: React.ChangeEvent<HTMLInputElement>, partnerId: string) => {
     const f = e.target.files?.[0];
@@ -209,12 +255,13 @@ export function ContentEditor() {
 
   const [saving, setSaving] = useState(false);
 
-  const persist = async (customHero?: any, customAdvantageImg?: string, customPartners?: Partner[]) => {
+  const persist = async (customHero?: any, customAdvantageImg?: string, customPartners?: Partner[], customAnnouncements?: Announcement[]) => {
     // Éviter qu'un événement React de type SyntheticEvent/MouseEvent soit pris pour customHero
     const isEvent = customHero && (typeof customHero !== "object" || "nativeEvent" in customHero || "target" in customHero || "__reactFiber$" in customHero);
     const activeHero = (customHero && !isEvent) ? customHero : hero;
     const activeAdvantageImg = customAdvantageImg !== undefined ? customAdvantageImg : advantageImage;
     const activePartners = (customPartners !== undefined ? customPartners : partners).filter((p) => p.nom.trim().length > 0);
+    const activeAnnouncements = customAnnouncements !== undefined ? customAnnouncements : announcements;
     const finalWhatsapp = whatsappRaw.split("\n").map((s) => s.trim()).filter(Boolean);
     const activeInfos = { ...infos, whatsapp: finalWhatsapp };
 
@@ -247,8 +294,9 @@ export function ContentEditor() {
       ...d,
       settings: updatedSettings,
       partners: activePartners,
+      announcements: activeAnnouncements,
     }));
-    log("Contenu du site public et partenaires mis à jour");
+    log("Contenu du site public, partenaires et annonces mis à jour");
 
     // 2. Persistance distante Supabase (si configuré)
     if (isSupabaseConfigured) {
@@ -257,7 +305,7 @@ export function ContentEditor() {
           settings: updatedSettings,
           advantages: db.advantages || [],
           partners: activePartners,
-          announcements: db.announcements || [],
+          announcements: activeAnnouncements,
           enia: db.enia || null,
         });
 
@@ -777,6 +825,122 @@ export function ContentEditor() {
               </div>
             )}
           </Card>
+        </div>
+      )}
+
+      {/* ============ ANNONCES ============ */}
+      {tab === "annonces" && (
+        <div className="space-y-6">
+          <div className="flex flex-wrap items-center justify-between gap-4">
+            <div>
+              <h3 className="font-display text-base font-bold text-white">Annonces & Actualités</h3>
+              <p className="text-xs text-slate-400">
+                Publiez des annonces d'urgence, dates clés ou alertes visibles immédiatement sur le site public.
+              </p>
+            </div>
+            <Btn
+              onClick={() => {
+                setFormAnn(emptyAnn());
+                setEditingAnn(null);
+                setCreatingAnn(true);
+              }}
+            >
+              <PlusCircle size={16} /> Nouvelle annonce
+            </Btn>
+          </div>
+
+          {announcements.length === 0 ? (
+            <Card className="p-8 text-center" glow="none">
+              <Megaphone size={40} className="mx-auto mb-3 text-slate-600" />
+              <p className="text-sm font-semibold text-slate-300">Aucune annonce publiée</p>
+              <p className="mt-1 text-xs text-slate-500">Cliquez sur « Nouvelle annonce » pour créer un communiqué.</p>
+            </Card>
+          ) : (
+            <div className="space-y-3">
+              {announcements.map((a) => (
+                <Card key={a.id} className={cn("p-5", !a.actif && "opacity-60")} glow={a.couleur ?? "cyan"}>
+                  <div className="flex flex-wrap items-start justify-between gap-2">
+                    <div>
+                      <div className="flex items-center gap-2">
+                        <Megaphone size={16} className="text-cyan-300" />
+                        <h4 className="font-display text-base font-bold text-white">{a.titre}</h4>
+                        <Badge color={a.actif ? "green" : "gray"}>{a.actif ? "Publiée" : "Masquée"}</Badge>
+                      </div>
+                      <p className="mt-1.5 text-sm text-slate-300">{a.contenu}</p>
+                      <p className="mt-1 text-[11px] text-slate-500">{a.date}</p>
+                    </div>
+                    <div className="flex items-center gap-1.5">
+                      <button
+                        onClick={() => toggleAnnouncement(a.id)}
+                        className="rounded-lg border border-white/10 p-2 text-slate-300 hover:bg-white/5"
+                        title={a.actif ? "Masquer" : "Afficher"}
+                      >
+                        {a.actif ? <EyeOff size={14} /> : <Eye size={14} />}
+                      </button>
+                      <button
+                        onClick={() => {
+                          setFormAnn(a);
+                          setEditingAnn(a);
+                          setCreatingAnn(true);
+                        }}
+                        className="rounded-lg border border-white/10 p-2 text-slate-300 hover:border-amber-400/40 hover:text-amber-300"
+                        title="Modifier"
+                      >
+                        <Pencil size={14} />
+                      </button>
+                      <button
+                        onClick={() => deleteAnnouncement(a.id)}
+                        className="rounded-lg border border-white/10 p-2 text-slate-300 hover:border-red-500/40 hover:text-red-400"
+                        title="Supprimer"
+                      >
+                        <Trash2 size={14} />
+                      </button>
+                    </div>
+                  </div>
+                </Card>
+              ))}
+            </div>
+          )}
+
+          <Modal open={creatingAnn} onClose={() => setCreatingAnn(false)} title={editingAnn ? "Modifier l'annonce" : "Nouvelle annonce"}>
+            <div className="space-y-4">
+              <Field label="Titre de l'annonce">
+                <Input value={formAnn.titre} onChange={(e) => setFormAnn({ ...formAnn, titre: e.target.value })} placeholder="Ex: Rentrée solennelle 2026-2027" />
+              </Field>
+              <Field label="Contenu / Détails">
+                <Textarea value={formAnn.contenu} onChange={(e) => setFormAnn({ ...formAnn, contenu: e.target.value })} placeholder="Message complet à destination des apprenants..." rows={4} />
+              </Field>
+              <Field label="Couleur de mise en avant">
+                <div className="flex gap-2">
+                  {(["cyan", "red", "green", "gold"] as const).map((c) => (
+                    <button
+                      key={c}
+                      type="button"
+                      onClick={() => setFormAnn({ ...formAnn, couleur: c })}
+                      className={cn(
+                        "h-9 w-9 rounded-lg border-2 transition-all",
+                        formAnn.couleur === c ? "border-white scale-110 shadow-lg" : "border-transparent opacity-75 hover:opacity-100",
+                        c === "cyan" ? "bg-cyan-400" : c === "red" ? "bg-red-500" : c === "green" ? "bg-emerald-400" : "bg-amber-400"
+                      )}
+                    />
+                  ))}
+                </div>
+              </Field>
+              <label className="flex items-center gap-2 text-sm text-slate-300 cursor-pointer">
+                <input
+                  type="checkbox"
+                  checked={formAnn.actif}
+                  onChange={(e) => setFormAnn({ ...formAnn, actif: e.target.checked })}
+                  className="rounded border-white/20 bg-white/5 text-cyan-400 focus:ring-0"
+                />
+                Publier immédiatement sur le site public
+              </label>
+              <div className="flex justify-end gap-2 pt-2">
+                <Btn variant="ghost" onClick={() => setCreatingAnn(false)}>Annuler</Btn>
+                <Btn onClick={saveAnnouncement}><Save size={15} /> {editingAnn ? "Enregistrer" : "Publier"}</Btn>
+              </div>
+            </div>
+          </Modal>
         </div>
       )}
 

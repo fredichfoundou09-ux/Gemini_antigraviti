@@ -25,12 +25,28 @@ export function TeacherDashboard() {
   const teacher = getTeacher(db, user);
   if (!teacher) return <Empty icon={<GraduationCap size={40} />} title="Profil enseignant introuvable" />;
 
-  const myModules = db.modules.filter((m) => teacher.modules.includes(m.id));
-  const myStudents = db.students.filter((s) => s.modules.some((mid) => teacher.modules.includes(mid)));
-  const mySessions = db.schedule.filter((s) => s.teacherId === teacher.id);
+  const myModules = useMemo(() => {
+    const set = new Set<string>(teacher.modules || []);
+    db.courses.filter((c) => c.teacherId === teacher.id).forEach((c) => set.add(c.moduleId));
+    db.schedule.filter((s) => s.teacherId === teacher.id).forEach((s) => set.add(s.moduleId));
+    if (set.size === 0 && teacher.specialite) {
+      const spec = teacher.specialite.toLowerCase().trim();
+      db.modules.forEach((m) => {
+        const tit = m.titre.toLowerCase();
+        if (tit.includes(spec) || spec.includes(tit) || (spec.includes("cyber") && (tit.includes("sécurité") || tit.includes("hacking")))) {
+          set.add(m.id);
+        }
+      });
+    }
+    return db.modules.filter((m) => set.has(m.id));
+  }, [db.modules, db.courses, db.schedule, teacher]);
+
+  const myModuleIds = useMemo(() => myModules.map((m) => m.id), [myModules]);
+  const myStudents = useMemo(() => db.students.filter((s) => (s.modules || []).some((mid) => myModuleIds.includes(mid))), [db.students, myModuleIds]);
+  const mySessions = useMemo(() => db.schedule.filter((s) => s.teacherId === teacher.id || myModuleIds.includes(s.moduleId)), [db.schedule, teacher.id, myModuleIds]);
   const todaySessions = mySessions.filter((s) => s.jour === new Date().toLocaleDateString("fr-FR", { weekday: "long" }).replace(/^\w/, (c) => c.toUpperCase()));
-  const myCourses = db.courses.filter((c) => c.teacherId === teacher.id);
-  const myGrades = db.grades.filter((g) => teacher.modules.includes(g.moduleId));
+  const myCourses = db.courses.filter((c) => c.teacherId === teacher.id || myModuleIds.includes(c.moduleId));
+  const myGrades = db.grades.filter((g) => myModuleIds.includes(g.moduleId));
 
   const avg = myGrades.length ? (myGrades.reduce((a, g) => a + g.note, 0) / myGrades.length).toFixed(1) : "—";
   const modName = (id: string) => db.modules.find((m) => m.id === id)?.titre ?? "—";
@@ -142,14 +158,29 @@ export function TeacherClasses() {
   const { db, user } = useStore();
   const teacher = getTeacher(db, user);
   if (!teacher) return <Empty icon={<GraduationCap size={40} />} title="Profil enseignant introuvable" />;
-  const myModules = db.modules.filter((m) => teacher.modules.includes(m.id));
+
+  const myModules = useMemo(() => {
+    const set = new Set<string>(teacher.modules || []);
+    db.courses.filter((c) => c.teacherId === teacher.id).forEach((c) => set.add(c.moduleId));
+    db.schedule.filter((s) => s.teacherId === teacher.id).forEach((s) => set.add(s.moduleId));
+    if (set.size === 0 && teacher.specialite) {
+      const spec = teacher.specialite.toLowerCase().trim();
+      db.modules.forEach((m) => {
+        const tit = m.titre.toLowerCase();
+        if (tit.includes(spec) || spec.includes(tit) || (spec.includes("cyber") && (tit.includes("sécurité") || tit.includes("hacking")))) {
+          set.add(m.id);
+        }
+      });
+    }
+    return db.modules.filter((m) => set.has(m.id));
+  }, [db.modules, db.courses, db.schedule, teacher]);
 
   return (
     <div>
       <PageHead title="Mes classes" subtitle={`${myModules.length} modules enseignés`} />
       <div className="space-y-5">
         {myModules.map((m) => {
-          const students = db.students.filter((s) => s.modules.includes(m.id));
+          const students = db.students.filter((s) => (s.modules || []).includes(m.id));
           return (
             <Card key={m.id} className="overflow-hidden" glow="cyan">
               <div className="flex flex-wrap items-center justify-between gap-3 border-b border-white/5 bg-white/[0.02] px-5 py-4">
@@ -200,14 +231,42 @@ export function TeacherStudents() {
 
   if (!teacher) return <Empty icon={<Users size={40} />} title="Profil enseignant introuvable" />;
 
-  // Règle obligatoire (Point 6) : Le formateur ne peut voir QUE les apprenants officiellement inscrits dans ses modules
+  // Détermination automatique et exhaustive des modules enseignés
+  const teacherModuleIds = useMemo(() => {
+    const set = new Set<string>(teacher.modules || []);
+    db.courses.filter((c) => c.teacherId === teacher.id).forEach((c) => set.add(c.moduleId));
+    db.schedule.filter((s) => s.teacherId === teacher.id).forEach((s) => set.add(s.moduleId));
+    if (set.size === 0 && teacher.specialite) {
+      const spec = teacher.specialite.toLowerCase().trim();
+      db.modules.forEach((m) => {
+        const tit = m.titre.toLowerCase();
+        if (tit.includes(spec) || spec.includes(tit) || (spec.includes("cyber") && (tit.includes("sécurité") || tit.includes("hacking")))) {
+          set.add(m.id);
+        }
+      });
+    }
+    return Array.from(set);
+  }, [teacher, db.courses, db.schedule, db.modules]);
+
+  // Synchronisation automatique en arrière-plan avec Supabase si liaison manquante
+  useEffect(() => {
+    if (isSupabaseConfigured && teacher && (!teacher.modules || teacher.modules.length === 0) && teacherModuleIds.length > 0) {
+      const rows = teacherModuleIds.map((mid) => ({ teacher_id: teacher.id, module_id: mid }));
+      supabase.from("teacher_modules").insert(rows).then(() => {
+        window.dispatchEvent(new Event("sentinelles:supabase-refresh"));
+      }).catch(() => {});
+    }
+  }, [teacher, teacherModuleIds]);
+
+  // Règle automatique stricte : Tout apprenant ayant choisi un module enseigné par ce formateur s'affiche automatiquement
   const allMyStudents = useMemo(() => {
-    return db.students.filter((s) => s.modules.some((mid) => teacher.modules.includes(mid)));
-  }, [db.students, teacher.modules]);
+    if (teacherModuleIds.length === 0) return [];
+    return db.students.filter((s) => (s.modules || []).some((mid) => teacherModuleIds.includes(mid)));
+  }, [db.students, teacherModuleIds]);
 
   const teacherModules = useMemo(() => {
-    return db.modules.filter((m) => teacher.modules.includes(m.id));
-  }, [db.modules, teacher.modules]);
+    return db.modules.filter((m) => teacherModuleIds.includes(m.id));
+  }, [db.modules, teacherModuleIds]);
 
   const filteredStudents = useMemo(() => {
     return allMyStudents.filter((s) => {

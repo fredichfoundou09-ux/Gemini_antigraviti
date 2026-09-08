@@ -83,7 +83,16 @@ export async function signInWithPassword(emailOrUsername: string, password: stri
       }
     }
   }
-  const { data, error } = await sb.auth.signInWithPassword({ email, password });
+  let { data, error } = await sb.auth.signInWithPassword({ email, password });
+  if (error && (error.message?.toLowerCase().includes("email not confirmed") || error.message?.toLowerCase().includes("invalid login credentials"))) {
+    // Retry transparent pour absorber la latence d'indexation / confirmation Supabase
+    await new Promise((r) => setTimeout(r, 400));
+    const retryRes = await sb.auth.signInWithPassword({ email, password });
+    if (!retryRes.error) {
+      data = retryRes.data;
+      error = null;
+    }
+  }
   if (error) {
     if (error.message?.toLowerCase().includes("email not confirmed")) {
       throw new Error("Email en cours de confirmation. Réactualisez la page et réessayez.");

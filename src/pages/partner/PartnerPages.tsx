@@ -208,8 +208,156 @@ export function PartnerReports() {
 }
 
 export function PartnerProfile() {
-  const { user } = useStore();
-  return <ReadOnlyList title="Profil partenaire" subtitle="Informations de connexion"><Card className="p-5"><p className="font-display text-lg font-bold text-white">{user?.name}</p><p className="font-mono text-xs text-cyan-300">{user?.username}</p><p className="mt-2 text-sm text-slate-400">Rôle : {user?.role}</p></Card></ReadOnlyList>;
+  const { user, update, log } = useStore();
+  const [name, setName] = useState(user?.name || "");
+  const [email, setEmail] = useState(user?.email || "");
+  const [phone, setPhone] = useState(user?.phone || "");
+  const [organization, setOrganization] = useState((user as any)?.organization || "Institution Partenaire");
+  const [description, setDescription] = useState((user as any)?.description || "");
+  const [saving, setSaving] = useState(false);
+
+  const handleSave = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!name.trim()) {
+      toastMsg.error("Validation", "Le nom du représentant est obligatoire.");
+      return;
+    }
+
+    setSaving(true);
+    try {
+      if (isSupabaseConfigured && user) {
+        // 1. Mise à jour du profil Supabase
+        await supabase.from("profiles").update({
+          name: name.trim(),
+          email: email.trim() || null,
+          phone: phone.trim() || null,
+        }).eq("id", user.id);
+
+        // 2. Traçabilité obligatoire : enregistrement dans audit_logs
+        await supabase.from("audit_logs").insert({
+          user_id: user.id,
+          action: "UPDATE_PARTNER_PROFILE",
+          entity_type: "partners",
+          entity_id: user.id,
+          description: `Mise à jour du profil partenaire : ${name.trim()} (${user.username}) — Organisation : ${organization.trim()}`,
+        });
+      }
+
+      // 3. Mise à jour locale dans le store
+      update((d) => ({
+        ...d,
+        users: d.users.map((u) => (u.id === user?.id ? { ...u, name: name.trim(), email: email.trim(), phone: phone.trim(), organization: organization.trim(), description: description.trim() } : u)),
+      }));
+
+      log(`Profil partenaire modifié : ${name.trim()} (${organization.trim()})`);
+      toastMsg.success("Profil mis à jour et consigné dans le journal d'audit ✓");
+    } catch (err: any) {
+      toastMsg.error("Erreur", err.message || "Échec de l'enregistrement du profil.");
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  return (
+    <div className="space-y-5">
+      <PageHead
+        title="Mon profil Partenaire"
+        subtitle="Gestion de vos informations institutionnelles de contact (traçabilité active)"
+      />
+
+      <div className="rounded-xl border border-cyan-400/25 bg-cyan-400/5 px-4 py-3 text-xs font-semibold text-cyan-200">
+        <ShieldCheck size={14} className="mr-1 inline" /> Espace Partenaire : vos données institutionnelles et modifications de profil sont tracées dans les registres d'audit système.
+      </div>
+
+      <div className="grid gap-6 lg:grid-cols-3">
+        <Card className="p-6 lg:col-span-1">
+          <div className="flex flex-col items-center text-center">
+            <div className="mb-4 flex h-20 w-20 items-center justify-center rounded-2xl border border-purple-400/40 bg-purple-500/10 text-purple-300">
+              <Building2 size={36} />
+            </div>
+            <h3 className="font-display text-lg font-bold text-white">{name || "Représentant Partenaire"}</h3>
+            <p className="mt-0.5 text-xs text-purple-300 font-semibold">{organization || "Institution"}</p>
+            <span className="mt-2 inline-block rounded border border-white/10 bg-white/[0.03] px-2.5 py-1 font-mono text-[11px] text-slate-400">
+              Identifiant : {user?.username}
+            </span>
+          </div>
+
+          <div className="mt-6 border-t border-white/5 pt-4 space-y-2 text-xs">
+            <div className="flex justify-between text-slate-400">
+              <span>Rôle système :</span>
+              <span className="font-semibold text-white">{user?.role}</span>
+            </div>
+            <div className="flex justify-between text-slate-400">
+              <span>Audit traçabilité :</span>
+              <span className="font-semibold text-emerald-400">Activé (Enregistré)</span>
+            </div>
+          </div>
+        </Card>
+
+        <Card className="p-6 lg:col-span-2">
+          <h3 className="font-display mb-4 text-base font-bold text-white flex items-center gap-2">
+            <FileText size={18} className="text-cyan-300" /> Modifier mes informations
+          </h3>
+
+          <form onSubmit={handleSave} className="space-y-4">
+            <div className="grid gap-4 sm:grid-cols-2">
+              <Field label="Nom du représentant / contact">
+                <Input
+                  value={name}
+                  onChange={(e) => setName(e.target.value)}
+                  placeholder="ex: Dr. Jean Dupont"
+                  required
+                />
+              </Field>
+
+              <Field label="Organisation / Entreprise partenaire">
+                <Input
+                  value={organization}
+                  onChange={(e) => setOrganization(e.target.value)}
+                  placeholder="ex: Fondation Numérique Avenir"
+                  required
+                />
+              </Field>
+            </div>
+
+            <div className="grid gap-4 sm:grid-cols-2">
+              <Field label="Email officiel">
+                <Input
+                  type="email"
+                  value={email}
+                  onChange={(e) => setEmail(e.target.value)}
+                  placeholder="contact@partenaire.cg"
+                />
+              </Field>
+
+              <Field label="Téléphone de liaison">
+                <Input
+                  value={phone}
+                  onChange={(e) => setPhone(e.target.value)}
+                  placeholder="+242 06 000 00 00"
+                />
+              </Field>
+            </div>
+
+            <Field label="Description institutionnelle & accords de partenariat">
+              <Textarea
+                rows={3}
+                value={description}
+                onChange={(e) => setDescription(e.target.value)}
+                placeholder="Précisez la nature de l'alliance stratégique ou du partenariat académique..."
+              />
+            </Field>
+
+            <div className="flex justify-end gap-3 pt-2">
+              <Btn type="submit" disabled={saving}>
+                <Save size={16} /> {saving ? "Enregistrement & traçabilité..." : "Enregistrer les modifications"}
+              </Btn>
+            </div>
+          </form>
+        </Card>
+      </div>
+    </div>
+  );
 }
 
 function ReadOnlyList({ title, subtitle, q, setQ, children, onCsv }: { title: string; subtitle?: string; q?: string; setQ?: (v: string) => void; children: ReactNode; onCsv?: () => void }) {
