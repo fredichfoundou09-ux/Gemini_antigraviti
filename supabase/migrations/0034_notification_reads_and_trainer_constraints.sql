@@ -14,6 +14,7 @@ CREATE INDEX IF NOT EXISTS idx_notification_reads_notif ON public.notification_r
 -- Enable RLS
 ALTER TABLE public.notification_reads ENABLE ROW LEVEL SECURITY;
 
+DROP POLICY IF EXISTS "Users can manage their own notification reads" ON public.notification_reads;
 CREATE POLICY "Users can manage their own notification reads"
   ON public.notification_reads
   FOR ALL

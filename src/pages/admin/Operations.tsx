@@ -480,18 +480,8 @@ export function SchedulePage() {
 
           let teacherId = form.teacherId;
           const { data: tCheck } = await supabase.from("teachers").select("id").eq("id", form.teacherId).maybeSingle();
-          if (!tCheck) {
-            const tObj = db.teachers.find((t) => t.id === form.teacherId);
-            const { data: upT } = await supabase.from("teachers").upsert({
-              id: form.teacherId,
-              nom: tObj?.nom || "Formateur",
-              prenom: tObj?.prenom || "Sentinelle",
-              email: tObj?.email || `teacher_${form.teacherId}@sentinelles.cg`,
-              phone: tObj?.phone || "060000000",
-              specialite: tObj?.specialite || "Pédagogie",
-              actif: true
-            }).select("id").maybeSingle();
-            if (upT?.id) teacherId = upT.id;
+          if (tCheck?.id) {
+            teacherId = tCheck.id;
           }
 
           if (isFormationUuid && realModuleId) {
@@ -534,6 +524,165 @@ export function SchedulePage() {
     }
     update((d) => ({ ...d, schedule: d.schedule.filter((x) => x.id !== slotId) }));
     toastMsg.success("Créneau retiré du planning");
+  };
+
+  const [editingSlot, setEditingSlot] = useState<any>(null);
+  const [savingEdit, setSavingEdit] = useState(false);
+
+  const openEditModal = (slot: any) => {
+    setEditingSlot({
+      id: slot.id,
+      jour: slot.jour || "Lundi",
+      heureDebut: slot.heureDebut || "08:00",
+      heureFin: slot.heureFin || "10:00",
+      date: slot.date || "",
+      moduleId: slot.moduleId || "",
+      teacherId: slot.teacherId || "",
+      salle: slot.salle || "",
+      formation: slot.formation || "informatique",
+      cibleType: slot.groupe ? "groupe" : (slot.studentIds?.length ? "apprenants" : "module"),
+      groupe: slot.groupe || "",
+      studentIds: slot.studentIds || [],
+    });
+  };
+
+  const targetStudentsForEdit = editingSlot
+    ? db.students.filter(
+        (s) =>
+          (!editingSlot.formation || s.formation === editingSlot.formation) &&
+          (!editingSlot.moduleId || (s.modules || []).includes(editingSlot.moduleId))
+      )
+    : [];
+
+  const saveEdit = async () => {
+    if (!editingSlot) return;
+    if (!editingSlot.formation) {
+      toastMsg.error("Formation requise", "Veuillez sélectionner une formation.");
+      return;
+    }
+    if (!editingSlot.moduleId) {
+      toastMsg.error("Module requis", "Veuillez sélectionner un module d'enseignement.");
+      return;
+    }
+    if (!editingSlot.teacherId) {
+      toastMsg.error("Enseignant requis", "Veuillez obligatoirement sélectionner un enseignant.");
+      return;
+    }
+    if (!editingSlot.jour) {
+      toastMsg.error("Jour requis", "Veuillez sélectionner un jour de cours.");
+      return;
+    }
+    if (!editingSlot.heureDebut || !editingSlot.heureFin || editingSlot.heureDebut >= editingSlot.heureFin) {
+      toastMsg.error("Horaires invalides", "L'heure de début doit être strictement antérieure à l'heure de fin.");
+      return;
+    }
+
+    const teacherConflict = db.schedule.find(
+      (s) =>
+        s.id !== editingSlot.id &&
+        s.jour === editingSlot.jour &&
+        s.teacherId === editingSlot.teacherId &&
+        ((!editingSlot.date && !s.date) || (editingSlot.date && s.date === editingSlot.date)) &&
+        editingSlot.heureDebut < s.heureFin &&
+        editingSlot.heureFin > s.heureDebut
+    );
+    if (teacherConflict) {
+      toastMsg.error("Conflit d'emploi du temps", "Cet enseignant a déjà un cours programmé sur cette plage horaire.");
+      return;
+    }
+
+    if (editingSlot.salle && editingSlot.salle.trim()) {
+      const roomConflict = db.schedule.find(
+        (s) =>
+          s.id !== editingSlot.id &&
+          s.jour === editingSlot.jour &&
+          s.salle &&
+          s.salle.trim().toLowerCase() === editingSlot.salle.trim().toLowerCase() &&
+          ((!editingSlot.date && !s.date) || (editingSlot.date && s.date === editingSlot.date)) &&
+          editingSlot.heureDebut < s.heureFin &&
+          editingSlot.heureFin > s.heureDebut
+      );
+      if (roomConflict) {
+        toastMsg.error("Salle occupée", `La salle "${editingSlot.salle.trim()}" est déjà occupée sur ce créneau horaire.`);
+        return;
+      }
+    }
+
+    const capitalizeDay = (d: string) => {
+      if (!d) return "Lundi";
+      const c = d.trim().toLowerCase();
+      return c.charAt(0).toUpperCase() + c.slice(1);
+    };
+    const cleanJour = capitalizeDay(editingSlot.jour);
+
+    const updatedData: any = {
+      id: editingSlot.id,
+      jour: cleanJour,
+      heureDebut: editingSlot.heureDebut,
+      heureFin: editingSlot.heureFin,
+      moduleId: editingSlot.moduleId,
+      teacherId: editingSlot.teacherId,
+      salle: editingSlot.salle || "",
+      formation: editingSlot.formation,
+      date: editingSlot.date || undefined,
+      groupe: editingSlot.cibleType === "groupe" ? editingSlot.groupe : undefined,
+      studentIds: editingSlot.cibleType === "apprenants" ? editingSlot.studentIds : undefined,
+    };
+
+    update((d) => ({
+      ...d,
+      schedule: d.schedule.map((s) => (s.id === editingSlot.id ? { ...s, ...updatedData } : s)),
+    }));
+
+    toastMsg.success("Créneau modifié avec succès ✓", `${cleanJour} ${editingSlot.heureDebut} - ${editingSlot.heureFin}`);
+    log(`Créneau modifié : ${cleanJour} ${editingSlot.heureDebut}-${editingSlot.heureFin} — ${db.modules.find((m) => m.id === editingSlot.moduleId)?.titre ?? ""}`);
+    const slotId = editingSlot.id;
+    const editedSnapshot = { ...editingSlot, cleanJour };
+    setEditingSlot(null);
+
+    if (isSupabaseConfigured) {
+      setSavingEdit(true);
+      (async () => {
+        try {
+          let formationId = await resolveFormationId(editedSnapshot.formation);
+          let realModuleId: string = editedSnapshot.moduleId;
+          const isModuleUuid = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(editedSnapshot.moduleId);
+          if (!isModuleUuid) {
+            const modObj = db.modules.find((m) => m.id === editedSnapshot.moduleId);
+            const { data: modCheck } = await supabase
+              .from("modules")
+              .select("id")
+              .or(`code.eq.${editedSnapshot.moduleId},titre.eq.${modObj?.titre || editedSnapshot.moduleId}`)
+              .maybeSingle();
+            if (modCheck?.id) realModuleId = modCheck.id;
+          }
+
+          const { error: upErr } = await supabase
+            .from("schedule")
+            .update({
+              formation_id: formationId,
+              module_id: realModuleId,
+              teacher_id: editedSnapshot.teacherId,
+              jour: editedSnapshot.cleanJour,
+              heure_debut: editedSnapshot.heureDebut,
+              heure_fin: editedSnapshot.heureFin,
+              salle: editedSnapshot.salle?.trim() || "",
+              date: editedSnapshot.date || null,
+            })
+            .eq("id", slotId);
+
+          if (upErr) {
+            console.warn("Erreur mise à jour créneau Supabase:", upErr);
+          } else {
+            window.dispatchEvent(new Event("sentinelles:supabase-refresh"));
+          }
+        } catch (err: any) {
+          console.warn("Notice synchronisation modification planning:", err);
+        } finally {
+          setSavingEdit(false);
+        }
+      })();
+    }
   };
 
   const modName = (id: string) => db.modules.find((m) => m.id === id || (m as any).code === id || m.titre === id)?.titre ?? "Module de cours";
@@ -687,6 +836,16 @@ export function SchedulePage() {
                               >
                                 <Eye size={15} />
                               </button>
+                              {user?.role !== "teacher" && (
+                                <button
+                                  type="button"
+                                  onClick={() => openEditModal(i)}
+                                  className="rounded-lg p-1.5 text-slate-400 hover:bg-cyan-500/20 hover:text-cyan-300 transition"
+                                  title="Modifier ce créneau"
+                                >
+                                  <Pencil size={15} />
+                                </button>
+                              )}
                               {user?.role !== "teacher" && (
                                 <button
                                   type="button"
@@ -844,6 +1003,16 @@ export function SchedulePage() {
                               {user?.role !== "teacher" && (
                                 <button
                                   type="button"
+                                  onClick={() => openEditModal(item)}
+                                  className="rounded-lg border border-cyan-400/20 p-2 text-cyan-400 hover:bg-cyan-500/20 transition"
+                                  title="Modifier ce créneau"
+                                >
+                                  <Pencil size={15} />
+                                </button>
+                              )}
+                              {user?.role !== "teacher" && (
+                                <button
+                                  type="button"
                                   onClick={() => deleteSchedule(item.id)}
                                   className="rounded-lg border border-red-500/20 p-2 text-red-400 hover:bg-red-500/20 transition"
                                   title="Supprimer ce créneau"
@@ -937,6 +1106,179 @@ export function SchedulePage() {
               <Btn onClick={save} disabled={savingSlot}>{savingSlot ? "Enregistrement en cours..." : "Ajouter le créneau"}</Btn>
             </div>
           </div>
+        </Modal>
+      )}
+
+      {user?.role !== "teacher" && (
+        <Modal open={!!editingSlot} onClose={() => setEditingSlot(null)} title="Modifier le créneau d'emploi du temps" wide>
+          {editingSlot && (
+            <div className="space-y-4">
+              <div className="grid grid-cols-2 gap-4 sm:grid-cols-4">
+                <Field label="Jour">
+                  <Select
+                    value={editingSlot.jour}
+                    onChange={(e) => setEditingSlot({ ...editingSlot, jour: e.target.value })}
+                  >
+                    {DAYS.map((d) => (
+                      <option key={d}>{d}</option>
+                    ))}
+                  </Select>
+                </Field>
+                <Field label="Date (optionnelle)">
+                  <Input
+                    type="date"
+                    value={editingSlot.date || ""}
+                    onChange={(e) => setEditingSlot({ ...editingSlot, date: e.target.value })}
+                  />
+                </Field>
+                <Field label="Heure début">
+                  <Input
+                    type="time"
+                    value={editingSlot.heureDebut}
+                    onChange={(e) => setEditingSlot({ ...editingSlot, heureDebut: e.target.value })}
+                  />
+                </Field>
+                <Field label="Heure fin">
+                  <Input
+                    type="time"
+                    value={editingSlot.heureFin}
+                    onChange={(e) => setEditingSlot({ ...editingSlot, heureFin: e.target.value })}
+                  />
+                </Field>
+              </div>
+
+              <div className="grid grid-cols-2 gap-4">
+                <Field label="Formation">
+                  <Select
+                    value={editingSlot.formation}
+                    onChange={(e) =>
+                      setEditingSlot({ ...editingSlot, formation: e.target.value, moduleId: "" })
+                    }
+                  >
+                    <option value="informatique">Génie Informatique</option>
+                    <option value="industriel">Génie Industriel</option>
+                  </Select>
+                </Field>
+                <Field label="Salle">
+                  <Input
+                    value={editingSlot.salle}
+                    onChange={(e) => setEditingSlot({ ...editingSlot, salle: e.target.value })}
+                    placeholder="ex: Salle Mars"
+                  />
+                </Field>
+              </div>
+
+              <Field label="Module">
+                <Select
+                  value={editingSlot.moduleId}
+                  onChange={(e) => setEditingSlot({ ...editingSlot, moduleId: e.target.value })}
+                >
+                  <option value="">— Choisir —</option>
+                  {db.modules
+                    .filter((m) => m.formation === editingSlot.formation)
+                    .map((m) => (
+                      <option key={m.id} value={m.id}>
+                        {m.numero}. {m.titre}
+                      </option>
+                    ))}
+                </Select>
+              </Field>
+
+              <Field label="Enseignant">
+                <Select
+                  value={editingSlot.teacherId}
+                  onChange={(e) => setEditingSlot({ ...editingSlot, teacherId: e.target.value })}
+                >
+                  <option value="">— Choisir —</option>
+                  {db.teachers
+                    .filter((t) => !editingSlot.moduleId || (t.modules || []).includes(editingSlot.moduleId))
+                    .map((t) => (
+                      <option key={t.id} value={t.id}>
+                        {t.prenom} {t.nom}
+                      </option>
+                    ))}
+                </Select>
+              </Field>
+
+              <div className="rounded-xl border border-white/10 bg-white/[0.02] p-4">
+                <p className="mb-3 text-xs font-bold uppercase tracking-wider text-cyan-300">
+                  Apprenants concernés ({targetStudentsForEdit.length} par défaut)
+                </p>
+                <div className="mb-3 grid grid-cols-3 gap-2">
+                  {([
+                    { k: "module", l: "Tous ceux du module" },
+                    { k: "groupe", l: "Un groupe précis" },
+                    { k: "apprenants", l: "Ciblage précis" },
+                  ] as const).map((o) => (
+                    <button
+                      type="button"
+                      key={o.k}
+                      onClick={() => setEditingSlot({ ...editingSlot, cibleType: o.k })}
+                      className={cn(
+                        "rounded-xl border px-3 py-2 text-xs font-bold",
+                        editingSlot.cibleType === o.k
+                          ? "border-cyan-400/60 bg-cyan-400/10 text-cyan-300"
+                          : "border-white/10 text-slate-400 hover:bg-white/5"
+                      )}
+                    >
+                      {o.l}
+                    </button>
+                  ))}
+                </div>
+                {editingSlot.cibleType === "groupe" && (
+                  <Field label="Nom du groupe">
+                    <Input
+                      value={editingSlot.groupe}
+                      onChange={(e) => setEditingSlot({ ...editingSlot, groupe: e.target.value })}
+                      placeholder="ex: Groupe A"
+                    />
+                  </Field>
+                )}
+                {editingSlot.cibleType === "apprenants" && (
+                  <div className="max-h-48 space-y-1 overflow-y-auto rounded-lg border border-white/5 p-2">
+                    {targetStudentsForEdit.length === 0 && (
+                      <p className="p-2 text-xs text-slate-500">Aucun apprenant inscrit à ce module.</p>
+                    )}
+                    {targetStudentsForEdit.map((s) => {
+                      const on = (editingSlot.studentIds || []).includes(s.id);
+                      return (
+                        <button
+                          type="button"
+                          key={s.id}
+                          onClick={() =>
+                            setEditingSlot({
+                              ...editingSlot,
+                              studentIds: on
+                                ? editingSlot.studentIds.filter((x: string) => x !== s.id)
+                                : [...(editingSlot.studentIds || []), s.id],
+                            })
+                          }
+                          className={cn(
+                            "flex w-full items-center gap-2 rounded-lg border px-2.5 py-1.5 text-left text-xs",
+                            on
+                              ? "border-cyan-400/50 bg-cyan-400/10 text-cyan-200"
+                              : "border-white/10 text-slate-400 hover:bg-white/5"
+                          )}
+                        >
+                          <input type="checkbox" readOnly checked={on} className="pointer-events-none" />
+                          <span className="font-mono text-[10px] text-slate-500">{s.id}</span> {s.prenom} {s.nom}
+                        </button>
+                      );
+                    })}
+                  </div>
+                )}
+              </div>
+
+              <div className="flex justify-end gap-2">
+                <Btn variant="ghost" onClick={() => setEditingSlot(null)} disabled={savingEdit}>
+                  Annuler
+                </Btn>
+                <Btn onClick={saveEdit} disabled={savingEdit}>
+                  {savingEdit ? "Mise à jour en cours..." : "Enregistrer les modifications"}
+                </Btn>
+              </div>
+            </div>
+          )}
         </Modal>
       )}
 

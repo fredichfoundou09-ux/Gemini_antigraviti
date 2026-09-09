@@ -170,30 +170,41 @@ Deno.serve(async (req) => {
       const { data: existingStudent } = await admin.from("students").select("id").eq("user_id", userId).maybeSingle();
       let sid = existingStudent?.id;
       if (!sid) {
-        const { data: newSid, error: sidErr } = await admin.rpc("generate_student_id");
-        if (sidErr) {
-          return new Response(JSON.stringify({ error: sidErr.message }), { status: 400, headers: corsHeaders });
+        let inserted = false;
+        let lastErr = "";
+        for (let attempt = 0; attempt < 3 && !inserted; attempt++) {
+          const { data: newSid, error: sidErr } = await admin.rpc("generate_student_id");
+          if (sidErr) {
+            return new Response(JSON.stringify({ error: sidErr.message }), { status: 400, headers: corsHeaders });
+          }
+          sid = newSid;
+          const { error: stErr } = await admin.from("students").insert({
+            id: sid,
+            user_id: userId,
+            formation_id: student.formation_id,
+            nom: student.nom,
+            prenom: student.prenom,
+            telephone: student.telephone,
+            whatsapp: student.whatsapp,
+            email: student.email ?? email,
+            adresse: student.adresse ?? null,
+            niveau: student.niveau ?? null,
+            sexe: student.sexe ?? null,
+            photo_url: student.photo_url ?? student.photo ?? null,
+            statut: "actif",
+          });
+          if (!stErr) {
+            inserted = true;
+          } else {
+            lastErr = stErr.message;
+            console.warn(`Tentative ${attempt + 1} création student ${sid} échouée:`, stErr.message);
+          }
         }
-        sid = newSid;
-        const { error: stErr } = await admin.from("students").insert({
-          id: sid,
-          user_id: userId,
-          formation_id: student.formation_id,
-          nom: student.nom,
-          prenom: student.prenom,
-          telephone: student.telephone,
-          whatsapp: student.whatsapp,
-          email: student.email ?? email,
-          adresse: student.adresse ?? null,
-          niveau: student.niveau ?? null,
-          sexe: student.sexe ?? null,
-          photo_url: student.photo_url ?? student.photo ?? null,
-          statut: "actif",
-        });
-        if (stErr) {
-          return new Response(JSON.stringify({ error: stErr.message }), { status: 400, headers: corsHeaders });
+        if (!inserted) {
+          return new Response(JSON.stringify({ error: lastErr || "Échec d'attribution du numéro apprenant" }), { status: 400, headers: corsHeaders });
         }
       }
+      studentIdCreated = sid;
 
       if (Array.isArray(module_ids) && module_ids.length) {
         const validUuids = module_ids.filter((id: string) =>

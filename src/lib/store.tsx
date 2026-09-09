@@ -417,8 +417,8 @@ export function StoreProvider({ children }: { children: React.ReactNode }) {
 
         setDb((prev) => ({
           ...prev,
-          users: updatedUsers.length > 0 ? updatedUsers : prev.users,
-          students: (studentsRes.data && studentsRes.data.length > 0 ? studentsRes.data : prev.students).map((s: any) => {
+          users: !profilesRes.error && profilesRes.data ? updatedUsers : prev.users,
+          students: (!studentsRes.error && studentsRes.data ? studentsRes.data : prev.students).map((s: any) => {
             const mods = (studentModulesRes.data || [])
               .filter((sm: any) => sm.student_id === s.id)
               .map((sm: any) => sm.module_id);
@@ -430,7 +430,7 @@ export function StoreProvider({ children }: { children: React.ReactNode }) {
               photo: s.photo_url || s.photo || "",
             };
           }),
-          teachers: (teachersRes.data && teachersRes.data.length > 0 ? teachersRes.data : prev.teachers).map((t: any) => {
+          teachers: (!teachersRes.error && teachersRes.data ? teachersRes.data : prev.teachers).map((t: any) => {
             const mods = (teacherModulesRes.data || [])
               .filter((tm: any) => tm.teacher_id === t.id)
               .map((tm: any) => tm.module_id);
@@ -447,7 +447,7 @@ export function StoreProvider({ children }: { children: React.ReactNode }) {
               montantPayeOverride: prevT?.montantPayeOverride,
             };
           }),
-          courses: (coursesRes.data && coursesRes.data.length > 0 ? coursesRes.data : prev.courses).map((c: any) => ({
+          courses: (!coursesRes.error && coursesRes.data ? coursesRes.data : prev.courses).map((c: any) => ({
             id: c.id, titre: c.titre, description: c.description || "", moduleId: c.module_id || c.moduleId,
             teacherId: c.teacher_id || c.teacherId, type: c.type as any, date: c.date_publication?.slice(0, 10) || c.date || "",
             audience: c.audience as any, publie: c.publie, content: c.content || "",
@@ -459,29 +459,20 @@ export function StoreProvider({ children }: { children: React.ReactNode }) {
               const clean = d.trim().toLowerCase();
               return clean.charAt(0).toUpperCase() + clean.slice(1);
             };
-            const remoteSlots = (!scheduleRes.error && scheduleRes.data ? scheduleRes.data : []).map((s: any) => ({
-              id: s.id,
-              jour: capitalizeDay(s.jour) as any,
-              heureDebut: s.heure_debut,
-              heureFin: s.heure_fin,
-              date: s.date || undefined,
-              moduleId: s.module_id,
-              teacherId: s.teacher_id,
-              salle: s.salle || "",
-              formation: (formationById.get(s.formation_id) || "informatique") as Formation,
-            }));
-            const merged = [...remoteSlots];
-            (prev.schedule || []).forEach((localSlot: any) => {
-              const locJour = capitalizeDay(localSlot.jour);
-              const exists = merged.some((rs) =>
-                rs.id === localSlot.id ||
-                (capitalizeDay(rs.jour) === locJour && rs.heureDebut === localSlot.heureDebut && rs.heureFin === localSlot.heureFin)
-              );
-              if (!exists) {
-                merged.push({ ...localSlot, jour: locJour });
-              }
-            });
-            return merged;
+            if (!scheduleRes.error && scheduleRes.data) {
+              return scheduleRes.data.map((s: any) => ({
+                id: s.id,
+                jour: capitalizeDay(s.jour) as any,
+                heureDebut: s.heure_debut,
+                heureFin: s.heure_fin,
+                date: s.date || undefined,
+                moduleId: s.module_id,
+                teacherId: s.teacher_id,
+                salle: s.salle || "",
+                formation: (formationById.get(s.formation_id) || "informatique") as Formation,
+              }));
+            }
+            return prev.schedule || [];
           })(),
           attendance: (attendanceRes.data || []).map((a: any) => ({
             id: a.id, studentId: a.student_id, date: a.date, moduleId: a.module_id,
