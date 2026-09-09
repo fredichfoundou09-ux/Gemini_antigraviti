@@ -1,29 +1,88 @@
 import React, { Component, ErrorInfo, ReactNode } from "react";
-import { ShieldAlert, RefreshCw, Home } from "lucide-react";
+import { RefreshCw, Home, Copy, CheckCircle2 } from "lucide-react";
 import { SentinelLogo } from "@/components/SentinelLogo";
 
 interface Props {
   children: ReactNode;
 }
 
+interface CrashReport {
+  timestamp: string;
+  url: string;
+  userAgent: string;
+  errorName: string;
+  errorMessage: string;
+  errorStack?: string;
+  componentStack?: string;
+}
+
 interface State {
   hasError: boolean;
   error: Error | null;
+  errorInfo: ErrorInfo | null;
+  copied: boolean;
 }
+
+const CRASH_STORAGE_KEY = "sn_crash_reports";
 
 export class ErrorBoundary extends Component<Props, State> {
   public state: State = {
     hasError: false,
     error: null,
+    errorInfo: null,
+    copied: false,
   };
 
-  public static getDerivedStateFromError(error: Error): State {
+  public static getDerivedStateFromError(error: Error): Partial<State> {
     return { hasError: true, error };
   }
 
   public componentDidCatch(error: Error, errorInfo: ErrorInfo) {
+    this.setState({ errorInfo });
     console.error("Uncaught runtime error:", error, errorInfo);
+
+    try {
+      const report: CrashReport = {
+        timestamp: new Date().toISOString(),
+        url: window.location.href,
+        userAgent: navigator.userAgent,
+        errorName: error.name || "Error",
+        errorMessage: error.message || String(error),
+        errorStack: error.stack,
+        componentStack: errorInfo.componentStack || undefined,
+      };
+
+      const existingRaw = localStorage.getItem(CRASH_STORAGE_KEY);
+      const existing: CrashReport[] = existingRaw ? JSON.parse(existingRaw) : [];
+      existing.unshift(report);
+      localStorage.setItem(CRASH_STORAGE_KEY, JSON.stringify(existing.slice(0, 10)));
+
+      window.dispatchEvent(new CustomEvent("sn:runtime-error", { detail: report }));
+    } catch {
+      // ignore
+    }
   }
+
+  private handleCopyDiagnostic = () => {
+    const { error, errorInfo } = this.state;
+    const diagnostic = {
+      app: "SENTINELLES NUMÉRIQUES",
+      timestamp: new Date().toISOString(),
+      url: window.location.href,
+      userAgent: navigator.userAgent,
+      error: {
+        name: error?.name,
+        message: error?.message,
+        stack: error?.stack,
+      },
+      componentStack: errorInfo?.componentStack,
+    };
+
+    navigator.clipboard.writeText(JSON.stringify(diagnostic, null, 2)).then(() => {
+      this.setState({ copied: true });
+      setTimeout(() => this.setState({ copied: false }), 2500);
+    }).catch(() => {});
+  };
 
   public render() {
     if (this.state.hasError) {
@@ -53,15 +112,35 @@ export class ErrorBoundary extends Component<Props, State> {
             </p>
 
             {this.state.error && (
-              <div className="mb-6 rounded-lg border border-red-500/20 bg-black/60 p-3.5 font-mono text-[11px] text-red-300/90 break-words max-h-32 overflow-y-auto">
+              <div className="mb-4 rounded-lg border border-red-500/20 bg-black/60 p-3.5 font-mono text-[11px] text-red-300/90 break-words max-h-32 overflow-y-auto">
                 {this.state.error.toString()}
               </div>
             )}
 
+            <div className="mb-6 flex justify-end">
+              <button
+                type="button"
+                onClick={this.handleCopyDiagnostic}
+                className="inline-flex items-center gap-1.5 text-[11px] text-slate-400 hover:text-cyan-300 transition"
+              >
+                {this.state.copied ? (
+                  <>
+                    <CheckCircle2 size={13} className="text-emerald-400" />
+                    <span className="text-emerald-400 font-semibold">Diagnostic copié !</span>
+                  </>
+                ) : (
+                  <>
+                    <Copy size={13} />
+                    <span>Copier le rapport pour le support</span>
+                  </>
+                )}
+              </button>
+            </div>
+
             <div className="flex flex-col sm:flex-row gap-3">
               <button
                 onClick={() => {
-                  this.setState({ hasError: false, error: null });
+                  this.setState({ hasError: false, error: null, errorInfo: null });
                   window.location.reload();
                 }}
                 className="flex-1 inline-flex items-center justify-center gap-2 rounded-xl bg-gradient-to-r from-[#FF174F] to-[#E60039] px-4 py-2.5 font-oxanium text-xs font-bold uppercase tracking-wider text-white shadow-[0_0_20px_rgba(255,23,68,0.4)] transition-all hover:scale-[1.02] active:scale-[0.98]"
@@ -71,7 +150,7 @@ export class ErrorBoundary extends Component<Props, State> {
               </button>
               <button
                 onClick={() => {
-                  this.setState({ hasError: false, error: null });
+                  this.setState({ hasError: false, error: null, errorInfo: null });
                   window.location.hash = "#/";
                   window.location.reload();
                 }}

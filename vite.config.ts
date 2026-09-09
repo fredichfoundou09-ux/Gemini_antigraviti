@@ -23,8 +23,6 @@ export default defineConfig({
         "favicon-48.png",
         "favicon-64.png",
         "apple-touch-icon.png",
-        "sentinel-intro.mp4",
-        "video-project.mp4",
         "assets/branding/sentinel-full.png",
         "assets/branding/sentinel-symbol.png",
       ],
@@ -92,11 +90,16 @@ export default defineConfig({
       workbox: {
         skipWaiting: true,
         clientsClaim: true,
-        maximumFileSizeToCacheInBytes: 15 * 1024 * 1024,
-        globPatterns: ["**/*.{js,css,html,ico,png,jpg,svg,webmanifest,mp4}"],
+        maximumFileSizeToCacheInBytes: 4 * 1024 * 1024,
+        globPatterns: ["**/*.{js,css,html,ico,png,jpg,svg,webmanifest}"],
+        globIgnores: ["**/*.mp4", "**/*.map"],
         navigateFallback: "/index.html",
         navigateFallbackDenylist: [/^\/api/, /^https:\/\/.*\.supabase\.co/],
         runtimeCaching: [
+          {
+            urlPattern: /\.(?:mp4|webm)$/i,
+            handler: "NetworkOnly",
+          },
           {
             urlPattern: /^https:\/\/.*\.supabase\.co\/.*/i,
             handler: "NetworkOnly",
@@ -147,6 +150,9 @@ export default defineConfig({
               return "vendor-ui";
             }
             return "vendor-core";
+          }
+          if (id.includes("src/pages/admin/Operations")) {
+            return "pages-admin-ops";
           }
           if (id.includes("src/pages/admin")) {
             return "pages-admin";
