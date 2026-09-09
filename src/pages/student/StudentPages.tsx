@@ -16,6 +16,7 @@ import {
 import { Test } from "@/lib/types";
 import { financialSummary, statusLabel } from "@/lib/finance";
 import { studentCanSeeCourse, scheduleFor, teachersOfStudent, teacherOfModule } from "@/lib/access";
+import { ContactButtons } from "@/components/ContactButtons";
 import { fileKind, humanSize, downloadFile } from "@/lib/files";
 import { supabase, isSupabaseConfigured } from "@/lib/supabase/client";
 import { toastMsg } from "@/lib/toast";
@@ -277,17 +278,14 @@ export function StudentDashboard() {
                       <p className="truncate text-[11px] text-cyan-400/80">{modules.map((m) => m.titre).join(", ")}</p>
                     </div>
                   </div>
-                  <div className="flex items-center gap-1.5 shrink-0">
-                    {teacher.phone && (
-                      <a
-                        href={`https://wa.me/${teacher.phone.replace(/[^0-9]/g, "")}`}
-                        target="_blank"
-                        rel="noreferrer"
-                        className="rounded-lg bg-emerald-500/10 border border-emerald-500/30 px-2 py-1 text-[11px] font-bold text-emerald-300 hover:bg-emerald-500/20 transition"
-                      >
-                        WhatsApp
-                      </a>
-                    )}
+                  <div className="shrink-0">
+                    <ContactButtons
+                      phone={teacher.phone}
+                      userId={teacher.userId}
+                      email={teacher.email}
+                      name={`${teacher.prenom} ${teacher.nom}`}
+                      size="sm"
+                    />
                   </div>
                 </div>
               ))}
@@ -516,11 +514,13 @@ export function MyFormation() {
                       <GraduationCap size={13} className="text-cyan-400" />
                       <span>Formateur : <strong>{teacher.prenom} {teacher.nom}</strong></span>
                     </span>
-                    {teacher.phone && (
-                      <a href={`tel:${teacher.phone}`} className="font-mono text-[11px] text-cyan-400 hover:underline">
-                        {teacher.phone}
-                      </a>
-                    )}
+                    <ContactButtons
+                      phone={teacher.phone}
+                      userId={teacher.userId}
+                      email={teacher.email}
+                      name={`${teacher.prenom} ${teacher.nom}`}
+                      size="sm"
+                    />
                   </div>
                 );
               })()}
@@ -602,22 +602,15 @@ export function MyModules() {
                       <p className="text-xs text-slate-400">{teacher.specialite || "Enseignant"}</p>
                     </div>
                   </div>
-                  <div className="flex items-center gap-2 text-xs">
-                    {teacher.phone && (
-                      <a href={`tel:${teacher.phone}`} className="flex items-center gap-1 rounded-lg border border-white/10 bg-white/5 px-2.5 py-1 text-slate-200 hover:border-cyan-400/50 hover:text-cyan-300 transition">
-                        <Phone size={12} className="text-cyan-400" /> {teacher.phone}
-                      </a>
-                    )}
-                    {teacher.phone && (
-                      <a
-                        href={`https://wa.me/${teacher.phone.replace(/[^0-9]/g, "")}`}
-                        target="_blank"
-                        rel="noreferrer"
-                        className="flex items-center gap-1 rounded-lg border border-emerald-500/30 bg-emerald-500/15 px-2.5 py-1 font-bold text-emerald-300 hover:bg-emerald-500/25 transition"
-                      >
-                        WhatsApp
-                      </a>
-                    )}
+                  <div className="flex items-center gap-2">
+                    <ContactButtons
+                      phone={teacher.phone}
+                      userId={teacher.userId}
+                      email={teacher.email}
+                      name={`${teacher.prenom} ${teacher.nom}`}
+                      showLabels
+                      size="sm"
+                    />
                   </div>
                 </div>
               )}
@@ -1527,34 +1520,16 @@ export function MyTeachers() {
               </div>
 
               {/* Coordonnées & actions */}
-              <div className="mt-5 border-t border-white/5 pt-3 flex flex-wrap gap-2">
-                {teacher.phone && (
-                  <a
-                    href={`tel:${teacher.phone}`}
-                    className="flex flex-1 items-center justify-center gap-1.5 rounded-xl border border-white/10 bg-white/5 px-3 py-2 text-xs font-bold text-white hover:border-cyan-400/40 hover:text-cyan-300 transition"
-                  >
-                    <Phone size={13} className="text-cyan-400" /> Appeler
-                  </a>
-                )}
-                {teacher.phone && (
-                  <a
-                    href={`https://wa.me/${teacher.phone.replace(/[^0-9]/g, "")}`}
-                    target="_blank"
-                    rel="noreferrer"
-                    className="flex flex-1 items-center justify-center gap-1.5 rounded-xl border border-emerald-500/30 bg-emerald-500/10 px-3 py-2 text-xs font-bold text-emerald-300 hover:bg-emerald-500/20 transition"
-                  >
-                    WhatsApp
-                  </a>
-                )}
-                {teacher.email && (
-                  <a
-                    href={`mailto:${teacher.email}`}
-                    className="flex items-center justify-center rounded-xl border border-white/10 bg-white/5 p-2 text-slate-300 hover:border-cyan-400/40 hover:text-cyan-300 transition"
-                    title={`Écrire à ${teacher.email}`}
-                  >
-                    <Mail size={15} />
-                  </a>
-                )}
+              <div className="mt-5 border-t border-white/5 pt-3 flex items-center justify-between gap-2">
+                <span className="text-[11px] font-semibold text-slate-400">Contacter :</span>
+                <ContactButtons
+                  phone={teacher.phone}
+                  userId={teacher.userId}
+                  email={teacher.email}
+                  name={`${teacher.prenom} ${teacher.nom}`}
+                  showLabels
+                  size="md"
+                />
               </div>
             </Card>
           ))}

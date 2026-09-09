@@ -266,3 +266,31 @@ export function studentsOfTeacher(db: DB, teacherId: string): StudentWithTeacher
   return result;
 }
 
+/**
+ * Retourne tous les formateurs intervenant sur un module donné (déclaré, cours ou emploi du temps).
+ */
+export function teachersOfModule(db: DB, moduleId: string): Teacher[] {
+  const set = new Set<Teacher>();
+  for (const t of db.teachers) {
+    const tModIds = getTeacherModuleIds(t, db);
+    if (tModIds.includes(moduleId)) {
+      set.add(t);
+    }
+  }
+  return Array.from(set);
+}
+
+/**
+ * Retourne la liste pure des apprenants (Student[]) suivant au moins un module d'un formateur.
+ */
+export function getStudentsOfTeacher(db: DB, teacherId: string): Student[] {
+  return studentsOfTeacher(db, teacherId).map((item) => item.student);
+}
+
+/**
+ * Retourne la liste pure des formateurs (Teacher[]) enseignant à cet apprenant.
+ */
+export function getTeachersOfStudent(db: DB, studentId: string): Teacher[] {
+  return teachersOfStudent(db, studentId).map((item) => item.teacher);
+}
+
