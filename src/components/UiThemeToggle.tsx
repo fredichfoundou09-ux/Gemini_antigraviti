@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useRef } from "react";
-import { Palette, Check, RotateCcw, Sparkles, Sun, Moon } from "lucide-react";
+import { Palette, Check, RotateCcw, Sparkles, Sun, Moon, Shield } from "lucide-react";
 import { getUiTheme, setUiTheme, UiTheme } from "@/lib/uiTheme";
 import { cn } from "@/utils/cn";
 
@@ -47,7 +47,9 @@ export function UiThemeToggle() {
         onClick={() => setOpen(!open)}
         className={cn(
           "relative rounded-lg border p-2 sm:p-2.5 transition shrink-0",
-          currentTheme === "light"
+          currentTheme === "crimson"
+            ? "border-red-500 bg-red-950/50 text-red-400 shadow-[0_0_14px_rgba(255,23,79,0.4)]"
+            : currentTheme === "light"
             ? "border-amber-400 bg-amber-500/20 text-amber-600 shadow-[0_0_12px_rgba(245,158,11,0.35)]"
             : currentTheme === "modern"
             ? "border-cyan-400 bg-cyan-950/40 text-cyan-300 shadow-[0_0_12px_rgba(6,182,212,0.3)]"
@@ -61,11 +63,11 @@ export function UiThemeToggle() {
           <span className="absolute -top-1 -right-1 flex h-2.5 w-2.5">
             <span className={cn(
               "animate-ping absolute inline-flex h-full w-full rounded-full opacity-75",
-              currentTheme === "light" ? "bg-amber-400" : "bg-cyan-400"
+              currentTheme === "crimson" ? "bg-red-500" : currentTheme === "light" ? "bg-amber-400" : "bg-cyan-400"
             )} />
             <span className={cn(
               "relative inline-flex rounded-full h-2.5 w-2.5",
-              currentTheme === "light" ? "bg-amber-500" : "bg-cyan-500"
+              currentTheme === "crimson" ? "bg-red-600" : currentTheme === "light" ? "bg-amber-500" : "bg-cyan-500"
             )} />
           </span>
         )}
@@ -110,6 +112,34 @@ export function UiThemeToggle() {
                 </p>
               </div>
               {currentTheme === "classic" && <Check size={16} className="text-cyan-400 shrink-0 mt-0.5" />}
+            </button>
+
+            {/* Option 2: Thème Rouge Sentinelle (Blason 3D) */}
+            <button
+              type="button"
+              onClick={() => selectTheme("crimson")}
+              className={cn(
+                "w-full text-left rounded-xl p-2.5 transition flex items-start justify-between gap-2 border",
+                currentTheme === "crimson"
+                  ? "border-red-500/60 bg-red-500/20 text-white shadow-[0_0_15px_rgba(255,23,79,0.2)]"
+                  : "border-white/5 bg-white/[0.02] text-slate-300 hover:bg-white/5 hover:text-white"
+              )}
+            >
+              <div>
+                <div className="flex items-center gap-2">
+                  <Shield size={14} className="text-red-500" />
+                  <p className="text-xs font-bold text-red-300">Rouge Sentinelle & Chrome</p>
+                  {currentTheme === "crimson" && (
+                    <span className="rounded bg-red-500/30 px-1.5 py-0.2 text-[9px] font-bold text-red-200">
+                      Actif
+                    </span>
+                  )}
+                </div>
+                <p className="text-[10px] text-slate-400 mt-0.5 leading-snug">
+                  Ambiance rubis écarlate et chrome métallique du blason 3D.
+                </p>
+              </div>
+              {currentTheme === "crimson" && <Check size={16} className="text-red-400 shrink-0 mt-0.5" />}
             </button>
 
             {/* Option 2: Thème Clair */}

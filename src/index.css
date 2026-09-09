@@ -403,5 +403,91 @@ html[data-theme="light"] .no-theme-invert {
   filter: invert(1) hue-rotate(180deg);
 }
 
+/* ========================================================
+   THÈME ROUGE SENTINELLE & CHROME (Inspiré du Blason 3D)
+   Activé via [data-theme="crimson"] ou [data-ui-theme="crimson"]
+   ======================================================== */
+[data-theme="crimson"],
+[data-ui-theme="crimson"] {
+  --background: #060608;
+  --sentinel-bg: #060608;
+  --color-night: #060608;
+  --color-night2: #0e0e14;
+  --color-night3: #161622;
+  --color-panel: #130a10;
+  --color-panel2: #0e0e14;
+  --color-panel3: #1a0f16;
+  --color-electric: #ff174f;
+  --color-electric2: #ff2a55;
+  --color-cyber: #ff174f;
+  --color-neon: #ff3366;
+  --color-hudtext: #f1f5f9;
+  --color-hudmuted: #94a3b8;
+  --color-huddim: #475569;
+}
+
+[data-theme="crimson"] body,
+[data-ui-theme="crimson"] body {
+  background: radial-gradient(circle at 50% -10%, #2b040c 0%, #0c0b10 45%, #050507 90%);
+  background-attachment: fixed;
+  color: #f1f5f9;
+}
+
+[data-theme="crimson"] header,
+[data-ui-theme="crimson"] header {
+  backdrop-filter: blur(16px);
+  background-color: rgba(10, 10, 14, 0.9) !important;
+  border-bottom: 1px solid rgba(255, 23, 79, 0.35) !important;
+  box-shadow: 0 4px 20px -2px rgba(255, 23, 79, 0.15);
+}
+
+[data-theme="crimson"] aside,
+[data-ui-theme="crimson"] aside {
+  background-color: rgba(8, 8, 12, 0.95) !important;
+  border-right: 1px solid rgba(255, 23, 79, 0.2) !important;
+}
+
+[data-theme="crimson"] .border-\[\#006DFF\]\/30,
+[data-theme="crimson"] .border-cyan-400\/25,
+[data-theme="crimson"] .border-cyan-400\/30,
+[data-theme="crimson"] .border-cyan-500\/30 {
+  border-color: rgba(255, 23, 79, 0.35) !important;
+}
+
+[data-theme="crimson"] .text-cyan-300,
+[data-theme="crimson"] .text-cyan-400,
+[data-theme="crimson"] .text-\[\#00E5FF\],
+[data-theme="crimson"] .text-\[\#B8F3FF\] {
+  color: #ff3b61 !important;
+}
+
+[data-theme="crimson"] .text-cyan-200 {
+  color: #f1f5f9 !important;
+}
+
+[data-theme="crimson"] .bg-cyan-400\/5,
+[data-theme="crimson"] .bg-cyan-500\/10 {
+  background-color: rgba(255, 23, 79, 0.08) !important;
+}
+
+[data-theme="crimson"] .hover\:border-\[\#00C8FF\]:hover,
+[data-theme="crimson"] .hover\:border-cyan-400:hover {
+  border-color: #ff174f !important;
+}
+
+[data-theme="crimson"] .hover\:text-\[\#00E5FF\]:hover {
+  color: #ff4d6d !important;
+}
+
+[data-theme="crimson"] .hud-border-blue {
+  border-color: rgba(255, 23, 79, 0.45) !important;
+  box-shadow: 0 0 16px -2px rgba(255, 23, 79, 0.28), inset 0 0 12px rgba(255, 23, 79, 0.06) !important;
+}
+
+[data-theme="crimson"] .glow-cyan-md {
+  box-shadow: 0 0 20px rgba(255, 23, 79, 0.25), inset 0 0 10px rgba(255, 23, 79, 0.08) !important;
+}
+
+
 
 

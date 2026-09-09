@@ -3,18 +3,19 @@
  * 
  * Thèmes supportés :
  * - "classic" (Défaut) : L'interface d'origine sombre & néon Sentinelles.
+ * - "crimson" : Thème Rouge Sentinelle & Chrome Métallique inspiré du blason officiel.
  * - "light" : Thème clair instantané avec inversion chromatique équilibrée et compensation des médias.
  * - "modern" : Variante épurée, contrastée avec reflets cyan/saphir adoucis et typographie aérée.
  */
 
-export type UiTheme = "classic" | "light" | "modern";
+export type UiTheme = "classic" | "crimson" | "light" | "modern";
 
 const STORAGE_KEY = "sn:ui-theme";
 
 export function getUiTheme(): UiTheme {
   try {
     const saved = localStorage.getItem(STORAGE_KEY);
-    if (saved === "light" || saved === "modern" || saved === "classic") {
+    if (saved === "crimson" || saved === "light" || saved === "modern" || saved === "classic") {
       return saved;
     }
   } catch {
@@ -39,20 +40,12 @@ export function applyThemeToDOM(theme: UiTheme = getUiTheme()): void {
   if (typeof document === "undefined") return;
   const root = document.documentElement;
   
-  // Applique les deux attributs pour compatibilité totale (data-theme et data-ui-theme)
+  // Applique les attributs pour compatibilité totale
   root.setAttribute("data-theme", theme);
   root.setAttribute("data-ui-theme", theme);
 
-  if (theme === "light") {
-    root.classList.add("theme-light");
-    root.classList.remove("theme-classic", "theme-modern");
-  } else if (theme === "modern") {
-    root.classList.add("theme-modern");
-    root.classList.remove("theme-classic", "theme-light");
-  } else {
-    root.classList.add("theme-classic");
-    root.classList.remove("theme-modern", "theme-light");
-  }
+  root.classList.remove("theme-classic", "theme-crimson", "theme-modern", "theme-light");
+  root.classList.add(`theme-${theme}`);
 }
 
 // Initialisation immédiate au chargement du script

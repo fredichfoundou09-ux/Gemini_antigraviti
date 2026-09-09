@@ -53,8 +53,8 @@ describe("Gestionnaire de Thème Réversible (uiTheme)", () => {
         getAttribute: (k: string) => rootAttributes[k] || null,
         removeAttribute: (k: string) => { delete rootAttributes[k]; },
         classList: {
-          add: (c: string) => rootClasses.add(c),
-          remove: (c: string) => rootClasses.delete(c),
+          add: (...classes: string[]) => classes.forEach((c) => rootClasses.add(c)),
+          remove: (...classes: string[]) => classes.forEach((c) => rootClasses.delete(c)),
           contains: (c: string) => rootClasses.has(c),
         },
       },
@@ -119,7 +119,24 @@ describe("Gestionnaire de Thème Réversible (uiTheme)", () => {
     expect(dispatchedEvents[0].detail.theme).toBe("light");
   });
 
+  it("permet d'activer le thème 'crimson' (Rouge Sentinelle) et l'applique au DOM et localStorage", () => {
+    setUiTheme("crimson");
+
+    expect(mockStore["sn:ui-theme"]).toBe("crimson");
+    expect(getUiTheme()).toBe("crimson");
+    expect(rootAttributes["data-theme"]).toBe("crimson");
+    expect(rootAttributes["data-ui-theme"]).toBe("crimson");
+    expect(rootClasses.has("theme-crimson")).toBe(true);
+    expect(rootClasses.has("theme-classic")).toBe(false);
+    expect(dispatchedEvents.length).toBeGreaterThan(0);
+    expect(dispatchedEvents[0].detail.theme).toBe("crimson");
+  });
+
   it("applique le thème au DOM correctement avec applyThemeToDOM", () => {
+    applyThemeToDOM("crimson");
+    expect(rootAttributes["data-theme"]).toBe("crimson");
+    expect(rootAttributes["data-ui-theme"]).toBe("crimson");
+
     applyThemeToDOM("modern");
     expect(rootAttributes["data-theme"]).toBe("modern");
     expect(rootAttributes["data-ui-theme"]).toBe("modern");
