@@ -6,7 +6,7 @@ import {
   Search, X, Shield, Eye,
 } from "lucide-react";
 import { useStore } from "@/lib/store";
-import { getTeacherModuleIds, getStudentsOfTeacher } from "@/lib/access";
+import { getTeacherModuleIds, getStudentsOfTeacher, scheduleFor } from "@/lib/access";
 import { ContactButtons } from "@/components/ContactButtons";
 import { Card, Stat, PageHead, Badge, Empty, moduleIcon, formationLabel, Input, Field, Btn, readImage, Textarea } from "@/lib/ui";
 import { supabase, isSupabaseConfigured } from "@/lib/supabase/client";
@@ -28,19 +28,18 @@ export function TeacherDashboard() {
   if (!teacher) return <Empty icon={<GraduationCap size={40} />} title="Profil enseignant introuvable" />;
 
   const teacherModuleIds = useMemo(
-    () => getTeacherModuleIds(teacher, db),
+    () => getTeacherModuleIds(teacher, db, { heuristic: true }),
     [teacher, db.courses, db.schedule, teacher?.modules]
   );
   const myModules = useMemo(
     () => db.modules.filter((m) => teacherModuleIds.includes(m.id)),
     [db.modules, teacherModuleIds]
   );
-  const myModuleIds = teacherModuleIds;
-  const myStudents = useMemo(() => db.students.filter((s) => (s.modules || []).some((mid) => myModuleIds.includes(mid))), [db.students, myModuleIds]);
-  const mySessions = useMemo(() => db.schedule.filter((s) => s.teacherId === teacher.id || myModuleIds.includes(s.moduleId)), [db.schedule, teacher.id, myModuleIds]);
+  const myStudents = useMemo(() => getStudentsOfTeacher(db, teacher.id), [db, teacher.id]);
+  const mySessions = useMemo(() => scheduleFor(db, user), [db, user]);
   const todaySessions = mySessions.filter((s) => s.jour === new Date().toLocaleDateString("fr-FR", { weekday: "long" }).replace(/^\w/, (c) => c.toUpperCase()));
-  const myCourses = db.courses.filter((c) => c.teacherId === teacher.id || myModuleIds.includes(c.moduleId));
-  const myGrades = db.grades.filter((g) => myModuleIds.includes(g.moduleId));
+  const myCourses = db.courses.filter((c) => c.teacherId === teacher.id || teacherModuleIds.includes(c.moduleId));
+  const myGrades = db.grades.filter((g) => teacherModuleIds.includes(g.moduleId));
 
   const avg = myGrades.length ? (myGrades.reduce((a, g) => a + g.note, 0) / myGrades.length).toFixed(1) : "—";
   const modName = (id: string) => db.modules.find((m) => m.id === id)?.titre ?? "—";
@@ -154,7 +153,7 @@ export function TeacherClasses() {
   if (!teacher) return <Empty icon={<GraduationCap size={40} />} title="Profil enseignant introuvable" />;
 
   const teacherModuleIds = useMemo(
-    () => getTeacherModuleIds(teacher, db),
+    () => getTeacherModuleIds(teacher, db, { heuristic: true }),
     [teacher, db.courses, db.schedule, teacher?.modules]
   );
   const myModules = useMemo(
@@ -220,7 +219,7 @@ export function TeacherStudents() {
 
   // Résolution unifiée et consolidée des modules enseignés
   const teacherModuleIds = useMemo(
-    () => getTeacherModuleIds(teacher, db),
+    () => getTeacherModuleIds(teacher, db, { heuristic: true }),
     [teacher, db.courses, db.schedule, teacher?.modules]
   );
 
@@ -512,7 +511,7 @@ export function TeacherProfile() {
   const [uploading, setUploading] = useState(false);
 
   const teacherModuleIds = useMemo(
-    () => getTeacherModuleIds(teacher, db),
+    () => getTeacherModuleIds(teacher, db, { heuristic: true }),
     [teacher, db.courses, db.schedule, teacher?.modules]
   );
   const myMods = db.modules.filter((m) => teacherModuleIds.includes(m.id));

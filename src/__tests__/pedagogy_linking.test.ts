@@ -7,6 +7,7 @@ import {
   studentsOfTeacher,
   getStudentsOfTeacher,
   getTeacherModuleIds,
+  scheduleFor,
 } from "../lib/access";
 import { DB, Teacher, Student } from "../lib/types";
 
@@ -183,5 +184,85 @@ describe("Liaison pédagogique Formateurs ↔ Apprenants", () => {
 
     // Formateur inexistant -> pas de crash
     expect(getStudentsOfTeacher(mockDB, "NON-EXISTENT")).toEqual([]);
+  });
+
+  it("un formateur ayant des modules seulement via un créneau planning voit ce créneau et ses modules résolus", () => {
+    // Teacher sans aucun module déclaré dans teacher.modules
+    const teacherPlanningOnly: Teacher = {
+      id: "ENS-PLAN",
+      userId: "user-plan",
+      nom: "KIMBEMBE",
+      prenom: "Alain",
+      email: "alain@sentinelles.cg",
+      phone: "061112233",
+      statut: "actif",
+      modules: [], // Vide !
+      volumeHoraire: 20,
+      actif: true,
+    };
+
+    const testDB: DB = {
+      ...mockDB,
+      teachers: [...mockDB.teachers, teacherPlanningOnly],
+      schedule: [
+        ...mockDB.schedule,
+        {
+          id: "s-plan-1",
+          moduleId: "MOD-GESTION",
+          teacherId: "ENS-PLAN",
+          jour: "Jeudi",
+          heureDebut: "14:00",
+          heureFin: "16:00",
+          salle: "Salle 3",
+          formation: "gestion",
+          audience: "tous",
+        },
+      ],
+    };
+
+    // 1. Ses modules doivent être automatiquement résolus via son planning
+    const resolvedModules = getTeacherModuleIds(teacherPlanningOnly, testDB);
+    expect(resolvedModules).toContain("MOD-GESTION");
+
+    // 2. Sur son planning, il doit obligatoirement voir ce créneau
+    const userTeacher = { id: "user-plan", role: "teacher" } as any;
+    const slots = scheduleFor(testDB, userTeacher);
+    expect(slots.map((s) => s.id)).toContain("s-plan-1");
+  });
+
+  it("deux formateurs différents ne voient jamais l'emploi du temps l'un de l'autre", () => {
+    const userT1 = { id: "user-t1", role: "teacher" } as any;
+    const userT2 = { id: "user-t2", role: "teacher" } as any;
+
+    const slotsT1 = scheduleFor(mockDB, userT1);
+    const slotsT2 = scheduleFor(mockDB, userT2);
+
+    // ENS-001 a le créneau s1 (Lundi), ENS-002 a le créneau s2 (Mardi)
+    expect(slotsT1.map((s) => s.id)).toEqual(["s1"]);
+    expect(slotsT2.map((s) => s.id)).toEqual(["s2"]);
+
+    // Isolation stricte : aucun chevauchement de planning entre deux formateurs
+    expect(slotsT1.some((s) => s.id === "s2")).toBe(false);
+    expect(slotsT2.some((s) => s.id === "s1")).toBe(false);
+  });
+
+  it("la fiche apprenant admin et la page Mes apprenants formateur renvoient exactement le même ensemble associé", () => {
+    // Côté formateur ENS-001 : quels sont ses apprenants ?
+    const studentsFromTeacherPerspective = getStudentsOfTeacher(mockDB, "ENS-001");
+    expect(studentsFromTeacherPerspective.map((s) => s.id)).toContain("SN-2026-00001");
+
+    // Côté fiche apprenant SN-2026-00001 : quels sont ses formateurs associés ?
+    const teachersFromAdminStudentView = getTeachersOfStudent(mockDB, "SN-2026-00001");
+    expect(teachersFromAdminStudentView.map((t) => t.id)).toContain("ENS-001");
+
+    // Réciprocité stricte vérifiée :
+    // Si formateur T est dans getTeachersOfStudent(S), alors S DOIT être dans getStudentsOfTeacher(T)
+    for (const s of mockDB.students) {
+      const associatedTeachers = getTeachersOfStudent(mockDB, s.id);
+      for (const t of associatedTeachers) {
+        const associatedStudents = getStudentsOfTeacher(mockDB, t.id);
+        expect(associatedStudents.map((st) => st.id)).toContain(s.id);
+      }
+    }
   });
 });

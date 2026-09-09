@@ -135,8 +135,13 @@ export function scheduleFor(db: DB, user: User | null): ScheduleItem[] {
       (user.email && x.email && x.email.toLowerCase().trim() === user.email.toLowerCase().trim())
     );
     if (!t) return [];
-    const teacherModules = getTeacherModuleIds(t, db);
-    return db.schedule.filter((s) => s.teacherId === t.id || (t.userId && s.teacherId === t.userId) || teacherModules.includes(s.moduleId));
+    const teacherModules = getTeacherModuleIds(t, db, { heuristic: true });
+    return db.schedule.filter((s) => {
+      const isMyTeacher = s.teacherId === t.id || (t.userId && s.teacherId === t.userId);
+      if (isMyTeacher) return true;
+      if (s.teacherId && s.teacherId !== t.id && s.teacherId !== t.userId) return false;
+      return teacherModules.includes(s.moduleId);
+    });
   }
   const s = db.students.find((x) =>
     x.userId === user.id ||
@@ -181,8 +186,8 @@ export function teacherOfModule(db: DB, moduleId: string): Teacher | undefined {
     const t = db.teachers.find((x) => x.id === course.teacherId || x.userId === course.teacherId);
     if (t) return t;
   }
-  // 3. Chercher dans les modules déclarés de l'enseignant
-  return db.teachers.find((t) => (t.modules || []).includes(moduleId));
+  // 3. Chercher dans les modules consolidés de l'enseignant
+  return db.teachers.find((t) => getTeacherModuleIds(t, db, { heuristic: true }).includes(moduleId));
 }
 
 export interface TeacherWithStudentContext {
