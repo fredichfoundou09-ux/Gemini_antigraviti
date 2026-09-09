@@ -54,9 +54,7 @@ describe("Liaison pédagogique Formateurs ↔ Apprenants", () => {
     email: "jean@sentinelles.cg",
     phone: "069991122",
     specialite: "Python & Data",
-    statut: "actif",
     modules: ["MOD-PY"],
-    volumeHoraire: 40,
     actif: true,
   };
 
@@ -68,9 +66,7 @@ describe("Liaison pédagogique Formateurs ↔ Apprenants", () => {
     email: "claire@sentinelles.cg",
     phone: "055553344",
     specialite: "Réseaux & Sécurité",
-    statut: "actif",
     modules: ["MOD-NET"],
-    volumeHoraire: 30,
     actif: true,
   };
 
@@ -81,11 +77,16 @@ describe("Liaison pédagogique Formateurs ↔ Apprenants", () => {
     prenom: "Arnaud",
     email: "arnaud@test.cg",
     telephone: "068882233",
+    whatsapp: "068882233",
+    dateNaissance: "2000-01-01",
+    sexe: "M",
+    adresse: "Brazzaville",
+    niveau: "Bac",
     formation: "informatique",
-    statut: "inscrit",
+    statut: "actif",
+    statutPaiement: "paye",
     modules: ["MOD-PY", "MOD-NET"],
     dateInscription: "2026-01-01",
-    paiements: [],
   };
 
   const mockStudent2: Student = {
@@ -95,27 +96,32 @@ describe("Liaison pédagogique Formateurs ↔ Apprenants", () => {
     prenom: "Grace",
     email: "grace@test.cg",
     telephone: "057778899",
-    formation: "gestion",
-    statut: "inscrit",
-    modules: ["MOD-GESTION"],
+    whatsapp: "057778899",
+    dateNaissance: "2001-02-02",
+    sexe: "F",
+    adresse: "Pointe-Noire",
+    niveau: "Licence",
+    formation: "industriel",
+    statut: "actif",
+    statutPaiement: "paye",
+    modules: ["MOD-INDUS"],
     dateInscription: "2026-01-02",
-    paiements: [],
   };
 
   const mockDB: DB = {
     teachers: [mockTeacher1, mockTeacher2],
     students: [mockStudent1, mockStudent2],
     modules: [
-      { id: "MOD-PY", formation: "informatique", numero: 1, titre: "Python", volumeHoraire: 40, coefficient: 2, notions: [] },
-      { id: "MOD-NET", formation: "informatique", numero: 2, titre: "Réseaux", volumeHoraire: 30, coefficient: 2, notions: [] },
-      { id: "MOD-GESTION", formation: "gestion", numero: 1, titre: "Comptabilité", volumeHoraire: 20, coefficient: 1, notions: [] },
+      { id: "MOD-PY", formation: "informatique", numero: 1, titre: "Python", icon: "code", notions: [] },
+      { id: "MOD-NET", formation: "informatique", numero: 2, titre: "Réseaux", icon: "network", notions: [] },
+      { id: "MOD-INDUS", formation: "industriel", numero: 1, titre: "Automatisme", icon: "cpu", notions: [] },
     ],
     courses: [
-      { id: "c1", moduleId: "MOD-PY", teacherId: "ENS-001", titre: "Intro Python", type: "cours", publie: true, date: "2026-01-10", audience: "tous" },
+      { id: "c1", moduleId: "MOD-PY", teacherId: "ENS-001", titre: "Intro Python", description: "", content: "", type: "cours", publie: true, date: "2026-01-10", audience: "module" },
     ],
     schedule: [
-      { id: "s1", moduleId: "MOD-PY", teacherId: "ENS-001", jour: "Lundi", heureDebut: "08:00", heureFin: "10:00", salle: "Lab 1", audience: "tous" },
-      { id: "s2", moduleId: "MOD-NET", teacherId: "ENS-002", jour: "Mardi", heureDebut: "10:00", heureFin: "12:00", salle: "Lab 2", audience: "tous" },
+      { id: "s1", moduleId: "MOD-PY", teacherId: "ENS-001", jour: "Lundi", heureDebut: "08:00", heureFin: "10:00", salle: "Lab 1", formation: "informatique" },
+      { id: "s2", moduleId: "MOD-NET", teacherId: "ENS-002", jour: "Mardi", heureDebut: "10:00", heureFin: "12:00", salle: "Lab 2", formation: "informatique" },
     ],
     users: [],
     grades: [],
@@ -123,12 +129,24 @@ describe("Liaison pédagogique Formateurs ↔ Apprenants", () => {
     submissions: [],
     tests: [],
     invoices: [],
+    payments: [],
+    paymentSchedules: [],
+    teacherHours: [],
+    teacherPayments: [],
+    fileActivities: [],
+    results: [],
     scholarships: [],
     certificates: [],
     messages: [],
     notifications: [],
-    siteContent: {} as any,
-    auditLogs: [],
+    advantages: [],
+    partners: [],
+    announcements: [],
+    enia: {} as any,
+    registrations: [],
+    version: 1,
+    settings: {} as any,
+    log: [],
   };
 
   it("teachersOfModule résout les enseignants d'un module donné", () => {
@@ -173,9 +191,10 @@ describe("Liaison pédagogique Formateurs ↔ Apprenants", () => {
       id: "ENS-099",
       nom: "SOLO",
       prenom: "Test",
-      statut: "actif",
+      email: "solo@test.cg",
+      phone: "060000000",
+      specialite: "Autre",
       modules: ["MOD-INUTILISE"],
-      volumeHoraire: 0,
       actif: true,
     };
     const customDB = { ...mockDB, teachers: [...mockDB.teachers, fakeTeacher] };
@@ -195,9 +214,8 @@ describe("Liaison pédagogique Formateurs ↔ Apprenants", () => {
       prenom: "Alain",
       email: "alain@sentinelles.cg",
       phone: "061112233",
-      statut: "actif",
+      specialite: "Industrie",
       modules: [], // Vide !
-      volumeHoraire: 20,
       actif: true,
     };
 
@@ -208,21 +226,20 @@ describe("Liaison pédagogique Formateurs ↔ Apprenants", () => {
         ...mockDB.schedule,
         {
           id: "s-plan-1",
-          moduleId: "MOD-GESTION",
+          moduleId: "MOD-INDUS",
           teacherId: "ENS-PLAN",
           jour: "Jeudi",
           heureDebut: "14:00",
           heureFin: "16:00",
           salle: "Salle 3",
-          formation: "gestion",
-          audience: "tous",
+          formation: "industriel",
         },
       ],
     };
 
     // 1. Ses modules doivent être automatiquement résolus via son planning
     const resolvedModules = getTeacherModuleIds(teacherPlanningOnly, testDB);
-    expect(resolvedModules).toContain("MOD-GESTION");
+    expect(resolvedModules).toContain("MOD-INDUS");
 
     // 2. Sur son planning, il doit obligatoirement voir ce créneau
     const userTeacher = { id: "user-plan", role: "teacher" } as any;

@@ -17,6 +17,7 @@ import { isSupabaseConfigured } from "@/lib/supabase/client";
 import { subscribeToAllMessages, subscribeToNotifications } from "@/lib/supabase/communication";
 import { toastMsg } from "@/lib/toast";
 import { getUnreadNotificationCount, syncNotificationReadsFromSupabase } from "@/lib/notifications";
+import { ThemeToggle } from "@/components/ThemeToggle";
 
 const roleLabel: Record<string, string> = {
   superadmin: "SUPER ADMIN",
@@ -818,6 +819,9 @@ export default function DashboardLayout() {
                 </span>
               )}
             </NavLink>
+
+            {/* Bouton bascule UI/UX réversible */}
+            <ThemeToggle />
 
             <NavLink
               to="/"

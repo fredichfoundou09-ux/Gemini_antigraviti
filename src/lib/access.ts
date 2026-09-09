@@ -1,4 +1,4 @@
-import { Course, DB, ScheduleItem, Teacher, User } from "./types";
+import { Course, DB, ScheduleItem, Student, Teacher, User } from "./types";
 
 /**
  * Résout la liste consolidée des IDs de modules d'un enseignant :

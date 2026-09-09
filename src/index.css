@@ -347,3 +347,36 @@ a:active:not(.disabled) {
   transition-timing-function: cubic-bezier(0.4, 0, 0.2, 1) !important;
 }
 
+/* ========================================================
+   THÈME MODERNISÉ RÉVERSIBLE (Variante additive)
+   Activé via le sélecteur [data-theme="modern"]
+   L'interface par défaut (classique) reste 100% inchangée.
+   ======================================================== */
+[data-theme="modern"] {
+  --background: #030712;
+  --sentinel-bg: #030712;
+  --sentinel-cyan: #38bdf8;
+  --sentinel-cyan-dark: #0284c7;
+}
+
+[data-theme="modern"] body {
+  background: radial-gradient(circle at 50% 0%, #0c192e 0%, #030712 60%);
+  background-attachment: fixed;
+}
+
+[data-theme="modern"] .border-white\/10 {
+  border-color: rgba(56, 189, 248, 0.14) !important;
+}
+
+[data-theme="modern"] .bg-white\/\[0\.02\] {
+  background-color: rgba(15, 23, 42, 0.5) !important;
+  backdrop-filter: blur(8px);
+}
+
+[data-theme="modern"] header {
+  backdrop-filter: blur(16px);
+  background-color: rgba(3, 7, 18, 0.85) !important;
+  border-bottom-color: rgba(56, 189, 248, 0.18) !important;
+}
+
+
