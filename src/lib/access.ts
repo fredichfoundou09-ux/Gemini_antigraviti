@@ -27,7 +27,7 @@ export function getTeacherModuleIds(
   // 2. Modules via cours assignés
   if (Array.isArray(db.courses)) {
     for (const c of db.courses) {
-      if (c.teacherId === teacher.id && c.moduleId) {
+      if ((c.teacherId === teacher.id || (teacher.userId && c.teacherId === teacher.userId)) && c.moduleId) {
         set.add(c.moduleId);
       }
     }
@@ -36,7 +36,7 @@ export function getTeacherModuleIds(
   // 3. Modules via créneaux de planning assignés
   if (Array.isArray(db.schedule)) {
     for (const s of db.schedule) {
-      if (s.teacherId === teacher.id && s.moduleId) {
+      if ((s.teacherId === teacher.id || (teacher.userId && s.teacherId === teacher.userId)) && s.moduleId) {
         set.add(s.moduleId);
       }
     }
@@ -66,14 +66,11 @@ export function studentCanSeeCourse(db: DB, studentId: string, c: Course): boole
   if (c.publie === false) return false;
   const s = db.students.find((x) => x.id === studentId);
   if (!s) return false;
-  // RÈGLE STRICTE : L'apprenant ne peut voir QUE les cours des modules auxquels il est inscrit
   if (!s.modules || !s.modules.includes(c.moduleId)) return false;
 
-  // Ciblage explicite d'apprenants
   if (c.audience === "apprenants" && c.studentIds && c.studentIds.length > 0) {
     return c.studentIds.includes(s.id);
   }
-  // Ciblage par groupe
   if (c.audience === "groupe" && c.groupe) {
     if ((s as any).groupe && (s as any).groupe !== c.groupe) return false;
   }
@@ -87,7 +84,7 @@ export function teacherCanManageCourse(db: DB, userId: string, c: Course): boole
     (x.email && x.email.toLowerCase().trim() === userId.toLowerCase().trim())
   );
   if (!t) return false;
-  if (c.teacherId === t.id) return true;
+  if (c.teacherId === t.id || (t.userId && c.teacherId === t.userId)) return true;
   const teacherModules = getTeacherModuleIds(t, db);
   return teacherModules.includes(c.moduleId);
 }
@@ -104,7 +101,7 @@ export function coursesFor(db: DB, user: User | null): Course[] {
     );
     if (!t) return [];
     const teacherModules = getTeacherModuleIds(t, db);
-    return db.courses.filter((c) => c.teacherId === t.id || teacherModules.includes(c.moduleId));
+    return db.courses.filter((c) => c.teacherId === t.id || (t.userId && c.teacherId === t.userId) || teacherModules.includes(c.moduleId));
   }
   // student
   const s = db.students.find((x) =>
@@ -120,7 +117,6 @@ export function coursesFor(db: DB, user: User | null): Course[] {
 export function studentConcernedBySchedule(db: DB, studentId: string, s: ScheduleItem): boolean {
   const stu = db.students.find((x) => x.id === studentId);
   if (!stu) return false;
-  // RÈGLE STRICTE : L'apprenant ne voit QUE les créneaux des modules auxquels il est inscrit
   if (!stu.modules || !stu.modules.includes(s.moduleId)) return false;
 
   if (s.studentIds && s.studentIds.length > 0) return s.studentIds.includes(stu.id);
@@ -140,7 +136,7 @@ export function scheduleFor(db: DB, user: User | null): ScheduleItem[] {
     );
     if (!t) return [];
     const teacherModules = getTeacherModuleIds(t, db);
-    return db.schedule.filter((s) => s.teacherId === t.id || teacherModules.includes(s.moduleId));
+    return db.schedule.filter((s) => s.teacherId === t.id || (t.userId && s.teacherId === t.userId) || teacherModules.includes(s.moduleId));
   }
   const s = db.students.find((x) =>
     x.userId === user.id ||
@@ -156,7 +152,7 @@ export function studentsOfSchedule(db: DB, s: ScheduleItem) {
   if (s.studentIds && s.studentIds.length > 0) {
     return db.students.filter((x) => s.studentIds!.includes(x.id));
   }
-  return db.students.filter((x) => x.formation === s.formation && (x.modules || []).includes(s.moduleId));
+  return db.students.filter((x) => (!s.formation || x.formation === s.formation) && (x.modules || []).includes(s.moduleId));
 }
 
 /** Apprenants destinataires d'un cours (pour l'affichage côté enseignant). */
@@ -168,5 +164,105 @@ export function studentsOfCourse(db: DB, c: Course) {
     return db.students.filter((x) => (x as any).groupe === c.groupe || ((x.modules || []).includes(c.moduleId) && (!c.formation || x.formation === c.formation)));
   }
   return db.students.filter((x) => (x.modules || []).includes(c.moduleId));
+}
+
+/** Trouve le formateur assigné à un module spécifique (via planning, cours ou assignation directe) */
+export function teacherOfModule(db: DB, moduleId: string): Teacher | undefined {
+  if (!moduleId) return undefined;
+  // 1. Chercher d'abord dans le planning officiel
+  const slot = (db.schedule || []).find((s) => s.moduleId === moduleId && s.teacherId);
+  if (slot) {
+    const t = db.teachers.find((x) => x.id === slot.teacherId || x.userId === slot.teacherId);
+    if (t) return t;
+  }
+  // 2. Chercher dans les cours publiés
+  const course = (db.courses || []).find((c) => c.moduleId === moduleId && c.teacherId);
+  if (course) {
+    const t = db.teachers.find((x) => x.id === course.teacherId || x.userId === course.teacherId);
+    if (t) return t;
+  }
+  // 3. Chercher dans les modules déclarés de l'enseignant
+  return db.teachers.find((t) => (t.modules || []).includes(moduleId));
+}
+
+export interface TeacherWithStudentContext {
+  teacher: Teacher;
+  modules: DB["modules"];
+  scheduleSlots: ScheduleItem[];
+}
+
+/**
+ * Retourne la liste des formateurs enseignant aux modules de l'apprenant,
+ * avec le détail des modules partagés et des créneaux de cours.
+ */
+export function teachersOfStudent(db: DB, studentId: string): TeacherWithStudentContext[] {
+  const student = db.students.find((s) => s.id === studentId || s.userId === studentId);
+  if (!student) return [];
+  const sMods = new Set(student.modules || []);
+
+  const result: TeacherWithStudentContext[] = [];
+
+  for (const t of db.teachers) {
+    const tModIds = getTeacherModuleIds(t, db);
+    const commonModIds = tModIds.filter((mid) => sMods.has(mid));
+
+    const slots = (db.schedule || []).filter(
+      (sch) =>
+        (sch.teacherId === t.id || sch.teacherId === t.userId) &&
+        (commonModIds.includes(sch.moduleId) || sMods.has(sch.moduleId))
+    );
+
+    if (commonModIds.length > 0 || slots.length > 0) {
+      const allModIds = Array.from(new Set([...commonModIds, ...slots.map((s) => s.moduleId)]));
+      const commonModules = db.modules.filter((m) => allModIds.includes(m.id));
+      result.push({
+        teacher: t,
+        modules: commonModules,
+        scheduleSlots: slots,
+      });
+    }
+  }
+
+  return result;
+}
+
+export interface StudentWithTeacherContext {
+  student: Student;
+  modules: DB["modules"];
+  scheduleSlots: ScheduleItem[];
+}
+
+/**
+ * Retourne la liste des apprenants inscrits aux matières enseignées par un formateur.
+ */
+export function studentsOfTeacher(db: DB, teacherId: string): StudentWithTeacherContext[] {
+  const teacher = db.teachers.find((t) => t.id === teacherId || t.userId === teacherId);
+  if (!teacher) return [];
+  const tModIds = new Set(getTeacherModuleIds(teacher, db));
+
+  const result: StudentWithTeacherContext[] = [];
+
+  for (const s of db.students) {
+    const sModIds = s.modules || [];
+    const commonModIds = sModIds.filter((mid) => tModIds.has(mid));
+
+    const slots = (db.schedule || []).filter(
+      (sch) =>
+        (sch.teacherId === teacher.id || sch.teacherId === teacher.userId) &&
+        (commonModIds.includes(sch.moduleId) || sModIds.includes(sch.moduleId))
+    );
+
+    if (commonModIds.length > 0 || slots.length > 0) {
+      const allModIds = Array.from(new Set([...commonModIds, ...slots.map((sch) => sch.moduleId)]));
+      const commonModules = db.modules.filter((m) => allModIds.includes(m.id));
+      result.push({
+        student: s,
+        modules: commonModules,
+        scheduleSlots: slots,
+      });
+    }
+  }
+
+  return result;
 }
 

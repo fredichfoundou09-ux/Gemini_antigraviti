@@ -338,18 +338,49 @@ export function TeacherStudents() {
                   </div>
 
                   <div className="mt-3 grid grid-cols-2 gap-2 text-[11px] text-slate-400 border-t border-white/5 pt-2.5">
-                    <span className="flex items-center gap-1 truncate"><Mail size={12} className="text-cyan-400 shrink-0" /> {s.email || "—"}</span>
-                    <span className="flex items-center gap-1 truncate"><Phone size={12} className="text-emerald-400 shrink-0" /> {s.telephone}</span>
+                    {s.email ? (
+                      <a href={`mailto:${s.email}`} className="flex items-center gap-1 truncate hover:text-cyan-300 transition" title={s.email}>
+                        <Mail size={12} className="text-cyan-400 shrink-0" /> {s.email}
+                      </a>
+                    ) : (
+                      <span className="flex items-center gap-1 truncate text-slate-600"><Mail size={12} /> —</span>
+                    )}
+                    {s.telephone ? (
+                      <a href={`tel:${s.telephone.replace(/\s+/g, "")}`} className="flex items-center gap-1 truncate hover:text-emerald-300 transition" title={s.telephone}>
+                        <Phone size={12} className="text-emerald-400 shrink-0" /> {s.telephone}
+                      </a>
+                    ) : (
+                      <span className="flex items-center gap-1 truncate text-slate-600"><Phone size={12} /> —</span>
+                    )}
                   </div>
                 </div>
 
-                <div className="mt-4 pt-3 border-t border-white/5 flex items-center justify-between">
-                  <span className="text-[10px] text-slate-500">Dossier pédagogique</span>
+                <div className="mt-4 pt-3 border-t border-white/5 flex items-center justify-between gap-2">
+                  <div className="flex items-center gap-1.5">
+                    {s.telephone && (
+                      <a
+                        href={`https://wa.me/${s.telephone.replace(/[^0-9]/g, "")}`}
+                        target="_blank"
+                        rel="noreferrer"
+                        className="inline-flex items-center gap-1 rounded-lg border border-emerald-500/30 bg-emerald-500/10 px-2 py-1 text-[11px] font-medium text-emerald-300 hover:bg-emerald-500/20 transition"
+                        title="Contacter sur WhatsApp"
+                      >
+                        WhatsApp
+                      </a>
+                    )}
+                    <Link
+                      to="/app/messages"
+                      className="inline-flex items-center gap-1 rounded-lg border border-white/10 bg-white/[0.04] p-1.5 text-slate-400 hover:bg-white/10 hover:text-white transition"
+                      title="Envoyer un message interne"
+                    >
+                      <MessagesSquare size={13} />
+                    </Link>
+                  </div>
                   <button
                     onClick={() => setSelectedStudent(s)}
                     className="inline-flex items-center gap-1.5 rounded-lg border border-cyan-400/30 bg-cyan-400/10 px-3 py-1.5 text-xs font-bold text-cyan-300 hover:bg-cyan-400/20 transition"
                   >
-                    <Eye size={13} /> Fiche apprenant
+                    <Eye size={13} /> Fiche
                   </button>
                 </div>
               </Card>
@@ -373,6 +404,34 @@ export function TeacherStudents() {
                   </h3>
                   <p className="font-mono text-xs text-cyan-300">Matricule : {selectedStudent.id}</p>
                   <p className="text-xs text-slate-400">{formationLabel(selectedStudent.formation)}</p>
+                  <div className="mt-2 flex flex-wrap items-center gap-2">
+                    {selectedStudent.telephone && (
+                      <>
+                        <a
+                          href={`https://wa.me/${selectedStudent.telephone.replace(/[^0-9]/g, "")}`}
+                          target="_blank"
+                          rel="noreferrer"
+                          className="inline-flex items-center gap-1 rounded-lg border border-emerald-500/30 bg-emerald-500/10 px-2.5 py-1 text-xs font-semibold text-emerald-300 hover:bg-emerald-500/20 transition"
+                        >
+                          WhatsApp : {selectedStudent.telephone}
+                        </a>
+                        <a
+                          href={`tel:${selectedStudent.telephone.replace(/\s+/g, "")}`}
+                          className="inline-flex items-center gap-1 rounded-lg border border-white/10 bg-white/[0.04] px-2.5 py-1 text-xs text-slate-300 hover:bg-white/10 transition"
+                        >
+                          <Phone size={12} className="text-emerald-400" /> Appeler
+                        </a>
+                      </>
+                    )}
+                    {selectedStudent.email && (
+                      <a
+                        href={`mailto:${selectedStudent.email}`}
+                        className="inline-flex items-center gap-1 rounded-lg border border-white/10 bg-white/[0.04] px-2.5 py-1 text-xs text-slate-300 hover:bg-white/10 transition"
+                      >
+                        <Mail size={12} className="text-cyan-400" /> {selectedStudent.email}
+                      </a>
+                    )}
+                  </div>
                 </div>
               </div>
               <button
