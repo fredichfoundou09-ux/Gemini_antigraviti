@@ -1,15 +1,14 @@
 import { Link } from "react-router-dom";
 import {
   ShieldCheck, CalendarDays, MapPin, Clock, MessageCircle, FileText,
-  Code2, Medal, Award, GraduationCap, TrendingUp, ChevronRight, ChevronDown, UserCircle2, ArrowRight,
+  Code2, Medal, Award, GraduationCap, TrendingUp, ChevronRight, ChevronDown, ArrowRight,
   BookOpen, Settings, Handshake,
 } from "lucide-react";
 import { useStore } from "@/lib/store";
-import { moduleIcon, money, Btn, SectionTitle, formationLabel, SentinelLogo } from "@/lib/ui";
+import { moduleIcon, money, Btn, SectionTitle } from "@/lib/ui";
 import avantageImg from "@/assets/avantage-etudiants.jpg";
 import responsableImg from "@/assets/responsable.jpg";
 import sentinelSymbolImg from "@/assets/branding/sentinel-symbol.png";
-import heroSentinels3dImg from "@/assets/branding/hero-sentinels-3d-bg.jpg";
 import { Sentinel3DBackground } from "@/components/Sentinel3DBackground";
 
 

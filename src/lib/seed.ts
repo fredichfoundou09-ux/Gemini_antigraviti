@@ -86,7 +86,8 @@ export function emptySettings(): DB["settings"] {
     bourse: { title: "3 ANS D'ÉTUDES", subtitle: "100% GRATUITES À ENIA 2.0.", button: "BOURSE MON AVENIR" },
     partenaires: [
       "ENIA 2.0 — École du Numérique et de l’Intelligence Artificielle",
-      "FSH Company",
+      "ESNID-Company",
+      "SENTINEL'S ACADEMY",
     ],
     preInscription: {
       enabled: true,

@@ -1,13 +1,12 @@
 import { useEffect, useMemo, useState } from "react";
-import { Send, Mail, Bell, CheckCheck, Users, UserCircle2, Inbox, ChevronRight, MessageSquare, Reply, CornerDownRight, Trash2, Search, ShieldCheck } from "lucide-react";
+import { Send, Mail, Bell, CheckCheck, Users, UserCircle2, Inbox, ChevronRight, Reply, Trash2, Search, ShieldCheck } from "lucide-react";
 import { useStore } from "@/lib/store";
 import { cn } from "@/utils/cn";
-import { Btn, Card, Field, Input, Textarea, Empty, PageHead, Badge, uid, today } from "@/lib/ui";
+import { Btn, Card, Field, Input, Textarea, Empty, PageHead, uid, today } from "@/lib/ui";
 import { isSupabaseConfigured, getSupabase } from "@/lib/supabase/client";
 import { fetchMyConversations, startConversation, replyToConversation, subscribeToAllMessages, deleteConversation, deleteMessage } from "@/lib/supabase/communication";
 import { toastMsg } from "@/lib/toast";
 import {
-  isNotificationRead,
   markNotificationAsRead,
   markAllNotificationsAsRead,
   getReadNotificationIds,
@@ -67,7 +66,10 @@ export function MessageCenter() {
       if (myConvs && myConvs.length > 0) {
         const sb = getSupabase();
         myConvs.forEach((c: any) => {
-          sb.rpc("mark_conversation_as_read", { p_conversation_id: c.id }).then().catch(() => {});
+          sb.rpc("mark_conversation_as_read", { p_conversation_id: c.id }).then(
+            () => {},
+            (err: any) => console.error("Erreur RPC mark_conversation_as_read:", err)
+          );
         });
       }
 
@@ -761,7 +763,7 @@ export function RecentMessages({ limit = 3 }: { limit?: number }) {
           };
         });
         setRemoteList(items);
-      }).catch(() => {});
+      }).catch((err: any) => console.error("Erreur chargement aperçu conversations:", err));
     }
   }, [user?.id, db.users]);
 

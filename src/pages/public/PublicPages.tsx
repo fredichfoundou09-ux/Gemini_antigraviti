@@ -212,7 +212,7 @@ export function TarifsPage() {
 
 /* ================= PRE-INSCRIPTION ================= */
 export function PreInscriptionPage() {
-  const { db, update, log, notify, computeAmount, calculatePricingBreakdown } = useStore();
+  const { db, update, log, notify, calculatePricingBreakdown } = useStore();
   const s = db.settings;
   const [form, setForm] = useState({
     nom: "", prenom: "", telephone: "", whatsapp: "", email: "", niveau: "",

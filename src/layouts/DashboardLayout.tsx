@@ -218,7 +218,7 @@ export default function DashboardLayout() {
       .slice(0, 5);
 
     const modules = db.modules
-      .filter((m) => `${m.titre} ${m.code || ""} ${m.notions || ""}`.toLowerCase().includes(q))
+      .filter((m) => `${m.titre} ${(m as any).code || ""} ${(m.notions || []).join(" ")}`.toLowerCase().includes(q))
       .slice(0, 5);
 
     const scheduleSlots = db.schedule
@@ -229,7 +229,7 @@ export default function DashboardLayout() {
       .filter((c) => `${c.titre} ${c.description || ""}`.toLowerCase().includes(q))
       .slice(0, 5);
 
-    const documents = (db.documents || [])
+    const documents = ((db as any).documents || [])
       .filter((d: any) => `${d.titre} ${d.description || ""}`.toLowerCase().includes(q))
       .slice(0, 5);
 
@@ -248,7 +248,7 @@ export default function DashboardLayout() {
 
   useEffect(() => {
     if (user?.id) {
-      syncNotificationReadsFromSupabase(user.id).then(() => setNotifTicker((t) => t + 1)).catch(() => {});
+      syncNotificationReadsFromSupabase(user.id).then(() => setNotifTicker((t) => t + 1)).catch((err) => console.error("Erreur sync notifications:", err));
       const onNotifChanged = () => setNotifTicker((prev) => prev + 1);
       window.addEventListener("sn:notifications-changed", onNotifChanged);
       return () => window.removeEventListener("sn:notifications-changed", onNotifChanged);
@@ -711,7 +711,7 @@ export default function DashboardLayout() {
                               >
                                 <div>
                                   <span className="font-bold text-white">{m.titre}</span>
-                                  <span className="ml-2 text-slate-400">[{m.code}]</span>
+                                  <span className="ml-2 text-slate-400">[{(m as any).code || m.id}]</span>
                                 </div>
                                 <ArrowRight size={14} className="text-emerald-400" />
                               </button>

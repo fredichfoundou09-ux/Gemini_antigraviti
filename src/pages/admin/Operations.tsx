@@ -15,7 +15,7 @@ import {
 } from "@/lib/ui";
 import { Formation, AttendanceStatus } from "@/lib/types";
 import { ingestFile, fileKind, humanSize, downloadFile } from "@/lib/files";
-import { studentsOfCourse, studentsOfSchedule } from "@/lib/access";
+import { studentsOfCourse, studentsOfSchedule, getTeacherModuleIds } from "@/lib/access";
 import { financialSummary, nextReceiptRef, statusLabel, calculateModuleProfitability } from "@/lib/finance";
 import { cancelPaymentWithAudit, executeDailyClosure, fetchDailyClosures } from "@/lib/supabase/finance";
 import { supabase, isSupabaseConfigured } from "@/lib/supabase/client";
@@ -42,9 +42,10 @@ export function ModulesPage() {
 
   const isTeacher = user?.role === "teacher";
   const myTeacher = isTeacher ? db.teachers.find((t) => t.userId === user!.id) : null;
+  const teacherModules = myTeacher ? getTeacherModuleIds(myTeacher, db) : [];
   const list = db.modules
     .filter((m) => m.formation === tab)
-    .filter((m) => (myTeacher ? myTeacher.modules.includes(m.id) : true))
+    .filter((m) => (myTeacher ? teacherModules.includes(m.id) : true))
     .sort((a, b) => a.numero - b.numero);
 
   const openEdit = (m: any) => {
@@ -346,11 +347,12 @@ export function SchedulePage() {
   const [formationFilter, setFormationFilter] = useState<Formation | "all">("all");
   const [viewMode, setViewMode] = useState<"cards" | "table">("cards");
 
+  const teacherModuleIds = teacher ? getTeacherModuleIds(teacher, db) : [];
   const items = db.schedule
-    .filter((s) => (teacher ? teacher!.modules.includes(s.moduleId) : true))
+    .filter((s) => (teacher ? teacherModuleIds.includes(s.moduleId) : true))
     .filter((s) => formationFilter === "all" ? true : s.formation === formationFilter);
 
-  const targetStudents = db.students.filter((s) => (!form.formation || s.formation === form.formation) && (!form.moduleId || s.modules.includes(form.moduleId)));
+  const targetStudents = db.students.filter((s) => (!form.formation || s.formation === form.formation) && (!form.moduleId || (s.modules || []).includes(form.moduleId)));
 
   const [savingSlot, setSavingSlot] = useState(false);
 
@@ -889,7 +891,7 @@ export function SchedulePage() {
             <Field label="Enseignant">
               <Select value={form.teacherId} onChange={(e) => setForm({ ...form, teacherId: e.target.value })}>
                 <option value="">— Choisir —</option>
-                {db.teachers.filter((t) => !form.moduleId || t.modules.includes(form.moduleId)).map((t) => <option key={t.id} value={t.id}>{t.prenom} {t.nom}</option>)}
+                {db.teachers.filter((t) => !form.moduleId || (t.modules || []).includes(form.moduleId)).map((t) => <option key={t.id} value={t.id}>{t.prenom} {t.nom}</option>)}
               </Select>
             </Field>
 
@@ -987,9 +989,10 @@ export function AttendancePage() {
   const [status, setStatus] = useState<Record<string, AttendanceStatus>>({});
 
   const teacher = user?.role === "teacher" ? db.teachers.find((t) => t.userId === user.id) : null;
-  const allowedModules = db.modules.filter((m) => (teacher ? teacher.modules.includes(m.id) : true));
+  const teacherModuleIds = teacher ? getTeacherModuleIds(teacher, db) : [];
+  const allowedModules = db.modules.filter((m) => (teacher ? teacherModuleIds.includes(m.id) : true));
   const mod = db.modules.find((m) => m.id === moduleId);
-  const students = db.students.filter((s) => (mod ? s.modules.includes(mod.id) : true) && s.statut === "actif");
+  const students = db.students.filter((s) => (mod ? (s.modules || []).includes(mod.id) : true) && s.statut === "actif");
 
   const existing = db.attendance.filter((a) => a.date === date && a.moduleId === moduleId);
 
@@ -1086,7 +1089,8 @@ export function CoursesPage() {
   const [filter, setFilter] = useState("");
 
   const teacher = user?.role === "teacher" ? db.teachers.find((t) => t.userId === user.id) : null;
-  const allowedModules = db.modules.filter((m) => (teacher ? teacher.modules.includes(m.id) : true));
+  const teacherModuleIds = teacher ? getTeacherModuleIds(teacher, db) : [];
+  const allowedModules = db.modules.filter((m) => (teacher ? teacherModuleIds.includes(m.id) : true));
   const courses = db.courses
     .filter((c) => (teacher ? allowedModules.some((m) => m.id === c.moduleId) : true))
     .filter((c) => !filter || c.moduleId === filter);
@@ -1102,7 +1106,7 @@ export function CoursesPage() {
     ? allowedModules.filter((m) => m.formation === form.formation)
     : allowedModules;
   const targetableStudents = db.students.filter(
-    (s) => (!form.formation || s.formation === form.formation) && (!form.moduleId || s.modules.includes(form.moduleId))
+    (s) => (!form.formation || s.formation === form.formation) && (!form.moduleId || (s.modules || []).includes(form.moduleId))
   );
 
   const onFiles = async (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -1132,7 +1136,7 @@ export function CoursesPage() {
 
   const save = async () => {
     if (!form.titre || !form.moduleId) return;
-    const t = teacher ?? db.teachers.find((x) => x.modules.includes(form.moduleId)) ?? db.teachers[0];
+    const t = teacher ?? db.teachers.find((x) => (x.modules || []).includes(form.moduleId)) ?? db.teachers[0];
     const module = db.modules.find((m) => m.id === form.moduleId);
     const payload = {
       titre: form.titre.trim(), description: form.description, moduleId: form.moduleId, type: form.type, content: form.content,
@@ -1481,7 +1485,8 @@ export function TestsPage() {
   const [q, setQ] = useState<any>({ question: "", type: "qcm", options: ["", ""], bonneReponse: "", points: 4, explication: "" });
 
   const teacher = user?.role === "teacher" ? db.teachers.find((t) => t.userId === user.id) : null;
-  const allowedModules = db.modules.filter((m) => (teacher ? teacher.modules.includes(m.id) : true));
+  const teacherModuleIds = teacher ? getTeacherModuleIds(teacher, db) : [];
+  const allowedModules = db.modules.filter((m) => (teacher ? teacherModuleIds.includes(m.id) : true));
   const tests = db.tests.filter((t) => (teacher ? allowedModules.some((m) => m.id === t.moduleId) : true));
   const selectedModule = db.modules.find((m) => m.id === form.moduleId);
 
@@ -1703,9 +1708,10 @@ export function GradesPage() {
   const [appr, setAppr] = useState<Record<string, string>>({});
 
   const teacher = user?.role === "teacher" ? db.teachers.find((t) => t.userId === user.id) : null;
-  const allowedModules = db.modules.filter((m) => (teacher ? teacher.modules.includes(m.id) : true));
+  const teacherModuleIds = teacher ? getTeacherModuleIds(teacher, db) : [];
+  const allowedModules = db.modules.filter((m) => (teacher ? teacherModuleIds.includes(m.id) : true));
   const mod = db.modules.find((m) => m.id === moduleId);
-  const students = db.students.filter((s) => (mod ? s.modules.includes(mod.id) : true));
+  const students = db.students.filter((s) => (mod ? (s.modules || []).includes(mod.id) : true));
   const existing = db.grades.filter((g) => g.moduleId === moduleId);
 
   const save = () => {
@@ -1982,7 +1988,7 @@ export function PaymentsPage() {
       setClosureModalOpen(false);
       setClosureNotes("");
       if (isSupabaseConfigured) {
-        fetchDailyClosures().then(setDailyClosuresList).catch(() => {});
+        fetchDailyClosures().then(setDailyClosuresList).catch((err) => console.error("Erreur chargement clôtures journalières:", err));
       }
     } catch (err: any) {
       toastMsg.error("Erreur clôture caisse", err.message);
@@ -2379,7 +2385,7 @@ export function PaymentsPage() {
             onClick={() => {
               setSubTab("clotures");
               if (isSupabaseConfigured) {
-                fetchDailyClosures().then(setDailyClosuresList).catch(() => {});
+                fetchDailyClosures().then(setDailyClosuresList).catch((err) => console.error("Erreur chargement clôtures journalières:", err));
               }
             }}
             className={cn(

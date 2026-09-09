@@ -24,7 +24,7 @@ function checkRoomConflict(existing: Slot[], newSlot: Slot): boolean {
   if (!newSlot.salle || !newSlot.salle.trim()) return false;
   return existing.some((s) => {
     if (s.jour !== newSlot.jour) return false;
-    if (!s.salle || s.salle.trim().toLowerCase() !== newSlot.salle.trim().toLowerCase()) return false;
+    if (!s.salle || s.salle.trim().toLowerCase() !== newSlot.salle!.trim().toLowerCase()) return false;
     if (s.date && newSlot.date && s.date !== newSlot.date) return false;
     return newSlot.heureDebut < s.heureFin && newSlot.heureFin > s.heureDebut;
   });

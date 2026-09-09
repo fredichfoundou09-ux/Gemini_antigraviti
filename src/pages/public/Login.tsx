@@ -103,7 +103,7 @@ export function LoginPage() {
       setPassword("");
       // Rafraîchissement asynchrone en arrière-plan pour transition instantanée
       if (isSupabaseConfigured) {
-        auth.refresh().catch(() => {});
+        auth.refresh().catch((err) => console.warn("Actualisation session post-connexion:", err));
       }
       navigate("/app/dashboard", { replace: true });
     } else {

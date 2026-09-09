@@ -1,10 +1,10 @@
 import { useState, useEffect } from "react";
 import { useSearchParams, useNavigate, Link } from "react-router-dom";
 import {
-  ShieldCheck, Lock, KeyRound, Eye, EyeOff, CheckCircle2, AlertTriangle, ArrowRight, UserCheck, Mail
+  ShieldCheck, KeyRound, Eye, EyeOff, CheckCircle2, AlertTriangle, ArrowRight, UserCheck
 } from "lucide-react";
 import { useStore } from "@/lib/store";
-import { Btn, Card, Field, Input, PageHead } from "@/lib/ui";
+import { Btn, Card, Field, Input } from "@/lib/ui";
 import { validatePassword, passwordScore } from "@/lib/auth";
 import { supabase, isSupabaseConfigured } from "@/lib/supabase/client";
 import { toastMsg } from "@/lib/toast";
@@ -13,7 +13,7 @@ export function TeacherAccessPage() {
   const [params] = useSearchParams();
   const token = params.get("token") || "";
   const navigate = useNavigate();
-  const { db, update, log } = useStore();
+  const { update, log } = useStore();
 
   const [loading, setLoading] = useState(true);
   const [tokenValid, setTokenValid] = useState(false);
@@ -108,7 +108,7 @@ export function TeacherAccessPage() {
           await supabase.auth.signInWithPassword({
             email: email.trim() || teacherData.email,
             password: password.trim(),
-          }).catch(() => {});
+          }).catch((err) => console.warn("Connexion automatique post-activation non aboutie:", err));
         }
       }
 
@@ -256,13 +256,13 @@ export function TeacherAccessPage() {
                 {password && (
                   <div className="mt-2 space-y-1">
                     <div className="flex items-center justify-between text-[10px] text-slate-400">
-                      <span>Force : <strong className={score.color}>{score.label}</strong></span>
-                      <span>{password.length} car.</span>
+                      <span>Force du mot de passe</span>
+                      <span className="font-mono text-cyan-300">{score}/8</span>
                     </div>
                     <div className="h-1.5 w-full overflow-hidden rounded-full bg-white/10">
                       <div
                         className={`h-full transition-all duration-300 ${
-                          score.score <= 1 ? "bg-rose-500 w-1/4" : score.score === 2 ? "bg-amber-400 w-2/4" : score.score === 3 ? "bg-cyan-400 w-3/4" : "bg-emerald-400 w-full"
+                          score <= 3 ? "bg-rose-500 w-1/4" : score <= 5 ? "bg-amber-400 w-2/4" : score <= 7 ? "bg-cyan-400 w-3/4" : "bg-emerald-400 w-full"
                         }`}
                       />
                     </div>

@@ -15,6 +15,19 @@ import {
 import { writeAudit } from "./supabase/audit";
 import { sanitizeJsonPayload } from "./validation/jsonPayload";
 import { getDeletedNotificationIds, getReadNotificationIds } from "./notifications";
+import { today } from "./ui";
+
+function slugify(text: string): string {
+  return text
+    .toString()
+    .normalize("NFD")
+    .replace(/[\u0300-\u036f]/g, "")
+    .toLowerCase()
+    .trim()
+    .replace(/\s+/g, ".")
+    .replace(/[^\w.-]+/g, "")
+    .replace(/--+/g, ".");
+}
 
 const DB_KEY = "sn_db_v2";
 const SESSION_KEY = "sn_session_v2";
@@ -387,8 +400,8 @@ export function StoreProvider({ children }: { children: React.ReactNode }) {
 
         if (newlyArchived.length > 0) {
           newlyArchived.forEach((na) => {
-            supabase.from("archived_registrations").insert({
-              original_id: na.id,
+            void supabase.from("student_archives").upsert({
+              id: na.id,
               nom: na.nom,
               prenom: na.prenom,
               email: na.email,
@@ -398,7 +411,7 @@ export function StoreProvider({ children }: { children: React.ReactNode }) {
               archive_reason: na.archiveReason,
               created_at: na.createdAt || new Date().toISOString(),
               details: { whatsapp: na.whatsapp, niveau: na.niveau, modules: na.modules }
-            }).then().catch(() => {});
+            }).then(() => {}, (err: any) => console.error("Erreur lors de l'archivage apprenant en base:", err));
           });
         }
 
@@ -589,7 +602,7 @@ export function StoreProvider({ children }: { children: React.ReactNode }) {
               enia: next.enia,
             }),
             updated_at: new Date().toISOString(),
-          }).then().catch((e) => console.warn("Auto-sync site_settings error:", e));
+          }).then(() => {}, (e: any) => console.warn("Auto-sync site_settings error:", e));
         }
       }
 
@@ -631,7 +644,7 @@ export function StoreProvider({ children }: { children: React.ReactNode }) {
     role: string,
     group?: string,
     profileId?: string,
-    profileEmail?: string,
+    profileEmail?: string | null,
     isExplicitTeacher?: boolean,
     isExplicitStudent?: boolean
   ): { allowed: boolean; error: string; mappedRole?: string } => {
@@ -1042,12 +1055,12 @@ export function StoreProvider({ children }: { children: React.ReactNode }) {
 
         // Si l'enseignant a un id en table teachers sans user_id ou avec un lien manquant, on le synchronise
         if (effectiveRole === "teacher" && matchedTeacherId) {
-          void supabase.from("teachers").update({ user_id: profile.id }).eq("id", matchedTeacherId).then(() => {}).catch(() => {});
+          void supabase.from("teachers").update({ user_id: profile.id }).eq("id", matchedTeacherId).then(() => {}, (err: any) => console.error("Erreur synchronisation user_id formateur:", err));
         }
 
         persistSession(mappedUser);
         setUser(mappedUser);
-        void writeAudit({ action: "LOGIN", entity_type: "profiles", entity_id: profile.id, description: `Connexion ${profile.username} (${effectiveRole})` }).catch(() => {});
+        void writeAudit({ action: "LOGIN", entity_type: "profiles", entity_id: profile.id, description: `Connexion ${profile.username} (${effectiveRole})` }).then(() => {}, (err: any) => console.error("Erreur écriture audit log LOGIN:", err));
         return { ok: true, user: mappedUser };
       } catch (err: any) {
         return { ok: false, error: err.message || "Erreur de connexion" };

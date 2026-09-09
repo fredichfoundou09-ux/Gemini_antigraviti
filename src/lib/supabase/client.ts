@@ -28,7 +28,7 @@ export const isSupabaseConfigured = Boolean(url && anonKey);
 
 // Unique singleton instance
 const clientInstance: SupabaseClient | null = isSupabaseConfigured
-  ? createClient(url, anonKey, {
+  ? createClient(url!, anonKey!, {
       auth: {
         persistSession: true,
         autoRefreshToken: true,

@@ -3,6 +3,7 @@ import { Camera, RefreshCw, ShieldAlert, WifiOff, CheckCircle2 } from "lucide-re
 import { useStore } from "@/lib/store";
 import { cn } from "@/utils/cn";
 import { Badge, Btn, Card, Empty, Field, Input, PageHead, Select, uid, today } from "@/lib/ui";
+import { toastMsg } from "@/lib/toast";
 
 type ScanStatus = "pending" | "synced" | "failed";
 
@@ -84,7 +85,7 @@ export function QrScannerPage() {
     const validation = validateScan(raw);
     if (!validation.ok) {
       setQueue((q) => [{ ...scan, status: "failed", reason: validation.reason }, ...q]);
-      setMessage(validation.reason);
+      setMessage(validation.reason || "Validation refusée");
       toastMsg.error("Validation de présence refusée", validation.reason);
       return;
     }

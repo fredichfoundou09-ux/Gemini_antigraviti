@@ -1,4 +1,65 @@
-import { Course, DB, ScheduleItem, User } from "./types";
+import { Course, DB, ScheduleItem, Teacher, User } from "./types";
+
+/**
+ * Résout la liste consolidée des IDs de modules d'un enseignant :
+ * 1. Modules explicitement assignés (teacher.modules / table teacher_modules)
+ * 2. Modules des cours où l'enseignant est explicitement désigné comme formateur (course.teacherId)
+ * 3. Modules des créneaux de planning où l'enseignant intervient (schedule.teacherId)
+ * 4. (Optionnel / hors production par défaut) Heuristique basée sur la spécialité.
+ */
+export function getTeacherModuleIds(
+  teacher: Teacher | undefined | null,
+  db: DB,
+  options?: { heuristic?: boolean }
+): string[] {
+  if (!teacher) return [];
+  const set = new Set<string>();
+
+  // 1. Modules explicitement déclarés / assignés
+  if (Array.isArray(teacher.modules)) {
+    for (const m of teacher.modules) {
+      if (m && typeof m === "string" && m.trim()) {
+        set.add(m.trim());
+      }
+    }
+  }
+
+  // 2. Modules via cours assignés
+  if (Array.isArray(db.courses)) {
+    for (const c of db.courses) {
+      if (c.teacherId === teacher.id && c.moduleId) {
+        set.add(c.moduleId);
+      }
+    }
+  }
+
+  // 3. Modules via créneaux de planning assignés
+  if (Array.isArray(db.schedule)) {
+    for (const s of db.schedule) {
+      if (s.teacherId === teacher.id && s.moduleId) {
+        set.add(s.moduleId);
+      }
+    }
+  }
+
+  // 4. Heuristique optionnelle (désactivée par défaut)
+  if (options?.heuristic && set.size === 0 && teacher.specialite && Array.isArray(db.modules)) {
+    const specLower = teacher.specialite.toLowerCase().trim();
+    if (specLower) {
+      const match = db.modules.find(
+        (m) =>
+          m.id.toLowerCase() === specLower ||
+          m.titre.toLowerCase().includes(specLower) ||
+          specLower.includes(m.titre.toLowerCase())
+      );
+      if (match) {
+        set.add(match.id);
+      }
+    }
+  }
+
+  return Array.from(set);
+}
 
 /** Un apprenant peut-il voir ce cours ? */
 export function studentCanSeeCourse(db: DB, studentId: string, c: Course): boolean {
@@ -26,7 +87,9 @@ export function teacherCanManageCourse(db: DB, userId: string, c: Course): boole
     (x.email && x.email.toLowerCase().trim() === userId.toLowerCase().trim())
   );
   if (!t) return false;
-  return c.teacherId === t.id || (t.modules || []).includes(c.moduleId);
+  if (c.teacherId === t.id) return true;
+  const teacherModules = getTeacherModuleIds(t, db);
+  return teacherModules.includes(c.moduleId);
 }
 
 /** Liste des cours accessibles à l'utilisateur courant. */
@@ -40,7 +103,8 @@ export function coursesFor(db: DB, user: User | null): Course[] {
       (user.email && x.email && x.email.toLowerCase().trim() === user.email.toLowerCase().trim())
     );
     if (!t) return [];
-    return db.courses.filter((c) => c.teacherId === t.id || (t.modules || []).includes(c.moduleId));
+    const teacherModules = getTeacherModuleIds(t, db);
+    return db.courses.filter((c) => c.teacherId === t.id || teacherModules.includes(c.moduleId));
   }
   // student
   const s = db.students.find((x) =>
@@ -75,7 +139,8 @@ export function scheduleFor(db: DB, user: User | null): ScheduleItem[] {
       (user.email && x.email && x.email.toLowerCase().trim() === user.email.toLowerCase().trim())
     );
     if (!t) return [];
-    return db.schedule.filter((s) => s.teacherId === t.id || (t.modules || []).includes(s.moduleId));
+    const teacherModules = getTeacherModuleIds(t, db);
+    return db.schedule.filter((s) => s.teacherId === t.id || teacherModules.includes(s.moduleId));
   }
   const s = db.students.find((x) =>
     x.userId === user.id ||
@@ -91,7 +156,7 @@ export function studentsOfSchedule(db: DB, s: ScheduleItem) {
   if (s.studentIds && s.studentIds.length > 0) {
     return db.students.filter((x) => s.studentIds!.includes(x.id));
   }
-  return db.students.filter((x) => x.formation === s.formation && x.modules.includes(s.moduleId));
+  return db.students.filter((x) => x.formation === s.formation && (x.modules || []).includes(s.moduleId));
 }
 
 /** Apprenants destinataires d'un cours (pour l'affichage côté enseignant). */
@@ -100,7 +165,8 @@ export function studentsOfCourse(db: DB, c: Course) {
     return db.students.filter((x) => c.studentIds!.includes(x.id));
   }
   if (c.audience === "groupe" && c.groupe) {
-    return db.students.filter((x) => (x as any).groupe === c.groupe || (x.modules.includes(c.moduleId) && (!c.formation || x.formation === c.formation)));
+    return db.students.filter((x) => (x as any).groupe === c.groupe || ((x.modules || []).includes(c.moduleId) && (!c.formation || x.formation === c.formation)));
   }
-  return db.students.filter((x) => x.modules.includes(c.moduleId));
+  return db.students.filter((x) => (x.modules || []).includes(c.moduleId));
 }
+

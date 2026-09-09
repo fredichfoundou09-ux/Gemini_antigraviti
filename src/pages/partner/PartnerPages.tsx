@@ -2,13 +2,14 @@ import { useEffect, useMemo, useState, type ReactNode } from "react";
 import { Link } from "react-router-dom";
 import {
   BookOpen, ClipboardCheck, Download, FileText,
-  GraduationCap, Search, ShieldCheck, Users,
+  GraduationCap, Search, ShieldCheck, Users, Building2, Save,
 } from "lucide-react";
 import { useStore } from "@/lib/store";
-import { Card, Empty, Input, PageHead, Stat, Badge, Btn, moduleIcon, formationLabel } from "@/lib/ui";
+import { Card, Empty, Input, PageHead, Stat, Badge, Btn, moduleIcon, formationLabel, Field, Textarea } from "@/lib/ui";
 import { cn } from "@/utils/cn";
 import { exportCsv, exportJsonAsExcel } from "@/lib/export";
-import { isSupabaseConfigured } from "@/lib/supabase/client";
+import { supabase, isSupabaseConfigured } from "@/lib/supabase/client";
+import { toastMsg } from "@/lib/toast";
 import { getPartnerDashboard, getPartnerStudents } from "@/lib/supabase/partner";
 
 function ReadOnlyBanner() {
@@ -34,7 +35,7 @@ export function PartnerDashboard() {
 
   useEffect(() => {
     if (isSupabaseConfigured) {
-      getPartnerDashboard().then(setCounts).catch(() => {});
+      getPartnerDashboard().then(setCounts).catch((err) => console.error("Erreur chargement dashboard partenaire:", err));
     }
   }, []);
 
@@ -102,7 +103,7 @@ export function PartnerStudents() {
     if (isSupabaseConfigured) {
       getPartnerStudents().then((data) => {
         if (data && data.length > 0) setRemoteStudents(data);
-      }).catch(() => {});
+      }).catch((err) => console.error("Erreur chargement liste apprenants partenaire:", err));
     }
   }, []);
 
@@ -343,7 +344,7 @@ export function PartnerProfile() {
               <Textarea
                 rows={3}
                 value={description}
-                onChange={(e) => setDescription(e.target.value)}
+                onChange={(e: any) => setDescription(e.target.value)}
                 placeholder="Précisez la nature de l'alliance stratégique ou du partenariat académique..."
               />
             </Field>

@@ -45,7 +45,7 @@ export function TeacherHoursPage() {
     if (!teacher || !editingStat) return;
     const val = Number(editVal);
     if (isNaN(val) || val < 0) {
-      toastMsg("Valeur invalide", "Veuillez entrer un nombre positif ou nul.", "error");
+      toastMsg.error("Valeur invalide", "Veuillez entrer un nombre positif ou nul.");
       return;
     }
 
@@ -63,8 +63,8 @@ export function TeacherHoursPage() {
       }
     }
 
-    log("update", "TeacherHours", `Modification manuelle de ${editingStat.label} (${val} ${editingStat.unit}) pour l'enseignant ${teacher.prenom} ${teacher.nom}`);
-    toastMsg("Statistique modifiée", `${editingStat.label} a été mis à jour avec succès.`, "success");
+    log(`Modification manuelle de ${editingStat.label} (${val} ${editingStat.unit}) pour l'enseignant ${teacher.prenom} ${teacher.nom}`);
+    toastMsg.success("Statistique modifiée", `${editingStat.label} a été mis à jour avec succès.`);
     setEditingStat(null);
   };
 
@@ -79,7 +79,7 @@ export function TeacherHoursPage() {
         return copy;
       }),
     }));
-    toastMsg("Calcul automatique restauré", `Le calcul automatique pour ${label} a été rétabli.`, "info");
+    toastMsg.info("Calcul automatique restauré", `Le calcul automatique pour ${label} a été rétabli.`);
     setEditingStat(null);
   };
 
@@ -92,8 +92,8 @@ export function TeacherHoursPage() {
   useEffect(() => {
     if (!teacherId) return;
     if (isSupabaseConfigured) {
-      fetchTeacherAdvances(teacherId).then(setAdvancesList).catch(() => {});
-      fetchTeacherPayslips(teacherId).then(setPayslipsList).catch(() => {});
+      fetchTeacherAdvances(teacherId).then(setAdvancesList).catch((err) => console.error("Erreur chargement avances formateur:", err));
+      fetchTeacherPayslips(teacherId).then(setPayslipsList).catch((err) => console.error("Erreur chargement fiches de paie formateur:", err));
     }
   }, [teacherId]);
 
@@ -135,7 +135,7 @@ export function TeacherHoursPage() {
           date: advanceForm.date || today(),
         });
         toastMsg.success("Avance enregistrée en base de données ✓");
-        fetchTeacherAdvances(teacherId).then(setAdvancesList).catch(() => {});
+        fetchTeacherAdvances(teacherId).then(setAdvancesList).catch((err) => console.error("Erreur actualisation avances formateur:", err));
       } catch (err: any) {
         toastMsg.error("Erreur enregistrement avance", err.message);
       }
@@ -171,7 +171,7 @@ export function TeacherHoursPage() {
       try {
         await generateTeacherPayslip(teacherId, payslipPeriod, TEACHER_SESSION_RATE);
         toastMsg.success("Bulletin de paie généré dans le système ✓");
-        fetchTeacherPayslips(teacherId).then(setPayslipsList).catch(() => {});
+        fetchTeacherPayslips(teacherId).then(setPayslipsList).catch((err) => console.error("Erreur actualisation bulletins de paie:", err));
       } catch (err: any) {
         console.warn("generateTeacherPayslip error:", err.message);
       }

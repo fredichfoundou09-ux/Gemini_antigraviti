@@ -1,4 +1,4 @@
-import { useState, useEffect, useRef } from "react";
+import { useState, useEffect } from "react";
 import { Link } from "react-router-dom";
 import {
   GraduationCap, ExternalLink, Download, Maximize2, X, Gift, FileText, Wallet,

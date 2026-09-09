@@ -8,7 +8,7 @@ import { toastMsg } from "@/lib/toast";
 import { cn } from "@/utils/cn";
 import { Btn, Badge, Card, Empty, Field, Input, Modal, PageHead, Select, Textarea, uid, today } from "@/lib/ui";
 import { ingestFile, fileKind, humanSize, downloadFile } from "@/lib/files";
-import { studentsOfCourse } from "@/lib/access";
+import { studentsOfCourse, getTeacherModuleIds } from "@/lib/access";
 
 /* ================= ENSEIGNANT : voir & corriger les remises ================= */
 export function TeacherSubmissions() {
@@ -22,9 +22,11 @@ export function TeacherSubmissions() {
   const isAdmin = user?.role === "superadmin" || user?.role === "admin";
   if (!teacher && !isAdmin) return <Empty icon={<ClipboardCheck size={40} />} title="Profil enseignant introuvable" />;
 
+  const teacherModules = teacher ? getTeacherModuleIds(teacher, db) : [];
+
   // Devoirs publiés (tous les devoirs pour l'administration, filtrés pour un formateur)
   const devoirs = db.courses.filter((c) =>
-    c.type === "devoir" && (isAdmin || !teacher || c.teacherId === teacher.id || teacher.modules.includes(c.moduleId))
+    c.type === "devoir" && (isAdmin || !teacher || c.teacherId === teacher.id || teacherModules.includes(c.moduleId))
   );
   const submissions = db.submissions
     .filter((s) => devoirs.some((c) => c.id === s.courseId))

@@ -270,10 +270,10 @@ export function Card({ children, className, glow = "cyan" }: { children: ReactNo
 }
 
 export function Btn({
-  children, onClick, variant = "primary", className, type = "button", disabled,
+  children, onClick, variant = "primary", className, type = "button", disabled, title,
 }: {
   children: ReactNode; onClick?: () => void; variant?: "primary" | "red" | "green" | "ghost" | "outline";
-  className?: string; type?: "button" | "submit"; disabled?: boolean;
+  className?: string; type?: "button" | "submit"; disabled?: boolean; title?: string;
 }) {
   const v = {
     primary: "bg-gradient-to-r from-[#006DFF] to-[#00C8FF] text-white shadow-[0_0_18px_rgba(0,229,255,0.45)] hover:brightness-115 border border-[#00E5FF]/40",
@@ -283,7 +283,7 @@ export function Btn({
     outline: "bg-[#092033]/80 text-[#00E5FF] border border-[#00C8FF]/40 hover:bg-[#00C8FF]/15 hover:border-[#00C8FF] hover:shadow-[0_0_15px_rgba(0,229,255,0.25)]",
   }[variant];
   return (
-    <button type={type} disabled={disabled} onClick={onClick}
+    <button type={type} disabled={disabled} onClick={onClick} title={title}
       className={cn("inline-flex items-center justify-center gap-2 rounded-md px-4 py-2.5 text-sm font-semibold transition-all active:scale-[0.98] disabled:opacity-50 disabled:pointer-events-none", v, className)}>
       {children}
     </button>

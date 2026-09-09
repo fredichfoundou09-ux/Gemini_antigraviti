@@ -1,10 +1,10 @@
 import { useState, useEffect } from "react";
-import { useSearchParams, useNavigate, Link } from "react-router-dom";
+import { useSearchParams, Link } from "react-router-dom";
 import {
-  ShieldCheck, Lock, KeyRound, Eye, EyeOff, CheckCircle2, AlertTriangle, ArrowRight, Sparkles,
+  ShieldCheck, Lock, KeyRound, Eye, EyeOff, CheckCircle2, AlertTriangle, ArrowRight,
 } from "lucide-react";
 import { useStore } from "@/lib/store";
-import { Btn, Card, Field, Input, PageHead, SentinelLogo } from "@/lib/ui";
+import { Btn, Card, Field, Input, SentinelLogo } from "@/lib/ui";
 import { validatePassword, passwordScore } from "@/lib/auth";
 import { supabase, isSupabaseConfigured } from "@/lib/supabase/client";
 import { toastMsg } from "@/lib/toast";
@@ -12,8 +12,7 @@ import { toastMsg } from "@/lib/toast";
 export function AccountActivationPage() {
   const [params] = useSearchParams();
   const token = params.get("token") || "";
-  const navigate = useNavigate();
-  const { db, update, log } = useStore();
+  const { log } = useStore();
 
   const [loading, setLoading] = useState(true);
   const [tokenValid, setTokenValid] = useState(false);

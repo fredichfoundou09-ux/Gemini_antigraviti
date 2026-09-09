@@ -1,7 +1,6 @@
 import { useState } from "react";
 import {
-  UserCircle2, Phone, Mail, MapPin, ShieldCheck, KeyRound, Lock, Eye, EyeOff,
-  CheckCircle2, AlertTriangle, GraduationCap, Building2, UserCheck, Sparkles,
+  UserCircle2, Phone, MapPin, ShieldCheck, KeyRound, Lock, Eye, EyeOff,
 } from "lucide-react";
 import { useStore } from "@/lib/store";
 import { supabase, isSupabaseConfigured } from "@/lib/supabase/client";
@@ -34,7 +33,6 @@ export function UnifiedProfilePage() {
   const [savingProfile, setSavingProfile] = useState(false);
 
   // États du changement de mot de passe
-  const [currentPassword, setCurrentPassword] = useState("");
   const [newPassword, setNewPassword] = useState("");
   const [confirmPassword, setConfirmPassword] = useState("");
   const [showPass, setShowPass] = useState(false);
@@ -158,7 +156,6 @@ export function UnifiedProfilePage() {
       }
 
       toastMsg.success("Mot de passe modifié avec succès ✓");
-      setCurrentPassword("");
       setNewPassword("");
       setConfirmPassword("");
     } catch (err: any) {

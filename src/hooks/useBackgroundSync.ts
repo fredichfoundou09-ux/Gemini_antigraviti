@@ -20,7 +20,7 @@ export interface SyncMessage {
  * - Calcule et maintient en temps réel le badge compteur de messages non lus (1, 2, 3...).
  */
 export function useBackgroundSync() {
-  const { user, db, setDb } = useStore();
+  const { user, db, update } = useStore();
   const [unreadCount, setUnreadCount] = useState<number>(0);
 
   // Mémorise les IDs de messages déjà traités pour éviter les doublons de notification
@@ -136,7 +136,7 @@ export function useBackgroundSync() {
       }
 
       // Synchroniser db.messages et db.notifications dans le store local pour cohérence globale
-      setDb((prev) => {
+      update((prev: any) => {
         const mappedRemote = messages.map((m: SyncMessage) => {
           const senderInfo = profilesMapRef.current.get(m.sender_id);
           const isStudentUser = user?.role === "student";
@@ -161,12 +161,12 @@ export function useBackgroundSync() {
         });
 
         // Fusionne les messages sans doublon
-        const existingIds = new Set(mappedRemote.map((r) => r.id));
-        const filteredLocals = (prev.messages || []).filter((l) => !existingIds.has(l.id));
+        const existingIds = new Set(mappedRemote.map((r: any) => r.id));
+        const filteredLocals = (prev.messages || []).filter((l: any) => !existingIds.has(l.id));
 
         // Fusionne les notifications sans doublon
         const notifIds = new Set((prev.notifications || []).map((n: any) => n.id));
-        const addedNotifs = newNotifs.filter((n) => !notifIds.has(n.id));
+        const addedNotifs = newNotifs.filter((n: any) => !notifIds.has(n.id));
 
         return {
           ...prev,
@@ -181,7 +181,7 @@ export function useBackgroundSync() {
     } catch (err) {
       console.warn("Silent sync warning:", err);
     }
-  }, [user?.id, setDb]);
+  }, [user?.id, update]);
 
   // Boucle de rafraîchissement d'arrière-plan toutes les 4 secondes (4000ms)
   useEffect(() => {
