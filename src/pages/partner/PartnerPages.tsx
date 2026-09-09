@@ -9,8 +9,9 @@ import { Card, Empty, Input, PageHead, Stat, Badge, Btn, moduleIcon, formationLa
 import { cn } from "@/utils/cn";
 import { exportCsv, exportJsonAsExcel } from "@/lib/export";
 import { supabase, isSupabaseConfigured } from "@/lib/supabase/client";
-import { toastMsg } from "@/lib/toast";
 import { getPartnerDashboard, getPartnerStudents } from "@/lib/supabase/partner";
+import { ContactButtons } from "@/components/ContactButtons";
+import { toastMsg } from "@/lib/toast";
 
 function ReadOnlyBanner() {
   return (
@@ -112,7 +113,22 @@ export function PartnerStudents() {
   return (
     <ReadOnlyList title="Apprenants" subtitle="Données partenaires filtrées" q={q} setQ={setQ} onCsv={() => exportCsv("apprenants-partenaire", rows.map((s: any) => ({ id: s.id, nom: s.nom, prenom: s.prenom, formation: s.formation, statut: s.statut })))}>
       <div className="grid gap-3 md:grid-cols-2 xl:grid-cols-3">
-        {rows.map((s: any) => <Card key={s.id} className="p-4"><p className="font-display text-sm font-bold text-white">{s.prenom} {s.nom}</p><p className="font-mono text-[10px] text-cyan-300">{s.id}</p><p className="mt-1 text-xs text-slate-400">{formationLabel(s.formation)} · {s.statut}</p><p className="mt-2 text-[11px] text-slate-600">Téléphone, adresse et email masqués (PRIVATE).</p></Card>)}
+        {rows.map((s: any) => (
+          <Card key={s.id} className="p-4 flex flex-col justify-between">
+            <div>
+              <p className="font-display text-sm font-bold text-white">{s.prenom} {s.nom}</p>
+              <p className="font-mono text-[10px] text-cyan-300">{s.id}</p>
+              <p className="mt-1 text-xs text-slate-400">{formationLabel(s.formation)} · {s.statut}</p>
+              <p className="mt-2 text-[11px] text-slate-500">Canal sécurisé : coordonnées directes masquées par RLS.</p>
+            </div>
+            {s.userId && (
+              <div className="mt-3 pt-2.5 border-t border-white/5 flex items-center justify-between">
+                <span className="text-[10px] text-slate-400">Messagerie interne</span>
+                <ContactButtons userId={s.userId} name={`${s.prenom} ${s.nom}`} size="sm" />
+              </div>
+            )}
+          </Card>
+        ))}
       </div>
     </ReadOnlyList>
   );
@@ -122,7 +138,33 @@ export function PartnerTeachers() {
   const { db } = useStore();
   const [q, setQ] = useState("");
   const rows = db.teachers.filter((t) => `${t.id} ${t.nom} ${t.prenom} ${t.specialite}`.toLowerCase().includes(q.toLowerCase()));
-  return <ReadOnlyCards title="Enseignants" q={q} setQ={setQ} rows={rows} render={(t) => <><p className="font-display text-sm font-bold text-white">{t.prenom} {t.nom}</p><p className="text-xs text-slate-400">{t.specialite}</p><p className="font-mono text-[10px] text-cyan-300">{t.id}</p></>} />;
+  return (
+    <ReadOnlyCards
+      title="Enseignants"
+      q={q}
+      setQ={setQ}
+      rows={rows}
+      render={(t) => (
+        <div className="flex flex-col justify-between h-full">
+          <div>
+            <p className="font-display text-sm font-bold text-white">{t.prenom} {t.nom}</p>
+            <p className="text-xs text-slate-400">{t.specialite}</p>
+            <p className="font-mono text-[10px] text-cyan-300">{t.id}</p>
+          </div>
+          <div className="mt-3 pt-2.5 border-t border-white/5 flex items-center justify-between">
+            <span className="text-[10px] text-slate-400">Contacter :</span>
+            <ContactButtons
+              phone={t.phone}
+              userId={t.userId}
+              email={t.email}
+              name={`${t.prenom} ${t.nom}`}
+              size="sm"
+            />
+          </div>
+        </div>
+      )}
+    />
+  );
 }
 
 export function PartnerFormations() { return <PartnerModules formationOnly />; }

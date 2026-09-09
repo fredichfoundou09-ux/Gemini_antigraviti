@@ -17,6 +17,7 @@ import { isSupabaseConfigured } from "@/lib/supabase/client";
 import { subscribeToAllMessages, subscribeToNotifications } from "@/lib/supabase/communication";
 import { toastMsg } from "@/lib/toast";
 import { getUnreadNotificationCount, syncNotificationReadsFromSupabase } from "@/lib/notifications";
+import { ThemeToggle } from "@/components/ThemeToggle";
 
 const roleLabel: Record<string, string> = {
   superadmin: "SUPER ADMIN",
@@ -91,6 +92,7 @@ const MENU: MenuItem[] = [
   { to: "/app/mon-profil", label: "Mon profil", icon: <UserCircle size={18} />, roles: ["student"] },
   { to: "/app/ma-formation", label: "Ma formation", icon: <BookMarked size={18} />, roles: ["student"] },
   { to: "/app/mes-modules", label: "Mes modules", icon: <BookOpen size={18} />, roles: ["student"] },
+  { to: "/app/mes-formateurs", label: "Mes formateurs", icon: <GraduationCap size={18} />, roles: ["student"] },
   { to: "/app/mes-cours", label: "Mes cours", icon: <FolderOpen size={18} />, roles: ["student"] },
   { to: "/app/mes-devoirs", label: "Mes devoirs", icon: <ClipboardCheck size={18} />, roles: ["student"] },
   { to: "/app/mes-documents", label: "Mes documents", icon: <ScrollText size={18} />, roles: ["student"] },
@@ -817,6 +819,9 @@ export default function DashboardLayout() {
                 </span>
               )}
             </NavLink>
+
+            {/* Bouton bascule UI/UX réversible */}
+            <ThemeToggle />
 
             <NavLink
               to="/"

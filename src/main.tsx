@@ -6,6 +6,10 @@ import "./index.css";
 import App from "./App";
 import { AuthProvider } from "@/contexts/AuthContext";
 import { ErrorBoundary } from "@/lib/ErrorBoundary";
+import { applyThemeToDOM } from "@/lib/uiTheme";
+
+// Application immédiate du thème d'affichage UI/UX réversible
+applyThemeToDOM();
 
 // Enregistrement automatique du Service Worker PWA avec auto-update
 registerSW({ immediate: true });
