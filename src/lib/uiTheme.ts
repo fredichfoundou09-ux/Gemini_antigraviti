@@ -3,17 +3,18 @@
  * 
  * Thèmes supportés :
  * - "classic" (Défaut) : L'interface d'origine sombre & néon Sentinelles.
+ * - "light" : Thème clair instantané avec inversion chromatique équilibrée et compensation des médias.
  * - "modern" : Variante épurée, contrastée avec reflets cyan/saphir adoucis et typographie aérée.
  */
 
-export type UiTheme = "classic" | "modern";
+export type UiTheme = "classic" | "light" | "modern";
 
 const STORAGE_KEY = "sn:ui-theme";
 
 export function getUiTheme(): UiTheme {
   try {
     const saved = localStorage.getItem(STORAGE_KEY);
-    if (saved === "modern" || saved === "classic") {
+    if (saved === "light" || saved === "modern" || saved === "classic") {
       return saved;
     }
   } catch {
@@ -29,20 +30,28 @@ export function setUiTheme(theme: UiTheme): void {
     // Fallback safe
   }
   applyThemeToDOM(theme);
-  window.dispatchEvent(new CustomEvent("sentinelles:theme-changed", { detail: { theme } }));
+  if (typeof window !== "undefined") {
+    window.dispatchEvent(new CustomEvent("sentinelles:theme-changed", { detail: { theme } }));
+  }
 }
 
 export function applyThemeToDOM(theme: UiTheme = getUiTheme()): void {
   if (typeof document === "undefined") return;
   const root = document.documentElement;
-  if (theme === "modern") {
-    root.setAttribute("data-theme", "modern");
+  
+  // Applique les deux attributs pour compatibilité totale (data-theme et data-ui-theme)
+  root.setAttribute("data-theme", theme);
+  root.setAttribute("data-ui-theme", theme);
+
+  if (theme === "light") {
+    root.classList.add("theme-light");
+    root.classList.remove("theme-classic", "theme-modern");
+  } else if (theme === "modern") {
     root.classList.add("theme-modern");
-    root.classList.remove("theme-classic");
+    root.classList.remove("theme-classic", "theme-light");
   } else {
-    root.setAttribute("data-theme", "classic");
     root.classList.add("theme-classic");
-    root.classList.remove("theme-modern");
+    root.classList.remove("theme-modern", "theme-light");
   }
 }
 

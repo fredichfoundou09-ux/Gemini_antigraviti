@@ -379,4 +379,29 @@ a:active:not(.disabled) {
   border-bottom-color: rgba(56, 189, 248, 0.18) !important;
 }
 
+/* ========================================================
+   THÈME CLAIR RÉVERSIBLE (Inversion chromatique équilibrée)
+   Activé via html[data-ui-theme="light"] ou html[data-theme="light"]
+   ======================================================== */
+html[data-ui-theme="light"],
+html[data-theme="light"] {
+  filter: invert(0.92) hue-rotate(180deg);
+  background-color: #f1f5f9;
+}
+
+/* Inversion de compensation pour préserver les images, vidéos, QR codes, logos et graphiques */
+html[data-ui-theme="light"] img,
+html[data-theme="light"] img,
+html[data-ui-theme="light"] video,
+html[data-theme="light"] video,
+html[data-ui-theme="light"] canvas,
+html[data-theme="light"] canvas,
+html[data-ui-theme="light"] [role="img"],
+html[data-theme="light"] [role="img"],
+html[data-ui-theme="light"] .no-theme-invert,
+html[data-theme="light"] .no-theme-invert {
+  filter: invert(1) hue-rotate(180deg);
+}
+
+
 

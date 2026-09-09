@@ -106,11 +106,30 @@ describe("Gestionnaire de Thème Réversible (uiTheme)", () => {
     expect(rootClasses.has("theme-modern")).toBe(false);
   });
 
+  it("permet d'activer le thème clair 'light' et l'applique au DOM et localStorage", () => {
+    setUiTheme("light");
+
+    expect(mockStore["sn:ui-theme"]).toBe("light");
+    expect(getUiTheme()).toBe("light");
+    expect(rootAttributes["data-theme"]).toBe("light");
+    expect(rootAttributes["data-ui-theme"]).toBe("light");
+    expect(rootClasses.has("theme-light")).toBe(true);
+    expect(rootClasses.has("theme-classic")).toBe(false);
+    expect(dispatchedEvents.length).toBeGreaterThan(0);
+    expect(dispatchedEvents[0].detail.theme).toBe("light");
+  });
+
   it("applique le thème au DOM correctement avec applyThemeToDOM", () => {
     applyThemeToDOM("modern");
     expect(rootAttributes["data-theme"]).toBe("modern");
+    expect(rootAttributes["data-ui-theme"]).toBe("modern");
+
+    applyThemeToDOM("light");
+    expect(rootAttributes["data-theme"]).toBe("light");
+    expect(rootAttributes["data-ui-theme"]).toBe("light");
 
     applyThemeToDOM("classic");
     expect(rootAttributes["data-theme"]).toBe("classic");
+    expect(rootAttributes["data-ui-theme"]).toBe("classic");
   });
 });
