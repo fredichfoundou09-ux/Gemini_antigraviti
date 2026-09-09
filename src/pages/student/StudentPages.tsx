@@ -5,7 +5,6 @@ import {
   UserCircle2, CalendarDays, Clock, MapPin, ClipboardCheck, PenLine, Wallet, Award,
   BadgeDollarSign, CheckCircle2, XCircle, Timer, Phone, Mail, FileText, TestTube2, PlayCircle,
   ShieldCheck, ChevronRight, Printer, ReceiptText, TrendingUp, Eye, AlertCircle, ArrowRight,
-  GraduationCap, BookOpen,
 } from "lucide-react";
 import { useStore } from "@/lib/store";
 import { cn } from "@/utils/cn";
@@ -15,8 +14,7 @@ import {
 } from "@/lib/ui";
 import { Test } from "@/lib/types";
 import { financialSummary, statusLabel } from "@/lib/finance";
-import { studentCanSeeCourse, scheduleFor, teachersOfStudent, teacherOfModule } from "@/lib/access";
-import { ContactButtons } from "@/components/ContactButtons";
+import { studentCanSeeCourse, scheduleFor } from "@/lib/access";
 import { fileKind, humanSize, downloadFile } from "@/lib/files";
 import { supabase, isSupabaseConfigured } from "@/lib/supabase/client";
 import { toastMsg } from "@/lib/toast";
@@ -47,7 +45,6 @@ export function StudentDashboard() {
   const notifs = db.notifications.filter((n) => n.toId === user!.id || n.toId === "all").slice(0, 3);
 
   const summary = financialSummary(db, student.id);
-  const myTeachersList = useMemo(() => teachersOfStudent(db, student.id), [db, student.id]);
   const inscriptionInv = summary.invoices.find((i) => i.type === "inscription" || i.libelle.toLowerCase().includes("inscription"));
   const inscAmount = inscriptionInv?.montant || 5000;
   const formationInvs = summary.invoices.filter((i) => i.type === "formation");
@@ -249,50 +246,6 @@ export function StudentDashboard() {
       </div>
 
       <div className="mt-4 grid gap-4 lg:grid-cols-2">
-        {/* Mon Équipe Pédagogique (Mes formateurs) */}
-        <Card className="p-5">
-          <div className="mb-3 flex items-center justify-between">
-            <h3 className="font-display text-sm font-bold text-white flex items-center gap-2">
-              <GraduationCap size={16} className="text-cyan-400" /> Mon équipe pédagogique
-            </h3>
-            <Link to="/app/mes-formateurs" className="text-xs font-bold text-cyan-300 hover:underline">
-              Voir tous ({myTeachersList.length}) →
-            </Link>
-          </div>
-          {myTeachersList.length === 0 ? (
-            <p className="text-sm text-slate-500">Aucun enseignant assigné pour l'instant.</p>
-          ) : (
-            <div className="space-y-2.5">
-              {myTeachersList.slice(0, 3).map(({ teacher, modules }) => (
-                <div key={teacher.id} className="flex items-center justify-between gap-3 rounded-xl border border-white/5 bg-white/[0.02] p-3">
-                  <div className="flex items-center gap-3 min-w-0">
-                    <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-xl bg-cyan-400/10 border border-cyan-400/30 text-cyan-300 font-bold text-xs">
-                      {teacher.photo ? (
-                        <img src={teacher.photo} alt={teacher.nom} className="h-full w-full rounded-xl object-cover" />
-                      ) : (
-                        `${teacher.prenom.charAt(0)}${teacher.nom.charAt(0)}`
-                      )}
-                    </div>
-                    <div className="min-w-0">
-                      <p className="truncate text-sm font-bold text-slate-200">{teacher.prenom} {teacher.nom}</p>
-                      <p className="truncate text-[11px] text-cyan-400/80">{modules.map((m) => m.titre).join(", ")}</p>
-                    </div>
-                  </div>
-                  <div className="shrink-0">
-                    <ContactButtons
-                      phone={teacher.phone}
-                      userId={teacher.userId}
-                      email={teacher.email}
-                      name={`${teacher.prenom} ${teacher.nom}`}
-                      size="sm"
-                    />
-                  </div>
-                </div>
-              ))}
-            </div>
-          )}
-        </Card>
-
         <Card className="p-5">
           <h3 className="font-display mb-3 text-sm font-bold text-white">Notifications récentes</h3>
           {notifs.length === 0 ? <p className="text-sm text-slate-500">Aucune notification.</p> : (
@@ -505,25 +458,6 @@ export function MyFormation() {
                 </div>
                 {g && <Badge color={g.note >= 10 ? "green" : "red"}>{g.note}/20</Badge>}
               </div>
-              {(() => {
-                const teacher = teacherOfModule(db, m.id);
-                if (!teacher) return null;
-                return (
-                  <div className="mt-2.5 flex items-center justify-between border-t border-white/5 pt-2 text-xs">
-                    <span className="flex items-center gap-1.5 text-slate-300">
-                      <GraduationCap size={13} className="text-cyan-400" />
-                      <span>Formateur : <strong>{teacher.prenom} {teacher.nom}</strong></span>
-                    </span>
-                    <ContactButtons
-                      phone={teacher.phone}
-                      userId={teacher.userId}
-                      email={teacher.email}
-                      name={`${teacher.prenom} ${teacher.nom}`}
-                      size="sm"
-                    />
-                  </div>
-                );
-              })()}
               <div className="mt-3">
                 <Progress value={pct} color={g && g.note < 10 ? "red" : "cyan"} />
                 <p className="mt-1 text-[11px] text-slate-500">{g ? `Note : ${g.note}/20 — ${g.appreciation}` : "Module en cours..."}</p>
@@ -557,16 +491,6 @@ export function MyModules() {
                 <span className={cn("font-mono text-[10px] font-bold tracking-[0.2em]", student.formation === "informatique" ? "text-red-400/70" : "text-cyan-400/70")}>MODULE {String(m.numero).padStart(2, "0")}</span>
               </div>
               <h4 className="font-display text-base font-bold text-white">{m.titre}</h4>
-              {(() => {
-                const teacher = teacherOfModule(db, m.id);
-                if (!teacher) return null;
-                return (
-                  <div className="mt-2 flex items-center gap-2 rounded-lg border border-white/5 bg-white/[0.02] px-2 py-1 text-xs text-slate-300">
-                    <GraduationCap size={13} className="text-cyan-400 shrink-0" />
-                    <span className="truncate font-semibold">{teacher.prenom} {teacher.nom}</span>
-                  </div>
-                );
-              })()}
               <ul className="mt-3 space-y-1.5">
                 {m.notions.map((n, i) => (
                   <li key={i} className="flex items-start gap-2 text-xs text-slate-400">
@@ -581,80 +505,34 @@ export function MyModules() {
       </div>
 
       <Modal open={!!preview} onClose={() => setPreview(null)} title={preview ? `${preview.numero}. ${preview.titre}` : ""} wide>
-        {preview && (() => {
-          const teacher = teacherOfModule(db, preview.id);
-          const slots = (db.schedule || []).filter((s) => s.moduleId === preview.id && (student.modules || []).includes(preview.id));
-          return (
-            <div className="space-y-4">
-              {teacher && (
-                <div className="rounded-xl border border-cyan-400/30 bg-gradient-to-r from-cyan-950/40 to-blue-950/30 p-3.5 flex flex-wrap items-center justify-between gap-3">
-                  <div className="flex items-center gap-3">
-                    <div className="flex h-11 w-11 shrink-0 items-center justify-center rounded-xl bg-cyan-400/15 border border-cyan-400/30 text-cyan-300">
-                      {teacher.photo ? (
-                        <img src={teacher.photo} alt={teacher.nom} className="h-full w-full rounded-xl object-cover" />
-                      ) : (
-                        <GraduationCap size={22} />
-                      )}
+        {preview && (
+          <div className="space-y-4">
+            {preview.description && <p className="text-sm text-slate-300">{preview.description}</p>}
+            {preview.objectifs?.length > 0 && (
+              <div>
+                <p className="mb-1 text-xs font-bold uppercase tracking-wider text-cyan-300">Objectifs</p>
+                <ul className="space-y-1 text-sm text-slate-300">
+                  {preview.objectifs.map((o: string, i: number) => <li key={i}>• {o}</li>)}
+                </ul>
+              </div>
+            )}
+            {preview.chapitres?.length > 0 && (
+              <div>
+                <p className="mb-1 text-xs font-bold uppercase tracking-wider text-cyan-300">Chapitres</p>
+                <div className="space-y-2">
+                  {preview.chapitres.map((c: any) => (
+                    <div key={c.id} className="rounded-lg border border-white/10 bg-white/[0.02] p-3">
+                      <p className="text-sm font-bold text-white">{c.titre}</p>
+                      {c.contenu && <p className="mt-1 text-xs text-slate-400">{c.contenu}</p>}
                     </div>
-                    <div>
-                      <p className="text-[10px] font-bold uppercase tracking-wider text-cyan-300">Formateur responsable</p>
-                      <p className="text-sm font-bold text-white">{teacher.prenom} {teacher.nom}</p>
-                      <p className="text-xs text-slate-400">{teacher.specialite || "Enseignant"}</p>
-                    </div>
-                  </div>
-                  <div className="flex items-center gap-2">
-                    <ContactButtons
-                      phone={teacher.phone}
-                      userId={teacher.userId}
-                      email={teacher.email}
-                      name={`${teacher.prenom} ${teacher.nom}`}
-                      showLabels
-                      size="sm"
-                    />
-                  </div>
+                  ))}
                 </div>
-              )}
-
-              {slots.length > 0 && (
-                <div className="rounded-xl border border-amber-400/20 bg-amber-400/5 p-3">
-                  <p className="mb-1 text-[10px] font-bold uppercase tracking-wider text-amber-300">Créneaux de ce module</p>
-                  <div className="flex flex-wrap gap-2">
-                    {slots.map((s) => (
-                      <span key={s.id} className="inline-flex items-center gap-1.5 rounded-lg border border-amber-400/30 bg-amber-400/10 px-2 py-0.5 font-mono text-xs font-semibold text-amber-200">
-                        <Clock size={11} /> {s.jour} {s.heureDebut}—{s.heureFin} {s.salle ? `• Salle ${s.salle}` : ""}
-                      </span>
-                    ))}
-                  </div>
-                </div>
-              )}
-
-              {preview.description && <p className="text-sm text-slate-300">{preview.description}</p>}
-              {preview.objectifs?.length > 0 && (
-                <div>
-                  <p className="mb-1 text-xs font-bold uppercase tracking-wider text-cyan-300">Objectifs</p>
-                  <ul className="space-y-1 text-sm text-slate-300">
-                    {preview.objectifs.map((o: string, i: number) => <li key={i}>• {o}</li>)}
-                  </ul>
-                </div>
-              )}
-              {preview.chapitres?.length > 0 && (
-                <div>
-                  <p className="mb-1 text-xs font-bold uppercase tracking-wider text-cyan-300">Chapitres</p>
-                  <div className="space-y-2">
-                    {preview.chapitres.map((c: any) => (
-                      <div key={c.id} className="rounded-lg border border-white/10 bg-white/[0.02] p-3">
-                        <p className="text-sm font-bold text-white">{c.titre}</p>
-                        {c.contenu && <p className="mt-1 text-xs text-slate-400">{c.contenu}</p>}
-                      </div>
-                    ))}
-                  </div>
-                </div>
-              )}
-              {preview.supports && <p className="text-sm text-slate-300"><b className="text-cyan-300">Supports :</b> {preview.supports}</p>}
-              {preview.infosSupp && <p className="text-sm text-slate-300"><b className="text-cyan-300">Infos :</b> {preview.infosSupp}</p>}
-            </div>
-          );
-        })()}
+              </div>
+            )}
+            {preview.supports && <p className="text-sm text-slate-300"><b className="text-cyan-300">Supports :</b> {preview.supports}</p>}
+            {preview.infosSupp && <p className="text-sm text-slate-300"><b className="text-cyan-300">Infos :</b> {preview.infosSupp}</p>}
+          </div>
+        )}
       </Modal>
     </div>
   );
@@ -683,19 +561,7 @@ export function MySchedule() {
                     <div key={i.id} className="rounded-xl border border-cyan-400/20 bg-cyan-400/5 p-3">
                       <p className="font-mono text-xs font-bold text-white">{i.heureDebut} — {i.heureFin}</p>
                       <p className="mt-0.5 text-sm font-bold text-slate-200">{db.modules.find((m) => m.id === i.moduleId)?.titre}</p>
-                      {(() => {
-                        const t = db.teachers.find((x) => x.id === i.teacherId || x.userId === i.teacherId);
-                        return (
-                          <p className="mt-0.5 flex flex-wrap items-center gap-1.5 text-[11px] text-slate-400">
-                            <span className="flex items-center gap-1"><MapPin size={11} className="text-cyan-400" /> {i.salle || "Salle —"}</span>
-                            {t && (
-                              <span className="flex items-center gap-1 font-semibold text-cyan-300">
-                                <GraduationCap size={12} /> {t.prenom} {t.nom}
-                              </span>
-                            )}
-                          </p>
-                        );
-                      })()}
+                      <p className="mt-0.5 flex items-center gap-1 text-[11px] text-slate-500"><MapPin size={11} /> {i.salle} • {db.teachers.find((t) => t.id === i.teacherId)?.prenom} {db.teachers.find((t) => t.id === i.teacherId)?.nom}</p>
                     </div>
                   ))}
                 </div>
@@ -1438,104 +1304,3 @@ export function MyScholarship() {
     </div>
   );
 }
-
-/* ---------- mes formateurs ---------- */
-export function MyTeachers() {
-  const { db, user } = useStore();
-  const student = getStudent(db, user);
-  if (!student) return <Empty icon={<UserCircle2 size={40} />} title="Profil apprenant introuvable" />;
-
-  const teacherLinks = useMemo(() => {
-    return teachersOfStudent(db, student.id);
-  }, [db, student.id]);
-
-  return (
-    <div className="space-y-5">
-      <PageHead
-        title="Mes formateurs"
-        subtitle={`${teacherLinks.length} enseignant(s) en charge de vos modules en ${formationLabel(student.formation)}`}
-      />
-
-      {teacherLinks.length === 0 ? (
-        <Empty
-          icon={<GraduationCap size={44} />}
-          title="Aucun formateur assigné pour le moment"
-          sub="Les enseignants assignés à vos modules ou vos créneaux d'emploi du temps apparaîtront automatiquement ici dès leur planification."
-        />
-      ) : (
-        <div className="grid gap-5 md:grid-cols-2 xl:grid-cols-3">
-          {teacherLinks.map(({ teacher, modules, scheduleSlots }) => (
-            <Card key={teacher.id} className="flex flex-col justify-between p-5" glow="cyan">
-              <div>
-                <div className="flex items-start gap-3.5">
-                  <div className="flex h-14 w-14 shrink-0 items-center justify-center rounded-2xl border border-cyan-400/30 bg-gradient-to-br from-cyan-400/20 to-blue-600/20 text-cyan-300 font-bold text-lg">
-                    {teacher.photo ? (
-                      <img src={teacher.photo} alt={teacher.nom} className="h-full w-full rounded-2xl object-cover" />
-                    ) : (
-                      <GraduationCap size={26} />
-                    )}
-                  </div>
-                  <div className="min-w-0 flex-1">
-                    <span className="inline-block rounded bg-cyan-400/10 px-2 py-0.5 font-mono text-[10px] font-bold text-cyan-300 border border-cyan-400/20">
-                      {teacher.id}
-                    </span>
-                    <h3 className="mt-1 font-display text-base font-black text-white leading-tight">
-                      {teacher.prenom} {teacher.nom}
-                    </h3>
-                    <p className="text-xs text-slate-400">{teacher.specialite || "Formateur"}</p>
-                  </div>
-                </div>
-
-                {/* Modules enseignés à cet apprenant */}
-                <div className="mt-4 border-t border-white/5 pt-3">
-                  <p className="mb-2 text-[10px] font-bold uppercase tracking-wider text-cyan-300">
-                    Module(s) enseigné(s) ({modules.length})
-                  </p>
-                  <div className="space-y-1.5">
-                    {modules.map((m) => (
-                      <div key={m.id} className="flex items-center gap-2 rounded-lg border border-white/5 bg-white/[0.02] px-2.5 py-1.5 text-xs text-slate-200">
-                        <span className="text-cyan-400">{moduleIcon(m.icon, "h-3.5 w-3.5")}</span>
-                        <span className="truncate font-medium">{m.numero}. {m.titre}</span>
-                      </div>
-                    ))}
-                  </div>
-                </div>
-
-                {/* Créneaux d'emploi du temps partagés */}
-                {scheduleSlots.length > 0 && (
-                  <div className="mt-3 border-t border-white/5 pt-3">
-                    <p className="mb-2 text-[10px] font-bold uppercase tracking-wider text-amber-300">
-                      Horaires de cours
-                    </p>
-                    <div className="space-y-1">
-                      {scheduleSlots.map((s) => (
-                        <div key={s.id} className="flex items-center justify-between rounded-lg bg-amber-400/5 px-2.5 py-1 font-mono text-[11px] text-amber-200 border border-amber-400/20">
-                          <span className="font-bold">{s.jour} {s.heureDebut}—{s.heureFin}</span>
-                          <span className="text-[10px] text-slate-400">Salle {s.salle || "—"}</span>
-                        </div>
-                      ))}
-                    </div>
-                  </div>
-                )}
-              </div>
-
-              {/* Coordonnées & actions */}
-              <div className="mt-5 border-t border-white/5 pt-3 flex items-center justify-between gap-2">
-                <span className="text-[11px] font-semibold text-slate-400">Contacter :</span>
-                <ContactButtons
-                  phone={teacher.phone}
-                  userId={teacher.userId}
-                  email={teacher.email}
-                  name={`${teacher.prenom} ${teacher.nom}`}
-                  showLabels
-                  size="md"
-                />
-              </div>
-            </Card>
-          ))}
-        </div>
-      )}
-    </div>
-  );
-}
-

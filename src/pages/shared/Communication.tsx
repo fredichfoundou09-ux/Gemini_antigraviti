@@ -1,5 +1,4 @@
 import { useEffect, useMemo, useState } from "react";
-import { useSearchParams } from "react-router-dom";
 import { Send, Mail, Bell, CheckCheck, Users, UserCircle2, Inbox, ChevronRight, Reply, Trash2, Search, ShieldCheck } from "lucide-react";
 import { useStore } from "@/lib/store";
 import { cn } from "@/utils/cn";
@@ -27,7 +26,6 @@ const notifColor: Record<string, string> = {
 
 export function MessageCenter() {
   const { db, user, update, userName, log } = useStore();
-  const [searchParams] = useSearchParams();
   const [mode, setMode] = useState<"inbox" | "new">("inbox");
   const [to, setTo] = useState("all_students");
   const [subject, setSubject] = useState("");
@@ -114,21 +112,6 @@ export function MessageCenter() {
 
     return () => clearInterval(pollInterval);
   }, [user?.id]);
-
-  // Support du lien direct avec paramètre ?to=<userId>
-  useEffect(() => {
-    const toParam = searchParams.get("to");
-    if (toParam) {
-      setTo(toParam);
-      setMode("new");
-      const found = remoteProfiles.find((p) => p.id === toParam) || db.users.find((u) => u.id === toParam);
-      if (found?.role) {
-        if (found.role === "teacher") setRecipientRoleFilter("teacher");
-        else if (found.role === "student") setRecipientRoleFilter("student");
-        else if (found.role === "admin" || found.role === "superadmin" || found.role === "partner_admin") setRecipientRoleFilter("admin");
-      }
-    }
-  }, [searchParams, remoteProfiles, db.users]);
 
   // Messages locaux (fallback ou mix) - isolation stricte
   const localMessages = db.messages

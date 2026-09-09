@@ -22,7 +22,7 @@ import { invokeCreateUser } from "@/lib/supabase/auth";
 import { supabase, isSupabaseConfigured } from "@/lib/supabase/client";
 import { financialSummary, statusLabel } from "@/lib/finance";
 import { teacherFinanceSummary } from "@/lib/teacher";
-import { getTeacherModuleIds, getTeachersOfStudent } from "@/lib/access";
+// lib/access importé via Operations uniquement
 
 /* ---------- helpers ---------- */
 function slugify(s: string) {
@@ -1475,7 +1475,7 @@ function StudentForm({ form, setForm }: { form: any; setForm: (f: any) => void }
 function StudentView({ s }: { s: Student }) {
   const { db } = useStore();
   const mods = db.modules.filter((m) => s.modules.includes(m.id));
-  const teachersAssoc = getTeachersOfStudent(db, s.id);
+  const teachersAssoc = db.teachers.filter((t) => t.modules.some((mid) => s.modules.includes(mid)));
   const schedule = db.schedule.filter((sc) =>
     sc.formation === s.formation && s.modules.includes(sc.moduleId) &&
     (!sc.studentIds?.length || sc.studentIds.includes(s.id)) &&
@@ -1718,7 +1718,7 @@ export function TeachersPage() {
     const hay = `${t.nom} ${t.prenom} ${t.id} ${t.specialite} ${t.email ?? ""}`.toLowerCase();
     if (q && !hay.includes(q.toLowerCase())) return false;
     if (fFormation && !(t.formations ?? []).includes(fFormation as any)) return false;
-    if (fModule && !getTeacherModuleIds(t, db, { heuristic: true }).includes(fModule)) return false;
+    if (fModule && !t.modules.includes(fModule)) return false;
     if (fContrat && (t.typeContrat ?? "") !== fContrat) return false;
     if (fStatut === "actif" && t.actif === false) return false;
     if (fStatut === "inactif" && t.actif !== false) return false;
@@ -1975,8 +1975,7 @@ export function TeachersPage() {
       ) : (
         <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-3">
           {filtered.map((t) => {
-            const tModIds = getTeacherModuleIds(t, db, { heuristic: true });
-            const mods = db.modules.filter((m) => tModIds.includes(m.id));
+            const mods = db.modules.filter((m) => t.modules.includes(m.id));
             const fin = teacherFinanceSummary(db, t.id);
             return (
               <Card key={t.id} className={cn("p-5", t.actif === false && "opacity-60")} glow="cyan">
@@ -2169,8 +2168,7 @@ export function TeachersPage() {
 function TeacherDetail({ t }: { t: any }) {
   const { db } = useStore();
   const fin = teacherFinanceSummary(db, t.id);
-  const tModIds = getTeacherModuleIds(t, db, { heuristic: true });
-  const mods = db.modules.filter((m) => tModIds.includes(m.id));
+  const mods = db.modules.filter((m) => t.modules.includes(m.id));
   const _ignored = null; void _ignored; // placeholder
 
   return (

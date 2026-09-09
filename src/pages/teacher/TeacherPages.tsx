@@ -6,8 +6,7 @@ import {
   Search, X, Shield, Eye,
 } from "lucide-react";
 import { useStore } from "@/lib/store";
-import { getTeacherModuleIds, getStudentsOfTeacher, scheduleFor } from "@/lib/access";
-import { ContactButtons } from "@/components/ContactButtons";
+import { getTeacherModuleIds } from "@/lib/access";
 import { Card, Stat, PageHead, Badge, Empty, moduleIcon, formationLabel, Input, Field, Btn, readImage, Textarea } from "@/lib/ui";
 import { supabase, isSupabaseConfigured } from "@/lib/supabase/client";
 import { toastMsg } from "@/lib/toast";
@@ -28,18 +27,19 @@ export function TeacherDashboard() {
   if (!teacher) return <Empty icon={<GraduationCap size={40} />} title="Profil enseignant introuvable" />;
 
   const teacherModuleIds = useMemo(
-    () => getTeacherModuleIds(teacher, db, { heuristic: true }),
+    () => getTeacherModuleIds(teacher, db),
     [teacher, db.courses, db.schedule, teacher?.modules]
   );
   const myModules = useMemo(
     () => db.modules.filter((m) => teacherModuleIds.includes(m.id)),
     [db.modules, teacherModuleIds]
   );
-  const myStudents = useMemo(() => getStudentsOfTeacher(db, teacher.id), [db, teacher.id]);
-  const mySessions = useMemo(() => scheduleFor(db, user), [db, user]);
+  const myModuleIds = teacherModuleIds;
+  const myStudents = useMemo(() => db.students.filter((s) => (s.modules || []).some((mid) => myModuleIds.includes(mid))), [db.students, myModuleIds]);
+  const mySessions = useMemo(() => db.schedule.filter((s) => s.teacherId === teacher.id || myModuleIds.includes(s.moduleId)), [db.schedule, teacher.id, myModuleIds]);
   const todaySessions = mySessions.filter((s) => s.jour === new Date().toLocaleDateString("fr-FR", { weekday: "long" }).replace(/^\w/, (c) => c.toUpperCase()));
-  const myCourses = db.courses.filter((c) => c.teacherId === teacher.id || teacherModuleIds.includes(c.moduleId));
-  const myGrades = db.grades.filter((g) => teacherModuleIds.includes(g.moduleId));
+  const myCourses = db.courses.filter((c) => c.teacherId === teacher.id || myModuleIds.includes(c.moduleId));
+  const myGrades = db.grades.filter((g) => myModuleIds.includes(g.moduleId));
 
   const avg = myGrades.length ? (myGrades.reduce((a, g) => a + g.note, 0) / myGrades.length).toFixed(1) : "—";
   const modName = (id: string) => db.modules.find((m) => m.id === id)?.titre ?? "—";
@@ -153,7 +153,7 @@ export function TeacherClasses() {
   if (!teacher) return <Empty icon={<GraduationCap size={40} />} title="Profil enseignant introuvable" />;
 
   const teacherModuleIds = useMemo(
-    () => getTeacherModuleIds(teacher, db, { heuristic: true }),
+    () => getTeacherModuleIds(teacher, db),
     [teacher, db.courses, db.schedule, teacher?.modules]
   );
   const myModules = useMemo(
@@ -219,14 +219,15 @@ export function TeacherStudents() {
 
   // Résolution unifiée et consolidée des modules enseignés
   const teacherModuleIds = useMemo(
-    () => getTeacherModuleIds(teacher, db, { heuristic: true }),
+    () => getTeacherModuleIds(teacher, db),
     [teacher, db.courses, db.schedule, teacher?.modules]
   );
 
-  // Règle automatique stricte via la fonction centralisée getStudentsOfTeacher
+  // Règle automatique stricte : Tout apprenant ayant choisi un module enseigné par ce formateur s'affiche automatiquement
   const allMyStudents = useMemo(() => {
-    return getStudentsOfTeacher(db, teacher.id);
-  }, [db, teacher.id]);
+    if (teacherModuleIds.length === 0) return [];
+    return db.students.filter((s) => (s.modules || []).some((mid) => teacherModuleIds.includes(mid)));
+  }, [db.students, teacherModuleIds]);
 
   const teacherModules = useMemo(() => {
     return db.modules.filter((m) => teacherModuleIds.includes(m.id));
@@ -337,36 +338,18 @@ export function TeacherStudents() {
                   </div>
 
                   <div className="mt-3 grid grid-cols-2 gap-2 text-[11px] text-slate-400 border-t border-white/5 pt-2.5">
-                    {s.email ? (
-                      <a href={`mailto:${s.email}`} className="flex items-center gap-1 truncate hover:text-cyan-300 transition" title={s.email}>
-                        <Mail size={12} className="text-cyan-400 shrink-0" /> {s.email}
-                      </a>
-                    ) : (
-                      <span className="flex items-center gap-1 truncate text-slate-600"><Mail size={12} /> —</span>
-                    )}
-                    {s.telephone ? (
-                      <a href={`tel:${s.telephone.replace(/\s+/g, "")}`} className="flex items-center gap-1 truncate hover:text-emerald-300 transition" title={s.telephone}>
-                        <Phone size={12} className="text-emerald-400 shrink-0" /> {s.telephone}
-                      </a>
-                    ) : (
-                      <span className="flex items-center gap-1 truncate text-slate-600"><Phone size={12} /> —</span>
-                    )}
+                    <span className="flex items-center gap-1 truncate"><Mail size={12} className="text-cyan-400 shrink-0" /> {s.email || "—"}</span>
+                    <span className="flex items-center gap-1 truncate"><Phone size={12} className="text-emerald-400 shrink-0" /> {s.telephone}</span>
                   </div>
                 </div>
 
-                <div className="mt-4 pt-3 border-t border-white/5 flex items-center justify-between gap-2">
-                  <ContactButtons
-                    phone={s.telephone}
-                    userId={s.userId}
-                    email={s.email}
-                    name={`${s.prenom} ${s.nom}`}
-                    size="sm"
-                  />
+                <div className="mt-4 pt-3 border-t border-white/5 flex items-center justify-between">
+                  <span className="text-[10px] text-slate-500">Dossier pédagogique</span>
                   <button
                     onClick={() => setSelectedStudent(s)}
                     className="inline-flex items-center gap-1.5 rounded-lg border border-cyan-400/30 bg-cyan-400/10 px-3 py-1.5 text-xs font-bold text-cyan-300 hover:bg-cyan-400/20 transition"
                   >
-                    <Eye size={13} /> Fiche
+                    <Eye size={13} /> Fiche apprenant
                   </button>
                 </div>
               </Card>
@@ -390,16 +373,6 @@ export function TeacherStudents() {
                   </h3>
                   <p className="font-mono text-xs text-cyan-300">Matricule : {selectedStudent.id}</p>
                   <p className="text-xs text-slate-400">{formationLabel(selectedStudent.formation)}</p>
-                  <div className="mt-2.5">
-                    <ContactButtons
-                      phone={selectedStudent.telephone}
-                      userId={selectedStudent.userId}
-                      email={selectedStudent.email}
-                      name={`${selectedStudent.prenom} ${selectedStudent.nom}`}
-                      showLabels
-                      size="md"
-                    />
-                  </div>
                 </div>
               </div>
               <button
@@ -511,7 +484,7 @@ export function TeacherProfile() {
   const [uploading, setUploading] = useState(false);
 
   const teacherModuleIds = useMemo(
-    () => getTeacherModuleIds(teacher, db, { heuristic: true }),
+    () => getTeacherModuleIds(teacher, db),
     [teacher, db.courses, db.schedule, teacher?.modules]
   );
   const myMods = db.modules.filter((m) => teacherModuleIds.includes(m.id));

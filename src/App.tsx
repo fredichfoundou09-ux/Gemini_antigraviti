@@ -39,7 +39,7 @@ import {
 } from "@/pages/partner/PartnerPages";
 import {
   StudentDashboard, StudentProfile, MyFormation, MyModules, MySchedule, MyCourses,
-  MyDocuments, MyAttendance, MyGrades, MyPayments, MyCertificate, MyScholarship, MyTeachers,
+  MyDocuments, MyAttendance, MyGrades, MyPayments, MyCertificate, MyScholarship,
 } from "@/pages/student/StudentPages";
 import { MessageCenter, NotificationsPage } from "@/pages/shared/Communication";
 import { QrScannerPage } from "@/pages/shared/QrScanner";
@@ -178,7 +178,6 @@ export default function App() {
             <Route path="mon-profil" element={<Gate roles={["student"]}><StudentProfile /></Gate>} />
             <Route path="ma-formation" element={<Gate roles={["student"]}><MyFormation /></Gate>} />
             <Route path="mes-modules" element={<Gate roles={["student"]}><MyModules /></Gate>} />
-            <Route path="mes-formateurs" element={<Gate roles={["student"]}><MyTeachers /></Gate>} />
             <Route path="mes-documents" element={<Gate roles={["student"]}><MyDocuments /></Gate>} />
             <Route path="mes-presences" element={<Gate roles={["student"]}><MyAttendance /></Gate>} />
             <Route path="mes-notes" element={<Gate roles={["student"]}><MyGrades /></Gate>} />

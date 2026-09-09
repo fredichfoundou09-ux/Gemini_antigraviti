@@ -343,25 +343,13 @@ export function SchedulePage() {
   const blankSlot = () => ({ jour: "Lundi", heureDebut: "08:00", heureFin: "10:00", date: "", moduleId: "", teacherId: "", salle: "", formation: "informatique" as Formation, cibleType: "module" as "module" | "groupe" | "apprenants", groupe: "", studentIds: [] as string[] });
   const [form, setForm] = useState<any>(blankSlot());
 
-  const teacher = user?.role === "teacher"
-    ? db.teachers.find((t) =>
-        t.userId === user.id ||
-        (user.linkedId && t.id === user.linkedId) ||
-        (user.email && t.email && t.email.toLowerCase().trim() === user.email.toLowerCase().trim())
-      )
-    : null;
+  const teacher = user?.role === "teacher" ? db.teachers.find((t) => t.userId === user.id) : null;
   const [formationFilter, setFormationFilter] = useState<Formation | "all">("all");
   const [viewMode, setViewMode] = useState<"cards" | "table">("cards");
 
-  const teacherModuleIds = teacher ? getTeacherModuleIds(teacher, db, { heuristic: true }) : [];
+  const teacherModuleIds = teacher ? getTeacherModuleIds(teacher, db) : [];
   const items = db.schedule
-    .filter((s) => {
-      if (!teacher) return true;
-      const isMyTeacher = s.teacherId === teacher.id || (teacher.userId && s.teacherId === teacher.userId);
-      if (isMyTeacher) return true;
-      if (s.teacherId && s.teacherId !== teacher.id && s.teacherId !== teacher.userId) return false;
-      return teacherModuleIds.includes(s.moduleId);
-    })
+    .filter((s) => (teacher ? teacherModuleIds.includes(s.moduleId) : true))
     .filter((s) => formationFilter === "all" ? true : s.formation === formationFilter);
 
   const targetStudents = db.students.filter((s) => (!form.formation || s.formation === form.formation) && (!form.moduleId || (s.modules || []).includes(form.moduleId)));
@@ -1072,7 +1060,7 @@ export function SchedulePage() {
             <Field label="Enseignant">
               <Select value={form.teacherId} onChange={(e) => setForm({ ...form, teacherId: e.target.value })}>
                 <option value="">— Choisir —</option>
-                {db.teachers.filter((t) => !form.moduleId || getTeacherModuleIds(t, db, { heuristic: true }).includes(form.moduleId)).map((t) => <option key={t.id} value={t.id}>{t.prenom} {t.nom}</option>)}
+                {db.teachers.filter((t) => !form.moduleId || (t.modules || []).includes(form.moduleId)).map((t) => <option key={t.id} value={t.id}>{t.prenom} {t.nom}</option>)}
               </Select>
             </Field>
 
@@ -1203,7 +1191,7 @@ export function SchedulePage() {
                 >
                   <option value="">— Choisir —</option>
                   {db.teachers
-                    .filter((t) => !editingSlot.moduleId || getTeacherModuleIds(t, db, { heuristic: true }).includes(editingSlot.moduleId))
+                    .filter((t) => !editingSlot.moduleId || (t.modules || []).includes(editingSlot.moduleId))
                     .map((t) => (
                       <option key={t.id} value={t.id}>
                         {t.prenom} {t.nom}
