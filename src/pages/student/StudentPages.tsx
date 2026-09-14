@@ -5,7 +5,7 @@ import {
   UserCircle2, CalendarDays, Clock, MapPin, ClipboardCheck, PenLine, Wallet, Award,
   BadgeDollarSign, CheckCircle2, XCircle, Timer, Phone, Mail, FileText, TestTube2, PlayCircle,
   ShieldCheck, ChevronRight, Printer, ReceiptText, TrendingUp, Eye, AlertCircle, ArrowRight,
-  GraduationCap, ExternalLink,
+  GraduationCap, ExternalLink, Download, BookOpen, Trash2, RotateCcw,
 } from "lucide-react";
 import { useStore } from "@/lib/store";
 import { cn } from "@/utils/cn";
@@ -17,7 +17,7 @@ import { Test } from "@/lib/types";
 import { financialSummary, statusLabel } from "@/lib/finance";
 import { studentCanSeeCourse, scheduleFor, teachersOfStudent, teacherOfModule } from "@/lib/access";
 import { ContactButtons } from "@/components/ContactButtons";
-import { fileKind, humanSize, downloadFile } from "@/lib/files";
+import { fileKind, humanSize, downloadFile, safeFileName } from "@/lib/files";
 import { supabase, isSupabaseConfigured } from "@/lib/supabase/client";
 import { toastMsg } from "@/lib/toast";
 import { PasswordChangeCard } from "@/pages/shared/PasswordChangeCard";
@@ -31,6 +31,23 @@ function isSupportUrl(str?: string): boolean {
 function normalizeSupportUrl(str: string): string {
   const trimmed = str.trim();
   return trimmed.startsWith("www.") ? `https://${trimmed}` : trimmed;
+}
+
+function downloadCourseContent(course: any) {
+  if (course.files && course.files.length > 0) {
+    course.files.forEach((f: any) => downloadFile(f));
+    return;
+  }
+  const text = `# ${course.titre}\n\nDate : ${course.date || ""}\nType : ${course.type || "cours"}\n\nDescription :\n${course.description || "Aucune description"}\n\nContenu :\n${course.content || ""}\n`;
+  const blob = new Blob([text], { type: "text/markdown;charset=utf-8" });
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement("a");
+  a.href = url;
+  a.download = `${safeFileName(course.titre || "document")}.md`;
+  document.body.appendChild(a);
+  a.click();
+  document.body.removeChild(a);
+  URL.revokeObjectURL(url);
 }
 
 function getStudent(db: any, user: any) {
@@ -766,15 +783,69 @@ export function MySchedule() {
 export function MyCourses() {
   const { db, user, update, log } = useStore();
   const student = db.students.find((s) => s.userId === user!.id)!;
-  const courses = db.courses.filter((c) => studentCanSeeCourse(db, student.id, c));
+
+  const [dismissedIds, setDismissedIds] = useState<string[]>(() => {
+    try {
+      return JSON.parse(localStorage.getItem(`sn_dismissed_courses_${user?.id}`) || "[]");
+    } catch {
+      return [];
+    }
+  });
+  const [showDismissed, setShowDismissed] = useState(false);
+  const [readingCourse, setReadingCourse] = useState<any>(null);
+
+  const allCourses = db.courses.filter((c) => studentCanSeeCourse(db, student.id, c));
+  const courses = allCourses.filter((c) => (showDismissed ? true : !dismissedIds.includes(c.id)));
   const tests = db.tests.filter((t) => student.modules.includes(t.moduleId));
 
   const track = (course: any, _f: any, action: "ouvert" | "telecharge") => {
     update((d) => ({
       ...d,
-      fileActivities: [{ id: uid("FA"), courseId: course.id, courseTitre: course.titre, userId: user!.id, userName: user!.name, action, date: today(), heure: new Date().toTimeString().slice(0, 5) }, ...d.fileActivities],
+      fileActivities: [
+        {
+          id: uid("FA"),
+          courseId: course.id,
+          courseTitre: course.titre,
+          userId: user!.id,
+          userName: user!.name,
+          action,
+          date: today(),
+          heure: new Date().toTimeString().slice(0, 5),
+        },
+        ...d.fileActivities,
+      ],
     }));
   };
+
+  const handleDismiss = (courseId: string, courseTitle: string) => {
+    if (!window.confirm(`Voulez-vous retirer "${courseTitle}" de votre liste ?`)) return;
+    const next = [...new Set([...dismissedIds, courseId])];
+    setDismissedIds(next);
+    localStorage.setItem(`sn_dismissed_courses_${user?.id}`, JSON.stringify(next));
+    if (readingCourse?.id === courseId) setReadingCourse(null);
+    toastMsg.info("Document retiré de votre liste", "Vous pouvez le restaurer à tout moment.");
+  };
+
+  const handleRestore = (courseId: string) => {
+    const next = dismissedIds.filter((id) => id !== courseId);
+    setDismissedIds(next);
+    localStorage.setItem(`sn_dismissed_courses_${user?.id}`, JSON.stringify(next));
+    toastMsg.success("Document restauré ✓");
+  };
+
+  const handleDownloadCourse = (c: any) => {
+    if (c.files && c.files.length > 0) {
+      c.files.forEach((f: any) => {
+        track(c, f, "telecharge");
+        downloadFile(f);
+      });
+      toastMsg.success(`${c.files.length} fichier(s) en cours de téléchargement`);
+      return;
+    }
+    downloadCourseContent(c);
+    toastMsg.success("Support téléchargé ✓");
+  };
+
   const [taking, setTaking] = useState<Test | null>(null);
   const [answers, setAnswers] = useState<Record<string, string>>({});
   const [result, setResult] = useState<{ note: number; pct: number } | null>(null);
@@ -804,46 +875,240 @@ export function MyCourses() {
   return (
     <div>
       <PageHead title="Mes cours & tests" subtitle="Supports pédagogiques et évaluations" />
-      <h3 className="font-display mb-3 text-lg font-bold text-white">📚 Cours et supports</h3>
+
+      <div className="mb-3 flex flex-wrap items-center justify-between gap-2">
+        <h3 className="font-display text-lg font-bold text-white">📚 Cours et supports</h3>
+        {dismissedIds.length > 0 && (
+          <button
+            type="button"
+            onClick={() => setShowDismissed(!showDismissed)}
+            className="inline-flex items-center gap-1.5 rounded-lg border border-white/10 bg-white/[0.02] px-2.5 py-1 text-xs font-semibold text-cyan-300 hover:bg-white/5 transition"
+          >
+            <RotateCcw size={12} />
+            {showDismissed ? "Masquer les cours archivés" : `Afficher les cours masqués (${dismissedIds.length})`}
+          </button>
+        )}
+      </div>
+
       {courses.length === 0 ? (
-        <Empty icon={<FileText size={40} />} title="Aucun cours publié pour vos modules" />
+        <Empty
+          icon={<FileText size={40} />}
+          title="Aucun cours affiché"
+          sub={
+            dismissedIds.length > 0
+              ? "Tous les cours ont été masqués. Cliquez sur 'Afficher les cours masqués' pour les restaurer."
+              : "Aucun cours publié pour vos modules pour le moment."
+          }
+        />
       ) : (
         <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-3">
-          {courses.map((c) => (
-            <Card key={c.id} className="p-5" glow="cyan">
-              <div className="mb-2 flex items-center justify-between">
-                <Badge color={c.type === "cours" ? "cyan" : c.type === "devoir" ? "gold" : "green"}>{c.type}</Badge>
-                <span className="text-[10px] text-slate-500">{c.date}</span>
+          {courses.map((c) => {
+            const isDismissed = dismissedIds.includes(c.id);
+            return (
+              <Card
+                key={c.id}
+                className={cn("p-5 flex flex-col justify-between transition", isDismissed && "opacity-60 border-red-500/20")}
+                glow={isDismissed ? "red" : "cyan"}
+              >
+                <div>
+                  <div className="mb-2 flex items-center justify-between">
+                    <div className="flex items-center gap-1.5">
+                      <Badge color={c.type === "cours" ? "cyan" : c.type === "devoir" ? "gold" : "green"}>{c.type}</Badge>
+                      {isDismissed && <span className="rounded px-1.5 py-0.2 text-[9px] font-bold uppercase tracking-wider bg-red-500/20 text-red-300 border border-red-500/40">Masqué</span>}
+                    </div>
+                    <div className="flex items-center gap-1">
+                      <span className="text-[10px] text-slate-500">{c.date}</span>
+                      {isDismissed ? (
+                        <button
+                          type="button"
+                          onClick={() => handleRestore(c.id)}
+                          title="Restaurer ce document"
+                          className="rounded-lg p-1 text-cyan-300 hover:bg-cyan-500/10 transition"
+                        >
+                          <RotateCcw size={13} />
+                        </button>
+                      ) : (
+                        <button
+                          type="button"
+                          onClick={() => handleDismiss(c.id, c.titre)}
+                          title="Supprimer ce cours de ma liste"
+                          className="rounded-lg p-1 text-slate-500 hover:bg-red-500/10 hover:text-red-400 transition"
+                        >
+                          <Trash2 size={13} />
+                        </button>
+                      )}
+                    </div>
+                  </div>
+
+                  <h4 className="font-display text-base font-bold text-white">{c.titre}</h4>
+                  {c.description && <p className="mt-1 text-sm text-slate-400">{c.description}</p>}
+                  <p className="mt-2 text-xs text-slate-500">{modName(c.moduleId)}</p>
+
+                  {c.content && (
+                    <p className="mt-3 whitespace-pre-wrap rounded-lg border border-white/5 bg-black/30 p-3 font-mono text-[11px] text-slate-400 line-clamp-3">
+                      {c.content}
+                    </p>
+                  )}
+
+                  {(c.files ?? []).length > 0 && (
+                    <div className="mt-3 space-y-1.5">
+                      {(c.files ?? []).map((f: any) => (
+                        <div key={f.id} className="flex items-center justify-between rounded-lg border border-cyan-400/20 bg-cyan-400/5 px-3 py-1.5 text-[11px]">
+                          <span className="flex min-w-0 items-center gap-1.5 text-slate-200">
+                            <FileText size={12} className="shrink-0 text-cyan-300" />
+                            <span className="truncate font-semibold">{f.originalName}</span>
+                            <span className="shrink-0 text-slate-500">· {fileKind(f.mime, f.originalName)} · {humanSize(f.size)}</span>
+                          </span>
+                          <div className="flex shrink-0 gap-1">
+                            {(f.mime?.startsWith("image/") || f.mime === "application/pdf" || f.originalName?.toLowerCase().endsWith(".pdf")) && (
+                              <a
+                                href={f.dataUrl || f.url}
+                                target="_blank"
+                                rel="noreferrer"
+                                className="rounded border border-white/10 px-2 py-0.5 text-cyan-300 hover:bg-white/5 transition"
+                              >
+                                Voir
+                              </a>
+                            )}
+                            <button
+                              type="button"
+                              onClick={() => { track(c, f, "telecharge"); downloadFile(f); }}
+                              className="rounded border border-cyan-400/40 px-2 py-0.5 text-cyan-300 hover:bg-cyan-400/10 transition"
+                            >
+                              Télécharger
+                            </button>
+                          </div>
+                        </div>
+                      ))}
+                    </div>
+                  )}
+                </div>
+
+                {/* Barre d'actions globale : Lire, Télécharger, Supprimer */}
+                <div className="mt-4 flex items-center gap-2 border-t border-white/5 pt-3">
+                  <button
+                    type="button"
+                    onClick={() => setReadingCourse(c)}
+                    className="flex-1 inline-flex items-center justify-center gap-1.5 rounded-xl border border-cyan-400/40 bg-cyan-400/10 px-3 py-1.5 text-xs font-bold text-cyan-300 hover:bg-cyan-400/20 transition shadow-sm"
+                  >
+                    <BookOpen size={14} /> Lire
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => handleDownloadCourse(c)}
+                    className="inline-flex items-center justify-center gap-1.5 rounded-xl border border-white/10 bg-white/[0.04] px-3 py-1.5 text-xs font-semibold text-slate-300 hover:border-cyan-400/30 hover:text-cyan-200 transition"
+                    title="Télécharger ce document / support"
+                  >
+                    <Download size={14} /> Télécharger
+                  </button>
+                  {!isDismissed ? (
+                    <button
+                      type="button"
+                      onClick={() => handleDismiss(c.id, c.titre)}
+                      className="rounded-xl border border-white/5 p-2 text-slate-500 hover:border-red-500/30 hover:bg-red-500/10 hover:text-red-400 transition"
+                      title="Supprimer s'il ne veut pas lire"
+                    >
+                      <Trash2 size={14} />
+                    </button>
+                  ) : (
+                    <button
+                      type="button"
+                      onClick={() => handleRestore(c.id)}
+                      className="rounded-xl border border-cyan-400/30 p-2 text-cyan-300 hover:bg-cyan-500/10 transition"
+                      title="Restaurer ce cours"
+                    >
+                      <RotateCcw size={14} />
+                    </button>
+                  )}
+                </div>
+              </Card>
+            );
+          })}
+        </div>
+      )}
+
+      {/* Modale de lecture complète de cours */}
+      <Modal open={!!readingCourse} onClose={() => setReadingCourse(null)} title={readingCourse ? `${readingCourse.titre}` : ""} wide>
+        {readingCourse && (
+          <div className="space-y-4">
+            <div className="flex flex-wrap items-center justify-between gap-2 border-b border-white/5 pb-3">
+              <div className="flex items-center gap-2">
+                <Badge color={readingCourse.type === "cours" ? "cyan" : readingCourse.type === "devoir" ? "gold" : "green"}>
+                  {readingCourse.type}
+                </Badge>
+                <span className="text-xs font-semibold text-cyan-300">{modName(readingCourse.moduleId)}</span>
               </div>
-              <h4 className="font-display text-base font-bold text-white">{c.titre}</h4>
-              <p className="mt-1 text-sm text-slate-400">{c.description}</p>
-              <p className="mt-2 text-xs text-slate-500">{modName(c.moduleId)}</p>
-              {c.content && <p className="mt-3 whitespace-pre-wrap rounded-lg border border-white/5 bg-black/30 p-3 font-mono text-[11px] text-slate-400">{c.content}</p>}
-              {(c.files ?? []).length > 0 && (
-                <div className="mt-3 space-y-1.5">
-                  {(c.files ?? []).map((f: any) => (
-                    <div key={f.id} className="flex items-center justify-between rounded-lg border border-cyan-400/20 bg-cyan-400/5 px-3 py-1.5 text-[11px]">
-                      <span className="flex min-w-0 items-center gap-1.5 text-slate-200">
-                        <FileText size={12} className="shrink-0 text-cyan-300" />
-                        <span className="truncate font-semibold">{f.originalName}</span>
-                        <span className="shrink-0 text-slate-500">· {fileKind(f.mime, f.originalName)} · {humanSize(f.size)}</span>
-                      </span>
-                      <div className="flex shrink-0 gap-1">
+              <span className="text-xs text-slate-500">{readingCourse.date}</span>
+            </div>
+
+            {readingCourse.description && (
+              <p className="text-sm font-medium text-slate-300">{readingCourse.description}</p>
+            )}
+
+            {readingCourse.content && (
+              <div className="rounded-xl border border-white/10 bg-black/40 p-4 font-mono text-xs text-slate-200 whitespace-pre-wrap leading-relaxed">
+                {readingCourse.content}
+              </div>
+            )}
+
+            {(readingCourse.files ?? []).length > 0 && (
+              <div className="space-y-2">
+                <p className="text-xs font-bold uppercase tracking-wider text-cyan-300">Fichiers & pièces jointes</p>
+                <div className="space-y-1.5">
+                  {readingCourse.files.map((f: any) => (
+                    <div key={f.id} className="flex items-center justify-between rounded-xl border border-cyan-400/20 bg-cyan-400/5 p-3 text-xs">
+                      <div className="flex items-center gap-2 min-w-0">
+                        <FileText size={16} className="text-cyan-300 shrink-0" />
+                        <span className="font-semibold text-white truncate">{f.originalName}</span>
+                        <span className="text-slate-400 shrink-0">· {fileKind(f.mime, f.originalName)} · {humanSize(f.size)}</span>
+                      </div>
+                      <div className="flex items-center gap-1.5 shrink-0">
                         {(f.mime?.startsWith("image/") || f.mime === "application/pdf" || f.originalName?.toLowerCase().endsWith(".pdf")) && (
-                          <a href={f.dataUrl || f.url} target="_blank" rel="noreferrer" className="rounded border border-white/10 px-2 py-0.5 text-cyan-300 hover:bg-white/5 transition">
-                            Voir
+                          <a
+                            href={f.dataUrl || f.url}
+                            target="_blank"
+                            rel="noreferrer"
+                            className="inline-flex items-center gap-1 rounded-lg border border-white/10 px-2.5 py-1 text-cyan-300 hover:bg-white/5 transition"
+                          >
+                            <Eye size={13} /> Voir
                           </a>
                         )}
-                        <button onClick={() => { track(c, f, "telecharge"); downloadFile(f); }} className="rounded border border-cyan-400/40 px-2 py-0.5 text-cyan-300 hover:bg-cyan-400/10 transition">Télécharger</button>
+                        <button
+                          type="button"
+                          onClick={() => { track(readingCourse, f, "telecharge"); downloadFile(f); }}
+                          className="inline-flex items-center gap-1 rounded-lg border border-cyan-400/40 bg-cyan-400/10 px-2.5 py-1 text-cyan-300 hover:bg-cyan-400/20 transition font-medium"
+                        >
+                          <Download size={13} /> Télécharger
+                        </button>
                       </div>
                     </div>
                   ))}
                 </div>
-              )}
-            </Card>
-          ))}
-        </div>
-      )}
+              </div>
+            )}
+
+            <div className="flex flex-wrap items-center justify-between gap-2 border-t border-white/5 pt-4">
+              <button
+                type="button"
+                onClick={() => handleDismiss(readingCourse.id, readingCourse.titre)}
+                className="inline-flex items-center gap-1.5 text-xs text-red-400 hover:text-red-300 transition"
+              >
+                <Trash2 size={13} /> Retirer de ma liste
+              </button>
+              <div className="flex items-center gap-2">
+                <button
+                  type="button"
+                  onClick={() => handleDownloadCourse(readingCourse)}
+                  className="inline-flex items-center gap-1.5 rounded-xl border border-cyan-400/40 bg-cyan-400/10 px-3.5 py-2 text-xs font-bold text-cyan-300 hover:bg-cyan-400/20 transition"
+                >
+                  <Download size={14} /> Télécharger le cours
+                </button>
+                <Btn variant="ghost" onClick={() => setReadingCourse(null)}>Fermer</Btn>
+              </div>
+            </div>
+          </div>
+        )}
+      </Modal>
 
       <h3 className="font-display mb-3 mt-8 text-lg font-bold text-white">🧪 Tests à passer</h3>
       {tests.length === 0 ? (
@@ -958,50 +1223,286 @@ export function MyCourses() {
   );
 }
 
-/* ---------- documents ---------- */
 export function MyDocuments() {
   const { db, user } = useStore();
   const student = db.students.find((s) => s.userId === user!.id)!;
-  const docs = db.courses.filter((c) => c.type !== "cours" && studentCanSeeCourse(db, student.id, c));
+
+  const [dismissedDocIds, setDismissedDocIds] = useState<string[]>(() => {
+    try {
+      return JSON.parse(localStorage.getItem(`sn_dismissed_docs_${user?.id}`) || "[]");
+    } catch {
+      return [];
+    }
+  });
+  const [showDismissed, setShowDismissed] = useState(false);
+  const [readingDoc, setReadingDoc] = useState<any>(null);
+
+  const allDocs = db.courses.filter((c) => c.type !== "cours" && studentCanSeeCourse(db, student.id, c));
+  const docs = allDocs.filter((c) => (showDismissed ? true : !dismissedDocIds.includes(c.id)));
+
+  const handleDismissDoc = (docId: string, title: string) => {
+    if (!window.confirm(`Voulez-vous retirer "${title}" de vos documents ?`)) return;
+    const next = [...new Set([...dismissedDocIds, docId])];
+    setDismissedDocIds(next);
+    localStorage.setItem(`sn_dismissed_docs_${user?.id}`, JSON.stringify(next));
+    if (readingDoc?.id === docId) setReadingDoc(null);
+    toastMsg.info("Document retiré de votre liste", "Vous pouvez le restaurer à tout moment.");
+  };
+
+  const handleRestoreDoc = (docId: string) => {
+    const next = dismissedDocIds.filter((id) => id !== docId);
+    setDismissedDocIds(next);
+    localStorage.setItem(`sn_dismissed_docs_${user?.id}`, JSON.stringify(next));
+    toastMsg.success("Document restauré ✓");
+  };
+
+  const handleDownloadDoc = (c: any) => {
+    if (c.files && c.files.length > 0) {
+      c.files.forEach((f: any) => downloadFile(f));
+      toastMsg.success(`${c.files.length} fichier(s) en cours de téléchargement`);
+      return;
+    }
+    downloadCourseContent(c);
+    toastMsg.success("Document téléchargé ✓");
+  };
+
   return (
     <div>
       <PageHead title="Mes documents" subtitle="Devoirs et supports téléchargeables" />
+
+      <div className="mb-3 flex flex-wrap items-center justify-between gap-2">
+        <h3 className="font-display text-lg font-bold text-white">📁 Documents et devoirs</h3>
+        {dismissedDocIds.length > 0 && (
+          <button
+            type="button"
+            onClick={() => setShowDismissed(!showDismissed)}
+            className="inline-flex items-center gap-1.5 rounded-lg border border-white/10 bg-white/[0.02] px-2.5 py-1 text-xs font-semibold text-emerald-300 hover:bg-white/5 transition"
+          >
+            <RotateCcw size={12} />
+            {showDismissed ? "Masquer les documents archivés" : `Afficher les documents masqués (${dismissedDocIds.length})`}
+          </button>
+        )}
+      </div>
+
       {docs.length === 0 ? (
-        <Empty icon={<FileText size={40} />} title="Aucun document" sub="Les devoirs et documents publiés par vos formateurs apparaîtront ici." />
+        <Empty
+          icon={<FileText size={40} />}
+          title="Aucun document affiché"
+          sub={
+            dismissedDocIds.length > 0
+              ? "Tous les documents ont été masqués. Cliquez sur 'Afficher les documents masqués' pour les restaurer."
+              : "Les devoirs et documents publiés par vos formateurs apparaîtront ici."
+          }
+        />
       ) : (
         <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-3">
-          {docs.map((c) => (
-            <Card key={c.id} className="p-5" glow="green">
-              <Badge color={c.type === "devoir" ? "gold" : "green"}>{c.type}</Badge>
-              <h4 className="font-display mt-2 text-base font-bold text-white">{c.titre}</h4>
-              {c.description && <p className="mt-1 text-sm text-slate-400">{c.description}</p>}
-              <p className="mt-2 text-[11px] text-slate-500">{db.modules.find((m) => m.id === c.moduleId)?.titre} • {c.date}</p>
-              {c.content && <p className="mt-3 whitespace-pre-wrap rounded-lg border border-white/5 bg-black/30 p-3 font-mono text-[11px] text-slate-400">{c.content}</p>}
-              {(c.files ?? []).length > 0 && (
-                <div className="mt-3 space-y-1.5">
-                  {(c.files ?? []).map((f: any) => (
-                    <div key={f.id} className="flex items-center justify-between rounded-lg border border-emerald-400/25 bg-emerald-400/5 px-3 py-1.5 text-[11px]">
-                      <span className="flex min-w-0 items-center gap-1.5 text-slate-200">
-                        <FileText size={12} className="shrink-0 text-emerald-300" />
-                        <span className="truncate font-semibold">{f.originalName}</span>
-                        <span className="shrink-0 text-slate-500">· {fileKind(f.mime, f.originalName)} · {humanSize(f.size)}</span>
-                      </span>
-                      <div className="flex shrink-0 gap-1">
+          {docs.map((c) => {
+            const isDismissed = dismissedDocIds.includes(c.id);
+            return (
+              <Card
+                key={c.id}
+                className={cn("p-5 flex flex-col justify-between transition", isDismissed && "opacity-60 border-red-500/20")}
+                glow={isDismissed ? "red" : "green"}
+              >
+                <div>
+                  <div className="mb-2 flex items-center justify-between">
+                    <div className="flex items-center gap-1.5">
+                      <Badge color={c.type === "devoir" ? "gold" : "green"}>{c.type}</Badge>
+                      {isDismissed && <span className="rounded px-1.5 py-0.2 text-[9px] font-bold uppercase tracking-wider bg-red-500/20 text-red-300 border border-red-500/40">Masqué</span>}
+                    </div>
+                    <div className="flex items-center gap-1">
+                      <span className="text-[10px] text-slate-500">{c.date}</span>
+                      {isDismissed ? (
+                        <button
+                          type="button"
+                          onClick={() => handleRestoreDoc(c.id)}
+                          title="Restaurer ce document"
+                          className="rounded-lg p-1 text-emerald-300 hover:bg-emerald-500/10 transition"
+                        >
+                          <RotateCcw size={13} />
+                        </button>
+                      ) : (
+                        <button
+                          type="button"
+                          onClick={() => handleDismissDoc(c.id, c.titre)}
+                          title="Supprimer ce document de ma liste"
+                          className="rounded-lg p-1 text-slate-500 hover:bg-red-500/10 hover:text-red-400 transition"
+                        >
+                          <Trash2 size={13} />
+                        </button>
+                      )}
+                    </div>
+                  </div>
+
+                  <h4 className="font-display mt-2 text-base font-bold text-white">{c.titre}</h4>
+                  {c.description && <p className="mt-1 text-sm text-slate-400">{c.description}</p>}
+                  <p className="mt-2 text-[11px] text-slate-500">{db.modules.find((m) => m.id === c.moduleId)?.titre} • {c.date}</p>
+
+                  {c.content && (
+                    <p className="mt-3 whitespace-pre-wrap rounded-lg border border-white/5 bg-black/30 p-3 font-mono text-[11px] text-slate-400 line-clamp-3">
+                      {c.content}
+                    </p>
+                  )}
+
+                  {(c.files ?? []).length > 0 && (
+                    <div className="mt-3 space-y-1.5">
+                      {(c.files ?? []).map((f: any) => (
+                        <div key={f.id} className="flex items-center justify-between rounded-lg border border-emerald-400/25 bg-emerald-400/5 px-3 py-1.5 text-[11px]">
+                          <span className="flex min-w-0 items-center gap-1.5 text-slate-200">
+                            <FileText size={12} className="shrink-0 text-emerald-300" />
+                            <span className="truncate font-semibold">{f.originalName}</span>
+                            <span className="shrink-0 text-slate-500">· {fileKind(f.mime, f.originalName)} · {humanSize(f.size)}</span>
+                          </span>
+                          <div className="flex shrink-0 gap-1">
+                            {(f.mime?.startsWith("image/") || f.mime === "application/pdf" || f.originalName?.toLowerCase().endsWith(".pdf")) && (
+                              <a
+                                href={f.dataUrl || f.url}
+                                target="_blank"
+                                rel="noreferrer"
+                                className="rounded border border-white/10 px-2 py-0.5 text-emerald-300 hover:bg-white/5 transition"
+                              >
+                                Voir
+                              </a>
+                            )}
+                            <button
+                              type="button"
+                              onClick={() => downloadFile(f)}
+                              className="rounded border border-emerald-400/40 px-2 py-0.5 text-emerald-300 hover:bg-emerald-400/10 transition"
+                            >
+                              Télécharger
+                            </button>
+                          </div>
+                        </div>
+                      ))}
+                    </div>
+                  )}
+                </div>
+
+                {/* Barre d'actions globale : Lire, Télécharger, Supprimer */}
+                <div className="mt-4 flex items-center gap-2 border-t border-white/5 pt-3">
+                  <button
+                    type="button"
+                    onClick={() => setReadingDoc(c)}
+                    className="flex-1 inline-flex items-center justify-center gap-1.5 rounded-xl border border-emerald-400/40 bg-emerald-400/10 px-3 py-1.5 text-xs font-bold text-emerald-300 hover:bg-emerald-400/20 transition shadow-sm"
+                  >
+                    <BookOpen size={14} /> Lire
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => handleDownloadDoc(c)}
+                    className="inline-flex items-center justify-center gap-1.5 rounded-xl border border-white/10 bg-white/[0.04] px-3 py-1.5 text-xs font-semibold text-slate-300 hover:border-emerald-400/30 hover:text-emerald-200 transition"
+                    title="Télécharger ce document"
+                  >
+                    <Download size={14} /> Télécharger
+                  </button>
+                  {!isDismissed ? (
+                    <button
+                      type="button"
+                      onClick={() => handleDismissDoc(c.id, c.titre)}
+                      className="rounded-xl border border-white/5 p-2 text-slate-500 hover:border-red-500/30 hover:bg-red-500/10 hover:text-red-400 transition"
+                      title="Supprimer s'il ne veut pas lire"
+                    >
+                      <Trash2 size={14} />
+                    </button>
+                  ) : (
+                    <button
+                      type="button"
+                      onClick={() => handleRestoreDoc(c.id)}
+                      className="rounded-xl border border-emerald-400/30 p-2 text-emerald-300 hover:bg-emerald-500/10 transition"
+                      title="Restaurer ce document"
+                    >
+                      <RotateCcw size={14} />
+                    </button>
+                  )}
+                </div>
+              </Card>
+            );
+          })}
+        </div>
+      )}
+
+      {/* Modale de lecture complète de document */}
+      <Modal open={!!readingDoc} onClose={() => setReadingDoc(null)} title={readingDoc ? `${readingDoc.titre}` : ""} wide>
+        {readingDoc && (
+          <div className="space-y-4">
+            <div className="flex flex-wrap items-center justify-between gap-2 border-b border-white/5 pb-3">
+              <div className="flex items-center gap-2">
+                <Badge color={readingDoc.type === "devoir" ? "gold" : "green"}>
+                  {readingDoc.type}
+                </Badge>
+                <span className="text-xs font-semibold text-emerald-300">{db.modules.find((m) => m.id === readingDoc.moduleId)?.titre}</span>
+              </div>
+              <span className="text-xs text-slate-500">{readingDoc.date}</span>
+            </div>
+
+            {readingDoc.description && (
+              <p className="text-sm font-medium text-slate-300">{readingDoc.description}</p>
+            )}
+
+            {readingDoc.content && (
+              <div className="rounded-xl border border-white/10 bg-black/40 p-4 font-mono text-xs text-slate-200 whitespace-pre-wrap leading-relaxed">
+                {readingDoc.content}
+              </div>
+            )}
+
+            {(readingDoc.files ?? []).length > 0 && (
+              <div className="space-y-2">
+                <p className="text-xs font-bold uppercase tracking-wider text-emerald-300">Fichiers & pièces jointes</p>
+                <div className="space-y-1.5">
+                  {readingDoc.files.map((f: any) => (
+                    <div key={f.id} className="flex items-center justify-between rounded-xl border border-emerald-400/25 bg-emerald-400/5 p-3 text-xs">
+                      <div className="flex items-center gap-2 min-w-0">
+                        <FileText size={16} className="text-emerald-300 shrink-0" />
+                        <span className="font-semibold text-white truncate">{f.originalName}</span>
+                        <span className="text-slate-400 shrink-0">· {fileKind(f.mime, f.originalName)} · {humanSize(f.size)}</span>
+                      </div>
+                      <div className="flex items-center gap-1.5 shrink-0">
                         {(f.mime?.startsWith("image/") || f.mime === "application/pdf" || f.originalName?.toLowerCase().endsWith(".pdf")) && (
-                          <a href={f.dataUrl || f.url} target="_blank" rel="noreferrer" className="rounded border border-white/10 px-2 py-0.5 text-emerald-300 hover:bg-white/5 transition">
-                            Voir
+                          <a
+                            href={f.dataUrl || f.url}
+                            target="_blank"
+                            rel="noreferrer"
+                            className="inline-flex items-center gap-1 rounded-lg border border-white/10 px-2.5 py-1 text-emerald-300 hover:bg-white/5 transition"
+                          >
+                            <Eye size={13} /> Voir
                           </a>
                         )}
-                        <button onClick={() => downloadFile(f)} className="rounded border border-emerald-400/40 px-2 py-0.5 text-emerald-300 hover:bg-emerald-400/10 transition">Télécharger</button>
+                        <button
+                          type="button"
+                          onClick={() => downloadFile(f)}
+                          className="inline-flex items-center gap-1 rounded-lg border border-emerald-400/40 bg-emerald-400/10 px-2.5 py-1 text-emerald-300 hover:bg-emerald-400/20 transition font-medium"
+                        >
+                          <Download size={13} /> Télécharger
+                        </button>
                       </div>
                     </div>
                   ))}
                 </div>
-              )}
-            </Card>
-          ))}
-        </div>
-      )}
+              </div>
+            )}
+
+            <div className="flex flex-wrap items-center justify-between gap-2 border-t border-white/5 pt-4">
+              <button
+                type="button"
+                onClick={() => handleDismissDoc(readingDoc.id, readingDoc.titre)}
+                className="inline-flex items-center gap-1.5 text-xs text-red-400 hover:text-red-300 transition"
+              >
+                <Trash2 size={13} /> Retirer de mes documents
+              </button>
+              <div className="flex items-center gap-2">
+                <button
+                  type="button"
+                  onClick={() => handleDownloadDoc(readingDoc)}
+                  className="inline-flex items-center gap-1.5 rounded-xl border border-emerald-400/40 bg-emerald-400/10 px-3.5 py-2 text-xs font-bold text-emerald-300 hover:bg-emerald-400/20 transition"
+                >
+                  <Download size={14} /> Télécharger le document
+                </button>
+                <Btn variant="ghost" onClick={() => setReadingDoc(null)}>Fermer</Btn>
+              </div>
+            </div>
+          </div>
+        )}
+      </Modal>
     </div>
   );
 }
