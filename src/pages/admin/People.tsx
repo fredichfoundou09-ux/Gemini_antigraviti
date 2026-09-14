@@ -87,6 +87,7 @@ export function StudentsPage() {
   } | null>(null);
   const [deleteTarget, setDeleteTarget] = useState<Student | null>(null);
   const [showArchives, setShowArchives] = useState(false);
+  const [savingStudent, setSavingStudent] = useState(false);
 
   // Ouverture automatique depuis la barre de recherche globale
   useEffect(() => {
@@ -100,7 +101,8 @@ export function StudentsPage() {
   }, [searchParams, db.students]);
 
   const filtered = db.students.filter((s) => {
-    const matchQ = `${s.nom} ${s.prenom} ${s.id}`.toLowerCase().includes(q.toLowerCase());
+    const query = q.toLowerCase().trim();
+    const matchQ = !query || `${s.nom} ${s.prenom} ${s.id} ${s.telephone || ""} ${s.whatsapp || ""} ${s.email || ""}`.toLowerCase().includes(query);
     const matchT = tab === "tous" || s.formation === tab;
     if (!matchQ || !matchT) return false;
     if (fPay) {
@@ -158,8 +160,14 @@ export function StudentsPage() {
   };
 
   const save = async () => {
-    if (!form.nom || !form.prenom) return;
-    if (editing) {
+    if (savingStudent) return;
+    if (!form.nom || !form.prenom) {
+      toastMsg.error("Nom et prénom requis", "Veuillez renseigner le nom et le prénom de l'apprenant.");
+      return;
+    }
+    setSavingStudent(true);
+    try {
+      if (editing) {
       if (isSupabaseConfigured) {
         try {
           const resolvedFormationId = await resolveFormationId(form.formation);
@@ -327,9 +335,13 @@ export function StudentsPage() {
         toastMsg.credentials({ nom: `${form.prenom} ${form.nom}`, identifiant: uname, motDePasse: tempPassword });
         toastMsg.info(`Factures générées : ${money(montant + insc)}`);
       }
+      setCreating(false);
+      setEditing(null);
     }
-    setCreating(false); setEditing(null);
-  };
+  } finally {
+    setSavingStudent(false);
+  }
+};
 
   const confirmRegistration = async (regId: string) => {
     const reg = db.registrations.find((r) => r.id === regId);
@@ -1193,8 +1205,10 @@ export function StudentsPage() {
       <Modal open={creating} onClose={() => setCreating(false)} title={editing ? `Modifier ${editing.id}` : "Nouvel apprenant"} wide>
         <StudentForm form={form} setForm={setForm} />
         <div className="mt-5 flex justify-end gap-2">
-          <Btn variant="ghost" onClick={() => setCreating(false)}>Annuler</Btn>
-          <Btn onClick={save}>{editing ? "Enregistrer" : "Créer l'apprenant"}</Btn>
+          <Btn variant="ghost" onClick={() => setCreating(false)} disabled={savingStudent}>Annuler</Btn>
+          <Btn onClick={save} disabled={savingStudent}>
+            {savingStudent ? "Enregistrement en cours..." : editing ? "Enregistrer" : "Créer l'apprenant"}
+          </Btn>
         </div>
       </Modal>
 

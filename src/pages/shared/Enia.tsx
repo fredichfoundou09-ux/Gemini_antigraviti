@@ -295,6 +295,11 @@ export function EniaAdminPage() {
   const [saved, setSaved] = useState(false);
   const [tab, setTab] = useState<"general" | "bourse" | "frais" | "pieces" | "affiche" | "lien" | "partenaires">("general");
   const [partnerEdit, setPartnerEdit] = useState<EniaPartner | null>(null);
+  const [deleteConfirm, setDeleteConfirm] = useState<{
+    title: string;
+    message: string;
+    onConfirm: () => void;
+  } | null>(null);
 
   // Synchronisation avec db.enia lorsqu'il change depuis Supabase
   useEffect(() => {
@@ -509,7 +514,18 @@ export function EniaAdminPage() {
                   list[idx] = { ...a, titre: e.target.value };
                   setEnia({ ...enia, bourseAvantages: list });
                 }} /></Field>
-                <button onClick={() => setEnia({ ...enia, bourseAvantages: enia.bourseAvantages.filter((x) => x.id !== a.id) })} className="mt-6 text-red-400 hover:text-red-300"><Trash2 size={16} /></button>
+                <button
+                  type="button"
+                  onClick={() => setDeleteConfirm({
+                    title: "Supprimer l'avantage",
+                    message: `Voulez-vous vraiment supprimer l'avantage « ${a.titre || "cet élément"} » ?`,
+                    onConfirm: () => setEnia({ ...enia, bourseAvantages: enia.bourseAvantages.filter((x) => x.id !== a.id) }),
+                  })}
+                  className="mt-6 text-red-400 hover:text-red-300 transition"
+                  title="Supprimer cet avantage"
+                >
+                  <Trash2 size={16} />
+                </button>
               </div>
               <Field label="Description"><Input value={a.description} onChange={(e) => {
                 const list = [...enia.bourseAvantages];
@@ -539,7 +555,18 @@ export function EniaAdminPage() {
                 list[idx] = { ...f, value: e.target.value };
                 setEnia({ ...enia, fraisScolaires: list });
               }} /></Field>
-              <button onClick={() => setEnia({ ...enia, fraisScolaires: enia.fraisScolaires.filter((x) => x.id !== f.id) })} className="mt-6 text-red-400"><Trash2 size={16} /></button>
+              <button
+                type="button"
+                onClick={() => setDeleteConfirm({
+                  title: "Supprimer la ligne de frais",
+                  message: `Voulez-vous vraiment supprimer la ligne de frais « ${f.label || "cet élément"} » ?`,
+                  onConfirm: () => setEnia({ ...enia, fraisScolaires: enia.fraisScolaires.filter((x) => x.id !== f.id) }),
+                })}
+                className="mt-6 text-red-400 hover:text-red-300 transition"
+                title="Supprimer cette ligne de frais"
+              >
+                <Trash2 size={16} />
+              </button>
             </Card>
           ))}
         </div>
@@ -562,7 +589,18 @@ export function EniaAdminPage() {
                   list[idx] = { ...g, titre: e.target.value };
                   setEnia({ ...enia, pieces: list });
                 }} /></Field>
-                <button onClick={() => setEnia({ ...enia, pieces: enia.pieces.filter((x) => x.id !== g.id) })} className="mt-6 text-red-400"><Trash2 size={16} /></button>
+                <button
+                  type="button"
+                  onClick={() => setDeleteConfirm({
+                    title: "Supprimer le groupe de pièces",
+                    message: `Voulez-vous vraiment supprimer le groupe « ${g.titre || "ce groupe"} » et ses pièces associées ?`,
+                    onConfirm: () => setEnia({ ...enia, pieces: enia.pieces.filter((x) => x.id !== g.id) }),
+                  })}
+                  className="mt-6 text-red-400 hover:text-red-300 transition"
+                  title="Supprimer ce groupe de pièces"
+                >
+                  <Trash2 size={16} />
+                </button>
               </div>
               <Field label="Pièces (une par ligne)">
                 <Textarea
@@ -599,7 +637,16 @@ export function EniaAdminPage() {
                 <input type="file" accept="image/*" className="hidden" onChange={onAffiche} />
               </label>
               {enia.affiche && (
-                <Btn variant="ghost" onClick={() => setEnia({ ...enia, affiche: "" })}><Trash2 size={14} /> Supprimer l'affiche personnalisée</Btn>
+                <Btn
+                  variant="ghost"
+                  onClick={() => setDeleteConfirm({
+                    title: "Supprimer l'affiche personnalisée",
+                    message: "Voulez-vous vraiment supprimer l'affiche personnalisée ? L'affiche officielle par défaut sera réactivée.",
+                    onConfirm: () => setEnia({ ...enia, affiche: "" }),
+                  })}
+                >
+                  <Trash2 size={14} /> Supprimer l'affiche personnalisée
+                </Btn>
               )}
               <label className="flex items-center gap-2 text-sm text-slate-300">
                 <input type="checkbox" checked={enia.allowDownloadAffiche} onChange={(e) => setEnia({ ...enia, allowDownloadAffiche: e.target.checked })} />
@@ -644,7 +691,17 @@ export function EniaAdminPage() {
                 </div>
                 <div className="flex gap-2">
                   <Btn variant="outline" onClick={() => setPartnerEdit(p)}><Pencil size={13} /></Btn>
-                  <Btn variant="ghost" onClick={() => setEnia({ ...enia, partenaires: enia.partenaires.filter((x) => x.id !== p.id) })}><Trash2 size={13} /></Btn>
+                  <Btn
+                    variant="ghost"
+                    onClick={() => setDeleteConfirm({
+                      title: "Supprimer le partenaire",
+                      message: `Voulez-vous vraiment supprimer le partenaire « ${p.nom || "ce partenaire"} » ?`,
+                      onConfirm: () => setEnia({ ...enia, partenaires: enia.partenaires.filter((x) => x.id !== p.id) }),
+                    })}
+                    title="Supprimer ce partenaire"
+                  >
+                    <Trash2 size={13} />
+                  </Btn>
                 </div>
               </Card>
             ))
@@ -666,6 +723,25 @@ export function EniaAdminPage() {
             onCancel={() => setPartnerEdit(null)}
           />
         )}
+      </Modal>
+
+      {/* Modal confirmation de suppression sécurisée */}
+      <Modal open={!!deleteConfirm} onClose={() => setDeleteConfirm(null)} title={deleteConfirm?.title || "Confirmation de suppression"}>
+        <div className="space-y-4">
+          <p className="text-sm text-slate-300">{deleteConfirm?.message}</p>
+          <div className="flex justify-end gap-2 pt-2">
+            <Btn variant="ghost" onClick={() => setDeleteConfirm(null)}>Annuler</Btn>
+            <Btn
+              variant="red"
+              onClick={() => {
+                deleteConfirm?.onConfirm();
+                setDeleteConfirm(null);
+              }}
+            >
+              Supprimer définitivement
+            </Btn>
+          </div>
+        </div>
       </Modal>
     </div>
   );
