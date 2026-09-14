@@ -16,7 +16,7 @@ export interface SentinelLogoProps extends React.ImgHTMLAttributes<HTMLImageElem
 
 export const SENTINEL_ASSETS = {
   full: "/assets/branding/sentinel-full.png",
-  symbol: "/assets/branding/sentinel-symbol.png",
+  symbol: "/assets/branding/sentinel-symbol.webp",
 } as const;
 
 export function SentinelLogo({

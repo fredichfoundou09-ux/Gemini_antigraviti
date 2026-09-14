@@ -8,7 +8,7 @@ import { useStore } from "@/lib/store";
 import { moduleIcon, money, Btn, SectionTitle } from "@/lib/ui";
 import avantageImg from "@/assets/avantage-etudiants.jpg";
 import responsableImg from "@/assets/responsable.jpg";
-import sentinelSymbolImg from "@/assets/branding/sentinel-symbol.png";
+import sentinelSymbolImg from "@/assets/branding/sentinel-symbol.webp";
 import { Sentinel3DBackground } from "@/components/Sentinel3DBackground";
 
 

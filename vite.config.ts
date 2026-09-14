@@ -24,7 +24,7 @@ export default defineConfig({
         "favicon-64.png",
         "apple-touch-icon.png",
         "assets/branding/sentinel-full.png",
-        "assets/branding/sentinel-symbol.png",
+        "assets/branding/sentinel-symbol.webp",
       ],
       manifest: {
         name: "SENTINEL'S",

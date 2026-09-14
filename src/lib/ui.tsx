@@ -205,7 +205,7 @@ export function officialPrintDoc(title: string, contentHTML: string, docType = "
     <div class="receipt">
       <div style="display:flex;align-items:center;justify-content:space-between;border-bottom:2px solid #0f172a;padding-bottom:14px;margin-bottom:18px">
         <div style="display:flex;align-items:center;gap:12px">
-          <img src="/assets/branding/sentinel-symbol.png" style="height:52px;width:52px;object-fit:contain" alt="SENTINEL'S" />
+          <img src="/assets/branding/sentinel-symbol.webp" style="height:52px;width:52px;object-fit:contain" alt="SENTINEL'S" />
           <div>
             <h2 style="margin:0;font-size:16px;font-weight:900;letter-spacing:1px;color:#0f172a">SENTINELLE NUMÉRIQUE</h2>
             <p style="margin:2px 0 0;font-size:10.5px;color:#334155;text-transform:uppercase;letter-spacing:1px;font-weight:700">ENIA 2.0 · RÉPUBLIQUE DU CONGO</p>
