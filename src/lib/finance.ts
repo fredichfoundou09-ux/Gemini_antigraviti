@@ -26,7 +26,7 @@ export function calculateFormationFees(
   tranche2: number;
 } {
   const regFee = REGISTRATION_FEE;
-  let rawTuition = 0;
+  let rawTuition: number;
 
   if (formationCode === "industriel") {
     if (moduleCount <= 3) rawTuition = 5000;
@@ -180,7 +180,7 @@ export function financialSummary(db: DB, studentId: string): FinancialSummary {
   const totalPaye = payments.reduce((a, p) => a + (p.montant || 0), 0);
   const solde = Math.max(0, totalDu - totalPaye);
   
-  let statut: FinancialStatus = "impaye";
+  let statut: FinancialStatus;
   if (totalDu === 0 && totalPaye === 0) statut = "impaye";
   else if (totalPaye <= 0) statut = "impaye";
   else if (totalPaye >= totalDu && totalDu > 0) statut = "paye";

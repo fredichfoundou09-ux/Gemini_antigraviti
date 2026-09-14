@@ -1235,7 +1235,7 @@ export function StoreProvider({ children }: { children: React.ReactNode }) {
 
   const computeAmount = (f: Formation, moduleCount: number, includeRegistration: boolean = true) => {
     const regFee = Number(db.settings.frais?.inscription || 5000);
-    let moduleTotal = 0;
+    let moduleTotal: number;
 
     if (f === "informatique") {
       // Règle officielle Audit Section 5 : 3 500 FCFA par module

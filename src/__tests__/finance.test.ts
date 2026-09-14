@@ -19,7 +19,7 @@ function calculateFinance(invoices: Invoice[], payments: Payment[], todayStr: st
   const totalPaye = payments.reduce((acc, p) => acc + (p.montant || 0), 0);
   const solde = Math.max(0, totalDu - totalPaye);
 
-  let statut: "paye" | "partiel" | "impaye" | "retard" = "impaye";
+  let statut: "paye" | "partiel" | "impaye" | "retard";
   if (totalPaye <= 0) {
     statut = "impaye";
   } else if (totalPaye >= totalDu && totalDu > 0) {
