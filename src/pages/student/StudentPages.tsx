@@ -5,7 +5,7 @@ import {
   UserCircle2, CalendarDays, Clock, MapPin, ClipboardCheck, PenLine, Wallet, Award,
   BadgeDollarSign, CheckCircle2, XCircle, Timer, Phone, Mail, FileText, TestTube2, PlayCircle,
   ShieldCheck, ChevronRight, Printer, ReceiptText, TrendingUp, Eye, AlertCircle, ArrowRight,
-  GraduationCap, BookOpen,
+  GraduationCap, ExternalLink,
 } from "lucide-react";
 import { useStore } from "@/lib/store";
 import { cn } from "@/utils/cn";
@@ -21,6 +21,17 @@ import { fileKind, humanSize, downloadFile } from "@/lib/files";
 import { supabase, isSupabaseConfigured } from "@/lib/supabase/client";
 import { toastMsg } from "@/lib/toast";
 import { PasswordChangeCard } from "@/pages/shared/PasswordChangeCard";
+
+function isSupportUrl(str?: string): boolean {
+  if (!str) return false;
+  const trimmed = str.trim();
+  return /^https?:\/\//i.test(trimmed) || /^www\./i.test(trimmed);
+}
+
+function normalizeSupportUrl(str: string): string {
+  const trimmed = str.trim();
+  return trimmed.startsWith("www.") ? `https://${trimmed}` : trimmed;
+}
 
 function getStudent(db: any, user: any) {
   if (!user) return null;
@@ -528,6 +539,27 @@ export function MyFormation() {
                 <Progress value={pct} color={g && g.note < 10 ? "red" : "cyan"} />
                 <p className="mt-1 text-[11px] text-slate-500">{g ? `Note : ${g.note}/20 — ${g.appreciation}` : "Module en cours..."}</p>
               </div>
+              {m.supports && (
+                <div className="mt-2.5 flex items-center justify-between gap-2 border-t border-white/5 pt-2 text-xs">
+                  <span className="flex min-w-0 items-center gap-1.5 text-slate-300">
+                    <FileText size={12} className="shrink-0 text-cyan-400" />
+                    <span className="truncate">
+                      <b className="font-medium text-cyan-300">Support : </b>
+                      {m.supports}
+                    </span>
+                  </span>
+                  {isSupportUrl(m.supports) && (
+                    <a
+                      href={normalizeSupportUrl(m.supports)}
+                      target="_blank"
+                      rel="noreferrer"
+                      className="shrink-0 rounded border border-cyan-400/40 px-2 py-0.5 text-[11px] font-medium text-cyan-300 hover:bg-cyan-400/10 transition"
+                    >
+                      Lire
+                    </a>
+                  )}
+                </div>
+              )}
             </Card>
           );
         })}
@@ -650,7 +682,29 @@ export function MyModules() {
                   </div>
                 </div>
               )}
-              {preview.supports && <p className="text-sm text-slate-300"><b className="text-cyan-300">Supports :</b> {preview.supports}</p>}
+              {preview.supports && (
+                <div className="rounded-xl border border-cyan-400/20 bg-cyan-400/5 p-3 text-sm text-slate-300">
+                  <div className="flex flex-wrap items-center justify-between gap-2">
+                    <div className="flex items-center gap-2 min-w-0 flex-1">
+                      <FileText size={16} className="text-cyan-300 shrink-0" />
+                      <p className="truncate">
+                        <b className="text-cyan-300">Supports de cours : </b>
+                        <span className="text-slate-200">{preview.supports}</span>
+                      </p>
+                    </div>
+                    {isSupportUrl(preview.supports) && (
+                      <a
+                        href={normalizeSupportUrl(preview.supports)}
+                        target="_blank"
+                        rel="noreferrer"
+                        className="inline-flex items-center gap-1.5 rounded border border-cyan-400/40 bg-cyan-400/10 px-2.5 py-1 text-xs font-semibold text-cyan-300 hover:bg-cyan-400/20 transition shrink-0"
+                      >
+                        <ExternalLink size={13} /> Lire
+                      </a>
+                    )}
+                  </div>
+                </div>
+              )}
               {preview.infosSupp && <p className="text-sm text-slate-300"><b className="text-cyan-300">Infos :</b> {preview.infosSupp}</p>}
             </div>
           );
@@ -775,8 +829,12 @@ export function MyCourses() {
                         <span className="shrink-0 text-slate-500">· {fileKind(f.mime, f.originalName)} · {humanSize(f.size)}</span>
                       </span>
                       <div className="flex shrink-0 gap-1">
-                        {f.mime?.startsWith("image/") && <a href={f.dataUrl} target="_blank" rel="noreferrer" className="rounded border border-white/10 px-2 py-0.5 text-cyan-300 hover:bg-white/5">Voir</a>}
-                        <button onClick={() => { track(c, f, "telecharge"); downloadFile(f); }} className="rounded border border-cyan-400/40 px-2 py-0.5 text-cyan-300 hover:bg-cyan-400/10">Télécharger</button>
+                        {(f.mime?.startsWith("image/") || f.mime === "application/pdf" || f.originalName?.toLowerCase().endsWith(".pdf")) && (
+                          <a href={f.dataUrl || f.url} target="_blank" rel="noreferrer" className="rounded border border-white/10 px-2 py-0.5 text-cyan-300 hover:bg-white/5 transition">
+                            Voir
+                          </a>
+                        )}
+                        <button onClick={() => { track(c, f, "telecharge"); downloadFile(f); }} className="rounded border border-cyan-400/40 px-2 py-0.5 text-cyan-300 hover:bg-cyan-400/10 transition">Télécharger</button>
                       </div>
                     </div>
                   ))}
@@ -929,8 +987,12 @@ export function MyDocuments() {
                         <span className="shrink-0 text-slate-500">· {fileKind(f.mime, f.originalName)} · {humanSize(f.size)}</span>
                       </span>
                       <div className="flex shrink-0 gap-1">
-                        {f.mime?.startsWith("image/") && <a href={f.dataUrl} target="_blank" rel="noreferrer" className="rounded border border-white/10 px-2 py-0.5 text-emerald-300 hover:bg-white/5">Voir</a>}
-                        <button onClick={() => downloadFile(f)} className="rounded border border-emerald-400/40 px-2 py-0.5 text-emerald-300 hover:bg-emerald-400/10">Télécharger</button>
+                        {(f.mime?.startsWith("image/") || f.mime === "application/pdf" || f.originalName?.toLowerCase().endsWith(".pdf")) && (
+                          <a href={f.dataUrl || f.url} target="_blank" rel="noreferrer" className="rounded border border-white/10 px-2 py-0.5 text-emerald-300 hover:bg-white/5 transition">
+                            Voir
+                          </a>
+                        )}
+                        <button onClick={() => downloadFile(f)} className="rounded border border-emerald-400/40 px-2 py-0.5 text-emerald-300 hover:bg-emerald-400/10 transition">Télécharger</button>
                       </div>
                     </div>
                   ))}

@@ -57,4 +57,64 @@ describe("Système de Messagerie & Suppression", () => {
     expect(unreadMessages).toBe(2);
     expect(unreadNotifications).toBe(2);
   });
+
+  it("filtre correctement les conversations en boîte de réception par statut non lu et recherche textuelle", () => {
+    const items = [
+      {
+        id: "c-1",
+        subject: "Rattrapage Réseau",
+        lastSenderName: "Jean Formateur",
+        isUnread: true,
+        messages: [{ sender_id: "t-1", body: "Bonjour, voici le lien pour la session." }],
+      },
+      {
+        id: "c-2",
+        subject: "Frais de scolarité",
+        lastSenderName: "Direction",
+        isUnread: false,
+        messages: [{ sender_id: "adm-1", body: "Votre attestation de paiement est disponible." }],
+      },
+      {
+        id: "c-3",
+        subject: "Questions sur le cours Python",
+        lastSenderName: "Alice Apprenante",
+        isUnread: true,
+        messages: [{ sender_id: "s-1", body: "J'ai un bug avec les listes en compréhension." }],
+      },
+    ];
+
+    // Test filtre non lues
+    const unreadOnly = items.filter((i) => i.isUnread);
+    expect(unreadOnly.length).toBe(2);
+    expect(unreadOnly.map((i) => i.id)).toEqual(["c-1", "c-3"]);
+
+    // Test recherche par interlocuteur
+    const searchBySender = items.filter((i) =>
+      i.lastSenderName.toLowerCase().includes("jean") || i.messages[0].body.toLowerCase().includes("jean")
+    );
+    expect(searchBySender.length).toBe(1);
+    expect(searchBySender[0].id).toBe("c-1");
+
+    // Test recherche par contenu du dernier message
+    const searchByBody = items.filter((i) =>
+      i.lastSenderName.toLowerCase().includes("attestation") || i.messages[0].body.toLowerCase().includes("attestation")
+    );
+    expect(searchByBody.length).toBe(1);
+    expect(searchByBody[0].id).toBe("c-2");
+  });
+
+  it("détecte correctement si un champ supports de module est une URL exploitable pour l'action Lire", () => {
+    const isSupportUrl = (str?: string): boolean => {
+      if (!str) return false;
+      const trimmed = str.trim();
+      return /^https?:\/\//i.test(trimmed) || /^www\./i.test(trimmed);
+    };
+
+    expect(isSupportUrl("https://docs.google.com/presentation/d/xyz")).toBe(true);
+    expect(isSupportUrl("http://monsite.com/cours.pdf")).toBe(true);
+    expect(isSupportUrl("www.cours-informatique.sn/module1")).toBe(true);
+    expect(isSupportUrl("Support PDF remis en classe")).toBe(false);
+    expect(isSupportUrl("")).toBe(false);
+    expect(isSupportUrl(undefined)).toBe(false);
+  });
 });

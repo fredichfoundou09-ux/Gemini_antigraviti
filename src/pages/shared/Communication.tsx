@@ -42,6 +42,9 @@ export function MessageCenter() {
   const [recipientRoleFilter, setRecipientRoleFilter] = useState<"all" | "broadcast" | "admin" | "teacher" | "student">("all");
   const [recipientSearch, setRecipientSearch] = useState("");
 
+  const [inboxFilter, setInboxFilter] = useState<"all" | "unread">("all");
+  const [inboxSearch, setInboxSearch] = useState("");
+
   // Charger les profils Supabase réels
   const loadProfiles = async () => {
     if (!isSupabaseConfigured) return;
@@ -52,7 +55,7 @@ export function MessageCenter() {
     } catch { /* fallback */ }
   };
 
-  // Charger les conversations Supabase et marquer comme lues
+  // Charger les conversations Supabase
   const loadConversations = async () => {
     if (!isSupabaseConfigured || !user?.id) return;
     try {
@@ -63,25 +66,6 @@ export function MessageCenter() {
         c.messages?.some((m: any) => m.sender_id === user?.id)
       );
       setRemoteConvs(myConvs);
-
-      // Marquer automatiquement les conversations actives comme lues côté Supabase
-      if (myConvs && myConvs.length > 0) {
-        const sb = getSupabase();
-        myConvs.forEach((c: any) => {
-          sb.rpc("mark_conversation_as_read", { p_conversation_id: c.id }).then(
-            () => {},
-            (err: any) => console.error("Erreur RPC mark_conversation_as_read:", err)
-          );
-        });
-      }
-
-      // Marquer les messages locaux comme lus
-      update((d) => ({
-        ...d,
-        messages: (d.messages || []).map((m) =>
-          m.toId === user?.id || (m.toId === "all_students" && user?.role === "student") || (m.toId === "all_teachers" && user?.role === "teacher") ? { ...m, lu: true } : m
-        ),
-      }));
     } catch (err: any) {
       console.warn("Impossible de charger les conversations Supabase:", err.message);
     }
@@ -157,6 +141,10 @@ export function MessageCenter() {
           lastSenderName = sender?.role === "superadmin" ? "Super Administrateur" : "Administration";
         }
 
+        const myMember = c.members?.find((m: any) => m.user_id === user?.id);
+        const lastRead = myMember?.last_read_at || "1970-01-01T00:00:00Z";
+        const isUnread = msgs.some((m: any) => m.sender_id !== user?.id && new Date(m.created_at) > new Date(lastRead));
+
         return {
           id: c.id,
           isRemote: true,
@@ -165,6 +153,7 @@ export function MessageCenter() {
           lastSenderName,
           messages: msgs,
           isFromMe,
+          isUnread,
         };
       });
     }
@@ -174,11 +163,50 @@ export function MessageCenter() {
       subject: m.subject,
       date: m.date,
       lastSenderName: m.fromName,
-      messages: [{ id: m.id, sender_id: m.fromId, body: m.body, created_at: m.date }],
+      messages: [{ id: m.id, sender_id: m.fromId, body: m.body, created_at: m.date, lu: m.lu }],
       isFromMe: m.fromId === user?.id,
+      isUnread: Boolean(!m.lu && m.fromId !== user?.id),
       localMsg: m,
     }));
   }, [remoteConvs, localMessages, isSupabaseConfigured, user?.id, remoteProfiles, db.users]);
+
+  // Nombre de conversations non lues
+  const unreadInboxCount = useMemo(() => {
+    return displayItems.filter((i) => i.isUnread).length;
+  }, [displayItems]);
+
+  // Filtrage côté client des conversations pour la boîte de réception
+  const filteredInboxItems = useMemo(() => {
+    return displayItems.filter((item) => {
+      // 1. Filtre Toutes / Non lues
+      if (inboxFilter === "unread" && !item.isUnread) {
+        return false;
+      }
+
+      // 2. Recherche textuelle (insensible à la casse) sur l'interlocuteur ou le dernier message
+      if (inboxSearch.trim()) {
+        const q = inboxSearch.toLowerCase().trim();
+        const lastMsg = item.messages[item.messages.length - 1];
+        const matchSubject = (item.subject || "").toLowerCase().includes(q);
+        const matchLastSender = (item.lastSenderName || "").toLowerCase().includes(q);
+        const matchLastMsg = (lastMsg?.body || "").toLowerCase().includes(q);
+        const matchAnyMsg = item.messages.some((m: any) => (m.body || "").toLowerCase().includes(q));
+        const matchParticipant = item.messages.some((m: any) => {
+          const senderObj = remoteProfiles.find((p) => p.id === m.sender_id) || db.users.find((u) => u.id === m.sender_id);
+          return (
+            (senderObj?.name || "").toLowerCase().includes(q) ||
+            (senderObj?.username || "").toLowerCase().includes(q)
+          );
+        });
+
+        if (!matchSubject && !matchLastSender && !matchLastMsg && !matchAnyMsg && !matchParticipant) {
+          return false;
+        }
+      }
+
+      return true;
+    });
+  }, [displayItems, inboxFilter, inboxSearch, remoteProfiles, db.users]);
 
   const send = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -227,11 +255,21 @@ export function MessageCenter() {
     try {
       if (isSupabaseConfigured) {
         await replyToConversation(convId, user.id, replyBody.trim());
+        try {
+          const sb = getSupabase();
+          await sb.rpc("mark_conversation_as_read", { p_conversation_id: convId });
+        } catch { /* silence */ }
         await loadConversations();
         toastMsg.success("Réponse envoyée ✓");
       } else {
         const msg = { id: uid("MSG"), fromId: user.id, fromName: user.name, toId: "dest", subject: "Re: Message", body: replyBody.trim(), date: today(), lu: false };
-        update((d) => ({ ...d, messages: [msg, ...d.messages] }));
+        update((d) => ({
+          ...d,
+          messages: [
+            msg,
+            ...d.messages.map((m) => (m.id === convId ? { ...m, lu: true } : m)),
+          ],
+        }));
         toastMsg.success("Réponse ajoutée en local ✓");
       }
       setReplyBody("");
@@ -241,6 +279,53 @@ export function MessageCenter() {
       toastMsg.error("Échec de transmission de la réponse", err.message);
     } finally {
       setSendingReply(false);
+    }
+  };
+
+  const handleMarkAsRead = async (item: any) => {
+    try {
+      if (item.isRemote) {
+        const sb = getSupabase();
+        await sb.rpc("mark_conversation_as_read", { p_conversation_id: item.id });
+        await loadConversations();
+      } else {
+        update((d) => ({
+          ...d,
+          messages: d.messages.map((m) =>
+            m.id === item.id || (m.toId === user?.id && m.fromId === item.lastSenderName) ? { ...m, lu: true } : m
+          ),
+        }));
+      }
+      toastMsg.success("Discussion marquée comme lue ✓");
+    } catch (err: any) {
+      console.error("Erreur marquage conversation comme lue:", err);
+    }
+  };
+
+  const handleMarkAllAsRead = async () => {
+    try {
+      if (isSupabaseConfigured && remoteConvs.length > 0) {
+        const sb = getSupabase();
+        await Promise.all(
+          remoteConvs.map(async (c) => {
+            try {
+              await sb.rpc("mark_conversation_as_read", { p_conversation_id: c.id });
+            } catch { /* silence */ }
+          })
+        );
+        await loadConversations();
+      }
+      update((d) => ({
+        ...d,
+        messages: (d.messages || []).map((m) =>
+          m.toId === user?.id || (m.toId === "all_students" && user?.role === "student") || (m.toId === "all_teachers" && user?.role === "teacher")
+            ? { ...m, lu: true }
+            : m
+        ),
+      }));
+      toastMsg.success("Toutes les conversations sont marquées comme lues ✓");
+    } catch (err: any) {
+      console.error("Erreur marquage tout comme lu:", err);
     }
   };
 
@@ -440,119 +525,234 @@ export function MessageCenter() {
         <Empty icon={<Mail size={40} />} title="Aucun message" sub="Vos conversations apparaîtront ici." />
       ) : (
         <div className="space-y-4">
-          {displayItems.map((item) => {
-            const incoming = !item.isFromMe;
-            return (
-              <Card key={item.id} className="p-5" glow={incoming ? "cyan" : "green"}>
-                <div className="flex flex-wrap items-center justify-between gap-2 border-b border-white/5 pb-3">
-                  <div className="flex items-center gap-2.5">
-                    {incoming ? <Mail size={16} className="text-cyan-300" /> : <Send size={16} className="text-emerald-300" />}
-                    <p className="text-sm font-bold text-white">{item.subject}</p>
-                  </div>
-                  <div className="flex items-center gap-2">
-                    <span className="text-[11px] text-slate-500">{item.date}</span>
-                    <button
-                      onClick={() => handleDeleteConversation(item)}
-                      title="Supprimer cette conversation"
-                      className="rounded-lg p-1.5 text-slate-500 hover:bg-red-500/10 hover:text-red-400 transition"
-                    >
-                      <Trash2 size={15} />
-                    </button>
-                  </div>
-                </div>
+          {/* Barre d'outils boîte de réception : Filtres Toutes/Non lues + Recherche */}
+          <div className="flex flex-col gap-3 rounded-2xl border border-white/10 bg-white/[0.02] p-3 sm:flex-row sm:items-center sm:justify-between">
+            {/* Filtre Toutes / Non lues */}
+            <div className="flex flex-wrap items-center gap-2">
+              <div className="flex rounded-xl border border-white/10 bg-white/[0.03] p-1">
+                <button
+                  type="button"
+                  onClick={() => setInboxFilter("all")}
+                  className={cn(
+                    "rounded-lg px-3 py-1.5 text-xs font-semibold transition-all",
+                    inboxFilter === "all"
+                      ? "bg-cyan-500/20 text-cyan-300 border border-cyan-400/40 shadow-sm"
+                      : "text-slate-400 hover:text-white"
+                  )}
+                >
+                  Toutes ({displayItems.length})
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setInboxFilter("unread")}
+                  className={cn(
+                    "rounded-lg px-3 py-1.5 text-xs font-semibold transition-all flex items-center gap-1.5",
+                    inboxFilter === "unread"
+                      ? "bg-cyan-500/20 text-cyan-300 border border-cyan-400/40 shadow-sm"
+                      : "text-slate-400 hover:text-white"
+                  )}
+                >
+                  Non lues
+                  {unreadInboxCount > 0 && (
+                    <span className="rounded-full bg-cyan-400/25 px-1.5 py-0.2 text-[10px] font-bold text-cyan-300">
+                      {unreadInboxCount}
+                    </span>
+                  )}
+                </button>
+              </div>
 
-                {/* Fil des échanges */}
-                <div className="my-3 space-y-2">
-                  {item.messages.map((m: any, idx: number) => {
-                    const fromMe = m.sender_id === user?.id;
-                    const senderObj = remoteProfiles.find((p) => p.id === m.sender_id) || db.users.find((u) => u.id === m.sender_id);
-                    const isStudentUser = user?.role === "student";
-                    const isAdminSender = senderObj?.role === "superadmin" || senderObj?.role === "admin";
-                    let authorName = senderObj?.name || (fromMe ? "Moi" : "Correspondant");
-                    if (isStudentUser && isAdminSender && !fromMe) {
-                      authorName = senderObj?.role === "superadmin" ? "Super Administrateur" : "Administration";
-                    }
-                    const role = senderObj?.role || (fromMe ? user?.role : "admin");
-                    const roleBadge =
-                      role === "superadmin" || role === "admin"
-                        ? { label: "🛡️ Direction", cls: "bg-red-500/20 text-red-300 border-red-500/40" }
-                        : role === "teacher"
-                        ? { label: "👨‍🏫 Formateur", cls: "bg-emerald-500/20 text-emerald-300 border-emerald-500/40" }
-                        : role === "partner" || role === "partner_admin"
-                        ? { label: "🤝 Partenaire", cls: "bg-amber-500/20 text-amber-300 border-amber-500/40" }
-                        : { label: "🎓 Apprenant", cls: "bg-cyan-500/20 text-cyan-300 border-cyan-500/40" };
+              {unreadInboxCount > 0 && (
+                <button
+                  type="button"
+                  onClick={handleMarkAllAsRead}
+                  className="inline-flex items-center gap-1.5 rounded-lg border border-white/10 bg-white/[0.02] px-2.5 py-1.5 text-xs text-slate-300 hover:border-cyan-400/40 hover:text-cyan-200 transition"
+                  title="Marquer toutes les discussions comme lues"
+                >
+                  <CheckCheck size={14} className="text-cyan-400" /> Tout marquer comme lu
+                </button>
+              )}
+            </div>
 
-                    const bubbleBorder =
-                      fromMe
-                        ? "border-white/10 bg-white/[0.04] ml-6"
-                        : role === "superadmin" || role === "admin"
-                        ? "border-red-500/30 bg-red-950/20 mr-6 shadow-[0_0_12px_rgba(239,68,68,0.08)]"
-                        : role === "teacher"
-                        ? "border-emerald-500/30 bg-emerald-950/20 mr-6 shadow-[0_0_12px_rgba(16,185,129,0.08)]"
-                        : role === "partner" || role === "partner_admin"
-                        ? "border-amber-500/30 bg-amber-950/20 mr-6 shadow-[0_0_12px_rgba(245,158,11,0.08)]"
-                        : "border-cyan-400/30 bg-cyan-950/20 mr-6 shadow-[0_0_12px_rgba(6,182,212,0.08)]";
+            {/* Champ de recherche texte insensible à la casse */}
+            <div className="relative w-full sm:w-80">
+              <Search size={14} className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-slate-500" />
+              <Input
+                placeholder="Rechercher par nom ou message..."
+                value={inboxSearch}
+                onChange={(e) => setInboxSearch(e.target.value)}
+                className="pl-8 pr-7 text-xs py-1.5"
+              />
+              {inboxSearch && (
+                <button
+                  type="button"
+                  onClick={() => setInboxSearch("")}
+                  className="absolute right-2.5 top-1/2 -translate-y-1/2 text-slate-500 hover:text-slate-300 text-xs"
+                  title="Effacer la recherche"
+                >
+                  ✕
+                </button>
+              )}
+            </div>
+          </div>
 
-                    const canDelete = fromMe || user?.role === "superadmin" || user?.role === "admin";
-
-                    return (
-                      <div key={m.id || idx} className={cn("group relative rounded-xl border p-3.5 text-sm transition", bubbleBorder)}>
-                        <div className="flex justify-between items-center mb-1.5 text-[11px] text-slate-400">
-                          <div className="flex items-center gap-2">
-                            <span className={cn("font-semibold", fromMe ? "text-slate-200" : "text-white")}>{authorName}</span>
-                            <span className={cn("rounded px-1.5 py-0.2 text-[9px] font-bold uppercase tracking-wider border", roleBadge.cls)}>
-                              {roleBadge.label}
-                            </span>
-                          </div>
-                          <div className="flex items-center gap-2">
-                            {m.created_at && <span className="font-mono text-[10px] text-slate-500">{new Date(m.created_at).toLocaleTimeString("fr-FR", { hour: "2-digit", minute: "2-digit" })}</span>}
-                            {canDelete && (
-                              <button
-                                onClick={() => handleDeleteMessage(m, item)}
-                                title="Supprimer ce message"
-                                className="rounded p-1 text-slate-500 hover:bg-red-500/10 hover:text-red-400 transition"
-                              >
-                                <Trash2 size={13} />
-                              </button>
-                            )}
-                          </div>
-                        </div>
-                        <p className="whitespace-pre-wrap text-slate-200 leading-relaxed">{m.body}</p>
-                      </div>
-                    );
-                  })}
-                </div>
-
-                {/* Action répondre */}
-                {replyingTo === item.id ? (
-                  <div className="mt-3 rounded-xl border border-white/10 bg-white/[0.02] p-3">
-                    <div className="flex gap-2">
-                      <Input
-                        value={replyBody}
-                        onChange={(e) => setReplyBody(e.target.value)}
-                        placeholder="Écrivez votre réponse..."
-                        className="flex-1"
-                        onKeyDown={(e) => { if (e.key === "Enter" && !e.shiftKey) { e.preventDefault(); handleReply(item.id); } }}
-                      />
-                      <Btn className="px-3 py-1.5 text-xs" onClick={() => handleReply(item.id)} disabled={sendingReply || !replyBody.trim()}>
-                        <Send size={14} /> {sendingReply ? "..." : "Envoyer"}
-                      </Btn>
-                      <Btn variant="ghost" className="px-3 py-1.5 text-xs" onClick={() => { setReplyingTo(null); setReplyBody(""); }}>Annuler</Btn>
+          {filteredInboxItems.length === 0 ? (
+            <div className="rounded-2xl border border-white/10 bg-white/[0.01] p-8 text-center">
+              <Mail size={32} className="mx-auto text-slate-600 mb-2" />
+              <p className="text-sm font-semibold text-slate-300">
+                {inboxFilter === "unread" ? "Aucune discussion non lue" : "Aucune conversation trouvée"}
+              </p>
+              <p className="mt-1 text-xs text-slate-500">
+                {inboxFilter === "unread"
+                  ? "Toutes vos conversations sont à jour."
+                  : "Aucune discussion ne correspond à votre critère de recherche."}
+              </p>
+              {inboxSearch && (
+                <button
+                  type="button"
+                  onClick={() => setInboxSearch("")}
+                  className="mt-3 inline-flex items-center gap-1 rounded-lg border border-white/10 px-3 py-1 text-xs text-cyan-300 hover:bg-white/5 transition"
+                >
+                  Effacer la recherche
+                </button>
+              )}
+            </div>
+          ) : (
+            filteredInboxItems.map((item) => {
+              const incoming = !item.isFromMe;
+              return (
+                <Card
+                  key={item.id}
+                  className={cn("p-5 transition", item.isUnread && "ring-1 ring-cyan-400/40 bg-cyan-950/[0.06]")}
+                  glow={incoming ? "cyan" : "green"}
+                >
+                  <div className="flex flex-wrap items-center justify-between gap-2 border-b border-white/5 pb-3">
+                    <div className="flex items-center gap-2.5">
+                      {incoming ? <Mail size={16} className="text-cyan-300" /> : <Send size={16} className="text-emerald-300" />}
+                      <p className="text-sm font-bold text-white">{item.subject}</p>
+                      {item.isUnread && (
+                        <span className="rounded-md border border-cyan-400/40 bg-cyan-400/15 px-2 py-0.5 text-[10px] font-bold text-cyan-300 shadow-sm">
+                          Non lu
+                        </span>
+                      )}
+                    </div>
+                    <div className="flex items-center gap-2">
+                      <span className="text-[11px] text-slate-500">{item.date}</span>
+                      {item.isUnread && (
+                        <button
+                          onClick={() => handleMarkAsRead(item)}
+                          title="Marquer cette discussion comme lue"
+                          className="rounded-lg p-1.5 text-slate-400 hover:bg-cyan-500/10 hover:text-cyan-300 transition"
+                        >
+                          <CheckCheck size={15} />
+                        </button>
+                      )}
+                      <button
+                        onClick={() => handleDeleteConversation(item)}
+                        title="Supprimer cette conversation"
+                        className="rounded-lg p-1.5 text-slate-500 hover:bg-red-500/10 hover:text-red-400 transition"
+                      >
+                        <Trash2 size={15} />
+                      </button>
                     </div>
                   </div>
-                ) : (
-                  <div className="mt-2 flex justify-end">
-                    <button
-                      onClick={() => { setReplyingTo(item.id); setReplyBody(""); }}
-                      className="inline-flex items-center gap-1 text-xs font-bold text-cyan-300 hover:text-cyan-200 hover:underline"
-                    >
-                      <Reply size={14} /> Répondre
-                    </button>
+
+                  {/* Fil des échanges */}
+                  <div className="my-3 space-y-2">
+                    {item.messages.map((m: any, idx: number) => {
+                      const fromMe = m.sender_id === user?.id;
+                      const senderObj = remoteProfiles.find((p) => p.id === m.sender_id) || db.users.find((u) => u.id === m.sender_id);
+                      const isStudentUser = user?.role === "student";
+                      const isAdminSender = senderObj?.role === "superadmin" || senderObj?.role === "admin";
+                      let authorName = senderObj?.name || (fromMe ? "Moi" : "Correspondant");
+                      if (isStudentUser && isAdminSender && !fromMe) {
+                        authorName = senderObj?.role === "superadmin" ? "Super Administrateur" : "Administration";
+                      }
+                      const role = senderObj?.role || (fromMe ? user?.role : "admin");
+                      const roleBadge =
+                        role === "superadmin" || role === "admin"
+                          ? { label: "🛡️ Direction", cls: "bg-red-500/20 text-red-300 border-red-500/40" }
+                          : role === "teacher"
+                          ? { label: "👨‍🏫 Formateur", cls: "bg-emerald-500/20 text-emerald-300 border-emerald-500/40" }
+                          : role === "partner" || role === "partner_admin"
+                          ? { label: "🤝 Partenaire", cls: "bg-amber-500/20 text-amber-300 border-amber-500/40" }
+                          : { label: "🎓 Apprenant", cls: "bg-cyan-500/20 text-cyan-300 border-cyan-500/40" };
+
+                      const bubbleBorder =
+                        fromMe
+                          ? "border-white/10 bg-white/[0.04] ml-6"
+                          : role === "superadmin" || role === "admin"
+                          ? "border-red-500/30 bg-red-950/20 mr-6 shadow-[0_0_12px_rgba(239,68,68,0.08)]"
+                          : role === "teacher"
+                          ? "border-emerald-500/30 bg-emerald-950/20 mr-6 shadow-[0_0_12px_rgba(16,185,129,0.08)]"
+                          : role === "partner" || role === "partner_admin"
+                          ? "border-amber-500/30 bg-amber-950/20 mr-6 shadow-[0_0_12px_rgba(245,158,11,0.08)]"
+                          : "border-cyan-400/30 bg-cyan-950/20 mr-6 shadow-[0_0_12px_rgba(6,182,212,0.08)]";
+
+                      const canDelete = fromMe || user?.role === "superadmin" || user?.role === "admin";
+
+                      return (
+                        <div key={m.id || idx} className={cn("group relative rounded-xl border p-3.5 text-sm transition", bubbleBorder)}>
+                          <div className="flex justify-between items-center mb-1.5 text-[11px] text-slate-400">
+                            <div className="flex items-center gap-2">
+                              <span className={cn("font-semibold", fromMe ? "text-slate-200" : "text-white")}>{authorName}</span>
+                              <span className={cn("rounded px-1.5 py-0.2 text-[9px] font-bold uppercase tracking-wider border", roleBadge.cls)}>
+                                {roleBadge.label}
+                              </span>
+                            </div>
+                            <div className="flex items-center gap-2">
+                              {m.created_at && <span className="font-mono text-[10px] text-slate-500">{new Date(m.created_at).toLocaleTimeString("fr-FR", { hour: "2-digit", minute: "2-digit" })}</span>}
+                              {canDelete && (
+                                <button
+                                  onClick={() => handleDeleteMessage(m, item)}
+                                  title="Supprimer ce message"
+                                  className="rounded p-1 text-slate-500 hover:bg-red-500/10 hover:text-red-400 transition"
+                                >
+                                  <Trash2 size={13} />
+                                </button>
+                              )}
+                            </div>
+                          </div>
+                          <p className="whitespace-pre-wrap text-slate-200 leading-relaxed">{m.body}</p>
+                        </div>
+                      );
+                    })}
                   </div>
-                )}
-              </Card>
-            );
-          })}
+
+                  {/* Action répondre */}
+                  {replyingTo === item.id ? (
+                    <div className="mt-3 rounded-xl border border-white/10 bg-white/[0.02] p-3">
+                      <div className="flex gap-2">
+                        <Input
+                          value={replyBody}
+                          onChange={(e) => setReplyBody(e.target.value)}
+                          placeholder="Écrivez votre réponse..."
+                          className="flex-1"
+                          onKeyDown={(e) => { if (e.key === "Enter" && !e.shiftKey) { e.preventDefault(); handleReply(item.id); } }}
+                        />
+                        <Btn className="px-3 py-1.5 text-xs" onClick={() => handleReply(item.id)} disabled={sendingReply || !replyBody.trim()}>
+                          <Send size={14} /> {sendingReply ? "..." : "Envoyer"}
+                        </Btn>
+                        <Btn variant="ghost" className="px-3 py-1.5 text-xs" onClick={() => { setReplyingTo(null); setReplyBody(""); }}>Annuler</Btn>
+                      </div>
+                    </div>
+                  ) : (
+                    <div className="mt-2 flex justify-end">
+                      <button
+                        onClick={() => {
+                          setReplyingTo(item.id);
+                          setReplyBody("");
+                          if (item.isUnread) handleMarkAsRead(item);
+                        }}
+                        className="inline-flex items-center gap-1 text-xs font-bold text-cyan-300 hover:text-cyan-200 hover:underline"
+                      >
+                        <Reply size={14} /> Répondre
+                      </button>
+                    </div>
+                  )}
+                </Card>
+              );
+            })
+          )}
         </div>
       )}
     </div>
