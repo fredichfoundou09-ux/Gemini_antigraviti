@@ -40,9 +40,8 @@ export function applyThemeToDOM(theme: UiTheme = getUiTheme()): void {
   if (typeof document === "undefined") return;
   const root = document.documentElement;
   
-  // Applique les attributs pour compatibilité totale
+  // Applique l'attribut standard unique
   root.setAttribute("data-theme", theme);
-  root.setAttribute("data-ui-theme", theme);
 
   root.classList.remove("theme-classic", "theme-crimson", "theme-modern", "theme-light");
   root.classList.add(`theme-${theme}`);

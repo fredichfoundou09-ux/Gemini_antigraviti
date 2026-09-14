@@ -112,7 +112,6 @@ describe("Gestionnaire de Thème Réversible (uiTheme)", () => {
     expect(mockStore["sn:ui-theme"]).toBe("light");
     expect(getUiTheme()).toBe("light");
     expect(rootAttributes["data-theme"]).toBe("light");
-    expect(rootAttributes["data-ui-theme"]).toBe("light");
     expect(rootClasses.has("theme-light")).toBe(true);
     expect(rootClasses.has("theme-classic")).toBe(false);
     expect(dispatchedEvents.length).toBeGreaterThan(0);
@@ -125,7 +124,6 @@ describe("Gestionnaire de Thème Réversible (uiTheme)", () => {
     expect(mockStore["sn:ui-theme"]).toBe("crimson");
     expect(getUiTheme()).toBe("crimson");
     expect(rootAttributes["data-theme"]).toBe("crimson");
-    expect(rootAttributes["data-ui-theme"]).toBe("crimson");
     expect(rootClasses.has("theme-crimson")).toBe(true);
     expect(rootClasses.has("theme-classic")).toBe(false);
     expect(dispatchedEvents.length).toBeGreaterThan(0);
@@ -135,18 +133,14 @@ describe("Gestionnaire de Thème Réversible (uiTheme)", () => {
   it("applique le thème au DOM correctement avec applyThemeToDOM", () => {
     applyThemeToDOM("crimson");
     expect(rootAttributes["data-theme"]).toBe("crimson");
-    expect(rootAttributes["data-ui-theme"]).toBe("crimson");
 
     applyThemeToDOM("modern");
     expect(rootAttributes["data-theme"]).toBe("modern");
-    expect(rootAttributes["data-ui-theme"]).toBe("modern");
 
     applyThemeToDOM("light");
     expect(rootAttributes["data-theme"]).toBe("light");
-    expect(rootAttributes["data-ui-theme"]).toBe("light");
 
     applyThemeToDOM("classic");
     expect(rootAttributes["data-theme"]).toBe("classic");
-    expect(rootAttributes["data-ui-theme"]).toBe("classic");
   });
 });

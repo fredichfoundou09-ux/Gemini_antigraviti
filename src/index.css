@@ -351,6 +351,12 @@ a:active:not(.disabled) {
    THÈME MODERNISÉ RÉVERSIBLE (Variante additive)
    Activé via le sélecteur [data-theme="modern"]
    L'interface par défaut (classique) reste 100% inchangée.
+   NOTE DE FRAGILITÉ : Le ciblage ci-dessous repose sur des sélecteurs
+   de classes utilitaires Tailwind précises (ex. .bg-white\/\[0\.02\]).
+   Si les classes utilitaires de certains composants sont modifiées ou
+   remaniées, ces règles cesseront silencieusement de s'appliquer.
+   Une migration vers des variables CSS sémantiques (--surface, --border)
+   pourra être envisagée lors d'un refactoring global de design system.
    ======================================================== */
 [data-theme="modern"] {
   --background: #030712;
@@ -381,34 +387,27 @@ a:active:not(.disabled) {
 
 /* ========================================================
    THÈME CLAIR RÉVERSIBLE (Inversion chromatique équilibrée)
-   Activé via html[data-ui-theme="light"] ou html[data-theme="light"]
+   Activé via html[data-theme="light"]
    ======================================================== */
-html[data-ui-theme="light"],
 html[data-theme="light"] {
   filter: invert(0.92) hue-rotate(180deg);
   background-color: #f1f5f9;
 }
 
 /* Inversion de compensation pour préserver les images, vidéos, QR codes, logos et graphiques */
-html[data-ui-theme="light"] img,
 html[data-theme="light"] img,
-html[data-ui-theme="light"] video,
 html[data-theme="light"] video,
-html[data-ui-theme="light"] canvas,
 html[data-theme="light"] canvas,
-html[data-ui-theme="light"] [role="img"],
 html[data-theme="light"] [role="img"],
-html[data-ui-theme="light"] .no-theme-invert,
 html[data-theme="light"] .no-theme-invert {
   filter: invert(1) hue-rotate(180deg);
 }
 
 /* ========================================================
    THÈME ROUGE SENTINELLE & CHROME (Inspiré du Blason 3D)
-   Activé via [data-theme="crimson"] ou [data-ui-theme="crimson"]
+   Activé via [data-theme="crimson"]
    ======================================================== */
-[data-theme="crimson"],
-[data-ui-theme="crimson"] {
+[data-theme="crimson"] {
   --background: #060608;
   --sentinel-bg: #060608;
   --color-night: #060608;
@@ -426,23 +425,20 @@ html[data-theme="light"] .no-theme-invert {
   --color-huddim: #475569;
 }
 
-[data-theme="crimson"] body,
-[data-ui-theme="crimson"] body {
+[data-theme="crimson"] body {
   background: radial-gradient(circle at 50% -10%, #2b040c 0%, #0c0b10 45%, #050507 90%);
   background-attachment: fixed;
   color: #f1f5f9;
 }
 
-[data-theme="crimson"] header,
-[data-ui-theme="crimson"] header {
+[data-theme="crimson"] header {
   backdrop-filter: blur(16px);
   background-color: rgba(10, 10, 14, 0.9) !important;
   border-bottom: 1px solid rgba(255, 23, 79, 0.35) !important;
   box-shadow: 0 4px 20px -2px rgba(255, 23, 79, 0.15);
 }
 
-[data-theme="crimson"] aside,
-[data-ui-theme="crimson"] aside {
+[data-theme="crimson"] aside {
   background-color: rgba(8, 8, 12, 0.95) !important;
   border-right: 1px solid rgba(255, 23, 79, 0.2) !important;
 }
