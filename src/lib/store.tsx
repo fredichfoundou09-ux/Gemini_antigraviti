@@ -290,7 +290,7 @@ export function StoreProvider({ children }: { children: React.ReactNode }) {
           supabase.from("student_modules").select("*"),
           supabase.from("teachers").select("*"),
           supabase.from("teacher_modules").select("*"),
-          supabase.from("courses").select("*, files:course_files(*)"),
+          supabase.from("courses").select("*, course_files(*)"),
           supabase.from("schedule").select("*"),
           supabase.from("attendance").select("*"),
           supabase.from("invoices").select("*"),
@@ -447,31 +447,54 @@ export function StoreProvider({ children }: { children: React.ReactNode }) {
               montantPayeOverride: prevT?.montantPayeOverride,
             };
           }),
-          courses: (!coursesRes.error && coursesRes.data ? coursesRes.data : prev.courses).map((c: any) => ({
-            id: c.id, titre: c.titre, description: c.description || "", moduleId: c.module_id || c.moduleId,
-            teacherId: c.teacher_id || c.teacherId, type: c.type as any, date: c.date_publication?.slice(0, 10) || c.date || "",
-            audience: c.audience as any, publie: c.publie, content: c.content || "",
-            files: (c.files || []).map((f: any) => {
-              const fname = f.original_name || f.originalName || f.nom || f.name || f.stored_name || "document";
-              const fsize = Number(f.size || f.taille || 0);
-              const ftype = f.mime || f.type || "application/octet-stream";
-              const furl = f.dataUrl || f.url || f.storage_key || "";
-              return {
-                id: f.id,
-                name: fname,
-                originalName: fname,
-                nom: fname,
-                size: fsize,
-                taille: fsize,
-                mime: ftype,
-                type: ftype,
-                dataUrl: furl,
-                url: furl,
-                storageKey: f.storage_key || (furl.startsWith("http") ? "" : furl),
-                uploadedAt: f.uploaded_at || f.uploadedAt || "",
-              };
-            })
-          })),
+          courses: (!coursesRes.error && coursesRes.data ? coursesRes.data : prev.courses).map((c: any) => {
+            const rawFiles: any[] = (() => {
+              if (Array.isArray(c.course_files) && c.course_files.length > 0) return c.course_files;
+              if (Array.isArray(c.files) && c.files.length > 0) return c.files;
+              if (typeof c.files === "string" && c.files.trim().startsWith("[")) {
+                try {
+                  const parsed = JSON.parse(c.files);
+                  if (Array.isArray(parsed) && parsed.length > 0) return parsed;
+                } catch { /* ignore */ }
+              }
+              const prevMatch = prev.courses?.find((pc: any) => pc.id === c.id);
+              if (prevMatch?.files && prevMatch.files.length > 0) return prevMatch.files;
+              return [];
+            })();
+
+            return {
+              id: c.id,
+              titre: c.titre,
+              description: c.description || "",
+              moduleId: c.module_id || c.moduleId,
+              teacherId: c.teacher_id || c.teacherId,
+              type: c.type as any,
+              date: c.date_publication?.slice(0, 10) || c.date || "",
+              audience: c.audience as any,
+              publie: c.publie,
+              content: c.content || "",
+              files: rawFiles.map((f: any) => {
+                const fname = f.originalName || f.original_name || f.nom || f.name || f.stored_name || "document";
+                const fsize = Number(f.size || f.taille || 0);
+                const ftype = f.mime || f.type || "application/octet-stream";
+                const furl = f.dataUrl || f.url || f.storage_key || f.storageKey || "";
+                return {
+                  id: f.id || `f-${Math.random().toString(36).slice(2, 8)}`,
+                  name: fname,
+                  originalName: fname,
+                  nom: fname,
+                  size: fsize,
+                  taille: fsize,
+                  mime: ftype,
+                  type: ftype,
+                  dataUrl: furl,
+                  url: furl,
+                  storageKey: f.storage_key || f.storageKey || (furl.startsWith("http") ? "" : furl),
+                  uploadedAt: f.uploaded_at || f.uploadedAt || "",
+                };
+              }),
+            };
+          }),
           schedule: (() => {
             const capitalizeDay = (d: string) => {
               if (!d) return "Lundi";

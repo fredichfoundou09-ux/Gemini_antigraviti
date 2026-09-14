@@ -470,7 +470,7 @@ export default function DashboardLayout() {
 
                         <button
                           type="button"
-                          onClick={() => { setSearchOpen(false); navigate("/app/finances"); }}
+                          onClick={() => { setSearchOpen(false); navigate("/app/paiements"); }}
                           className="flex items-center gap-2.5 rounded-xl border border-white/10 bg-white/[0.03] p-2.5 text-left text-xs text-white hover:border-cyan-400/40 hover:bg-cyan-400/10 transition group"
                         >
                           <Wallet size={16} className="text-rose-400 group-hover:scale-110 transition" />
@@ -482,7 +482,7 @@ export default function DashboardLayout() {
 
                         <button
                           type="button"
-                          onClick={() => { setSearchOpen(false); navigate("/app/messagerie"); }}
+                          onClick={() => { setSearchOpen(false); navigate("/app/messages"); }}
                           className="flex items-center gap-2.5 rounded-xl border border-white/10 bg-white/[0.03] p-2.5 text-left text-xs text-white hover:border-cyan-400/40 hover:bg-cyan-400/10 transition group"
                         >
                           <MessagesSquare size={16} className="text-sky-400 group-hover:scale-110 transition" />
@@ -774,7 +774,7 @@ export default function DashboardLayout() {
                                 type="button"
                                 onClick={() => {
                                   setSearchOpen(false);
-                                  navigate("/app/messagerie");
+                                  navigate("/app/messages");
                                 }}
                                 className="w-full flex items-center justify-between rounded-xl border border-white/5 bg-white/[0.02] p-2.5 text-left text-xs hover:border-blue-400/30 hover:bg-white/5 transition"
                               >

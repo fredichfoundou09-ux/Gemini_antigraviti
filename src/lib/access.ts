@@ -66,15 +66,46 @@ export function studentCanSeeCourse(db: DB, studentId: string, c: Course): boole
   if (c.publie === false) return false;
   const s = db.students.find((x) => x.id === studentId);
   if (!s) return false;
-  if (!s.modules || !s.modules.includes(c.moduleId)) return false;
 
+  // 1. Si ciblé expressément par apprenants
   if (c.audience === "apprenants" && c.studentIds && c.studentIds.length > 0) {
     return c.studentIds.includes(s.id);
   }
+
+  // 2. Si ciblé par groupe
   if (c.audience === "groupe" && c.groupe) {
     if ((s as any).groupe && (s as any).groupe !== c.groupe) return false;
   }
-  return true;
+
+  // 3. Correspondance directe du module
+  const sMods = s.modules || [];
+  if (sMods.includes(c.moduleId)) return true;
+
+  // 4. Correspondance souple par module / titre / code / formation
+  const courseMod = db.modules.find((m) => m.id === c.moduleId || (m as any).code === c.moduleId);
+  if (courseMod) {
+    const hasModMatch = sMods.some((smId) => {
+      if (smId === courseMod.id) return true;
+      const sm = db.modules.find((m) => m.id === smId);
+      return sm && (sm.titre === courseMod.titre || (sm as any).code === (courseMod as any).code || sm.numero === courseMod.numero);
+    });
+    if (hasModMatch) return true;
+
+    if (courseMod.formation && s.formation && courseMod.formation === s.formation) {
+      return true;
+    }
+  }
+
+  if (c.formation && s.formation && c.formation === s.formation) {
+    return true;
+  }
+
+  // Si pas de module spécifié ou audience globale
+  if (!c.moduleId) {
+    return true;
+  }
+
+  return false;
 }
 
 /** Un enseignant peut-il gérer ce cours ? */

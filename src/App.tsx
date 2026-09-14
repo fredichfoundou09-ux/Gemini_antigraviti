@@ -186,7 +186,10 @@ export default function App() {
             <Route path="etudiant/finances" element={<Gate roles={["student"]}><MyPayments /></Gate>} />
             <Route path="mon-certificat" element={<Gate roles={["student"]}><MyCertificate /></Gate>} />
             <Route path="ma-bourse" element={<Gate roles={["student"]}><MyScholarship /></Gate>} />
+            <Route path="finances" element={<Navigate to="/app/paiements" replace />} />
+            <Route path="messagerie" element={<Navigate to="/app/messages" replace />} />
             <Route index element={<Navigate to="dashboard" replace />} />
+            <Route path="*" element={<Navigate to="/app/dashboard" replace />} />
           </Route>
 
           <Route path="*" element={<Navigate to="/" replace />} />

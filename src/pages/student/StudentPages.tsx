@@ -60,9 +60,11 @@ async function downloadCourseContent(course: any) {
     return;
   }
 
-  // 3. Si aucun fichier binaire n'est fourni par l'enseignant, générer un document Word officiel (.doc)
-  const title = course.titre || "Support de cours";
-  const docHtml = `<!DOCTYPE html>
+  // 3. Si aucun fichier binaire n'est attaché, exporter le texte rédigé s'il existe
+  const pureText = (course.content || course.description || "").trim();
+  if (pureText) {
+    const title = course.titre || "Support de cours";
+    const docHtml = `<!DOCTYPE html>
 <html>
 <head>
 <meta charset="utf-8">
@@ -85,20 +87,23 @@ async function downloadCourseContent(course: any) {
   </div>
   ${course.description ? `<h3>Description</h3><p>${course.description}</p>` : ""}
   <h3>Contenu du cours</h3>
-  <div class="content">${course.content || course.description || "Support pédagogique enregistré dans le système."}</div>
+  <div class="content">${pureText}</div>
   <div class="footer">Sentinelles Numériques — Espace Apprenant</div>
 </body>
 </html>`;
 
-  const blob = new Blob([docHtml], { type: "application/msword;charset=utf-8" });
-  const url = URL.createObjectURL(blob);
-  const a = document.createElement("a");
-  a.href = url;
-  a.download = `${safeFileName(course.titre || "support")}.doc`;
-  document.body.appendChild(a);
-  a.click();
-  document.body.removeChild(a);
-  URL.revokeObjectURL(url);
+    const blob = new Blob([docHtml], { type: "application/msword;charset=utf-8" });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement("a");
+    a.href = url;
+    a.download = `${safeFileName(course.titre || "support")}.doc`;
+    document.body.appendChild(a);
+    a.click();
+    document.body.removeChild(a);
+    URL.revokeObjectURL(url);
+  } else {
+    toastMsg.info("Aucun document attaché", "Ce cours n'a pas de fichier téléchargeable joint.");
+  }
 }
 
 function getStudent(db: any, user: any) {

@@ -1500,23 +1500,50 @@ export function CoursesPage() {
       files: form.files, publie: form.publie,
     };
 
+    let createdCourseId: string | null = null;
     if (isSupabaseConfigured) {
       try {
         const isModUuid = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(form.moduleId);
-        const { data: modData } = isModUuid ? await supabase.from("modules").select("id").eq("id", form.moduleId).maybeSingle() : { data: null };
-        const realModuleId = modData?.id || null;
+        let realModuleId: string | null = null;
+        if (isModUuid) {
+          const { data: modData } = await supabase.from("modules").select("id").eq("id", form.moduleId).maybeSingle();
+          realModuleId = modData?.id || null;
+        }
+        if (!realModuleId) {
+          if (module?.titre) {
+            const { data: modByTitle } = await supabase.from("modules").select("id").ilike("titre", `%${module.titre}%`).limit(1).maybeSingle();
+            realModuleId = modByTitle?.id || null;
+          }
+          if (!realModuleId) {
+            const { data: firstMod } = await supabase.from("modules").select("id").limit(1).maybeSingle();
+            realModuleId = firstMod?.id || null;
+          }
+        }
+
+        let realTeacherId: string | null = t?.id || null;
+        if (realTeacherId) {
+          const { data: teachData } = await supabase.from("teachers").select("id").eq("id", realTeacherId).maybeSingle();
+          if (!teachData?.id) {
+            const { data: firstTeach } = await supabase.from("teachers").select("id").limit(1).maybeSingle();
+            realTeacherId = firstTeach?.id || null;
+          }
+        }
+
+        const courseRecord = {
+          titre: form.titre.trim(),
+          description: form.description || "",
+          module_id: realModuleId,
+          teacher_id: realTeacherId,
+          type: form.type || "cours",
+          content: form.content || "",
+          audience: form.audience || "module",
+          publie: form.publie ?? true,
+          files: form.files || [],
+        };
 
         if (editing) {
-          await supabase.from("courses").update({
-            titre: form.titre.trim(),
-            description: form.description || "",
-            module_id: realModuleId,
-            teacher_id: t?.id || null,
-            type: form.type || "cours",
-            content: form.content || "",
-            audience: form.audience || "module",
-            publie: form.publie ?? true,
-          }).eq("id", editing.id);
+          await supabase.from("courses").update(courseRecord).eq("id", editing.id);
+          createdCourseId = editing.id;
 
           if (form.files?.length) {
             await supabase.from("course_files").delete().eq("course_id", editing.id);
@@ -1524,7 +1551,7 @@ export function CoursesPage() {
               const fname = f.originalName || f.name || f.nom || "document";
               const fsize = Number(f.size || f.taille || 0);
               const ftype = f.mime || f.type || "application/octet-stream";
-              const furl = f.dataUrl || f.url || "";
+              const furl = f.dataUrl || f.url || f.storageKey || "";
               return {
                 course_id: editing.id,
                 nom: fname,
@@ -1539,54 +1566,49 @@ export function CoursesPage() {
               };
             }));
           }
-          toastMsg.success("Support mis à jour côté serveur ✓");
+          toastMsg.success("Support mis à jour avec ses documents originaux ✓");
         } else {
-          const { data: newCourse, error: cErr } = await supabase.from("courses").insert({
-            titre: form.titre.trim(),
-            description: form.description || "",
-            module_id: realModuleId,
-            teacher_id: t?.id || null,
-            type: form.type || "cours",
-            content: form.content || "",
-            audience: form.audience || "module",
-            publie: form.publie ?? true,
-          }).select("id").single();
+          const { data: newCourse, error: cErr } = await supabase.from("courses").insert(courseRecord).select("id").single();
           if (cErr) throw cErr;
 
-          if (form.files?.length && newCourse?.id) {
-            await supabase.from("course_files").insert(form.files.map((f: any) => {
-              const fname = f.originalName || f.name || f.nom || "document";
-              const fsize = Number(f.size || f.taille || 0);
-              const ftype = f.mime || f.type || "application/octet-stream";
-              const furl = f.dataUrl || f.url || "";
-              return {
-                course_id: newCourse.id,
-                nom: fname,
-                original_name: fname,
-                stored_name: fname,
-                taille: fsize,
-                size: fsize,
-                type: ftype,
-                mime: ftype,
-                url: furl,
-                storage_key: furl,
-              };
-            }));
+          if (newCourse?.id) {
+            createdCourseId = newCourse.id;
+            if (form.files?.length) {
+              await supabase.from("course_files").insert(form.files.map((f: any) => {
+                const fname = f.originalName || f.name || f.nom || "document";
+                const fsize = Number(f.size || f.taille || 0);
+                const ftype = f.mime || f.type || "application/octet-stream";
+                const furl = f.dataUrl || f.url || f.storageKey || "";
+                return {
+                  course_id: newCourse.id,
+                  nom: fname,
+                  original_name: fname,
+                  stored_name: fname,
+                  taille: fsize,
+                  size: fsize,
+                  type: ftype,
+                  mime: ftype,
+                  url: furl,
+                  storage_key: furl,
+                };
+              }));
+            }
           }
-          toastMsg.success("Nouveau support publié côté serveur ✓");
+          toastMsg.success("Nouveau support et document(s) publiés avec succès ✓");
         }
         window.dispatchEvent(new Event("sentinelles:supabase-refresh"));
       } catch (err: any) {
-        toastMsg.error("Erreur enregistrement support", err.message);
+        console.error("Erreur enregistrement support Supabase:", err);
+        toastMsg.error("Avertissement serveur", err.message || "Enregistrement local conservé");
       }
     }
 
     if (editing) {
-      update((d) => ({ ...d, courses: d.courses.map((x) => (x.id === editing.id ? { ...x, ...payload } : x)) }));
+      update((d) => ({ ...d, courses: d.courses.map((x) => (x.id === editing.id ? { ...x, ...payload, files: form.files } : x)) }));
       log(`Cours modifié : ${form.titre}`);
     } else {
-      const id = uid("CRS");
-      update((d) => ({ ...d, courses: [{ id, ...payload, teacherId: t?.id ?? "", date: today() } as any, ...d.courses] }));
+      const id = createdCourseId || uid("CRS");
+      update((d) => ({ ...d, courses: [{ id, ...payload, files: form.files, teacherId: t?.id ?? "", date: today() } as any, ...d.courses] }));
       log(`Cours publié : ${form.titre}${form.files.length ? ` (${form.files.length} fichier(s))` : ""}`);
       if (form.publie) notifyTargets(payload.audience, module?.id, payload.groupe, payload.studentIds, form.titre);
     }

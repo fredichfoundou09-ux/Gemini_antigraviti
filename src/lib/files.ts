@@ -79,9 +79,14 @@ export async function ingestFile(file: File): Promise<CourseFile> {
         contentType: file.type || undefined,
       });
       if (!error && data?.path) {
-        const { data: signed } = await supabase.storage.from("course-files").createSignedUrl(storagePath, 60 * 60 * 24 * 365);
-        if (signed?.signedUrl) {
-          finalUrl = signed.signedUrl;
+        const { data: pubData } = supabase.storage.from("course-files").getPublicUrl(storagePath);
+        if (pubData?.publicUrl) {
+          finalUrl = pubData.publicUrl;
+        } else {
+          const { data: signed } = await supabase.storage.from("course-files").createSignedUrl(storagePath, 60 * 60 * 24 * 365);
+          if (signed?.signedUrl) {
+            finalUrl = signed.signedUrl;
+          }
         }
       }
     } catch (e) {
@@ -89,6 +94,8 @@ export async function ingestFile(file: File): Promise<CourseFile> {
     }
   }
 
+  // Si pas d'URL distante ou si stockage hors-ligne, lire en dataUrl Base64 complet
+  // Ainsi le fichier original et son contenu binaire exact sont 100% préservés
   if (!finalUrl) {
     finalUrl = await readFileAsDataUrl(file);
   }
@@ -115,19 +122,53 @@ export function fileKind(mime: string, name?: string): string {
   return "Fichier";
 }
 
-/** Déclenche le téléchargement d'un fichier (CourseFile ou équivalent) dans son format d'origine (PDF, Word, etc.). */
+/** Déclenche le téléchargement d'un fichier (CourseFile ou équivalent) dans son format et contenu d'origine (PDF, Word, Excel, etc.). */
 export async function downloadFile(f: CourseFile | { name?: string; originalName?: string; nom?: string; mime?: string; type?: string; size?: number; taille?: number; dataUrl?: string; url?: string; storage_key?: string }) {
   if (!f) return;
   const fileName = f.originalName || f.name || (f as any).nom || "document";
-  const fileUrl = f.dataUrl || (f as any).url || (f as any).storage_key || "";
+  const fileUrl = f.dataUrl || (f as any).url || (f as any).storage_key || (f as any).storageKey || "";
 
   if (!fileUrl) {
     console.warn("downloadFile: aucune URL ou donnée pour le fichier", f);
     return;
   }
 
-  // 1. Data URL (Base64) ou Blob URL direct
-  if (fileUrl.startsWith("data:") || fileUrl.startsWith("blob:")) {
+  // 1. Data URL (Base64) : reconstruction d'un Blob binaire natif pour garantir le format et le contenu exacts
+  if (fileUrl.startsWith("data:")) {
+    try {
+      const parts = fileUrl.split(",");
+      const mimeMatch = parts[0].match(/:(.*?);/);
+      const mime = mimeMatch ? mimeMatch[1] : (f.mime || (f as any).type || "application/octet-stream");
+      const bstr = atob(parts[1]);
+      let n = bstr.length;
+      const u8arr = new Uint8Array(n);
+      while (n--) {
+        u8arr[n] = bstr.charCodeAt(n);
+      }
+      const blob = new Blob([u8arr], { type: mime });
+      const blobUrl = URL.createObjectURL(blob);
+      const a = document.createElement("a");
+      a.href = blobUrl;
+      a.download = fileName;
+      document.body.appendChild(a);
+      a.click();
+      document.body.removeChild(a);
+      setTimeout(() => URL.revokeObjectURL(blobUrl), 10000);
+      return;
+    } catch (e) {
+      console.warn("downloadFile data-url parse error, fallback href direct:", e);
+      const a = document.createElement("a");
+      a.href = fileUrl;
+      a.download = fileName;
+      document.body.appendChild(a);
+      a.click();
+      document.body.removeChild(a);
+      return;
+    }
+  }
+
+  // 2. Blob URL direct
+  if (fileUrl.startsWith("blob:")) {
     const a = document.createElement("a");
     a.href = fileUrl;
     a.download = fileName;
@@ -137,7 +178,7 @@ export async function downloadFile(f: CourseFile | { name?: string; originalName
     return;
   }
 
-  // 2. Si c'est un chemin de stockage Supabase (ex: 'courses/123.pdf' ou 'course-files/courses/...')
+  // 3. Clé de stockage relative Supabase (ex: 'courses/123.pdf' ou 'course-files/courses/...')
   if (isSupabaseConfigured && !fileUrl.startsWith("http://") && !fileUrl.startsWith("https://")) {
     try {
       const cleanPath = fileUrl.replace(/^course-files\//, "");
@@ -150,7 +191,7 @@ export async function downloadFile(f: CourseFile | { name?: string; originalName
         document.body.appendChild(a);
         a.click();
         document.body.removeChild(a);
-        URL.revokeObjectURL(blobUrl);
+        setTimeout(() => URL.revokeObjectURL(blobUrl), 10000);
         return;
       }
     } catch (e) {
@@ -158,7 +199,7 @@ export async function downloadFile(f: CourseFile | { name?: string; originalName
     }
   }
 
-  // 3. Si c'est une URL HTTP/HTTPS (Supabase signed URL ou URL publique)
+  // 4. URL HTTP/HTTPS (Supabase Storage public/signed URL ou URL distante)
   if (fileUrl.startsWith("http://") || fileUrl.startsWith("https://")) {
     try {
       const res = await fetch(fileUrl, { mode: "cors" });
@@ -171,11 +212,11 @@ export async function downloadFile(f: CourseFile | { name?: string; originalName
         document.body.appendChild(a);
         a.click();
         document.body.removeChild(a);
-        URL.revokeObjectURL(blobUrl);
+        setTimeout(() => URL.revokeObjectURL(blobUrl), 10000);
         return;
       }
     } catch {
-      // Si CORS restreint le fetch direct, déclencher le téléchargement navigateur avec attribut download
+      // Si CORS bloque le fetch, téléchargement direct via ancre
     }
 
     const a = document.createElement("a");
@@ -189,7 +230,7 @@ export async function downloadFile(f: CourseFile | { name?: string; originalName
     return;
   }
 
-  // Fallback direct
+  // 5. Fallback par défaut
   const a = document.createElement("a");
   a.href = fileUrl;
   a.download = fileName;
