@@ -1520,13 +1520,24 @@ export function CoursesPage() {
 
           if (form.files?.length) {
             await supabase.from("course_files").delete().eq("course_id", editing.id);
-            await supabase.from("course_files").insert(form.files.map((f: any) => ({
-              course_id: editing.id,
-              nom: f.name || f.originalName,
-              taille: f.size,
-              type: f.mime,
-              url: f.dataUrl,
-            })));
+            await supabase.from("course_files").insert(form.files.map((f: any) => {
+              const fname = f.originalName || f.name || f.nom || "document";
+              const fsize = Number(f.size || f.taille || 0);
+              const ftype = f.mime || f.type || "application/octet-stream";
+              const furl = f.dataUrl || f.url || "";
+              return {
+                course_id: editing.id,
+                nom: fname,
+                original_name: fname,
+                stored_name: fname,
+                taille: fsize,
+                size: fsize,
+                type: ftype,
+                mime: ftype,
+                url: furl,
+                storage_key: furl,
+              };
+            }));
           }
           toastMsg.success("Support mis à jour côté serveur ✓");
         } else {
@@ -1543,13 +1554,24 @@ export function CoursesPage() {
           if (cErr) throw cErr;
 
           if (form.files?.length && newCourse?.id) {
-            await supabase.from("course_files").insert(form.files.map((f: any) => ({
-              course_id: newCourse.id,
-              nom: f.name || f.originalName,
-              taille: f.size,
-              type: f.mime,
-              url: f.dataUrl,
-            })));
+            await supabase.from("course_files").insert(form.files.map((f: any) => {
+              const fname = f.originalName || f.name || f.nom || "document";
+              const fsize = Number(f.size || f.taille || 0);
+              const ftype = f.mime || f.type || "application/octet-stream";
+              const furl = f.dataUrl || f.url || "";
+              return {
+                course_id: newCourse.id,
+                nom: fname,
+                original_name: fname,
+                stored_name: fname,
+                taille: fsize,
+                size: fsize,
+                type: ftype,
+                mime: ftype,
+                url: furl,
+                storage_key: furl,
+              };
+            }));
           }
           toastMsg.success("Nouveau support publié côté serveur ✓");
         }

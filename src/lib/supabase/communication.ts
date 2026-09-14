@@ -258,3 +258,22 @@ export function subscribeToNotifications(userId: string, onInsert: (n: any) => v
     },
   };
 }
+
+export async function fetchMessagingRecipients() {
+  const sb = getSupabase();
+  try {
+    const { data, error } = await sb.rpc("get_messaging_recipients");
+    if (!error && Array.isArray(data) && data.length > 0) {
+      return data;
+    }
+  } catch {
+    /* fallback to direct select */
+  }
+  try {
+    const { data } = await sb.from("profiles").select("id, name, username, email, role, active").eq("active", true);
+    return data || [];
+  } catch {
+    return [];
+  }
+}
+

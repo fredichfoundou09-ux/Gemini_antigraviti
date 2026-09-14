@@ -5,7 +5,7 @@ import { useStore } from "@/lib/store";
 import { cn } from "@/utils/cn";
 import { Btn, Card, Field, Input, Textarea, Empty, PageHead, uid, today } from "@/lib/ui";
 import { isSupabaseConfigured, getSupabase } from "@/lib/supabase/client";
-import { fetchMyConversations, startConversation, replyToConversation, subscribeToAllMessages, deleteConversation, deleteMessage } from "@/lib/supabase/communication";
+import { fetchMyConversations, startConversation, replyToConversation, subscribeToAllMessages, deleteConversation, deleteMessage, fetchMessagingRecipients } from "@/lib/supabase/communication";
 import { toastMsg } from "@/lib/toast";
 import {
   markNotificationAsRead,
@@ -29,7 +29,7 @@ export function MessageCenter() {
   const { db, user, update, userName, log } = useStore();
   const [searchParams] = useSearchParams();
   const [mode, setMode] = useState<"inbox" | "new">("inbox");
-  const [to, setTo] = useState("all_students");
+  const [to, setTo] = useState(user?.role === "student" ? "" : "all_students");
   const [subject, setSubject] = useState("");
   const [body, setBody] = useState("");
   const [sending, setSending] = useState(false);
@@ -45,14 +45,17 @@ export function MessageCenter() {
   const [inboxFilter, setInboxFilter] = useState<"all" | "unread">("all");
   const [inboxSearch, setInboxSearch] = useState("");
 
-  // Charger les profils Supabase réels
+  // Charger les profils Supabase réels (annuaire de messagerie)
   const loadProfiles = async () => {
     if (!isSupabaseConfigured) return;
     try {
-      const sb = getSupabase();
-      const { data } = await sb.from("profiles").select("id, name, username, email, role").order("name");
-      if (data && data.length > 0) setRemoteProfiles(data);
-    } catch { /* fallback */ }
+      const data = await fetchMessagingRecipients();
+      if (Array.isArray(data) && data.length > 0) {
+        setRemoteProfiles(data);
+      }
+    } catch (e) {
+      console.warn("loadProfiles fallback:", e);
+    }
   };
 
   // Charger les conversations Supabase
@@ -223,7 +226,23 @@ export function MessageCenter() {
           const tIds = remoteProfiles.filter((p) => p.role === "teacher").map((p) => p.id);
           memberIds = tIds.length > 0 ? tIds : db.users.filter((u) => u.role === "teacher").map((u) => u.id);
         } else {
-          memberIds = [to];
+          let resolvedTo = to;
+          const isUuid = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(to);
+          if (!isUuid) {
+            const t = db.teachers?.find((x) => x.id === to || x.userId === to);
+            const s = db.students?.find((x) => x.id === to || x.userId === to);
+            const u = db.users?.find((x) => x.id === to);
+            const email = t?.email || s?.email || u?.email;
+            if (t?.userId && /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(t.userId)) {
+              resolvedTo = t.userId;
+            } else if (s?.userId && /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(s.userId)) {
+              resolvedTo = s.userId;
+            } else if (email) {
+              const matched = remoteProfiles.find((p) => p.email && p.email.toLowerCase() === email.toLowerCase());
+              if (matched?.id) resolvedTo = matched.id;
+            }
+          }
+          memberIds = [resolvedTo];
         }
 
         await startConversation(subject.trim(), memberIds, body.trim());
@@ -368,7 +387,7 @@ export function MessageCenter() {
     }
   };
 
-  const targets = useMemo(() => {
+  const { targets, targetCounts } = useMemo(() => {
     const opts: { id: string; label: string; icon: React.ReactNode; category: "broadcast" | "admin" | "teacher" | "student" }[] = [];
     const isStudent = user?.role === "student";
 
@@ -382,67 +401,131 @@ export function MessageCenter() {
     const seen = new Set<string>();
     if (user?.id) seen.add(user.id);
 
-    // Rassembler tous les profils (distants et locaux)
-    const allCandidates = [
-      ...remoteProfiles,
-      ...db.users.map((u) => ({ id: u.id, name: u.name, username: u.username, role: u.role })),
-    ];
+    // Rassembler tous les profils (distants Supabase, utilisateurs locaux, enseignants et apprenants de la base)
+    const candidates: Array<{ id: string; name: string; username?: string; email?: string; role: string }> = [];
 
-    allCandidates.forEach((p) => {
+    // 1. Profils distants Supabase
+    (remoteProfiles || []).forEach((p) => {
+      if (p.id) candidates.push({ id: p.id, name: p.name || p.username || "Utilisateur", username: p.username, email: p.email, role: p.role || "student" });
+    });
+
+    // 2. Utilisateurs déclarés dans le store
+    (db.users || []).forEach((u) => {
+      if (u.id) candidates.push({ id: u.id, name: u.name || u.username, username: u.username, email: u.email, role: u.role || "student" });
+    });
+
+    // 3. Enseignants déclarés dans le store (avec leur userId ou id)
+    (db.teachers || []).forEach((t: any) => {
+      const targetId = t.userId || t.id;
+      if (targetId) {
+        const teacherName = t.nom && t.prenom ? `${t.prenom} ${t.nom}` : t.nom || t.name || t.email || "Formateur";
+        candidates.push({
+          id: targetId,
+          name: teacherName,
+          username: t.email,
+          email: t.email,
+          role: "teacher",
+        });
+      }
+    });
+
+    // 4. Apprenants déclarés dans le store (avec leur userId ou id)
+    (db.students || []).forEach((s: any) => {
+      const targetId = s.userId || s.id;
+      if (targetId) {
+        const studentName = s.nom && s.prenom ? `${s.prenom} ${s.nom}` : s.nom || s.name || s.email || "Apprenant";
+        candidates.push({
+          id: targetId,
+          name: studentName,
+          username: s.matricule || s.email || s.id,
+          email: s.email,
+          role: "student",
+        });
+      }
+    });
+
+    // Traitement et catégorisation des profils
+    let hasAdmin = false;
+    candidates.forEach((p) => {
       if (!p.id || seen.has(p.id)) return;
       seen.add(p.id);
 
+      const r = (p.role || "").toLowerCase();
+      const isAdmin = r === "superadmin" || r === "admin" || r === "partner_admin";
+      const isTeacher = r === "teacher" || r === "enseignant" || r === "formateur";
+      const isStudentRole = r === "student" || r === "apprenant" || (!isAdmin && !isTeacher);
+
+      if (isAdmin) hasAdmin = true;
+
       if (isStudent) {
-        // Pour les étudiants : masquer strictement le nom personnel des administrateurs
-        if (p.role === "superadmin") {
+        if (isAdmin) {
           opts.push({
             id: p.id,
-            label: "🛡️ Direction (Super Administrateur)",
-            icon: <ShieldCheck size={14} className="text-red-400" />,
+            label: p.role === "superadmin" ? "🛡️ Direction Générale (Super Admin)" : `🛡️ Administration & Scolarité (${p.name || "Direction"})`,
+            icon: <ShieldCheck size={14} className={p.role === "superadmin" ? "text-red-400" : "text-cyan-400"} />,
             category: "admin",
           });
-        } else if (p.role === "admin" || p.role === "partner_admin") {
+        } else if (isTeacher) {
           opts.push({
             id: p.id,
-            label: "🛡️ Scolarité & Support (Administration)",
-            icon: <ShieldCheck size={14} className="text-cyan-400" />,
-            category: "admin",
-          });
-        } else if (p.role === "teacher") {
-          opts.push({
-            id: p.id,
-            label: `👨‍🏫 ${p.name || p.username} (Formateur)`,
+            label: `👨‍🏫 ${p.name || p.username || "Formateur"} (Formateur)`,
             icon: <UserCircle2 size={14} className="text-emerald-400" />,
             category: "teacher",
           });
-        } else if (p.role === "student") {
+        } else if (isStudentRole) {
           opts.push({
             id: p.id,
-            label: `🎓 ${p.name || p.username} (Apprenant)`,
+            label: `🎓 ${p.name || p.username || "Apprenant"} (Apprenant)`,
             icon: <Users size={14} className="text-purple-400" />,
             category: "student",
           });
         }
       } else {
-        const isAdm = p.role === "superadmin" || p.role === "admin" || p.role === "partner_admin";
-        const isTeach = p.role === "teacher";
-        const cat = isAdm ? "admin" : isTeach ? "teacher" : "student";
-        const rTag = p.role === "superadmin" ? "Super Admin" : p.role === "admin" ? "Admin" : p.role === "teacher" ? "Formateur" : "Apprenant";
+        const cat = isAdmin ? "admin" : isTeacher ? "teacher" : "student";
+        const rTag = p.role === "superadmin" ? "Super Admin" : p.role === "admin" ? "Admin" : isTeacher ? "Formateur" : "Apprenant";
         opts.push({
           id: p.id,
           label: `${p.name || p.username} (${rTag})`,
-          icon: <UserCircle2 size={14} />,
+          icon: <UserCircle2 size={14} className={isAdmin ? "text-cyan-400" : isTeacher ? "text-emerald-400" : "text-purple-400"} />,
           category: cat,
         });
       }
     });
 
-    return opts.filter((t) => {
+    // Filet institutionnel pour apprenants : s'assurer qu'un contact Direction existe toujours
+    if (isStudent && !hasAdmin) {
+      const adminFallbackId = db.users?.find((u) => u.role === "superadmin" || u.role === "admin")?.id || "direction_admin";
+      opts.unshift({
+        id: adminFallbackId,
+        label: "🛡️ Direction Générale & Scolarité (Administration)",
+        icon: <ShieldCheck size={14} className="text-cyan-400" />,
+        category: "admin",
+      });
+    }
+
+    const counts = {
+      all: opts.length,
+      broadcast: opts.filter((o) => o.category === "broadcast").length,
+      admin: opts.filter((o) => o.category === "admin").length,
+      teacher: opts.filter((o) => o.category === "teacher").length,
+      student: opts.filter((o) => o.category === "student").length,
+    };
+
+    const filtered = opts.filter((t) => {
       if (recipientRoleFilter !== "all" && t.category !== recipientRoleFilter) return false;
       if (recipientSearch && !t.label.toLowerCase().includes(recipientSearch.toLowerCase())) return false;
       return true;
     });
-  }, [remoteProfiles, db.users, user, recipientRoleFilter, recipientSearch]);
+
+    return { targets: filtered, targetCounts: counts };
+  }, [remoteProfiles, db.users, db.teachers, db.students, user, recipientRoleFilter, recipientSearch]);
+
+  // Auto-sélection du premier contact pertinent pour les étudiants
+  useEffect(() => {
+    if (mode === "new" && (!to || to === "all_students") && user?.role === "student" && targets.length > 0) {
+      setTo(targets[0].id);
+    }
+  }, [mode, to, user?.role, targets]);
 
   return (
     <div>
@@ -460,14 +543,14 @@ export function MessageCenter() {
         <Card className="mx-auto max-w-2xl p-6">
           <form onSubmit={send} className="space-y-4">
             <Field label="Destinataire">
-              {/* Filtres par rôle */}
+              {/* Filtres par rôle avec décompte visible */}
               <div className="mb-2 flex flex-wrap gap-1.5">
                 {[
-                  { id: "all", label: "Tous" },
-                  ...(user?.role !== "student" ? [{ id: "broadcast", label: "📢 Diffusions" }] : []),
-                  { id: "admin", label: "🛡️ Direction & Admin" },
-                  { id: "teacher", label: "👨‍🏫 Formateurs" },
-                  { id: "student", label: "🎓 Apprenants" },
+                  { id: "all", label: `Tous (${targetCounts.all})` },
+                  ...(user?.role !== "student" ? [{ id: "broadcast", label: `📢 Diffusions (${targetCounts.broadcast})` }] : []),
+                  { id: "admin", label: `🛡️ Direction & Admin (${targetCounts.admin})` },
+                  { id: "teacher", label: `👨‍🏫 Formateurs (${targetCounts.teacher})` },
+                  { id: "student", label: `🎓 Apprenants (${targetCounts.student})` },
                 ].map((f) => (
                   <button
                     key={f.id}
@@ -497,16 +580,20 @@ export function MessageCenter() {
               </div>
 
               {targets.length === 0 ? (
-                <div className="rounded-xl border border-white/5 p-4 text-center text-xs text-slate-500">
-                  Aucun contact correspondant à votre filtre.
+                <div className="rounded-xl border border-white/5 p-4 text-center text-xs text-slate-400">
+                  {recipientSearch ? (
+                    <span>Aucun contact ne correspond à la recherche « {recipientSearch} ».</span>
+                  ) : (
+                    <span>Aucun contact trouvé dans cette catégorie.</span>
+                  )}
                 </div>
               ) : (
                 <div className="grid max-h-52 grid-cols-1 gap-1.5 overflow-y-auto sm:grid-cols-2">
                   {targets.map((t) => (
                     <button type="button" key={t.id} onClick={() => setTo(t.id)}
                       className={cn(
-                        "flex items-center gap-2 rounded-xl border px-3 py-2.5 text-left text-sm transition-all",
-                        to === t.id ? "border-cyan-400/50 bg-cyan-400/10 text-cyan-200" : "border-white/10 text-slate-300 hover:bg-white/5"
+                        "flex items-center gap-2 rounded-xl border px-3 py-2.5 text-left text-xs sm:text-sm transition-all",
+                        to === t.id ? "border-cyan-400/50 bg-cyan-400/10 text-cyan-200 ring-1 ring-cyan-400/30 font-medium" : "border-white/10 text-slate-300 hover:bg-white/5"
                       )}>
                       {t.icon} <span className="truncate">{t.label}</span>
                     </button>

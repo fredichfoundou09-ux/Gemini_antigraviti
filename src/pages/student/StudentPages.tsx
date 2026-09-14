@@ -33,17 +33,68 @@ function normalizeSupportUrl(str: string): string {
   return trimmed.startsWith("www.") ? `https://${trimmed}` : trimmed;
 }
 
-function downloadCourseContent(course: any) {
-  if (course.files && course.files.length > 0) {
-    course.files.forEach((f: any) => downloadFile(f));
+async function downloadCourseContent(course: any) {
+  // 1. Si des fichiers attachés existent (PDF, Word, Excel, Image...), télécharger le fichier original
+  const files = (course.files || (course.file ? [course.file] : [])) as any[];
+  if (files && files.length > 0) {
+    for (const f of files) {
+      await downloadFile(f);
+    }
     return;
   }
-  const text = `# ${course.titre}\n\nDate : ${course.date || ""}\nType : ${course.type || "cours"}\n\nDescription :\n${course.description || "Aucune description"}\n\nContenu :\n${course.content || ""}\n`;
-  const blob = new Blob([text], { type: "text/markdown;charset=utf-8" });
+
+  // 2. Si le contenu ou la description contient une URL de document direct (ex: .pdf, .docx, drive)
+  const fullText = `${course.content || ""} ${course.description || ""}`;
+  const urlMatch = fullText.match(/https?:\/\/[^\s"'<>]+\.(pdf|docx?|xlsx?|pptx?|zip|png|jpe?g)/i);
+  if (urlMatch) {
+    const ext = urlMatch[1].toLowerCase();
+    await downloadFile({
+      name: `${safeFileName(course.titre)}.${ext}`,
+      originalName: `${safeFileName(course.titre)}.${ext}`,
+      dataUrl: urlMatch[0],
+      mime: ext === "pdf" ? "application/pdf" : "application/octet-stream",
+      size: 0,
+      id: "course-url",
+      uploadedAt: new Date().toISOString(),
+    });
+    return;
+  }
+
+  // 3. Si aucun fichier binaire n'est fourni par l'enseignant, générer un document Word officiel (.doc)
+  const title = course.titre || "Support de cours";
+  const docHtml = `<!DOCTYPE html>
+<html>
+<head>
+<meta charset="utf-8">
+<title>${title}</title>
+<style>
+  body { font-family: 'Segoe UI', Arial, sans-serif; margin: 30px; color: #1e293b; line-height: 1.6; }
+  h1 { color: #0891b2; border-bottom: 2px solid #06b6d4; padding-bottom: 8px; font-size: 22px; }
+  .meta { background: #f8fafc; border: 1px solid #e2e8f0; padding: 12px 16px; border-radius: 8px; margin: 16px 0; font-size: 13px; }
+  .meta p { margin: 4px 0; }
+  .content { font-size: 14px; white-space: pre-wrap; margin-top: 20px; line-height: 1.7; }
+  .footer { margin-top: 40px; font-size: 11px; color: #64748b; border-top: 1px solid #e2e8f0; padding-top: 8px; }
+</style>
+</head>
+<body>
+  <h1>${title}</h1>
+  <div class="meta">
+    <p><strong>Matière / Module :</strong> ${course.moduleId || "Sentinelles Numériques"}</p>
+    <p><strong>Date :</strong> ${course.date || ""}</p>
+    <p><strong>Type :</strong> ${course.type || "Support pédagogique"}</p>
+  </div>
+  ${course.description ? `<h3>Description</h3><p>${course.description}</p>` : ""}
+  <h3>Contenu du cours</h3>
+  <div class="content">${course.content || course.description || "Support pédagogique enregistré dans le système."}</div>
+  <div class="footer">Sentinelles Numériques — Espace Apprenant</div>
+</body>
+</html>`;
+
+  const blob = new Blob([docHtml], { type: "application/msword;charset=utf-8" });
   const url = URL.createObjectURL(blob);
   const a = document.createElement("a");
   a.href = url;
-  a.download = `${safeFileName(course.titre || "document")}.md`;
+  a.download = `${safeFileName(course.titre || "support")}.doc`;
   document.body.appendChild(a);
   a.click();
   document.body.removeChild(a);
@@ -818,31 +869,31 @@ export function MyCourses() {
   };
 
   const handleDismiss = (courseId: string, courseTitle: string) => {
-    if (!window.confirm(`Voulez-vous retirer "${courseTitle}" de votre liste ?`)) return;
+    if (!window.confirm(`Voulez-vous retirer "${courseTitle}" de votre espace ?\n\n(Ce retrait est propre à votre vue apprenant et ne supprime pas le cours du serveur ni pour les autres étudiants)`)) return;
     const next = [...new Set([...dismissedIds, courseId])];
     setDismissedIds(next);
     localStorage.setItem(`sn_dismissed_courses_${user?.id}`, JSON.stringify(next));
     if (readingCourse?.id === courseId) setReadingCourse(null);
-    toastMsg.info("Document retiré de votre liste", "Vous pouvez le restaurer à tout moment.");
+    toastMsg.info("Cours masqué de votre espace", "Vous pouvez le réafficher et le restaurer à tout moment.");
   };
 
   const handleRestore = (courseId: string) => {
     const next = dismissedIds.filter((id) => id !== courseId);
     setDismissedIds(next);
     localStorage.setItem(`sn_dismissed_courses_${user?.id}`, JSON.stringify(next));
-    toastMsg.success("Document restauré ✓");
+    toastMsg.success("Cours restauré ✓");
   };
 
-  const handleDownloadCourse = (c: any) => {
+  const handleDownloadCourse = async (c: any) => {
     if (c.files && c.files.length > 0) {
-      c.files.forEach((f: any) => {
+      for (const f of c.files) {
         track(c, f, "telecharge");
-        downloadFile(f);
-      });
+        await downloadFile(f);
+      }
       toastMsg.success(`${c.files.length} fichier(s) en cours de téléchargement`);
       return;
     }
-    downloadCourseContent(c);
+    await downloadCourseContent(c);
     toastMsg.success("Support téléchargé ✓");
   };
 
@@ -1241,12 +1292,12 @@ export function MyDocuments() {
   const docs = allDocs.filter((c) => (showDismissed ? true : !dismissedDocIds.includes(c.id)));
 
   const handleDismissDoc = (docId: string, title: string) => {
-    if (!window.confirm(`Voulez-vous retirer "${title}" de vos documents ?`)) return;
+    if (!window.confirm(`Voulez-vous retirer "${title}" de vos documents ?\n\n(Ce retrait est propre à votre vue apprenant et ne supprime pas le document du serveur ni pour les autres étudiants)`)) return;
     const next = [...new Set([...dismissedDocIds, docId])];
     setDismissedDocIds(next);
     localStorage.setItem(`sn_dismissed_docs_${user?.id}`, JSON.stringify(next));
     if (readingDoc?.id === docId) setReadingDoc(null);
-    toastMsg.info("Document retiré de votre liste", "Vous pouvez le restaurer à tout moment.");
+    toastMsg.info("Document masqué de votre espace", "Vous pouvez le réafficher et le restaurer à tout moment.");
   };
 
   const handleRestoreDoc = (docId: string) => {
@@ -1256,13 +1307,15 @@ export function MyDocuments() {
     toastMsg.success("Document restauré ✓");
   };
 
-  const handleDownloadDoc = (c: any) => {
+  const handleDownloadDoc = async (c: any) => {
     if (c.files && c.files.length > 0) {
-      c.files.forEach((f: any) => downloadFile(f));
+      for (const f of c.files) {
+        await downloadFile(f);
+      }
       toastMsg.success(`${c.files.length} fichier(s) en cours de téléchargement`);
       return;
     }
-    downloadCourseContent(c);
+    await downloadCourseContent(c);
     toastMsg.success("Document téléchargé ✓");
   };
 

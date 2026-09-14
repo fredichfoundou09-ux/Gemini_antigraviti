@@ -115,16 +115,86 @@ export function fileKind(mime: string, name?: string): string {
   return "Fichier";
 }
 
-/** Déclenche le téléchargement d'un CourseFile depuis un dataURL ou une URL de stockage. */
-export function downloadFile(f: CourseFile) {
-  if (f.dataUrl.startsWith("http://") || f.dataUrl.startsWith("https://")) {
-    window.open(f.dataUrl, "_blank");
+/** Déclenche le téléchargement d'un fichier (CourseFile ou équivalent) dans son format d'origine (PDF, Word, etc.). */
+export async function downloadFile(f: CourseFile | { name?: string; originalName?: string; nom?: string; mime?: string; type?: string; size?: number; taille?: number; dataUrl?: string; url?: string; storage_key?: string }) {
+  if (!f) return;
+  const fileName = f.originalName || f.name || (f as any).nom || "document";
+  const fileUrl = f.dataUrl || (f as any).url || (f as any).storage_key || "";
+
+  if (!fileUrl) {
+    console.warn("downloadFile: aucune URL ou donnée pour le fichier", f);
     return;
   }
+
+  // 1. Data URL (Base64) ou Blob URL direct
+  if (fileUrl.startsWith("data:") || fileUrl.startsWith("blob:")) {
+    const a = document.createElement("a");
+    a.href = fileUrl;
+    a.download = fileName;
+    document.body.appendChild(a);
+    a.click();
+    document.body.removeChild(a);
+    return;
+  }
+
+  // 2. Si c'est un chemin de stockage Supabase (ex: 'courses/123.pdf' ou 'course-files/courses/...')
+  if (isSupabaseConfigured && !fileUrl.startsWith("http://") && !fileUrl.startsWith("https://")) {
+    try {
+      const cleanPath = fileUrl.replace(/^course-files\//, "");
+      const { data, error } = await supabase.storage.from("course-files").download(cleanPath);
+      if (!error && data) {
+        const blobUrl = URL.createObjectURL(data);
+        const a = document.createElement("a");
+        a.href = blobUrl;
+        a.download = fileName;
+        document.body.appendChild(a);
+        a.click();
+        document.body.removeChild(a);
+        URL.revokeObjectURL(blobUrl);
+        return;
+      }
+    } catch (e) {
+      console.warn("downloadFile: fallback direct Supabase Storage", e);
+    }
+  }
+
+  // 3. Si c'est une URL HTTP/HTTPS (Supabase signed URL ou URL publique)
+  if (fileUrl.startsWith("http://") || fileUrl.startsWith("https://")) {
+    try {
+      const res = await fetch(fileUrl, { mode: "cors" });
+      if (res.ok) {
+        const blob = await res.blob();
+        const blobUrl = URL.createObjectURL(blob);
+        const a = document.createElement("a");
+        a.href = blobUrl;
+        a.download = fileName;
+        document.body.appendChild(a);
+        a.click();
+        document.body.removeChild(a);
+        URL.revokeObjectURL(blobUrl);
+        return;
+      }
+    } catch {
+      // Si CORS restreint le fetch direct, déclencher le téléchargement navigateur avec attribut download
+    }
+
+    const a = document.createElement("a");
+    a.href = fileUrl;
+    a.download = fileName;
+    a.target = "_blank";
+    a.rel = "noopener noreferrer";
+    document.body.appendChild(a);
+    a.click();
+    document.body.removeChild(a);
+    return;
+  }
+
+  // Fallback direct
   const a = document.createElement("a");
-  a.href = f.dataUrl;
-  a.download = f.originalName || f.name;
+  a.href = fileUrl;
+  a.download = fileName;
   document.body.appendChild(a);
   a.click();
   document.body.removeChild(a);
 }
+

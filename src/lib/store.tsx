@@ -451,7 +451,26 @@ export function StoreProvider({ children }: { children: React.ReactNode }) {
             id: c.id, titre: c.titre, description: c.description || "", moduleId: c.module_id || c.moduleId,
             teacherId: c.teacher_id || c.teacherId, type: c.type as any, date: c.date_publication?.slice(0, 10) || c.date || "",
             audience: c.audience as any, publie: c.publie, content: c.content || "",
-            files: (c.files || []).map((f: any) => ({ id: f.id, nom: f.nom, taille: f.taille, type: f.type, url: f.url }))
+            files: (c.files || []).map((f: any) => {
+              const fname = f.original_name || f.originalName || f.nom || f.name || f.stored_name || "document";
+              const fsize = Number(f.size || f.taille || 0);
+              const ftype = f.mime || f.type || "application/octet-stream";
+              const furl = f.dataUrl || f.url || f.storage_key || "";
+              return {
+                id: f.id,
+                name: fname,
+                originalName: fname,
+                nom: fname,
+                size: fsize,
+                taille: fsize,
+                mime: ftype,
+                type: ftype,
+                dataUrl: furl,
+                url: furl,
+                storageKey: f.storage_key || (furl.startsWith("http") ? "" : furl),
+                uploadedAt: f.uploaded_at || f.uploadedAt || "",
+              };
+            })
           })),
           schedule: (() => {
             const capitalizeDay = (d: string) => {
