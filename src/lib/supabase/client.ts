@@ -33,7 +33,7 @@ const clientInstance: SupabaseClient | null = isSupabaseConfigured
         persistSession: true,
         autoRefreshToken: true,
         detectSessionInUrl: true,
-        storage: window.sessionStorage,
+        storage: typeof window !== "undefined" ? window.sessionStorage : undefined,
       },
     })
   : null;
