@@ -90,6 +90,7 @@ export default defineConfig({
       workbox: {
         skipWaiting: true,
         clientsClaim: true,
+        importScripts: ["/sw-notifications.js"],
         maximumFileSizeToCacheInBytes: 4 * 1024 * 1024,
         globPatterns: ["**/*.{js,css,html,ico,png,jpg,svg,webmanifest}"],
         globIgnores: ["**/*.mp4", "**/*.map"],

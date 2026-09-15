@@ -1,12 +1,20 @@
 import { useState } from "react";
 import {
   UserCircle2, Phone, MapPin, ShieldCheck, KeyRound, Lock, Eye, EyeOff,
+  Bell, BellRing, Volume2, Smartphone, CheckCircle2, AlertCircle, Sparkles,
 } from "lucide-react";
 import { useStore } from "@/lib/store";
 import { supabase, isSupabaseConfigured } from "@/lib/supabase/client";
 import { Btn, Card, Field, Input, PageHead, Badge, readImage } from "@/lib/ui";
 import { validatePassword, passwordScore } from "@/lib/auth";
 import { toastMsg } from "@/lib/toast";
+import {
+  isNotificationSupported,
+  getNotificationPermission,
+  requestNotificationPermission,
+  sendTestNotification,
+  playNotificationChime,
+} from "@/lib/pushNotifications";
 
 export function UnifiedProfilePage() {
   const { db, user, update, log } = useStore();
@@ -38,6 +46,41 @@ export function UnifiedProfilePage() {
   const [showPass, setShowPass] = useState(false);
   const [savingPass, setSavingPass] = useState(false);
   const [passError, setPassError] = useState("");
+
+  // États des notifications natives
+  const [notifPerm, setNotifPerm] = useState(() => getNotificationPermission());
+  const [testingNotif, setTestingNotif] = useState(false);
+
+  const handleRequestPermission = async () => {
+    const res = await requestNotificationPermission();
+    setNotifPerm(res);
+    if (res === "granted") {
+      toastMsg.success("Notifications autorisées !", "Vous recevrez les alertes de messages et rappels d'emploi du temps.");
+      sendTestNotification();
+    } else if (res === "denied") {
+      toastMsg.error("Notifications bloquées", "Veuillez débloquer les notifications dans les paramètres de votre navigateur.");
+    }
+  };
+
+  const handleTestNotification = async () => {
+    setTestingNotif(true);
+    try {
+      const ok = await sendTestNotification();
+      if (ok) {
+        toastMsg.success("Notification émise !", "Vérifiez le haut de votre écran (bannière système).");
+      } else {
+        toastMsg.warning("Action requise", "Veuillez autoriser les notifications sur cet appareil.");
+        handleRequestPermission();
+      }
+    } finally {
+      setTestingNotif(false);
+    }
+  };
+
+  const handlePlayChime = () => {
+    playNotificationChime();
+    toastMsg.info("Signal sonore", "Carillon cyber émis via le haut-parleur de votre appareil.");
+  };
 
   const handlePhotoUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
@@ -358,6 +401,124 @@ export function UnifiedProfilePage() {
               </Btn>
             </div>
           </form>
+        </Card>
+
+        {/* Bloc Système : Notifications Push & Alertes PWA */}
+        <Card className="p-6 lg:col-span-2 border-cyan-500/30 bg-gradient-to-br from-[#0B111A] via-[#0E1B2E] to-[#07102B]">
+          <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 border-b border-white/10 pb-4">
+            <div className="flex items-center gap-3">
+              <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-cyan-400/15 text-cyan-300 border border-cyan-400/30 shadow-[0_0_15px_rgba(0,229,255,0.2)]">
+                <BellRing size={20} />
+              </div>
+              <div>
+                <h3 className="font-display text-sm font-bold text-white flex items-center gap-2">
+                  Notifications Push Système & Alertes d'Emploi du Temps
+                  <span className="hidden sm:inline-flex rounded-full bg-cyan-400/10 px-2 py-0.5 text-[10px] font-mono font-bold text-cyan-300 border border-cyan-400/25">
+                    OS & PWA
+                  </span>
+                </h3>
+                <p className="text-xs text-slate-400">
+                  Alertes natives au premier plan et en arrière-plan (Smartphone & Ordinateur)
+                </p>
+              </div>
+            </div>
+
+            <div className="flex items-center gap-2">
+              {notifPerm === "granted" ? (
+                <span className="inline-flex items-center gap-1.5 rounded-full border border-emerald-500/30 bg-emerald-500/15 px-3 py-1 text-xs font-bold text-emerald-300">
+                  <CheckCircle2 size={13} /> Active & Autorisée
+                </span>
+              ) : notifPerm === "denied" ? (
+                <span className="inline-flex items-center gap-1.5 rounded-full border border-red-500/30 bg-red-500/15 px-3 py-1 text-xs font-bold text-red-300">
+                  <AlertCircle size={13} /> Bloquée dans le navigateur
+                </span>
+              ) : notifPerm === "unsupported" ? (
+                <span className="inline-flex items-center gap-1.5 rounded-full border border-slate-500/30 bg-slate-500/15 px-3 py-1 text-xs font-bold text-slate-400">
+                  Non supporté
+                </span>
+              ) : (
+                <span className="inline-flex items-center gap-1.5 rounded-full border border-amber-500/30 bg-amber-500/15 px-3 py-1 text-xs font-bold text-amber-300">
+                  En attente d'autorisation
+                </span>
+              )}
+            </div>
+          </div>
+
+          {/* Fonctionnalités couvertes */}
+          <div className="mt-4 grid gap-3 sm:grid-cols-3">
+            <div className="rounded-xl border border-white/5 bg-white/[0.02] p-3">
+              <div className="flex items-center gap-2 font-bold text-xs text-white">
+                <span>💬</span> Messages instantanés
+              </div>
+              <p className="mt-1 text-[11px] text-slate-400 leading-relaxed">
+                Bannière en haut de l'écran lors de la réception d'un message même si l'application est réduite.
+              </p>
+            </div>
+
+            <div className="rounded-xl border border-white/5 bg-white/[0.02] p-3">
+              <div className="flex items-center gap-2 font-bold text-xs text-amber-300">
+                <span>⏰</span> Rappel cours 15 min avant
+              </div>
+              <p className="mt-1 text-[11px] text-slate-400 leading-relaxed">
+                Vérification continue de l'emploi du temps avec alerte anticipée contenant la salle et le formateur.
+              </p>
+            </div>
+
+            <div className="rounded-xl border border-white/5 bg-white/[0.02] p-3">
+              <div className="flex items-center gap-2 font-bold text-xs text-cyan-300">
+                <span>🔔</span> Démarrage de séance
+              </div>
+              <p className="mt-1 text-[11px] text-slate-400 leading-relaxed">
+                Vibration + carillon cyber et alerte immédiate pile au moment où la séance commence.
+              </p>
+            </div>
+          </div>
+
+          {/* Message si bloqué */}
+          {notifPerm === "denied" && (
+            <div className="mt-4 rounded-xl border border-red-500/30 bg-red-500/10 p-3 text-xs text-red-200 flex items-start gap-2.5">
+              <AlertCircle size={16} className="text-red-400 shrink-0 mt-0.5" />
+              <div>
+                <p className="font-bold text-red-300">Les notifications sont bloquées dans votre navigateur.</p>
+                <p className="text-[11px] text-red-200/80 mt-0.5">
+                  Pour les réactiver : cliquez sur le cadenas ou l'icône de réglages à gauche de l'URL du navigateur, passez « Notifications » sur « Autoriser », puis actualisez la page.
+                </p>
+              </div>
+            </div>
+          )}
+
+          {/* Boutons d'action */}
+          <div className="mt-5 flex flex-wrap items-center gap-3 pt-3 border-t border-white/5">
+            {notifPerm !== "granted" && notifPerm !== "unsupported" && (
+              <button
+                type="button"
+                onClick={handleRequestPermission}
+                className="inline-flex items-center gap-2 rounded-xl border border-cyan-400/50 bg-cyan-400/20 px-4 py-2.5 text-xs font-bold text-cyan-200 hover:bg-cyan-400/30 hover:border-cyan-300 shadow-[0_0_15px_rgba(0,229,255,0.25)] transition"
+              >
+                <Bell size={15} />
+                Activer les notifications sur cet appareil
+              </button>
+            )}
+
+            <button
+              type="button"
+              onClick={handleTestNotification}
+              disabled={testingNotif}
+              className="inline-flex items-center gap-2 rounded-xl border border-white/10 bg-white/5 px-4 py-2.5 text-xs font-bold text-white hover:border-cyan-400/40 hover:bg-white/10 transition"
+            >
+              <Smartphone size={15} className="text-cyan-400" />
+              {testingNotif ? "Envoi du test…" : "Tester la notification push"}
+            </button>
+
+            <button
+              type="button"
+              onClick={handlePlayChime}
+              className="inline-flex items-center gap-2 rounded-xl border border-white/10 bg-white/5 px-3.5 py-2.5 text-xs font-semibold text-slate-300 hover:text-white hover:border-amber-400/40 hover:bg-white/10 transition"
+            >
+              <Volume2 size={15} className="text-amber-400" />
+              Tester le son cyber
+            </button>
+          </div>
         </Card>
       </div>
     </div>

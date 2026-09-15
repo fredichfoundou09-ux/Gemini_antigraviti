@@ -8,6 +8,7 @@ import {
   useSupabaseQuery,
   usePresence,
   useBackgroundSync,
+  useScheduleAlerts,
 } from "../hooks";
 
 describe("Couche Hooks Sentinelles (Exportations et Initialisation)", () => {
@@ -24,5 +25,6 @@ describe("Couche Hooks Sentinelles (Exportations et Initialisation)", () => {
     expect(typeof useSupabaseQuery).toBe("function");
     expect(typeof usePresence).toBe("function");
     expect(typeof useBackgroundSync).toBe("function");
+    expect(typeof useScheduleAlerts).toBe("function");
   });
 });

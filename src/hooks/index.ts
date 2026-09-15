@@ -11,3 +11,4 @@ export { useStudents } from "./useStudents";
 export { useSupabaseQuery } from "./useSupabaseQuery";
 export { usePresence, isUserActiveOnline } from "./usePresence";
 export { useBackgroundSync } from "./useBackgroundSync";
+export { useScheduleAlerts } from "./useScheduleAlerts";

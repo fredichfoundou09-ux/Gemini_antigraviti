@@ -13,11 +13,16 @@ import { useAuth } from "@/contexts/AuthContext";
 import { Badge, formationLabel, SentinelLogo } from "@/lib/ui";
 import { usePresence } from "@/hooks/usePresence";
 import { useBackgroundSync } from "@/hooks/useBackgroundSync";
+import { useScheduleAlerts } from "@/hooks/useScheduleAlerts";
 import { isSupabaseConfigured } from "@/lib/supabase/client";
 import { subscribeToAllMessages, subscribeToNotifications } from "@/lib/supabase/communication";
 import { toastMsg } from "@/lib/toast";
-import { getUnreadNotificationCount, syncNotificationReadsFromSupabase } from "@/lib/notifications";
 import { ThemeToggle } from "@/components/ThemeToggle";
+import {
+  requestNotificationPermission,
+  sendTestNotification,
+  isNotificationSupported,
+} from "@/lib/pushNotifications";
 
 const roleLabel: Record<string, string> = {
   superadmin: "SUPER ADMIN",
@@ -114,6 +119,7 @@ export default function DashboardLayout() {
   const searchContainerRef = useRef<HTMLDivElement>(null);
   usePresence();
   const { unreadCount } = useBackgroundSync();
+  useScheduleAlerts();
 
   const user = storeUser || (profile ? {
     id: profile.id,
@@ -126,6 +132,34 @@ export default function DashboardLayout() {
     actif: profile.active,
     createdAt: profile.created_at?.slice(0, 10) || ""
   } : null);
+
+  // Invite discrète d'activation des notifications système si permission = default
+  const [showNotifPrompt, setShowNotifPrompt] = useState(false);
+
+  useEffect(() => {
+    if (isNotificationSupported() && typeof Notification !== "undefined" && Notification.permission === "default") {
+      const dismissed = sessionStorage.getItem("sn:notif-banner-dismissed");
+      if (!dismissed) {
+        const timer = setTimeout(() => setShowNotifPrompt(true), 3500);
+        return () => clearTimeout(timer);
+      }
+    }
+  }, []);
+
+  const handleAcceptNotifs = async () => {
+    setShowNotifPrompt(false);
+    sessionStorage.setItem("sn:notif-banner-dismissed", "1");
+    const res = await requestNotificationPermission();
+    if (res === "granted") {
+      toastMsg.success("Notifications activées !", "Vous recevrez vos alertes de messages et rappels d'emploi du temps.");
+      sendTestNotification();
+    }
+  };
+
+  const handleDismissNotifs = () => {
+    setShowNotifPrompt(false);
+    sessionStorage.setItem("sn:notif-banner-dismissed", "1");
+  };
 
   // Raccourci Ctrl+K / Cmd+K pour ouvrir la recherche globale
   useEffect(() => {
@@ -850,6 +884,47 @@ export default function DashboardLayout() {
         <main className="min-h-[calc(100vh-65px)] p-4 lg:p-8">
           <Outlet />
         </main>
+
+        {/* Bannière discrète d'activation des notifications push système */}
+        {showNotifPrompt && (
+          <div className="no-print fixed bottom-16 lg:bottom-6 right-4 lg:right-8 z-50 max-w-sm rounded-2xl border border-cyan-400/40 bg-[#0B111A]/95 p-4 shadow-[0_10px_35px_rgba(0,0,0,0.85),0_0_25px_rgba(0,229,255,0.2)] backdrop-blur-xl animate-in slide-in-from-bottom-5">
+            <div className="flex items-start gap-3">
+              <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-xl bg-cyan-400/20 text-cyan-300 border border-cyan-400/30 shadow-[0_0_12px_rgba(0,229,255,0.3)]">
+                <Bell size={18} className="animate-bounce" />
+              </div>
+              <div className="flex-1">
+                <h4 className="text-xs font-bold text-white">Activer les alertes SENTINEL'S</h4>
+                <p className="mt-1 text-[11px] text-slate-300 leading-snug">
+                  Recevez les messages en direct et les rappels de cours (15 min avant) même lorsque l'application est fermée ou réduite.
+                </p>
+                <div className="mt-3 flex items-center gap-2">
+                  <button
+                    type="button"
+                    onClick={handleAcceptNotifs}
+                    className="rounded-lg border border-cyan-400/50 bg-cyan-400/25 px-3 py-1.5 text-[11px] font-bold text-cyan-200 hover:bg-cyan-400/35 transition cursor-pointer"
+                  >
+                    Activer
+                  </button>
+                  <button
+                    type="button"
+                    onClick={handleDismissNotifs}
+                    className="rounded-lg px-2.5 py-1.5 text-[11px] text-slate-400 hover:text-white transition cursor-pointer"
+                  >
+                    Plus tard
+                  </button>
+                </div>
+              </div>
+              <button
+                type="button"
+                onClick={handleDismissNotifs}
+                className="text-slate-500 hover:text-slate-300 p-1 -mr-1 -mt-1 cursor-pointer"
+                aria-label="Fermer"
+              >
+                <X size={14} />
+              </button>
+            </div>
+          </div>
+        )}
       </div>
 
       {/* ================= BOTTOM NAVIGATION MOBILE (Section 15) ================= */}

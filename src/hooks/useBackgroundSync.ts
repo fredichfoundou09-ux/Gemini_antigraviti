@@ -2,6 +2,7 @@ import { useEffect, useRef, useState, useCallback } from "react";
 import { useStore } from "@/lib/store";
 import { isSupabaseConfigured, getSupabase } from "@/lib/supabase/client";
 import { toastMsg } from "@/lib/toast";
+import { sendNativeNotification } from "@/lib/pushNotifications";
 
 export interface SyncMessage {
   id: string;
@@ -121,6 +122,15 @@ export function useBackgroundSync() {
             senderRole: senderInfo?.role,
             body: newMsg.body,
           });
+
+          // Déclencher la notification push système native (bannière en haut, vibreur et carillon)
+          sendNativeNotification({
+            title: `SENTINEL'S — Message de ${senderName}`,
+            body: newMsg.body || "Nouveau message reçu",
+            url: "/app/messages",
+            tag: `msg-${newMsg.id}`,
+            playSound: true,
+          }).catch(() => {});
 
           // Notifier également dans la cloche des notifications
           newNotifs.push({
