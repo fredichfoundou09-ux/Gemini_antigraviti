@@ -17,6 +17,7 @@ import { useScheduleAlerts } from "@/hooks/useScheduleAlerts";
 import { isSupabaseConfigured } from "@/lib/supabase/client";
 import { subscribeToAllMessages, subscribeToNotifications } from "@/lib/supabase/communication";
 import { toastMsg } from "@/lib/toast";
+import { getUnreadNotificationCount, syncNotificationReadsFromSupabase } from "@/lib/notifications";
 import { ThemeToggle } from "@/components/ThemeToggle";
 import {
   requestNotificationPermission,
