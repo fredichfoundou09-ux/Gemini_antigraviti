@@ -1336,48 +1336,48 @@ export function ParametresPage() {
                 )}
               </div>
               <p className="text-[11px] text-slate-300 leading-snug mb-3">
-                Palette orange vif, bleu-noir et gris ardoise infographique moderne.
+                50% Orange vif, 50% Bleu-Noir structuré avec textes 100% blancs lisibles.
               </p>
             </div>
             <div className="flex items-center gap-1.5 pt-2 border-t border-white/5">
               <span className="h-3 w-3 rounded-full bg-[#F03E00] ring-1 ring-white/30" title="#F03E00" />
               <span className="h-3 w-3 rounded-full bg-[#B33107]" title="#B33107" />
-              <span className="h-3 w-3 rounded-full bg-[#263136] ring-1 ring-white/20" title="#263136" />
-              <span className="h-3 w-3 rounded-full bg-[#394E53]" title="#394E53" />
-              <span className="h-3 w-3 rounded-full bg-[#78868A]" title="#78868A" />
-              <span className="h-3 w-3 rounded-full bg-[#E6E5E1]" title="#E6E5E1" />
+              <span className="h-3 w-3 rounded-full bg-[#1A2226] ring-1 ring-white/20" title="#1A2226" />
+              <span className="h-3 w-3 rounded-full bg-[#263136]" title="#263136" />
+              <span className="h-3 w-3 rounded-full bg-[#FFFFFF] ring-1 ring-black/30" title="#FFFFFF" />
             </div>
           </button>
 
-          {/* Thème 4: Modernisé */}
+          {/* Thème 4: Modernisé (Midnight Violet & Indigo) */}
           <button
             type="button"
             onClick={() => handleSelectTheme("modern")}
             className={cn(
               "text-left rounded-xl p-3.5 transition border flex flex-col justify-between group",
               currentTheme === "modern"
-                ? "border-cyan-400/60 bg-cyan-500/15 shadow-[0_0_15px_rgba(6,182,212,0.25)]"
+                ? "border-violet-500/70 bg-violet-500/20 shadow-[0_0_15px_rgba(139,92,246,0.3)]"
                 : "border-white/10 bg-white/[0.02] hover:bg-white/5 hover:border-white/20"
             )}
           >
             <div>
               <div className="flex items-center justify-between mb-2">
                 <div className="flex items-center gap-2">
-                  <Sparkles size={16} className="text-cyan-300" />
-                  <span className="text-xs font-bold text-cyan-200">Modernisé</span>
+                  <Sparkles size={16} className="text-violet-400" />
+                  <span className="text-xs font-bold text-violet-300">Modernisé</span>
                 </div>
                 {currentTheme === "modern" && (
-                  <span className="rounded bg-emerald-400/20 px-1.5 py-0.2 text-[9px] font-bold text-emerald-300">Actif</span>
+                  <span className="rounded bg-violet-500/30 px-1.5 py-0.2 text-[9px] font-bold text-violet-200">Actif</span>
                 )}
               </div>
               <p className="text-[11px] text-slate-400 leading-snug mb-3">
-                Dégradés saphir doux, flou d'arrière-plan et bordures aériennes.
+                Ambiance Midnight Indigo, Violet Électrique & reflets glassmorphism.
               </p>
             </div>
             <div className="flex items-center gap-1.5 pt-2 border-t border-white/5">
-              <span className="h-3 w-3 rounded-full bg-[#00E5FF]" />
-              <span className="h-3 w-3 rounded-full bg-[#091528] border border-white/20" />
-              <span className="h-3 w-3 rounded-full bg-[#10B981]" />
+              <span className="h-3 w-3 rounded-full bg-[#8B5CF6]" />
+              <span className="h-3 w-3 rounded-full bg-[#6366F1]" />
+              <span className="h-3 w-3 rounded-full bg-[#1E1B4B] border border-white/20" />
+              <span className="h-3 w-3 rounded-full bg-[#080C16] border border-white/20" />
             </div>
           </button>
         </div>

@@ -71,7 +71,7 @@ export function ThemeToggle({ className, align = "right", showLabel = false }: T
             : currentTheme === "crimson"
             ? "border-red-500 bg-red-950/50 text-red-400 shadow-[0_0_14px_rgba(255,23,79,0.4)]"
             : currentTheme === "modern"
-            ? "border-cyan-400 bg-cyan-950/40 text-cyan-300 shadow-[0_0_12px_rgba(6,182,212,0.3)]"
+            ? "border-violet-500 bg-violet-950/50 text-violet-300 shadow-[0_0_14px_rgba(139,92,246,0.4)]"
             : "border-[#006DFF]/30 bg-[#0B111A] text-[#4C91B5] hover:border-[#00C8FF] hover:text-[#00E5FF] hover:shadow-[0_0_12px_rgba(0,229,255,0.25)]"
         )}
         title="Personnaliser l'apparence de l'interface (Changer de thème)"
@@ -92,7 +92,7 @@ export function ThemeToggle({ className, align = "right", showLabel = false }: T
                   ? "bg-[#F03E00]"
                   : currentTheme === "crimson"
                   ? "bg-red-500"
-                  : "bg-cyan-400"
+                  : "bg-violet-500"
               )}
             />
             <span
@@ -102,7 +102,7 @@ export function ThemeToggle({ className, align = "right", showLabel = false }: T
                   ? "bg-[#F03E00]"
                   : currentTheme === "crimson"
                   ? "bg-red-600"
-                  : "bg-cyan-500"
+                  : "bg-violet-500"
               )}
             />
           </span>
@@ -194,7 +194,7 @@ export function ThemeToggle({ className, align = "right", showLabel = false }: T
               {currentTheme === "crimson" && <Check size={16} className="text-red-400 shrink-0 mt-0.5" />}
             </button>
 
-            {/* Option 3: Thème Orange Ardoise (Style Infographique - Remplacement de Clair) */}
+            {/* Option 3: Thème Orange Ardoise (Style Infographique - Écrits blancs, 50% Orange / 50% Bleu-Noir) */}
             <button
               type="button"
               onClick={() => selectTheme("orange-slate")}
@@ -218,51 +218,51 @@ export function ThemeToggle({ className, align = "right", showLabel = false }: T
                   )}
                 </div>
                 <p className="text-[10px] text-slate-300 mt-0.5 leading-snug">
-                  Palette orange vif, bleu-noir, gris ardoise et blanc cassé de référence.
+                  50% Orange Vif, 50% Bleu-Noir structuré avec textes 100% blancs lisibles.
                 </p>
                 <div className="flex items-center gap-1.5 mt-2">
                   <span className="h-2.5 w-2.5 rounded-full bg-[#F03E00] ring-1 ring-white/30" title="Orange vif #F03E00" />
                   <span className="h-2.5 w-2.5 rounded-full bg-[#B33107]" title="Orange profond #B33107" />
-                  <span className="h-2.5 w-2.5 rounded-full bg-[#263136] ring-1 ring-white/20" title="Bleu-noir #263136" />
-                  <span className="h-2.5 w-2.5 rounded-full bg-[#394E53]" title="Slate foncé #394E53" />
-                  <span className="h-2.5 w-2.5 rounded-full bg-[#78868A]" title="Gris ardoise #78868A" />
-                  <span className="h-2.5 w-2.5 rounded-full bg-[#E6E5E1]" title="Blanc cassé #E6E5E1" />
+                  <span className="h-2.5 w-2.5 rounded-full bg-[#1A2226] ring-1 ring-white/20" title="Bleu-noir #1A2226" />
+                  <span className="h-2.5 w-2.5 rounded-full bg-[#263136]" title="Slate foncé #263136" />
+                  <span className="h-2.5 w-2.5 rounded-full bg-[#FFFFFF] ring-1 ring-black/30" title="Écrits blancs #FFFFFF" />
                 </div>
               </div>
               {currentTheme === "orange-slate" && <Check size={16} className="text-[#F03E00] shrink-0 mt-0.5" />}
             </button>
 
-            {/* Option 4: Thème Modernisé */}
+            {/* Option 4: Thème Modernisé — Midnight Violet & Indigo */}
             <button
               type="button"
               onClick={() => selectTheme("modern")}
               className={cn(
                 "w-full text-left rounded-xl p-2.5 transition flex items-start justify-between gap-2 border group",
                 currentTheme === "modern"
-                  ? "border-cyan-400/50 bg-cyan-500/15 text-white shadow-[0_0_12px_rgba(6,182,212,0.2)]"
+                  ? "border-violet-500/70 bg-violet-500/20 text-white shadow-[0_0_15px_rgba(139,92,246,0.3)]"
                   : "border-white/5 bg-white/[0.02] text-slate-300 hover:bg-white/5 hover:text-white"
               )}
             >
               <div>
                 <div className="flex items-center gap-2">
-                  <Sparkles size={14} className="text-cyan-300" />
-                  <p className="text-xs font-bold text-cyan-200">Thème Modernisé</p>
+                  <Sparkles size={14} className="text-violet-400" />
+                  <p className="text-xs font-bold text-violet-300">Modernisé (Midnight Violet & Indigo)</p>
                   {currentTheme === "modern" && (
-                    <span className="rounded bg-emerald-400/20 px-1.5 py-0.2 text-[9px] font-bold text-emerald-300">
+                    <span className="rounded bg-violet-500/30 px-1.5 py-0.2 text-[9px] font-bold text-violet-200">
                       Actif
                     </span>
                   )}
                 </div>
                 <p className="text-[10px] text-slate-400 mt-0.5 leading-snug">
-                  Dégradés saphir doux, flou d'arrière-plan et bordures aériennes.
+                  Ambiance Midnight Indigo, Violet Électrique & reflets glassmorphism.
                 </p>
                 <div className="flex items-center gap-1 mt-1.5">
-                  <span className="h-2 w-2 rounded-full bg-[#00E5FF]" title="#00E5FF" />
-                  <span className="h-2 w-2 rounded-full bg-[#091528] border border-white/20" title="#091528" />
-                  <span className="h-2 w-2 rounded-full bg-[#10B981]" title="#10B981" />
+                  <span className="h-2 w-2 rounded-full bg-[#8B5CF6]" title="#8B5CF6" />
+                  <span className="h-2 w-2 rounded-full bg-[#6366F1]" title="#6366F1" />
+                  <span className="h-2 w-2 rounded-full bg-[#1E1B4B] border border-white/20" title="#1E1B4B" />
+                  <span className="h-2 w-2 rounded-full bg-[#080C16] border border-white/20" title="#080C16" />
                 </div>
               </div>
-              {currentTheme === "modern" && <Check size={16} className="text-emerald-400 shrink-0 mt-0.5" />}
+              {currentTheme === "modern" && <Check size={16} className="text-violet-400 shrink-0 mt-0.5" />}
             </button>
           </div>
 
