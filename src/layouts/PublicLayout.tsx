@@ -4,6 +4,7 @@ import { useState } from "react";
 import { cn } from "@/utils/cn";
 import { useStore } from "@/lib/store";
 import { Btn, SentinelLogo } from "@/lib/ui";
+import { ThemeToggle } from "@/components/ThemeToggle";
 
 const LINKS = [
   { to: "/", label: "Accueil" },
@@ -108,15 +109,22 @@ export default function PublicLayout() {
                 <span>MON ESPACE</span>
               </button>
             </Link>
+
+            {/* Sélecteur de Thème Public */}
+            <ThemeToggle showLabel />
           </nav>
 
           {/* Mobile hamburger button */}
-          <button
-            onClick={() => setOpen(!open)}
-            className="flex h-11 w-11 items-center justify-center rounded-lg border border-[#00D9FF]/40 bg-[#071A2B] p-2 text-[#00D9FF] lg:hidden"
-          >
-            {open ? <X size={22} /> : <Menu size={22} />}
-          </button>
+          <div className="flex items-center gap-2 lg:hidden">
+            <ThemeToggle />
+            <button
+              onClick={() => setOpen(!open)}
+              className="flex h-11 w-11 items-center justify-center rounded-lg border border-[#00D9FF]/40 bg-[#071A2B] p-2 text-[#00D9FF]"
+              aria-label="Menu de navigation"
+            >
+              {open ? <X size={22} /> : <Menu size={22} />}
+            </button>
+          </div>
         </div>
 
         {open && (

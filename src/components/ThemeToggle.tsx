@@ -1,9 +1,15 @@
 import React, { useState, useEffect, useRef } from "react";
-import { Palette, Check, RotateCcw, Sparkles, Sun, Moon, Shield } from "lucide-react";
+import { Palette, Check, RotateCcw, Sparkles, Moon, Shield, Flame } from "lucide-react";
 import { getUiTheme, setUiTheme, UiTheme } from "@/lib/uiTheme";
 import { cn } from "@/utils/cn";
 
-export function ThemeToggle() {
+interface ThemeToggleProps {
+  className?: string;
+  align?: "left" | "right";
+  showLabel?: boolean;
+}
+
+export function ThemeToggle({ className, align = "right", showLabel = false }: ThemeToggleProps) {
   const [currentTheme, setCurrentTheme] = useState<UiTheme>("classic");
   const [open, setOpen] = useState(false);
   const menuRef = useRef<HTMLDivElement>(null);
@@ -40,42 +46,77 @@ export function ThemeToggle() {
 
   const isNonDefault = currentTheme !== "classic";
 
+  const getThemeLabel = (t: UiTheme) => {
+    switch (t) {
+      case "orange-slate":
+        return "Orange Ardoise";
+      case "crimson":
+        return "Rouge Sentinelle";
+      case "modern":
+        return "Modernisé";
+      default:
+        return "Classique";
+    }
+  };
+
   return (
-    <div className="relative shrink-0 no-theme-invert" ref={menuRef}>
+    <div className={cn("relative shrink-0 no-theme-invert", className)} ref={menuRef}>
       <button
         type="button"
         onClick={() => setOpen(!open)}
         className={cn(
-          "relative rounded-lg border p-2 sm:p-2.5 transition shrink-0",
-          currentTheme === "crimson"
+          "relative rounded-lg border p-2 sm:p-2.5 transition shrink-0 inline-flex items-center gap-2",
+          currentTheme === "orange-slate"
+            ? "border-[#F03E00] bg-[#263136] text-[#F03E00] shadow-[0_0_14px_rgba(240,62,0,0.45)]"
+            : currentTheme === "crimson"
             ? "border-red-500 bg-red-950/50 text-red-400 shadow-[0_0_14px_rgba(255,23,79,0.4)]"
-            : currentTheme === "light"
-            ? "border-amber-400 bg-amber-500/20 text-amber-600 shadow-[0_0_12px_rgba(245,158,11,0.35)]"
             : currentTheme === "modern"
             ? "border-cyan-400 bg-cyan-950/40 text-cyan-300 shadow-[0_0_12px_rgba(6,182,212,0.3)]"
             : "border-[#006DFF]/30 bg-[#0B111A] text-[#4C91B5] hover:border-[#00C8FF] hover:text-[#00E5FF] hover:shadow-[0_0_12px_rgba(0,229,255,0.25)]"
         )}
-        title="Personnaliser l'apparence de l'interface (Thème réversible)"
+        title="Personnaliser l'apparence de l'interface (Changer de thème)"
         aria-label="Changer le thème d'affichage"
       >
-        <Palette size={18} />
+        <Palette size={18} className="shrink-0" />
+        {showLabel && (
+          <span className="text-xs font-bold truncate max-w-[120px]">
+            {getThemeLabel(currentTheme)}
+          </span>
+        )}
         {isNonDefault && (
           <span className="absolute -top-1 -right-1 flex h-2.5 w-2.5">
-            <span className={cn(
-              "animate-ping absolute inline-flex h-full w-full rounded-full opacity-75",
-              currentTheme === "crimson" ? "bg-red-500" : currentTheme === "light" ? "bg-amber-400" : "bg-cyan-400"
-            )} />
-            <span className={cn(
-              "relative inline-flex rounded-full h-2.5 w-2.5",
-              currentTheme === "crimson" ? "bg-red-600" : currentTheme === "light" ? "bg-amber-500" : "bg-cyan-500"
-            )} />
+            <span
+              className={cn(
+                "animate-ping absolute inline-flex h-full w-full rounded-full opacity-75",
+                currentTheme === "orange-slate"
+                  ? "bg-[#F03E00]"
+                  : currentTheme === "crimson"
+                  ? "bg-red-500"
+                  : "bg-cyan-400"
+              )}
+            />
+            <span
+              className={cn(
+                "relative inline-flex rounded-full h-2.5 w-2.5",
+                currentTheme === "orange-slate"
+                  ? "bg-[#F03E00]"
+                  : currentTheme === "crimson"
+                  ? "bg-red-600"
+                  : "bg-cyan-500"
+              )}
+            />
           </span>
         )}
       </button>
 
       {open && (
-        <div className="absolute right-0 top-full mt-2 z-50 w-72 rounded-2xl border border-white/15 bg-[#091528]/95 p-3.5 shadow-2xl backdrop-blur-xl animate-fade-in">
-          <div className="flex items-center justify-between border-b border-white/10 pb-2 mb-2">
+        <div
+          className={cn(
+            "absolute top-full mt-2 z-50 w-80 rounded-2xl border border-white/15 bg-[#091528]/95 p-3.5 shadow-2xl backdrop-blur-xl animate-fade-in text-white",
+            align === "left" ? "left-0" : "right-0"
+          )}
+        >
+          <div className="flex items-center justify-between border-b border-white/10 pb-2.5 mb-2.5">
             <div className="flex items-center gap-1.5 text-xs font-bold text-white">
               <Sparkles size={14} className="text-cyan-400" />
               <span>Apparence de l'interface</span>
@@ -85,22 +126,22 @@ export function ThemeToggle() {
             </span>
           </div>
 
-          <div className="space-y-1.5">
+          <div className="space-y-2">
             {/* Option 1: Thème Classique (Par défaut) */}
             <button
               type="button"
               onClick={() => selectTheme("classic")}
               className={cn(
-                "w-full text-left rounded-xl p-2.5 transition flex items-start justify-between gap-2 border",
+                "w-full text-left rounded-xl p-2.5 transition flex items-start justify-between gap-2 border group",
                 currentTheme === "classic"
-                  ? "border-cyan-400/40 bg-cyan-500/10 text-white"
+                  ? "border-cyan-400/50 bg-cyan-500/15 text-white shadow-[0_0_12px_rgba(0,229,255,0.2)]"
                   : "border-white/5 bg-white/[0.02] text-slate-300 hover:bg-white/5 hover:text-white"
               )}
             >
               <div>
                 <div className="flex items-center gap-2">
                   <Moon size={14} className="text-cyan-400" />
-                  <p className="text-xs font-bold">Thème Classique (Défaut)</p>
+                  <p className="text-xs font-bold text-white">Thème Classique (Défaut)</p>
                   {currentTheme === "classic" && (
                     <span className="rounded bg-cyan-400/20 px-1.5 py-0.2 text-[9px] font-bold text-cyan-300">
                       Actif
@@ -110,6 +151,12 @@ export function ThemeToggle() {
                 <p className="text-[10px] text-slate-400 mt-0.5 leading-snug">
                   L'interface d'origine sombre et contrastée certifiée Sentinelles.
                 </p>
+                <div className="flex items-center gap-1 mt-1.5">
+                  <span className="h-2 w-2 rounded-full bg-[#080A0F] border border-white/20" title="#080A0F" />
+                  <span className="h-2 w-2 rounded-full bg-[#00E5FF]" title="#00E5FF" />
+                  <span className="h-2 w-2 rounded-full bg-[#006DFF]" title="#006DFF" />
+                  <span className="h-2 w-2 rounded-full bg-[#FF174F]" title="#FF174F" />
+                </div>
               </div>
               {currentTheme === "classic" && <Check size={16} className="text-cyan-400 shrink-0 mt-0.5" />}
             </button>
@@ -119,9 +166,9 @@ export function ThemeToggle() {
               type="button"
               onClick={() => selectTheme("crimson")}
               className={cn(
-                "w-full text-left rounded-xl p-2.5 transition flex items-start justify-between gap-2 border",
+                "w-full text-left rounded-xl p-2.5 transition flex items-start justify-between gap-2 border group",
                 currentTheme === "crimson"
-                  ? "border-red-500/60 bg-red-500/20 text-white shadow-[0_0_15px_rgba(255,23,79,0.2)]"
+                  ? "border-red-500/60 bg-red-500/20 text-white shadow-[0_0_15px_rgba(255,23,79,0.25)]"
                   : "border-white/5 bg-white/[0.02] text-slate-300 hover:bg-white/5 hover:text-white"
               )}
             >
@@ -138,36 +185,51 @@ export function ThemeToggle() {
                 <p className="text-[10px] text-slate-400 mt-0.5 leading-snug">
                   Ambiance rubis écarlate et chrome métallique du blason 3D.
                 </p>
+                <div className="flex items-center gap-1 mt-1.5">
+                  <span className="h-2 w-2 rounded-full bg-[#FF174F]" title="#FF174F" />
+                  <span className="h-2 w-2 rounded-full bg-[#9E002B]" title="#9E002B" />
+                  <span className="h-2 w-2 rounded-full bg-[#0E0E14] border border-white/20" title="#0E0E14" />
+                </div>
               </div>
               {currentTheme === "crimson" && <Check size={16} className="text-red-400 shrink-0 mt-0.5" />}
             </button>
 
-            {/* Option 3: Thème Clair */}
+            {/* Option 3: Thème Orange Ardoise (Style Infographique - Remplacement de Clair) */}
             <button
               type="button"
-              onClick={() => selectTheme("light")}
+              onClick={() => selectTheme("orange-slate")}
               className={cn(
-                "w-full text-left rounded-xl p-2.5 transition flex items-start justify-between gap-2 border",
-                currentTheme === "light"
-                  ? "border-amber-400/50 bg-amber-500/15 text-white"
-                  : "border-white/5 bg-white/[0.02] text-slate-300 hover:bg-white/5 hover:text-white"
+                "w-full text-left rounded-xl p-2.5 transition flex items-start justify-between gap-2 border group",
+                currentTheme === "orange-slate"
+                  ? "border-[#F03E00] bg-[#F03E00]/25 text-white shadow-[0_0_16px_rgba(240,62,0,0.35)]"
+                  : "border-orange-500/20 bg-orange-950/10 text-slate-200 hover:bg-white/5 hover:border-orange-500/40"
               )}
             >
               <div>
                 <div className="flex items-center gap-2">
-                  <Sun size={14} className="text-amber-400" />
-                  <p className="text-xs font-bold text-amber-200">Thème Clair</p>
-                  {currentTheme === "light" && (
-                    <span className="rounded bg-amber-400/20 px-1.5 py-0.2 text-[9px] font-bold text-amber-300">
+                  <Flame size={15} className="text-[#F03E00]" />
+                  <p className="text-xs font-bold text-orange-300 group-hover:text-orange-200">
+                    Orange Ardoise (Style Infographique)
+                  </p>
+                  {currentTheme === "orange-slate" && (
+                    <span className="rounded bg-[#F03E00] px-1.5 py-0.2 text-[9px] font-bold text-white shadow-[0_0_6px_#F03E00]">
                       Actif
                     </span>
                   )}
                 </div>
-                <p className="text-[10px] text-slate-400 mt-0.5 leading-snug">
-                  Présentation lumineuse à fond clair adaptée aux environnements éclairés.
+                <p className="text-[10px] text-slate-300 mt-0.5 leading-snug">
+                  Palette orange vif, bleu-noir, gris ardoise et blanc cassé de référence.
                 </p>
+                <div className="flex items-center gap-1.5 mt-2">
+                  <span className="h-2.5 w-2.5 rounded-full bg-[#F03E00] ring-1 ring-white/30" title="Orange vif #F03E00" />
+                  <span className="h-2.5 w-2.5 rounded-full bg-[#B33107]" title="Orange profond #B33107" />
+                  <span className="h-2.5 w-2.5 rounded-full bg-[#263136] ring-1 ring-white/20" title="Bleu-noir #263136" />
+                  <span className="h-2.5 w-2.5 rounded-full bg-[#394E53]" title="Slate foncé #394E53" />
+                  <span className="h-2.5 w-2.5 rounded-full bg-[#78868A]" title="Gris ardoise #78868A" />
+                  <span className="h-2.5 w-2.5 rounded-full bg-[#E6E5E1]" title="Blanc cassé #E6E5E1" />
+                </div>
               </div>
-              {currentTheme === "light" && <Check size={16} className="text-amber-400 shrink-0 mt-0.5" />}
+              {currentTheme === "orange-slate" && <Check size={16} className="text-[#F03E00] shrink-0 mt-0.5" />}
             </button>
 
             {/* Option 4: Thème Modernisé */}
@@ -175,9 +237,9 @@ export function ThemeToggle() {
               type="button"
               onClick={() => selectTheme("modern")}
               className={cn(
-                "w-full text-left rounded-xl p-2.5 transition flex items-start justify-between gap-2 border",
+                "w-full text-left rounded-xl p-2.5 transition flex items-start justify-between gap-2 border group",
                 currentTheme === "modern"
-                  ? "border-cyan-400/50 bg-cyan-500/15 text-white"
+                  ? "border-cyan-400/50 bg-cyan-500/15 text-white shadow-[0_0_12px_rgba(6,182,212,0.2)]"
                   : "border-white/5 bg-white/[0.02] text-slate-300 hover:bg-white/5 hover:text-white"
               )}
             >
@@ -194,6 +256,11 @@ export function ThemeToggle() {
                 <p className="text-[10px] text-slate-400 mt-0.5 leading-snug">
                   Dégradés saphir doux, flou d'arrière-plan et bordures aériennes.
                 </p>
+                <div className="flex items-center gap-1 mt-1.5">
+                  <span className="h-2 w-2 rounded-full bg-[#00E5FF]" title="#00E5FF" />
+                  <span className="h-2 w-2 rounded-full bg-[#091528] border border-white/20" title="#091528" />
+                  <span className="h-2 w-2 rounded-full bg-[#10B981]" title="#10B981" />
+                </div>
               </div>
               {currentTheme === "modern" && <Check size={16} className="text-emerald-400 shrink-0 mt-0.5" />}
             </button>
@@ -201,14 +268,14 @@ export function ThemeToggle() {
 
           {/* Bouton de retour rapide si un thème non-défaut est actif */}
           {isNonDefault && (
-            <div className="mt-3 pt-2 border-t border-white/10">
+            <div className="mt-3 pt-2.5 border-t border-white/10">
               <button
                 type="button"
                 onClick={() => selectTheme("classic")}
                 className="w-full inline-flex items-center justify-center gap-1.5 rounded-lg border border-white/10 bg-white/5 py-1.5 text-[11px] font-bold text-slate-200 hover:bg-white/10 hover:text-white transition"
               >
-                <RotateCcw size={12} className="text-amber-400" />
-                <span>Revenir à l'ancienne interface</span>
+                <RotateCcw size={12} className="text-cyan-400" />
+                <span>Revenir à l'apparence Classique</span>
               </button>
             </div>
           )}

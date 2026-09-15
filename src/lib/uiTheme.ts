@@ -6,16 +6,24 @@
  * - "crimson" : Thème Rouge Sentinelle & Chrome Métallique inspiré du blason officiel.
  * - "light" : Thème clair instantané avec inversion chromatique équilibrée et compensation des médias.
  * - "modern" : Variante épurée, contrastée avec reflets cyan/saphir adoucis et typographie aérée.
+ * - "orange-slate" : Thème Orange Ardoise — Palette orange, bleu-noir et gris ardoise inspirée d'un design infographique moderne.
  */
 
-export type UiTheme = "classic" | "crimson" | "light" | "modern";
+export type UiTheme = "classic" | "crimson" | "orange-slate" | "modern" | "light";
 
 const STORAGE_KEY = "sn:ui-theme";
 
 export function getUiTheme(): UiTheme {
   try {
     const saved = localStorage.getItem(STORAGE_KEY);
-    if (saved === "crimson" || saved === "light" || saved === "modern" || saved === "classic") {
+    // Migration automatique de l'ancien thème clair vers Orange Ardoise
+    if (saved === "light") {
+      try {
+        localStorage.setItem(STORAGE_KEY, "orange-slate");
+      } catch {}
+      return "orange-slate";
+    }
+    if (saved === "crimson" || saved === "modern" || saved === "classic" || saved === "orange-slate") {
       return saved;
     }
   } catch {
@@ -43,7 +51,7 @@ export function applyThemeToDOM(theme: UiTheme = getUiTheme()): void {
   // Applique l'attribut standard unique
   root.setAttribute("data-theme", theme);
 
-  root.classList.remove("theme-classic", "theme-crimson", "theme-modern", "theme-light");
+  root.classList.remove("theme-classic", "theme-crimson", "theme-modern", "theme-light", "theme-orange-slate");
   root.classList.add(`theme-${theme}`);
 }
 

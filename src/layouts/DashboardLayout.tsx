@@ -5,7 +5,7 @@ import {
   TestTube2, PenLine, Wallet, Award, BadgeDollarSign, MessagesSquare, Bell, Settings,
   PenSquare, LogOut, ShieldCheck, Menu, X, UserCircle, NotebookPen, FolderOpen, BookMarked,
   ScrollText, Database, Activity, Medal, Handshake, Megaphone, RotateCcw, Clock, Eye,
-  Search, ArrowRight, Home, Calendar,
+  Search, ArrowRight, Home, Calendar, Palette,
 } from "lucide-react";
 import { cn } from "@/utils/cn";
 import { useStore } from "@/lib/store";
@@ -311,6 +311,17 @@ export default function DashboardLayout() {
           </NavLink>
         ))}
       </nav>
+
+      {/* Sélecteur d'Apparence dans la Sidebar */}
+      <div className="border-t border-[#006DFF]/20 px-3 py-2 bg-[#080A0F]">
+        <div className="flex items-center justify-between rounded-lg border border-[#006DFF]/30 bg-[#0B111A] px-2.5 py-1.5 shadow-sm">
+          <div className="flex items-center gap-2">
+            <Palette size={15} className="text-[#F03E00]" />
+            <span className="text-xs font-bold text-[#B8F3FF]">Thème & Couleurs</span>
+          </div>
+          <ThemeToggle align="left" />
+        </div>
+      </div>
 
       {/* User Footer in Sidebar */}
       <div className="border-t border-[#006DFF]/20 p-3 bg-[#080A0F]">
@@ -821,7 +832,7 @@ export default function DashboardLayout() {
             </NavLink>
 
             {/* Bouton bascule UI/UX réversible */}
-            <ThemeToggle />
+            <ThemeToggle showLabel />
 
             <NavLink
               to="/"

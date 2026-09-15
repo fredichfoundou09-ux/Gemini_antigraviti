@@ -4,7 +4,7 @@ import {
   Users, GraduationCap, BookOpen, Wallet, ClipboardCheck, UserX, Timer,
   TestTube2, Award, BadgeDollarSign, TrendingUp, Activity, AlertTriangle, PlusCircle, RotateCcw,
   CalendarDays, DollarSign, Download, FileSpreadsheet, FileJson, Archive, Radio, ShieldCheck,
-  CheckCircle2, XCircle, Search, Clock, Printer
+  CheckCircle2, XCircle, Search, Clock, Printer, Palette, Flame, Moon, Shield, Sparkles
 } from "lucide-react";
 import { useStore } from "@/lib/store";
 import { Card, Stat, PageHead, Badge, Btn, Field, Input, Modal, today, money, Empty, formationLabel, printHTML } from "@/lib/ui";
@@ -12,6 +12,7 @@ import { supabase, isSupabaseConfigured } from "@/lib/supabase/client";
 import { toastMsg } from "@/lib/toast";
 import { usePresence, isUserActiveOnline } from "@/hooks/usePresence";
 import { cn } from "@/utils/cn";
+import { getUiTheme, setUiTheme, UiTheme } from "@/lib/uiTheme";
 
 /* ---------- helpers ---------- */
 function Bar({ label, value, max, color }: { label: string; value: number; max: number; color: string }) {
@@ -1208,10 +1209,180 @@ export function ParametresPage() {
   const s = db.settings;
   const [email, setEmail] = useState(s.contact.email);
   const [adresse, setAdresse] = useState(s.contact.adresse);
+  const [currentTheme, setCurrentTheme] = useState<UiTheme>(() => getUiTheme());
+
+  const handleSelectTheme = (theme: UiTheme) => {
+    setUiTheme(theme);
+    setCurrentTheme(theme);
+    toastMsg.success(
+      theme === "orange-slate"
+        ? "Thème Orange Ardoise activé ✓"
+        : theme === "crimson"
+        ? "Thème Rouge Sentinelle activé ✓"
+        : theme === "modern"
+        ? "Thème Modernisé activé ✓"
+        : "Thème Classique rétabli ✓"
+    );
+  };
 
   return (
     <div>
-      <PageHead title="Paramètres" subtitle="Configuration générale de la plateforme" />
+      <PageHead title="Paramètres" subtitle="Configuration générale & Apparence de la plateforme" />
+      
+      {/* Section Apparence Globale */}
+      <Card className="p-6 mb-6">
+        <div className="flex items-center justify-between mb-3 border-b border-white/10 pb-3">
+          <div className="flex items-center gap-2.5">
+            <div className="flex h-9 w-9 items-center justify-center rounded-lg bg-[#F03E00]/20 text-[#F03E00] border border-[#F03E00]/40">
+              <Palette size={18} />
+            </div>
+            <div>
+              <h3 className="font-display text-sm font-bold text-white">Apparence de l'interface</h3>
+              <p className="text-xs text-slate-400">
+                Personnalisez les couleurs de SENTINEL'S. Les changements s'appliquent instantanément à l'ensemble du logiciel.
+              </p>
+            </div>
+          </div>
+          <span className="font-mono text-[10px] text-cyan-300 bg-cyan-950/60 border border-cyan-400/30 px-2 py-0.5 rounded-full uppercase tracking-wider">
+            100% Réversible
+          </span>
+        </div>
+
+        <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4 mt-4">
+          {/* Thème 1: Classique */}
+          <button
+            type="button"
+            onClick={() => handleSelectTheme("classic")}
+            className={cn(
+              "text-left rounded-xl p-3.5 transition border flex flex-col justify-between group",
+              currentTheme === "classic"
+                ? "border-cyan-400/60 bg-cyan-500/15 shadow-[0_0_15px_rgba(0,229,255,0.25)]"
+                : "border-white/10 bg-white/[0.02] hover:bg-white/5 hover:border-white/20"
+            )}
+          >
+            <div>
+              <div className="flex items-center justify-between mb-2">
+                <div className="flex items-center gap-2">
+                  <Moon size={16} className="text-cyan-400" />
+                  <span className="text-xs font-bold text-white">Classique</span>
+                </div>
+                {currentTheme === "classic" && (
+                  <span className="rounded bg-cyan-400/20 px-1.5 py-0.2 text-[9px] font-bold text-cyan-300">Actif</span>
+                )}
+              </div>
+              <p className="text-[11px] text-slate-400 leading-snug mb-3">
+                Interface d'origine sombre et contrastée certifiée Sentinelles.
+              </p>
+            </div>
+            <div className="flex items-center gap-1.5 pt-2 border-t border-white/5">
+              <span className="h-3 w-3 rounded-full bg-[#080A0F] border border-white/20" />
+              <span className="h-3 w-3 rounded-full bg-[#00E5FF]" />
+              <span className="h-3 w-3 rounded-full bg-[#006DFF]" />
+              <span className="h-3 w-3 rounded-full bg-[#FF174F]" />
+            </div>
+          </button>
+
+          {/* Thème 2: Rouge Sentinelle */}
+          <button
+            type="button"
+            onClick={() => handleSelectTheme("crimson")}
+            className={cn(
+              "text-left rounded-xl p-3.5 transition border flex flex-col justify-between group",
+              currentTheme === "crimson"
+                ? "border-red-500/70 bg-red-500/20 shadow-[0_0_15px_rgba(255,23,79,0.3)]"
+                : "border-white/10 bg-white/[0.02] hover:bg-white/5 hover:border-white/20"
+            )}
+          >
+            <div>
+              <div className="flex items-center justify-between mb-2">
+                <div className="flex items-center gap-2">
+                  <Shield size={16} className="text-red-500" />
+                  <span className="text-xs font-bold text-red-300">Rouge Sentinelle</span>
+                </div>
+                {currentTheme === "crimson" && (
+                  <span className="rounded bg-red-500/30 px-1.5 py-0.2 text-[9px] font-bold text-red-200">Actif</span>
+                )}
+              </div>
+              <p className="text-[11px] text-slate-400 leading-snug mb-3">
+                Ambiance rubis écarlate et chrome métallique du blason 3D.
+              </p>
+            </div>
+            <div className="flex items-center gap-1.5 pt-2 border-t border-white/5">
+              <span className="h-3 w-3 rounded-full bg-[#FF174F]" />
+              <span className="h-3 w-3 rounded-full bg-[#9E002B]" />
+              <span className="h-3 w-3 rounded-full bg-[#0E0E14] border border-white/20" />
+            </div>
+          </button>
+
+          {/* Thème 3: Orange Ardoise (Style Infographique) */}
+          <button
+            type="button"
+            onClick={() => handleSelectTheme("orange-slate")}
+            className={cn(
+              "text-left rounded-xl p-3.5 transition border flex flex-col justify-between group",
+              currentTheme === "orange-slate"
+                ? "border-[#F03E00] bg-[#F03E00]/25 shadow-[0_0_18px_rgba(240,62,0,0.4)]"
+                : "border-orange-500/30 bg-orange-950/10 hover:bg-orange-950/20 hover:border-orange-500/50"
+            )}
+          >
+            <div>
+              <div className="flex items-center justify-between mb-2">
+                <div className="flex items-center gap-2">
+                  <Flame size={16} className="text-[#F03E00]" />
+                  <span className="text-xs font-bold text-orange-300">Orange Ardoise</span>
+                </div>
+                {currentTheme === "orange-slate" && (
+                  <span className="rounded bg-[#F03E00] px-1.5 py-0.2 text-[9px] font-bold text-white shadow-[0_0_6px_#F03E00]">Actif</span>
+                )}
+              </div>
+              <p className="text-[11px] text-slate-300 leading-snug mb-3">
+                Palette orange vif, bleu-noir et gris ardoise infographique moderne.
+              </p>
+            </div>
+            <div className="flex items-center gap-1.5 pt-2 border-t border-white/5">
+              <span className="h-3 w-3 rounded-full bg-[#F03E00] ring-1 ring-white/30" title="#F03E00" />
+              <span className="h-3 w-3 rounded-full bg-[#B33107]" title="#B33107" />
+              <span className="h-3 w-3 rounded-full bg-[#263136] ring-1 ring-white/20" title="#263136" />
+              <span className="h-3 w-3 rounded-full bg-[#394E53]" title="#394E53" />
+              <span className="h-3 w-3 rounded-full bg-[#78868A]" title="#78868A" />
+              <span className="h-3 w-3 rounded-full bg-[#E6E5E1]" title="#E6E5E1" />
+            </div>
+          </button>
+
+          {/* Thème 4: Modernisé */}
+          <button
+            type="button"
+            onClick={() => handleSelectTheme("modern")}
+            className={cn(
+              "text-left rounded-xl p-3.5 transition border flex flex-col justify-between group",
+              currentTheme === "modern"
+                ? "border-cyan-400/60 bg-cyan-500/15 shadow-[0_0_15px_rgba(6,182,212,0.25)]"
+                : "border-white/10 bg-white/[0.02] hover:bg-white/5 hover:border-white/20"
+            )}
+          >
+            <div>
+              <div className="flex items-center justify-between mb-2">
+                <div className="flex items-center gap-2">
+                  <Sparkles size={16} className="text-cyan-300" />
+                  <span className="text-xs font-bold text-cyan-200">Modernisé</span>
+                </div>
+                {currentTheme === "modern" && (
+                  <span className="rounded bg-emerald-400/20 px-1.5 py-0.2 text-[9px] font-bold text-emerald-300">Actif</span>
+                )}
+              </div>
+              <p className="text-[11px] text-slate-400 leading-snug mb-3">
+                Dégradés saphir doux, flou d'arrière-plan et bordures aériennes.
+              </p>
+            </div>
+            <div className="flex items-center gap-1.5 pt-2 border-t border-white/5">
+              <span className="h-3 w-3 rounded-full bg-[#00E5FF]" />
+              <span className="h-3 w-3 rounded-full bg-[#091528] border border-white/20" />
+              <span className="h-3 w-3 rounded-full bg-[#10B981]" />
+            </div>
+          </button>
+        </div>
+      </Card>
+
       <div className="grid gap-4 lg:grid-cols-2">
         <Card className="p-6">
           <h3 className="font-display mb-4 text-sm font-bold text-white">Coordonnées de contact</h3>

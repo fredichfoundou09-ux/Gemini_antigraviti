@@ -1529,7 +1529,7 @@ export function CoursesPage() {
           }
         }
 
-        const courseRecord = {
+        const courseRecord: any = {
           titre: form.titre.trim(),
           description: form.description || "",
           module_id: realModuleId,
@@ -1541,57 +1541,104 @@ export function CoursesPage() {
           files: form.files || [],
         };
 
+        const saveCourseFiles = async (courseId: string, files: any[]) => {
+          if (!files?.length) return;
+          const fileRows = files.map((f: any) => {
+            const fname = f.originalName || f.name || f.nom || "document";
+            const fsize = Number(f.size || f.taille || 0);
+            const ftype = f.mime || f.type || "application/octet-stream";
+            const furl = f.dataUrl || f.url || f.storageKey || f.storage_key || "";
+            return {
+              course_id: courseId,
+              nom: fname,
+              original_name: fname,
+              stored_name: fname,
+              taille: fsize,
+              size: fsize,
+              type: ftype,
+              mime: ftype,
+              url: furl,
+              storage_key: furl,
+            };
+          });
+
+          try {
+            const { error: cfErr } = await supabase.from("course_files").insert(fileRows);
+            if (cfErr) throw cfErr;
+          } catch (cfErr: any) {
+            console.warn("course_files insert with extended columns failed, trying core columns:", cfErr?.message);
+            const coreFileRows = fileRows.map((r: any) => ({
+              course_id: r.course_id,
+              original_name: r.original_name,
+              stored_name: r.stored_name,
+              size: r.size,
+              mime: r.mime,
+              storage_key: r.storage_key,
+            }));
+            const { error: retryCfErr } = await supabase.from("course_files").insert(coreFileRows);
+            if (retryCfErr) throw retryCfErr;
+          }
+        };
+
         if (editing) {
-          await supabase.from("courses").update(courseRecord).eq("id", editing.id);
+          try {
+            const { error: uErr } = await supabase.from("courses").update(courseRecord).eq("id", editing.id);
+            if (uErr) throw uErr;
+          } catch (uErr: any) {
+            if (uErr?.message?.includes("files")) {
+              const { files, ...withoutFiles } = courseRecord;
+              const { error: retryErr } = await supabase.from("courses").update(withoutFiles).eq("id", editing.id);
+              if (retryErr) throw retryErr;
+            } else {
+              throw uErr;
+            }
+          }
           createdCourseId = editing.id;
 
           if (form.files?.length) {
             await supabase.from("course_files").delete().eq("course_id", editing.id);
-            await supabase.from("course_files").insert(form.files.map((f: any) => {
-              const fname = f.originalName || f.name || f.nom || "document";
-              const fsize = Number(f.size || f.taille || 0);
-              const ftype = f.mime || f.type || "application/octet-stream";
-              const furl = f.dataUrl || f.url || f.storageKey || "";
-              return {
-                course_id: editing.id,
-                nom: fname,
-                original_name: fname,
-                stored_name: fname,
-                taille: fsize,
-                size: fsize,
-                type: ftype,
-                mime: ftype,
-                url: furl,
-                storage_key: furl,
-              };
-            }));
+            await saveCourseFiles(editing.id, form.files);
           }
-          toastMsg.success("Support mis à jour avec ses documents originaux ✓");
+
+          try {
+            await supabase.from("course_targets").delete().eq("course_id", editing.id);
+            if (form.audience === "apprenants" && form.studentIds?.length) {
+              await supabase.from("course_targets").insert(form.studentIds.map((sid: string) => ({ course_id: editing.id, student_id: sid })));
+            }
+          } catch (tErr) {
+            console.warn("course_targets update warning:", tErr);
+          }
+
+          toastMsg.success("Support et documents mis à jour ✓");
         } else {
-          const { data: newCourse, error: cErr } = await supabase.from("courses").insert(courseRecord).select("id").single();
-          if (cErr) throw cErr;
+          let newCourse: any = null;
+          try {
+            const { data, error: cErr } = await supabase.from("courses").insert(courseRecord).select("id").single();
+            if (cErr) throw cErr;
+            newCourse = data;
+          } catch (cErr: any) {
+            if (cErr?.message?.includes("files")) {
+              const { files, ...withoutFiles } = courseRecord;
+              const { data: retryData, error: retryErr } = await supabase.from("courses").insert(withoutFiles).select("id").single();
+              if (retryErr) throw retryErr;
+              newCourse = retryData;
+            } else {
+              throw cErr;
+            }
+          }
 
           if (newCourse?.id) {
             createdCourseId = newCourse.id;
             if (form.files?.length) {
-              await supabase.from("course_files").insert(form.files.map((f: any) => {
-                const fname = f.originalName || f.name || f.nom || "document";
-                const fsize = Number(f.size || f.taille || 0);
-                const ftype = f.mime || f.type || "application/octet-stream";
-                const furl = f.dataUrl || f.url || f.storageKey || "";
-                return {
-                  course_id: newCourse.id,
-                  nom: fname,
-                  original_name: fname,
-                  stored_name: fname,
-                  taille: fsize,
-                  size: fsize,
-                  type: ftype,
-                  mime: ftype,
-                  url: furl,
-                  storage_key: furl,
-                };
-              }));
+              await saveCourseFiles(newCourse.id, form.files);
+            }
+
+            try {
+              if (form.audience === "apprenants" && form.studentIds?.length) {
+                await supabase.from("course_targets").insert(form.studentIds.map((sid: string) => ({ course_id: newCourse.id, student_id: sid })));
+              }
+            } catch (tErr) {
+              console.warn("course_targets insert warning:", tErr);
             }
           }
           toastMsg.success("Nouveau support et document(s) publiés avec succès ✓");

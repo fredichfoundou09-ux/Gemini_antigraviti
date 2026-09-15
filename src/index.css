@@ -15,6 +15,20 @@
   --sentinel-gray-dark: #151C22;
   --sentinel-orange: #FF9D00;
   --sentinel-green: #00E676;
+
+  /* Design Tokens Thème Orange Ardoise (Style Infographic) */
+  --theme-primary: #F03E00;
+  --theme-primary-dark: #B33107;
+  --theme-primary-active: #8F2706;
+  --theme-dark: #263136;
+  --theme-slate: #394E53;
+  --theme-gray: #78868A;
+  --theme-slate-light: #839196;
+  --theme-gray-light: #A4B3B6;
+  --theme-surface: #E6E5E1;
+  --theme-white: #FFFFFF;
+  --theme-text: #263136;
+  --theme-text-light: #E6E5E1;
 }
 
 @theme {
@@ -483,6 +497,528 @@ html[data-theme="light"] .no-theme-invert {
 [data-theme="crimson"] .glow-cyan-md {
   box-shadow: 0 0 20px rgba(255, 23, 79, 0.25), inset 0 0 10px rgba(255, 23, 79, 0.08) !important;
 }
+
+/* ========================================================
+   THÈME ORANGE ARDOISE — STYLE INFOGRAPHIC
+   Activé via [data-theme="orange-slate"] et .theme-orange-slate
+   Palette :
+   - Primaire Orange Vif : #F03E00
+   - Orange Rouge Profond : #B33107 (Active : #8F2706)
+   - Bleu-Noir / Charbon : #263136
+   - Slate Foncé : #394E53
+   - Gris Ardoise Moyen : #78868A
+   - Slate Clair (Fond Général) : #839196
+   - Gris Bleuté Très Clair : #A4B3B6
+   - Blanc Cassé / Chaud : #E6E5E1
+   - Blanc Pur : #FFFFFF
+   ======================================================== */
+
+[data-theme="orange-slate"],
+.theme-orange-slate {
+  --background: #839196;
+  --sentinel-bg: #839196;
+  --color-night: #263136;
+  --color-night2: #394E53;
+  --color-night3: #4A5F64;
+  --color-panel: #FFFFFF;
+  --color-panel2: #E6E5E1;
+  --color-panel3: #D4D9DC;
+  --color-electric: #F03E00;
+  --color-electric2: #B33107;
+  --color-cyber: #F03E00;
+  --color-neon: #F03E00;
+  --color-hudtext: #263136;
+  --color-hudmuted: #78868A;
+  --color-huddim: #A4B3B6;
+}
+
+/* 1. Arrière-plan global et structure générale */
+[data-theme="orange-slate"] body {
+  background: radial-gradient(circle at 50% -10%, #A4B3B6 0%, #839196 45%, #78868A 90%) fixed !important;
+  color: #263136 !important;
+}
+
+[data-theme="orange-slate"] .bg-\[\#080A0F\],
+[data-theme="orange-slate"] .bg-\[\#020508\],
+[data-theme="orange-slate"] .bg-hud-gradient {
+  background: radial-gradient(circle at 50% -10%, #A4B3B6 0%, #839196 45%, #78868A 90%) fixed !important;
+  color: #263136 !important;
+}
+
+/* 2. Sidebar (Bleu-Noir #263136 structuré) */
+[data-theme="orange-slate"] aside,
+[data-theme="orange-slate"] aside > div {
+  background-color: #263136 !important;
+  border-right: 1px solid #394E53 !important;
+}
+
+[data-theme="orange-slate"] aside .border-b,
+[data-theme="orange-slate"] aside .border-t,
+[data-theme="orange-slate"] aside .bg-\[\#0B111A\]\/50 {
+  background-color: #263136 !important;
+  border-color: #394E53 !important;
+}
+
+[data-theme="orange-slate"] aside nav a {
+  color: #A4B3B6 !important;
+  border-color: transparent !important;
+}
+
+[data-theme="orange-slate"] aside nav a:hover {
+  background-color: #394E53 !important;
+  color: #FFFFFF !important;
+  border-color: #78868A !important;
+}
+
+[data-theme="orange-slate"] aside nav a.active {
+  background-color: #F03E00 !important;
+  color: #FFFFFF !important;
+  border-color: #F03E00 !important;
+  box-shadow: 0 4px 16px rgba(240, 62, 0, 0.4) !important;
+}
+
+[data-theme="orange-slate"] aside nav a.active svg,
+[data-theme="orange-slate"] aside nav a.active span {
+  color: #FFFFFF !important;
+}
+
+[data-theme="orange-slate"] aside .border-t .bg-\[\#0B111A\] {
+  background-color: #394E53 !important;
+  border-color: #78868A !important;
+}
+
+[data-theme="orange-slate"] aside .border-t p {
+  color: #E6E5E1 !important;
+}
+
+[data-theme="orange-slate"] aside .border-t .bg-gradient-to-br {
+  background: linear-gradient(135deg, #F03E00, #B33107) !important;
+  color: #FFFFFF !important;
+}
+
+/* 3. Header / Navbar Sombre (#263136) */
+[data-theme="orange-slate"] header {
+  background-color: #263136 !important;
+  border-bottom: 1px solid #394E53 !important;
+  box-shadow: 0 4px 20px -2px rgba(38, 49, 54, 0.4) !important;
+}
+
+[data-theme="orange-slate"] header p,
+[data-theme="orange-slate"] header span.text-\[\#B8F3FF\],
+[data-theme="orange-slate"] header .text-white {
+  color: #E6E5E1 !important;
+}
+
+[data-theme="orange-slate"] header a,
+[data-theme="orange-slate"] header button {
+  background-color: #394E53 !important;
+  border-color: #78868A !important;
+  color: #A4B3B6 !important;
+}
+
+[data-theme="orange-slate"] header a:hover,
+[data-theme="orange-slate"] header button:hover {
+  background-color: #263136 !important;
+  border-color: #F03E00 !important;
+  color: #F03E00 !important;
+  box-shadow: 0 0 12px rgba(240, 62, 0, 0.3) !important;
+}
+
+[data-theme="orange-slate"] header input {
+  background-color: #FFFFFF !important;
+  border-color: #A4B3B6 !important;
+  color: #263136 !important;
+}
+
+[data-theme="orange-slate"] header input::placeholder {
+  color: #78868A !important;
+}
+
+[data-theme="orange-slate"] header input:focus {
+  border-color: #F03E00 !important;
+  box-shadow: 0 0 0 3px rgba(240, 62, 0, 0.20) !important;
+}
+
+/* Dropdown Recherche Globale Ctrl+K */
+[data-theme="orange-slate"] header .max-h-\[80vh\],
+[data-theme="orange-slate"] header .bg-\[\#0A1329\]\/95 {
+  background-color: #263136 !important;
+  border-color: #394E53 !important;
+  color: #E6E5E1 !important;
+}
+[data-theme="orange-slate"] header .max-h-\[80vh\] p,
+[data-theme="orange-slate"] header .max-h-\[80vh\] span,
+[data-theme="orange-slate"] header .max-h-\[80vh\] h4 {
+  color: #E6E5E1 !important;
+}
+[data-theme="orange-slate"] header .max-h-\[80vh\] button:hover {
+  background-color: #394E53 !important;
+  border-color: #F03E00 !important;
+}
+
+/* 4. Cartes, Panneaux, Surfaces (#FFFFFF / #E6E5E1) */
+[data-theme="orange-slate"] .hud-panel,
+[data-theme="orange-slate"] .rounded-lg.border.bg-gradient-to-br,
+[data-theme="orange-slate"] div[class*="bg-gradient-to-br from-[#092033]"],
+[data-theme="orange-slate"] div[class*="from-[#092033]/75"] {
+  background: #FFFFFF !important;
+  border-color: #A4B3B6 !important;
+  box-shadow: 0 4px 20px -2px rgba(38, 49, 54, 0.08) !important;
+  color: #263136 !important;
+}
+
+[data-theme="orange-slate"] .bg-white\/\[0\.02\],
+[data-theme="orange-slate"] .bg-white\/\[0\.03\],
+[data-theme="orange-slate"] .bg-white\/5 {
+  background-color: #E6E5E1 !important;
+  border-color: #A4B3B6 !important;
+  color: #263136 !important;
+}
+
+[data-theme="orange-slate"] .border-white\/5,
+[data-theme="orange-slate"] .border-white\/10,
+[data-theme="orange-slate"] .border-white\/15,
+[data-theme="orange-slate"] .border-white\/20,
+[data-theme="orange-slate"] .border-\[\#006DFF\]\/20,
+[data-theme="orange-slate"] .border-\[\#006DFF\]\/25,
+[data-theme="orange-slate"] .border-\[\#006DFF\]\/30,
+[data-theme="orange-slate"] .border-\[\#006DFF\]\/40,
+[data-theme="orange-slate"] .border-cyan-400\/20,
+[data-theme="orange-slate"] .border-cyan-400\/25,
+[data-theme="orange-slate"] .border-cyan-400\/30,
+[data-theme="orange-slate"] .border-cyan-400\/40,
+[data-theme="orange-slate"] .border-cyan-400\/50,
+[data-theme="orange-slate"] .border-cyan-500\/30 {
+  border-color: #A4B3B6 !important;
+}
+
+[data-theme="orange-slate"] .hud-border-cyan,
+[data-theme="orange-slate"] .glow-cyan-md {
+  border-color: #F03E00 !important;
+  box-shadow: 0 0 16px rgba(240, 62, 0, 0.25) !important;
+}
+
+/* 5. Typographie et textes */
+[data-theme="orange-slate"] main,
+[data-theme="orange-slate"] main p,
+[data-theme="orange-slate"] main span,
+[data-theme="orange-slate"] main h1,
+[data-theme="orange-slate"] main h2,
+[data-theme="orange-slate"] main h3,
+[data-theme="orange-slate"] main h4,
+[data-theme="orange-slate"] main h5,
+[data-theme="orange-slate"] main h6 {
+  color: #263136;
+}
+
+[data-theme="orange-slate"] main .text-white {
+  color: #263136 !important;
+}
+
+[data-theme="orange-slate"] main .text-slate-200,
+[data-theme="orange-slate"] main .text-slate-300,
+[data-theme="orange-slate"] main .text-\[\#B8F3FF\] {
+  color: #394E53 !important;
+}
+
+[data-theme="orange-slate"] main .text-slate-400,
+[data-theme="orange-slate"] main .text-slate-500,
+[data-theme="orange-slate"] main .text-\[\#4C91B5\] {
+  color: #78868A !important;
+}
+
+[data-theme="orange-slate"] main .text-cyan-300,
+[data-theme="orange-slate"] main .text-cyan-400,
+[data-theme="orange-slate"] main .text-\[\#00E5FF\],
+[data-theme="orange-slate"] main .text-\[\#00C8FF\] {
+  color: #F03E00 !important;
+}
+
+[data-theme="orange-slate"] .bg-cyan-400\/5,
+[data-theme="orange-slate"] .bg-cyan-400\/10,
+[data-theme="orange-slate"] .bg-cyan-500\/10 {
+  background-color: rgba(240, 62, 0, 0.08) !important;
+}
+
+[data-theme="orange-slate"] .hover\:border-cyan-400:hover,
+[data-theme="orange-slate"] .hover\:border-\[\#00C8FF\]:hover {
+  border-color: #F03E00 !important;
+}
+
+[data-theme="orange-slate"] .hover\:text-\[\#00E5FF\]:hover,
+[data-theme="orange-slate"] .hover\:text-cyan-300:hover {
+  color: #B33107 !important;
+}
+
+/* 6. Boutons */
+/* Bouton primaire (Orange Vif #F03E00 -> #B33107) */
+[data-theme="orange-slate"] button[class*="from-[#006DFF]"],
+[data-theme="orange-slate"] .btn-primary {
+  background: linear-gradient(135deg, #F03E00, #B33107) !important;
+  color: #FFFFFF !important;
+  border: 1px solid #F03E00 !important;
+  box-shadow: 0 4px 14px rgba(240, 62, 0, 0.35) !important;
+}
+
+[data-theme="orange-slate"] button[class*="from-[#006DFF]"] *,
+[data-theme="orange-slate"] .btn-primary * {
+  color: #FFFFFF !important;
+}
+
+[data-theme="orange-slate"] button[class*="from-[#006DFF]"]:hover,
+[data-theme="orange-slate"] .btn-primary:hover {
+  background: #B33107 !important;
+  box-shadow: 0 4px 18px rgba(179, 49, 7, 0.45) !important;
+}
+
+[data-theme="orange-slate"] button[class*="from-[#006DFF]"]:active,
+[data-theme="orange-slate"] .btn-primary:active {
+  background: #8F2706 !important;
+}
+
+/* Bouton secondaire (Slate foncé #394E53) */
+[data-theme="orange-slate"] button[class*="from-emerald-500"],
+[data-theme="orange-slate"] button[class*="from-[#8B0035]"] {
+  background: #394E53 !important;
+  color: #FFFFFF !important;
+  border: 1px solid #78868A !important;
+  box-shadow: none !important;
+}
+[data-theme="orange-slate"] button[class*="from-emerald-500"] *,
+[data-theme="orange-slate"] button[class*="from-[#8B0035]"] * {
+  color: #FFFFFF !important;
+}
+[data-theme="orange-slate"] button[class*="from-emerald-500"]:hover,
+[data-theme="orange-slate"] button[class*="from-[#8B0035]"]:hover {
+  background: #263136 !important;
+}
+
+/* Bouton outline */
+[data-theme="orange-slate"] button[class*="bg-[#092033]/80"],
+[data-theme="orange-slate"] button[class*="border-[#00C8FF]/40"] {
+  background: transparent !important;
+  border-color: #F03E00 !important;
+  color: #F03E00 !important;
+}
+[data-theme="orange-slate"] button[class*="bg-[#092033]/80"] *,
+[data-theme="orange-slate"] button[class*="border-[#00C8FF]/40"] * {
+  color: #F03E00 !important;
+}
+[data-theme="orange-slate"] button[class*="bg-[#092033]/80"]:hover,
+[data-theme="orange-slate"] button[class*="border-[#00C8FF]/40"]:hover {
+  background: #F03E00 !important;
+  color: #FFFFFF !important;
+}
+[data-theme="orange-slate"] button[class*="bg-[#092033]/80"]:hover *,
+[data-theme="orange-slate"] button[class*="border-[#00C8FF]/40"]:hover * {
+  color: #FFFFFF !important;
+}
+
+/* Bouton ghost */
+[data-theme="orange-slate"] button[class*="bg-white/5"] {
+  background-color: #E6E5E1 !important;
+  border: 1px solid #A4B3B6 !important;
+  color: #263136 !important;
+}
+[data-theme="orange-slate"] button[class*="bg-white/5"]:hover {
+  background-color: #394E53 !important;
+  color: #FFFFFF !important;
+}
+[data-theme="orange-slate"] button[class*="bg-white/5"]:hover * {
+  color: #FFFFFF !important;
+}
+
+/* 7. Formulaires (Inputs, Selects, Textareas, Labels) */
+[data-theme="orange-slate"] input:not([type="checkbox"]):not([type="radio"]),
+[data-theme="orange-slate"] select,
+[data-theme="orange-slate"] textarea {
+  background-color: #FFFFFF !important;
+  border: 1px solid #A4B3B6 !important;
+  color: #263136 !important;
+}
+
+[data-theme="orange-slate"] input::placeholder,
+[data-theme="orange-slate"] textarea::placeholder {
+  color: #78868A !important;
+}
+
+[data-theme="orange-slate"] input:focus,
+[data-theme="orange-slate"] select:focus,
+[data-theme="orange-slate"] textarea:focus {
+  border-color: #F03E00 !important;
+  box-shadow: 0 0 0 3px rgba(240, 62, 0, 0.20) !important;
+  outline: none !important;
+}
+
+[data-theme="orange-slate"] label,
+[data-theme="orange-slate"] .label,
+[data-theme="orange-slate"] form label span {
+  color: #263136 !important;
+}
+
+/* 8. Tableaux Infographiques */
+[data-theme="orange-slate"] table {
+  border-color: #78868A !important;
+  color: #263136 !important;
+}
+
+[data-theme="orange-slate"] thead tr,
+[data-theme="orange-slate"] thead th {
+  background-color: #263136 !important;
+  color: #FFFFFF !important;
+  border-color: #394E53 !important;
+}
+
+[data-theme="orange-slate"] thead th * {
+  color: #FFFFFF !important;
+}
+
+[data-theme="orange-slate"] tbody tr {
+  background-color: #FFFFFF !important;
+  color: #263136 !important;
+  border-bottom: 1px solid #A4B3B6 !important;
+}
+
+[data-theme="orange-slate"] tbody tr:nth-child(even) {
+  background-color: #E6E5E1 !important;
+}
+
+[data-theme="orange-slate"] tbody tr:hover {
+  background-color: #A4B3B6 !important;
+  color: #263136 !important;
+}
+
+[data-theme="orange-slate"] tbody tr.selected,
+[data-theme="orange-slate"] tbody tr[aria-selected="true"] {
+  background-color: #F03E00 !important;
+  color: #FFFFFF !important;
+}
+[data-theme="orange-slate"] tbody tr.selected td,
+[data-theme="orange-slate"] tbody tr.selected * {
+  color: #FFFFFF !important;
+}
+
+[data-theme="orange-slate"] td {
+  border-color: #A4B3B6 !important;
+  color: #263136 !important;
+}
+
+/* 9. Badges */
+[data-theme="orange-slate"] span[class*="bg-[#071A2B]"][class*="text-[#00E5FF]"],
+[data-theme="orange-slate"] .badge-cyan {
+  background-color: #F03E00 !important;
+  color: #FFFFFF !important;
+  border-color: #B33107 !important;
+  box-shadow: 0 0 10px rgba(240, 62, 0, 0.25) !important;
+}
+[data-theme="orange-slate"] span[class*="bg-[#071A2B]"][class*="text-[#00E5FF]"] * {
+  color: #FFFFFF !important;
+}
+
+[data-theme="orange-slate"] span[class*="bg-[#0B111A]"][class*="text-[#4C91B5]"],
+[data-theme="orange-slate"] span[class*="bg-[#081830]"][class*="text-[#008CFF]"] {
+  background-color: #394E53 !important;
+  color: #FFFFFF !important;
+  border-color: #78868A !important;
+}
+[data-theme="orange-slate"] span[class*="bg-[#0B111A]"][class*="text-[#4C91B5]"] * {
+  color: #FFFFFF !important;
+}
+
+[data-theme="orange-slate"] span[class*="border-white/10"][class*="bg-white/"] {
+  background-color: #A4B3B6 !important;
+  color: #263136 !important;
+  border-color: #78868A !important;
+}
+
+/* 10. Modales & Popups */
+[data-theme="orange-slate"] .fixed.inset-0 .bg-black\/85,
+[data-theme="orange-slate"] .fixed.inset-0 .bg-black\/80 {
+  background-color: rgba(38, 49, 54, 0.65) !important;
+  backdrop-filter: blur(8px) !important;
+}
+
+[data-theme="orange-slate"] .fixed.inset-0 .max-h-\[92vh\] {
+  background-color: #FFFFFF !important;
+  border: 1px solid #A4B3B6 !important;
+  box-shadow: 0 20px 60px -10px rgba(38, 49, 54, 0.5) !important;
+  color: #263136 !important;
+}
+
+[data-theme="orange-slate"] .fixed.inset-0 .max-h-\[92vh\] h3 {
+  color: #263136 !important;
+}
+
+/* 11. Statistiques et Graphiques */
+[data-theme="orange-slate"] div[class*="rounded-md border p-2.5"][class*="bg-[#071A2B]"] {
+  background-color: rgba(240, 62, 0, 0.1) !important;
+  border-color: rgba(240, 62, 0, 0.3) !important;
+  color: #F03E00 !important;
+}
+
+[data-theme="orange-slate"] .recharts-default-tooltip {
+  background-color: #263136 !important;
+  border: 1px solid #394E53 !important;
+  color: #FFFFFF !important;
+  border-radius: 8px !important;
+}
+
+[data-theme="orange-slate"] .recharts-cartesian-grid line {
+  stroke: #A4B3B6 !important;
+  stroke-opacity: 0.4 !important;
+}
+
+[data-theme="orange-slate"] .recharts-text {
+  fill: #263136 !important;
+}
+
+/* 12. Bottom Navigation Mobile */
+[data-theme="orange-slate"] nav.lg\:hidden {
+  background-color: #263136 !important;
+  border-top-color: #394E53 !important;
+}
+[data-theme="orange-slate"] nav.lg\:hidden a {
+  color: #A4B3B6 !important;
+}
+[data-theme="orange-slate"] nav.lg\:hidden a.active {
+  color: #F03E00 !important;
+}
+
+/* 13. Pages publiques et vitrines */
+[data-theme="orange-slate"] header.h-\[88px\] {
+  background-color: #263136 !important;
+  border-bottom: 2px solid #F03E00 !important;
+  box-shadow: 0 4px 20px rgba(240, 62, 0, 0.25) !important;
+}
+
+[data-theme="orange-slate"] header.h-\[88px\] nav a {
+  background-color: #394E53 !important;
+  color: #E6E5E1 !important;
+  border-color: #78868A !important;
+}
+
+[data-theme="orange-slate"] header.h-\[88px\] nav a.active {
+  background: #F03E00 !important;
+  color: #FFFFFF !important;
+  border-color: #F03E00 !important;
+  box-shadow: 0 0 14px rgba(240, 62, 0, 0.4) !important;
+}
+
+[data-theme="orange-slate"] header.h-\[88px\] .text-\[\#00D9FF\] {
+  color: #F03E00 !important;
+}
+
+[data-theme="orange-slate"] footer {
+  background-color: #263136 !important;
+  border-top: 1px solid #394E53 !important;
+  color: #A4B3B6 !important;
+}
+
+[data-theme="orange-slate"] footer h4,
+[data-theme="orange-slate"] footer h5 {
+  color: #FFFFFF !important;
+}
+
 
 
 

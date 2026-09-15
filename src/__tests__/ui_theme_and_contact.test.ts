@@ -106,16 +106,12 @@ describe("Gestionnaire de Thème Réversible (uiTheme)", () => {
     expect(rootClasses.has("theme-modern")).toBe(false);
   });
 
-  it("permet d'activer le thème clair 'light' et l'applique au DOM et localStorage", () => {
-    setUiTheme("light");
+  it("migre automatiquement l'ancien thème 'light' vers 'orange-slate'", () => {
+    mockStore["sn:ui-theme"] = "light";
 
-    expect(mockStore["sn:ui-theme"]).toBe("light");
-    expect(getUiTheme()).toBe("light");
-    expect(rootAttributes["data-theme"]).toBe("light");
-    expect(rootClasses.has("theme-light")).toBe(true);
-    expect(rootClasses.has("theme-classic")).toBe(false);
-    expect(dispatchedEvents.length).toBeGreaterThan(0);
-    expect(dispatchedEvents[0].detail.theme).toBe("light");
+    // getUiTheme doit détecter "light" et migrer vers "orange-slate"
+    expect(getUiTheme()).toBe("orange-slate");
+    expect(mockStore["sn:ui-theme"]).toBe("orange-slate");
   });
 
   it("permet d'activer le thème 'crimson' (Rouge Sentinelle) et l'applique au DOM et localStorage", () => {
@@ -130,6 +126,18 @@ describe("Gestionnaire de Thème Réversible (uiTheme)", () => {
     expect(dispatchedEvents[0].detail.theme).toBe("crimson");
   });
 
+  it("permet d'activer le thème 'orange-slate' (Orange Ardoise) et l'applique au DOM et localStorage", () => {
+    setUiTheme("orange-slate");
+
+    expect(mockStore["sn:ui-theme"]).toBe("orange-slate");
+    expect(getUiTheme()).toBe("orange-slate");
+    expect(rootAttributes["data-theme"]).toBe("orange-slate");
+    expect(rootClasses.has("theme-orange-slate")).toBe(true);
+    expect(rootClasses.has("theme-classic")).toBe(false);
+    expect(dispatchedEvents.length).toBeGreaterThan(0);
+    expect(dispatchedEvents[0].detail.theme).toBe("orange-slate");
+  });
+
   it("applique le thème au DOM correctement avec applyThemeToDOM", () => {
     applyThemeToDOM("crimson");
     expect(rootAttributes["data-theme"]).toBe("crimson");
@@ -139,6 +147,9 @@ describe("Gestionnaire de Thème Réversible (uiTheme)", () => {
 
     applyThemeToDOM("light");
     expect(rootAttributes["data-theme"]).toBe("light");
+
+    applyThemeToDOM("orange-slate");
+    expect(rootAttributes["data-theme"]).toBe("orange-slate");
 
     applyThemeToDOM("classic");
     expect(rootAttributes["data-theme"]).toBe("classic");

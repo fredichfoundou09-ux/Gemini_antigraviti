@@ -290,7 +290,7 @@ export function StoreProvider({ children }: { children: React.ReactNode }) {
           supabase.from("student_modules").select("*"),
           supabase.from("teachers").select("*"),
           supabase.from("teacher_modules").select("*"),
-          supabase.from("courses").select("*, course_files(*)"),
+          supabase.from("courses").select("*, course_files(*), course_targets(student_id)"),
           supabase.from("schedule").select("*"),
           supabase.from("attendance").select("*"),
           supabase.from("invoices").select("*"),
@@ -471,13 +471,23 @@ export function StoreProvider({ children }: { children: React.ReactNode }) {
               type: c.type as any,
               date: c.date_publication?.slice(0, 10) || c.date || "",
               audience: c.audience as any,
+              studentIds: Array.isArray(c.course_targets)
+                ? c.course_targets.map((ct: any) => ct.student_id).filter(Boolean)
+                : (Array.isArray(c.targets) ? c.targets.map((ct: any) => ct.student_id).filter(Boolean) : (c.studentIds || [])),
               publie: c.publie,
               content: c.content || "",
               files: rawFiles.map((f: any) => {
                 const fname = f.originalName || f.original_name || f.nom || f.name || f.stored_name || "document";
                 const fsize = Number(f.size || f.taille || 0);
                 const ftype = f.mime || f.type || "application/octet-stream";
-                const furl = f.dataUrl || f.url || f.storage_key || f.storageKey || "";
+                let furl = f.dataUrl || f.url || f.storage_key || f.storageKey || "";
+                if (furl && !furl.startsWith("http://") && !furl.startsWith("https://") && !furl.startsWith("data:") && !furl.startsWith("blob:")) {
+                  const cleanPath = furl.replace(/^course-files\//, "");
+                  const { data: pubData } = supabase.storage.from("course-files").getPublicUrl(cleanPath);
+                  if (pubData?.publicUrl) {
+                    furl = pubData.publicUrl;
+                  }
+                }
                 return {
                   id: f.id || `f-${Math.random().toString(36).slice(2, 8)}`,
                   name: fname,
