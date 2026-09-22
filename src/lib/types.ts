@@ -242,16 +242,22 @@ export interface PaymentSchedule {
 export interface Question {
   id: string;
   question: string;
-  type: "qcm" | "vf" | "courte";
+  type: "qcm" | "vf" | "courte" | "qcm_multiple" | "longue" | "numerique";
   options?: string[];
-  bonneReponse: string;
+  bonneReponse?: string;
+  bonnesReponses?: string[];
+  valeurNumerique?: number;
+  toleranceNumerique?: number;
   points: number;
   explication?: string;
+  ordre?: number;
+  obligatoire?: boolean;
 }
 
 export interface Test {
   id: string;
   titre: string;
+  description?: string;
   moduleId: string;
   chapitreId?: string;
   teacherId: string;
@@ -259,25 +265,42 @@ export interface Test {
   date: string;
   duree: number;
   bareme?: number;
+  seuilReussite?: number;
   dateDebut?: string;
+  dateDebutHeure?: string;
   dateFin?: string;
+  dateFinHeure?: string;
   difficulte?: "facile" | "moyen" | "difficile";
   tentatives?: number;
   afficherCorrections?: boolean;
   validationRequise?: boolean;
+  consignes?: string;
+  statut?: "brouillon" | "enregistre" | "publie" | "en_cours" | "termine" | "corrige" | "archive";
+  audience?: "all" | "formation" | "module" | "groupe" | "apprenants";
+  targetGroupe?: string;
+  targetStudentIds?: string[];
+  modeSecurise?: boolean;
+  bloquerCopierColler?: boolean;
+  bloquerClicDroit?: boolean;
+  navigationLibre?: boolean;
+  datePublication?: string;
 }
 
 export interface TestResult {
   id: string;
   testId: string;
   studentId: string;
+  studentNom?: string;
+  studentPrenom?: string;
   note: number;
   pourcentage: number;
   date: string;
   heure?: string;
-  reponses?: Record<string, string>;
+  reponses?: Record<string, any>;
   valide?: boolean;
   statut?: "reussi" | "echoue";
+  proctoringAlertsCount?: number;
+  notesManuelles?: Record<string, number>;
 }
 
 export interface Grade {

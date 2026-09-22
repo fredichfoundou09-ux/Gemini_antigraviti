@@ -21,6 +21,7 @@ import { fileKind, humanSize, downloadFile, safeFileName } from "@/lib/files";
 import { supabase, isSupabaseConfigured } from "@/lib/supabase/client";
 import { toastMsg } from "@/lib/toast";
 import { PasswordChangeCard } from "@/pages/shared/PasswordChangeCard";
+import { AssessmentRunner } from "@/modules/assessments/components/AssessmentRunner";
 
 function isSupportUrl(str?: string): boolean {
   if (!str) return false;
@@ -915,7 +916,7 @@ export function MyCourses() {
     taking.questions.forEach((q) => {
       total += q.points;
       const a = (answers[q.id] ?? "").trim().toLowerCase();
-      const good = q.bonneReponse.trim().toLowerCase();
+      const good = (q.bonneReponse || "").trim().toLowerCase();
       if (q.type === "qcm" || q.type === "vf") { if (a === good) pts += q.points; }
       else if (a && (a === good || good.includes(a) || a.includes(good))) pts += q.points;
     });
@@ -1209,43 +1210,16 @@ export function MyCourses() {
 
       <Modal open={!!taking} onClose={() => setTaking(null)} title={taking?.titre ?? "Test"} wide>
         {taking && (
-          <div className="space-y-4">
-            {result ? (
-              <div className="py-8 text-center">
-                <div className={cn("mx-auto mb-4 flex h-24 w-24 items-center justify-center rounded-full border-2", result.note >= 10 ? "border-emerald-400/60 bg-emerald-400/10" : "border-red-500/60 bg-red-500/10")}>
-                  <span className="font-display text-2xl font-black text-white">{result.note}<span className="text-sm text-slate-400">/20</span></span>
-                </div>
-                <p className="text-sm text-slate-300">Réussite : <b className="text-cyan-300">{result.pct}%</b></p>
-                <p className="mt-1 text-xs text-slate-500">{result.note >= 10 ? "Félicitations, vous avez réussi ce test !" : "Continuez vos efforts, vous pouvez retenter plus tard."}</p>
-                <Btn className="mt-6" onClick={() => setTaking(null)}>Fermer</Btn>
-              </div>
-            ) : (
-              <>
-                <p className="text-xs text-slate-500">{taking.questions.length} questions • {taking.duree} minutes • Note sur 20</p>
-                {taking.questions.map((q, i) => (
-                  <div key={q.id} className="rounded-xl border border-white/10 bg-white/[0.02] p-4">
-                    <p className="text-sm font-bold text-white">{i + 1}. {q.question} <span className="text-xs font-normal text-slate-500">({q.points} pts)</span></p>
-                    {q.type === "qcm" || q.type === "vf" ? (
-                      <div className="mt-2 grid gap-1.5 sm:grid-cols-2">
-                        {(q.options ?? []).map((o) => (
-                          <button key={o} onClick={() => setAnswers({ ...answers, [q.id]: o })}
-                            className={cn("rounded-lg border px-3 py-2 text-left text-sm transition-all",
-                              answers[q.id] === o ? "border-cyan-400/60 bg-cyan-400/10 text-cyan-200" : "border-white/10 text-slate-300 hover:bg-white/5")}>
-                            {o}
-                          </button>
-                        ))}
-                      </div>
-                    ) : (
-                      <Input className="mt-2" placeholder="Votre réponse..." value={answers[q.id] ?? ""} onChange={(e) => setAnswers({ ...answers, [q.id]: e.target.value })} />
-                    )}
-                  </div>
-                ))}
-                <Btn variant="red" className="w-full py-3" onClick={submitTest} disabled={Object.keys(answers).length < taking.questions.length}>
-                  <CheckCircle2 size={16} /> Valider mes réponses
-                </Btn>
-              </>
-            )}
-          </div>
+          <AssessmentRunner
+            rawAssessment={taking as any}
+            studentId={student.id}
+            studentName={`${student.prenom} ${student.nom}`}
+            onFinish={() => {
+              setTaking(null);
+              toastMsg.success("Évaluation complétée !");
+            }}
+            onCancel={() => setTaking(null)}
+          />
         )}
       </Modal>
 
@@ -1260,14 +1234,15 @@ export function MyCourses() {
             </div>
             {reviewing.test.questions.map((q, i) => {
               const mine = reviewing.result.reponses?.[q.id] ?? "—";
-              const ok = mine.trim().toLowerCase() === q.bonneReponse.trim().toLowerCase();
+              const good = (q.bonneReponse || "").trim();
+              const ok = good && mine.trim().toLowerCase() === good.toLowerCase();
               return (
                 <div key={q.id} className="rounded-xl border border-white/10 bg-white/[0.02] p-4">
                   <p className="text-sm font-bold text-white">{i + 1}. {q.question}</p>
                   <p className={cn("mt-2 flex items-center gap-1.5 text-sm", ok ? "text-emerald-300" : "text-red-400")}>
                     {ok ? <CheckCircle2 size={14} /> : <XCircle size={14} />} Votre réponse : <b>{mine}</b>
                   </p>
-                  {!ok && <p className="mt-1 flex items-center gap-1.5 text-sm text-emerald-300"><CheckCircle2 size={14} /> Bonne réponse : <b>{q.bonneReponse}</b></p>}
+                  {!ok && good && <p className="mt-1 flex items-center gap-1.5 text-sm text-emerald-300"><CheckCircle2 size={14} /> Bonne réponse : <b>{good}</b></p>}
                   {q.explication && <p className="mt-2 rounded-lg border border-cyan-400/20 bg-cyan-400/5 p-2.5 text-xs text-slate-300"><b className="text-cyan-300">Explication :</b> {q.explication}</p>}
                 </div>
               );
