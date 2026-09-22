@@ -464,22 +464,22 @@ Explication: Le port standard IANA pour SSH est 22.
     };
 
     it("should generate DOCX blobs for both student and teacher versions", async () => {
-      const studentBlob = await generateAssessmentDocx(exportableAssessment, { isTeacherVersion: false });
+      const studentBlob = await generateAssessmentDocx(exportableAssessment, { includeSolutions: false });
       expect(studentBlob).toBeInstanceOf(Blob);
       expect(studentBlob.size).toBeGreaterThan(500);
 
-      const teacherBlob = await generateAssessmentDocx(exportableAssessment, { isTeacherVersion: true });
+      const teacherBlob = await generateAssessmentDocx(exportableAssessment, { includeSolutions: true });
       expect(teacherBlob).toBeInstanceOf(Blob);
       expect(teacherBlob.size).toBeGreaterThan(500);
     });
 
     it("should generate PDF documents for both student and teacher versions", () => {
-      const studentPdf = generateAssessmentPdf(exportableAssessment, { isTeacherVersion: false });
+      const studentPdf = generateAssessmentPdf(exportableAssessment, { includeSolutions: false });
       expect(studentPdf).toBeDefined();
       const studentOutput = studentPdf.output("blob");
       expect(studentOutput.size).toBeGreaterThan(500);
 
-      const teacherPdf = generateAssessmentPdf(exportableAssessment, { isTeacherVersion: true });
+      const teacherPdf = generateAssessmentPdf(exportableAssessment, { includeSolutions: true });
       expect(teacherPdf).toBeDefined();
       const teacherOutput = teacherPdf.output("blob");
       expect(teacherOutput.size).toBeGreaterThan(500);
