@@ -99,8 +99,18 @@ export function UnifiedStudentAssessmentsAssignmentsPage({ defaultTab = "devoirs
         (s) =>
           s.userId === user?.id ||
           (user?.linkedId && s.id === user.linkedId) ||
+          s.id === user?.id ||
           (user?.email && s.email && s.email.toLowerCase().trim() === user.email.toLowerCase().trim())
-      ) || null
+      ) ||
+      (user?.role === "student"
+        ? ({
+            id: user.id,
+            nom: user.name || "Apprenant",
+            prenom: "",
+            email: user.email || "",
+            userId: user.id,
+          } as any)
+        : null)
     );
   }, [db.students, user]);
 
@@ -111,37 +121,48 @@ export function UnifiedStudentAssessmentsAssignmentsPage({ defaultTab = "devoirs
       if (isSupabaseConfigured) {
         const { data: aData } = await supabase
           .from("assignments")
-          .select("*, assignment_attachments(*)")
+          .select("*, attachments:assignment_attachments(*)")
           .in("statut", ["publie", "ouvert"]);
 
         if (aData) {
           const mappedA: Assignment[] = aData.map((row: any) => ({
             id: row.id,
             titre: row.titre,
-            description: row.description,
-            moduleId: row.module_id,
-            formation: row.formation,
-            teacherId: row.teacher_id,
+            description: row.description || "",
             consignes: row.consignes,
+            formation: row.formation,
+            moduleId: row.module_id,
+            chapitreId: row.chapitre_id,
+            teacherId: row.teacher_id,
+            dateCreation: row.date_creation || row.created_at,
+            datePublication: row.date_publication,
+            dateOuverture: row.date_ouverture,
+            dateLimite: row.date_limite ? row.date_limite.slice(0, 10) : "",
+            heureLimite: row.heure_limite || "23:59",
+            dureeEstimeeMinutes: row.duree_estimee_minutes,
+            nbFichiersMax: row.nb_fichiers_max || 3,
+            tailleMaxMo: row.taille_max_mo || 10,
+            formatsAutorises: row.formats_autorises || ["pdf", "docx"],
             bareme: Number(row.bareme || 20),
-            dueDate: row.due_date,
+            seuilReussite: Number(row.seuil_reussite || 10),
             statut: row.statut,
             audience: row.audience || "all",
             targetGroupe: row.target_groupe,
             targetStudentIds: row.target_student_ids,
-            attachments: (row.assignment_attachments || []).map((att: any) => ({
+            autoriserRemiseTardive: Boolean(row.autoriser_remise_tardive ?? row.allow_late_submission),
+            tentativesMax: Number(row.tentatives_max ?? row.max_attempts ?? 1),
+            correctionVisibleImmediatement: Boolean(row.correction_visible_immediatement),
+            attachments: (row.attachments || row.assignment_attachments || []).map((att: any) => ({
               id: att.id,
               assignmentId: att.assignment_id,
-              nom: att.nom,
-              taille: att.taille,
-              typeMime: att.type_mime,
-              url: att.url,
-              estRessource: att.est_ressource,
+              fileName: att.file_name || att.nom,
+              originalName: att.original_name || att.nom,
+              fileUrl: att.file_url || att.url,
+              mime: att.mime || att.type_mime,
+              size: att.size || att.taille,
+              storagePath: att.storage_path,
               createdAt: att.created_at,
             })),
-            allowLateSubmission: row.allow_late_submission,
-            latePenaltyPercent: Number(row.late_penalty_percent || 0),
-            maxAttempts: row.max_attempts,
             createdAt: row.created_at,
           }));
           setAssignments(mappedA);
@@ -153,7 +174,7 @@ export function UnifiedStudentAssessmentsAssignmentsPage({ defaultTab = "devoirs
         if (student) {
           const { data: sData } = await supabase
             .from("assignment_submissions")
-            .select("*, assignment_submission_files(*)")
+            .select("*, files:assignment_submission_files(*)")
             .eq("student_id", student.id);
 
           if (sData) {
@@ -161,23 +182,28 @@ export function UnifiedStudentAssessmentsAssignmentsPage({ defaultTab = "devoirs
               id: row.id,
               assignmentId: row.assignment_id,
               studentId: row.student_id,
-              submittedAt: row.submitted_at,
+              version: row.version || row.attempt_number || 1,
+              texte: row.texte || row.comment,
               statut: row.statut,
-              note: row.note !== null ? Number(row.note) : undefined,
+              dateRemise: row.date_remise || row.submitted_at || row.created_at,
+              note: row.note !== null && row.note !== undefined ? Number(row.note) : undefined,
               bareme: Number(row.bareme || 20),
               appreciation: row.appreciation,
+              commentairesPrives: row.commentaires_prives,
               pointsForts: row.points_forts,
               pointsAmelioration: row.points_amelioration,
-              latePenaltyApplied: row.late_penalty_applied,
-              comment: row.comment,
-              attemptNumber: row.attempt_number || 1,
-              files: (row.assignment_submission_files || []).map((f: any) => ({
+              corrigePar: row.corrige_par,
+              dateCorrection: row.date_correction,
+              publie: row.publie !== false,
+              files: (row.files || row.assignment_submission_files || []).map((f: any) => ({
                 id: f.id,
                 submissionId: f.submission_id,
                 fileName: f.file_name,
-                fileSize: f.file_size,
-                fileType: f.file_type,
+                originalName: f.original_name,
                 fileUrl: f.file_url,
+                mime: f.mime || f.file_type,
+                size: f.size || f.file_size,
+                storagePath: f.storage_path,
                 createdAt: f.created_at,
               })),
               createdAt: row.created_at,
@@ -304,14 +330,14 @@ export function UnifiedStudentAssessmentsAssignmentsPage({ defaultTab = "devoirs
           ) : (
             <div className="grid gap-4 md:grid-cols-2">
               {pendingAssignments.map((a) => {
-                const deadline = getDeadlineInfo(a.dueDate);
+                const deadline = getDeadlineInfo(a);
                 return (
                   <Card key={a.id} className="p-5 flex flex-col justify-between bg-slate-900/60 border-slate-800">
                     <div>
                       <div className="flex items-center justify-between">
                         <Badge color="cyan">{a.moduleId || "Devoir"}</Badge>
-                        <Badge color={deadline.estExpire ? "red" : deadline.diffHeures < 24 ? "gold" : "cyan"}>
-                          {deadline.label}
+                        <Badge color={deadline.badgeColor}>
+                          {deadline.formattedRemaining}
                         </Badge>
                       </div>
 
@@ -320,7 +346,7 @@ export function UnifiedStudentAssessmentsAssignmentsPage({ defaultTab = "devoirs
 
                       <div className="mt-4 flex items-center justify-between border-t border-slate-800/80 pt-3 text-xs text-slate-400">
                         <span>Barème : <strong className="text-white">{a.bareme} pts</strong></span>
-                        <span>Date limite : <strong className="text-white">{new Date(a.dueDate).toLocaleDateString("fr-FR")}</strong></span>
+                        <span>Date limite : <strong className="text-white">{a.dateLimite ? new Date(`${a.dateLimite}T${a.heureLimite || "23:59"}:00`).toLocaleDateString("fr-FR") : "Non définie"}</strong></span>
                       </div>
                     </div>
 
@@ -481,12 +507,11 @@ export function UnifiedStudentAssessmentsAssignmentsPage({ defaultTab = "devoirs
       )}
 
       {/* Modal Déposer Devoir */}
-      {activeAssignmentToSubmit && student && (
+      {activeAssignmentToSubmit && (
         <StudentAssignmentModal
-          isOpen={!!activeAssignmentToSubmit}
+          open={!!activeAssignmentToSubmit}
           assignment={activeAssignmentToSubmit}
-          studentId={student.id}
-          existingSubmission={submissions.find((s) => s.assignmentId === activeAssignmentToSubmit.id)}
+          submission={submissions.find((s) => s.assignmentId === activeAssignmentToSubmit.id) || null}
           onClose={() => setActiveAssignmentToSubmit(null)}
           onSubmitted={() => {
             setActiveAssignmentToSubmit(null);

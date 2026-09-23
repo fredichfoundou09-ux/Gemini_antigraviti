@@ -42,7 +42,13 @@ export function StudentAssignmentModal({
 
   if (!assignment) return null;
 
-  const student = db.students.find((s) => s.userId === user?.id);
+  const student = db.students.find(
+    (s) =>
+      s.userId === user?.id ||
+      (user?.linkedId && s.id === user.linkedId) ||
+      s.id === user?.id ||
+      (user?.email && s.email && s.email.toLowerCase().trim() === user.email.toLowerCase().trim())
+  );
   const mod = db.modules.find((m) => m.id === assignment.moduleId);
   const teacher = db.teachers.find((t) => t.id === assignment.teacherId);
   const deadline = getDeadlineInfo(assignment);
