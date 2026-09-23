@@ -1,11 +1,11 @@
 import React from "react";
-import { AssignmentsManagementPage } from "@/modules/assignments/pages/AssignmentsManagementPage";
-import { StudentAssignmentsPage } from "@/modules/assignments/pages/StudentAssignmentsPage";
+import { UnifiedAssessmentsAssignmentsPage } from "@/modules/unified-assessments/pages/UnifiedAssessmentsAssignmentsPage";
+import { UnifiedStudentAssessmentsAssignmentsPage } from "@/modules/unified-assessments/pages/UnifiedStudentAssessmentsAssignmentsPage";
 
 export function TeacherSubmissions() {
-  return <AssignmentsManagementPage />;
+  return <UnifiedAssessmentsAssignmentsPage defaultTab="devoirs" />;
 }
 
 export function StudentSubmission() {
-  return <StudentAssignmentsPage />;
+  return <UnifiedStudentAssessmentsAssignmentsPage defaultTab="devoirs" />;
 }

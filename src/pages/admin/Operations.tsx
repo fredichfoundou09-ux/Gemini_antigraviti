@@ -20,8 +20,7 @@ import { financialSummary, nextReceiptRef, statusLabel, calculateModuleProfitabi
 import { cancelPaymentWithAudit, executeDailyClosure, fetchDailyClosures } from "@/lib/supabase/finance";
 import { supabase, isSupabaseConfigured } from "@/lib/supabase/client";
 import { resolveFormationId } from "@/lib/supabase/formations";
-import { formatSupabaseError } from "@/lib/supabase/errors";
-import { AssessmentsManagementPage } from "@/modules/assessments/pages/AssessmentsManagementPage";
+import { UnifiedAssessmentsAssignmentsPage } from "@/modules/unified-assessments/pages/UnifiedAssessmentsAssignmentsPage";
 
 const DAYS = ["Lundi", "Mardi", "Mercredi", "Jeudi", "Vendredi", "Samedi"];
 
@@ -1922,7 +1921,7 @@ export function CoursesPage() {
 
 /* ================= TESTS & ÉVALUATIONS ================= */
 export function TestsPage() {
-  return <AssessmentsManagementPage />;
+  return <UnifiedAssessmentsAssignmentsPage defaultTab="tests" />;
 }
 
 /* ================= NOTES ================= */

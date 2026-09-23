@@ -49,6 +49,8 @@ import { BulletinsPage } from "@/pages/admin/BulletinPage";
 import { ImportPage } from "@/pages/admin/ImportPage";
 import { CertificateVerifyPage } from "@/pages/public/CertificateVerify";
 import { StudentAssessmentsPage } from "@/modules/assessments/pages/StudentAssessmentsPage";
+import { UnifiedAssessmentsAssignmentsPage } from "@/modules/unified-assessments/pages/UnifiedAssessmentsAssignmentsPage";
+import { UnifiedStudentAssessmentsAssignmentsPage } from "@/modules/unified-assessments/pages/UnifiedStudentAssessmentsAssignmentsPage";
 import { ShieldCheck } from "lucide-react";
 import { useAuth } from "@/contexts/AuthContext";
 import { IntroSplash } from "@/components/IntroSplash";
@@ -150,13 +152,15 @@ export default function App() {
             <Route path="import" element={<Gate roles={["superadmin", "admin"]}><ImportPage /></Gate>} />
             <Route path="presences" element={<Gate roles={["superadmin", "admin", "teacher"]}><AttendancePage /></Gate>} />
             <Route path="cours" element={<Gate roles={["superadmin", "admin", "teacher"]}><CoursesPage /></Gate>} />
+            <Route path="evaluations-devoirs" element={<Gate roles={["superadmin", "admin", "teacher"]}><UnifiedAssessmentsAssignmentsPage /></Gate>} />
             <Route path="devoirs" element={<Gate roles={["superadmin", "admin", "teacher"]}><TeacherSubmissions /></Gate>} />
             <Route path="qr-scanner" element={<Gate roles={["superadmin", "admin", "teacher"]}><QrScannerPage /></Gate>} />
             <Route path="mes-cours" element={<Gate roles={["teacher", "student"]}><MyCoursesRoute /></Gate>} />
+            <Route path="mes-evaluations-devoirs" element={<Gate roles={["student"]}><UnifiedStudentAssessmentsAssignmentsPage /></Gate>} />
             <Route path="mes-devoirs" element={<Gate roles={["student"]}><StudentSubmission /></Gate>} />
             <Route path="tests" element={<Gate roles={["superadmin", "admin", "teacher"]}><TestsPage /></Gate>} />
             <Route path="evaluations" element={<Gate roles={["superadmin", "admin", "teacher"]}><TestsPage /></Gate>} />
-            <Route path="mes-evaluations" element={<Gate roles={["student"]}><StudentAssessmentsPage /></Gate>} />
+            <Route path="mes-evaluations" element={<Gate roles={["student"]}><UnifiedStudentAssessmentsAssignmentsPage defaultTab="tests" /></Gate>} />
             <Route path="notes" element={<Gate roles={["superadmin", "admin", "teacher"]}><GradesPage /></Gate>} />
             <Route path="paiements" element={<Gate roles={["superadmin", "admin"]}><PaymentsPage /></Gate>} />
             <Route path="certificats" element={<Gate roles={["superadmin", "admin", "partner_admin"]}><CertificatesPage /></Gate>} />

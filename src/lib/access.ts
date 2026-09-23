@@ -317,6 +317,184 @@ export function teachersOfModule(db: DB, moduleId: string): Teacher[] {
 }
 
 /**
+ * Résout le profil enseignant associé à un compte utilisateur.
+ */
+export function resolveTeacherForUser(db: DB, user: User | null): Teacher | null {
+  if (!user) return null;
+  return db.teachers.find(
+    (t) =>
+      t.userId === user.id ||
+      (user.linkedId && t.id === user.linkedId) ||
+      (user.email && t.email && t.email.toLowerCase().trim() === user.email.toLowerCase().trim())
+  ) || null;
+}
+
+/**
+ * Filtre les devoirs selon les droits stricts :
+ * - Staff / Admin : voit tous les devoirs
+ * - Enseignant : voit UNIQUEMENT ses propres devoirs (composés par lui-même)
+ * - Apprenant : voit uniquement les devoirs publiés ciblant sa formation / ses modules
+ */
+export function assignmentsFor(db: DB, user: User | null, assignments: any[]): any[] {
+  if (!user) return [];
+  if (user.role === "superadmin" || user.role === "admin") {
+    return assignments;
+  }
+  if (user.role === "teacher") {
+    const teacher = resolveTeacherForUser(db, user);
+    const teacherId = teacher?.id;
+    return assignments.filter(
+      (a) => a.teacherId === teacherId || a.teacherId === user.id || (teacher?.userId && a.teacherId === teacher.userId)
+    );
+  }
+  // Student
+  const s = db.students.find(
+    (st) =>
+      st.userId === user.id ||
+      (user.linkedId && st.id === user.linkedId) ||
+      (user.email && st.email && st.email.toLowerCase().trim() === user.email.toLowerCase().trim())
+  );
+  if (!s) return [];
+  return assignments.filter((a) => {
+    if (a.statut !== "publie" && a.statut !== "ouvert") return false;
+    if (a.audience === "all") return true;
+    if (a.audience === "formation" && a.formation) {
+      return a.formation === s.formation;
+    }
+    if (a.audience === "module" && a.moduleId) {
+      return (s.modules || []).includes(a.moduleId);
+    }
+    if (a.audience === "groupe" && a.targetGroupe) {
+      return (s as any).groupe === a.targetGroupe;
+    }
+    if (a.audience === "apprenants" && Array.isArray(a.targetStudentIds)) {
+      return a.targetStudentIds.includes(s.id);
+    }
+    return false;
+  });
+}
+
+/**
+ * Filtre les évaluations selon les droits stricts :
+ * - Staff / Admin : voit toutes les évaluations
+ * - Enseignant : voit UNIQUEMENT ses propres évaluations (composées par lui-même)
+ * - Apprenant : voit uniquement les évaluations publiées qui le concernent
+ */
+export function assessmentsFor(db: DB, user: User | null, assessments: any[]): any[] {
+  if (!user) return [];
+  if (user.role === "superadmin" || user.role === "admin") {
+    return assessments;
+  }
+  if (user.role === "teacher") {
+    const teacher = resolveTeacherForUser(db, user);
+    const teacherId = teacher?.id;
+    return assessments.filter(
+      (a) => a.teacherId === teacherId || a.teacherId === user.id || (teacher?.userId && a.teacherId === teacher.userId)
+    );
+  }
+  // Student
+  const s = db.students.find(
+    (st) =>
+      st.userId === user.id ||
+      (user.linkedId && st.id === user.linkedId) ||
+      (user.email && st.email && st.email.toLowerCase().trim() === user.email.toLowerCase().trim())
+  );
+  if (!s) return [];
+  return assessments.filter((a) => {
+    if (a.statut !== "publie" && a.statut !== "en_cours") return false;
+    if (a.audience === "all") return true;
+    if (a.audience === "formation" && a.formation) {
+      return a.formation === s.formation;
+    }
+    if (a.audience === "module" && a.moduleId) {
+      return (s.modules || []).includes(a.moduleId);
+    }
+    if (a.audience === "groupe" && a.targetGroupe) {
+      return (s as any).groupe === a.targetGroupe;
+    }
+    if (a.audience === "apprenants" && Array.isArray(a.targetStudentIds)) {
+      return a.targetStudentIds.includes(s.id);
+    }
+    return false;
+  });
+}
+
+/**
+ * Filtre les remises de devoirs :
+ * - Staff / Admin : voit toutes les remises
+ * - Enseignant : voit UNIQUEMENT les remises des devoirs qu'il a lui-même créés
+ * - Apprenant : voit UNIQUEMENT ses propres remises
+ */
+export function submissionsForUser(
+  db: DB,
+  user: User | null,
+  submissions: any[],
+  assignments: any[]
+): any[] {
+  if (!user) return [];
+  if (user.role === "superadmin" || user.role === "admin") {
+    return submissions;
+  }
+  if (user.role === "teacher") {
+    const teacher = resolveTeacherForUser(db, user);
+    const teacherId = teacher?.id;
+    // Trouver les IDs des devoirs créés par cet enseignant
+    const myAssignmentIds = new Set(
+      assignments
+        .filter((a) => a.teacherId === teacherId || a.teacherId === user.id || (teacher?.userId && a.teacherId === teacher.userId))
+        .map((a) => a.id)
+    );
+    return submissions.filter((s) => myAssignmentIds.has(s.assignmentId));
+  }
+  // Student
+  const s = db.students.find(
+    (st) =>
+      st.userId === user.id ||
+      (user.linkedId && st.id === user.linkedId) ||
+      (user.email && st.email && st.email.toLowerCase().trim() === user.email.toLowerCase().trim())
+  );
+  if (!s) return [];
+  return submissions.filter((sub) => sub.studentId === s.id);
+}
+
+/**
+ * Filtre les résultats d'évaluations :
+ * - Staff / Admin : voit tous les résultats
+ * - Enseignant : voit UNIQUEMENT les résultats des évaluations qu'il a lui-même créées
+ * - Apprenant : voit UNIQUEMENT ses propres résultats
+ */
+export function resultsForUser(
+  db: DB,
+  user: User | null,
+  results: any[],
+  assessments: any[]
+): any[] {
+  if (!user) return [];
+  if (user.role === "superadmin" || user.role === "admin") {
+    return results;
+  }
+  if (user.role === "teacher") {
+    const teacher = resolveTeacherForUser(db, user);
+    const teacherId = teacher?.id;
+    const myTestIds = new Set(
+      assessments
+        .filter((a) => a.teacherId === teacherId || a.teacherId === user.id || (teacher?.userId && a.teacherId === teacher.userId))
+        .map((a) => a.id)
+    );
+    return results.filter((r) => myTestIds.has(r.testId));
+  }
+  // Student
+  const s = db.students.find(
+    (st) =>
+      st.userId === user.id ||
+      (user.linkedId && st.id === user.linkedId) ||
+      (user.email && st.email && st.email.toLowerCase().trim() === user.email.toLowerCase().trim())
+  );
+  if (!s) return [];
+  return results.filter((r) => r.studentId === s.id);
+}
+
+/**
  * Retourne la liste pure des apprenants (Student[]) suivant au moins un module d'un formateur.
  */
 export function getStudentsOfTeacher(db: DB, teacherId: string): Student[] {
@@ -329,4 +507,3 @@ export function getStudentsOfTeacher(db: DB, teacherId: string): Student[] {
 export function getTeachersOfStudent(db: DB, studentId: string): Teacher[] {
   return teachersOfStudent(db, studentId).map((item) => item.teacher);
 }
-
