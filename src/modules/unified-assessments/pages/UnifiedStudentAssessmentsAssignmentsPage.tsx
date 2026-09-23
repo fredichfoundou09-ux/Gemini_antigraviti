@@ -26,6 +26,9 @@ import { AssessmentRunner } from "@/modules/assessments/components/AssessmentRun
 // Règles de visibilité apprenant
 import { assignmentsFor, assessmentsFor } from "@/lib/access";
 
+// Synchronisation temps réel
+import { subscribeToAssessmentsSync } from "../services/unifiedSyncService";
+
 /** Convertit db.tests vers Assessment[] */
 function mapDbTestsToAssessments(tests: any[]): Assessment[] {
   return (tests || []).map((t: any) => ({
@@ -234,6 +237,12 @@ export function UnifiedStudentAssessmentsAssignmentsPage({ defaultTab = "devoirs
 
   useEffect(() => {
     loadData();
+    const unsubscribe = subscribeToAssessmentsSync(() => {
+      loadData();
+    });
+    return () => {
+      unsubscribe();
+    };
   }, [user, student]);
 
   // Filtrer les devoirs et tests accessibles à cet apprenant

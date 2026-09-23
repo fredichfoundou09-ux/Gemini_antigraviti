@@ -338,3 +338,35 @@ export async function persistAssessmentToSupabase(assessment: Assessment): Promi
     return { success: false, id: assessment.id, error: err.message };
   }
 }
+
+// Suppression sécurisée d'une évaluation
+export async function deleteAssessment(id: string): Promise<{ success: boolean; error?: string }> {
+  if (!isSupabaseConfigured) {
+    return { success: true };
+  }
+
+  try {
+    const { error } = await supabase.from("tests").delete().eq("id", id);
+    if (error) throw error;
+    return { success: true };
+  } catch (err: any) {
+    console.error("Erreur suppression évaluation:", err);
+    return { success: false, error: err.message };
+  }
+}
+
+// Suppression d'un résultat d'examen
+export async function deleteTestResult(id: string): Promise<{ success: boolean; error?: string }> {
+  if (!isSupabaseConfigured) {
+    return { success: true };
+  }
+
+  try {
+    const { error } = await supabase.from("test_results").delete().eq("id", id);
+    if (error) throw error;
+    return { success: true };
+  } catch (err: any) {
+    console.error("Erreur suppression résultat test:", err);
+    return { success: false, error: err.message };
+  }
+}

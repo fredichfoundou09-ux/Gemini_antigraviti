@@ -2,7 +2,8 @@ import React, { useState, useEffect, useMemo } from "react";
 import {
   ClipboardCheck, TestTube2, Inbox, Plus, Sparkles, FileUp,
   Download, Search, Filter, BookOpen, Clock, Calendar, CheckCircle2,
-  AlertTriangle, Users, Layers, Eye, Edit3, Trash2, Copy, Archive, ArrowRight
+  AlertTriangle, Users, Layers, Eye, Edit3, Trash2, Copy, Archive, ArrowRight,
+  Award
 } from "lucide-react";
 import { useStore } from "@/lib/store";
 import { useAuth } from "@/contexts/AuthContext";
@@ -16,7 +17,8 @@ import {
   getLocalAssignments,
   getLocalSubmissions,
   persistAssignmentToSupabase,
-  getDeadlineInfo
+  getDeadlineInfo,
+  deleteAssignment,
 } from "@/modules/assignments/services/assignmentService";
 import { AssignmentEditorModal } from "@/modules/assignments/components/AssignmentEditorModal";
 import { AssignmentPreviewModal } from "@/modules/assignments/components/AssignmentPreviewModal";
@@ -25,6 +27,7 @@ import { AssignmentPreviewModal } from "@/modules/assignments/components/Assignm
 import { Assessment, AssessmentStatus as TestStatus, AssessmentResultSummary } from "@/modules/assessments/types";
 import {
   persistAssessmentToSupabase as persistTestToSupabase,
+  deleteAssessment,
 } from "@/modules/assessments/services/assessmentService";
 import { AssessmentEditor } from "@/modules/assessments/components/AssessmentEditor";
 import { AssessmentGeneratorModal } from "@/modules/assessments/components/AssessmentGeneratorModal";
@@ -33,8 +36,13 @@ import { DocumentImporterModal } from "@/modules/assessments/components/Document
 import { generateAssessmentDocx } from "@/modules/assessments/exporters/docxExport";
 import { generateAssessmentPdf } from "@/modules/assessments/exporters/pdfExport";
 
-// Boîte de réception unifiée
+// Boîte de réception unifiée & synchronisation
 import { UnifiedSubmissionsInbox } from "../components/UnifiedSubmissionsInbox";
+import {
+  subscribeToAssessmentsSync,
+  notifyAssessmentEvent,
+  broadcastSubmissionsChange,
+} from "../services/unifiedSyncService";
 
 // Règles de sécurité et cloisonnement strict
 import {
@@ -95,7 +103,7 @@ function mapDbTestsToAssessments(tests: any[]): Assessment[] {
 }
 
 export function UnifiedAssessmentsAssignmentsPage({ defaultTab = "devoirs" }: Props) {
-  const { db, user, update, log } = useStore();
+  const { db, user, update, log, notify } = useStore();
   const { profile } = useAuth();
 
   // Onglet principal unifié : 'devoirs' | 'tests' | 'remises'
@@ -111,6 +119,11 @@ export function UnifiedAssessmentsAssignmentsPage({ defaultTab = "devoirs" }: Pr
 
   const [isLoading, setIsLoading] = useState(true);
   const [selectedParentIdForRemises, setSelectedParentIdForRemises] = useState<string>("all");
+
+  // Modales de suppression
+  const [deletingAssignment, setDeletingAssignment] = useState<Assignment | null>(null);
+  const [deletingAssessment, setDeletingAssessment] = useState<Assessment | null>(null);
+  const [isDeleting, setIsDeleting] = useState(false);
 
   // Sous-filtres cycle de vie
   const [assignmentSubFilter, setAssignmentSubFilter] = useState<"all" | "brouillon" | "publie" | "a_corriger" | "archive">("all");
@@ -245,6 +258,8 @@ export function UnifiedAssessmentsAssignmentsPage({ defaultTab = "devoirs" }: Pr
 
   useEffect(() => {
     loadData();
+    const sub = subscribeToAssessmentsSync(loadData);
+    return () => sub.unsubscribe();
   }, [user]);
 
   // 3. APPLICATION DU CLOISONNEMENT STRICT (RÈGLE SÉCURITÉ AUDIO USER) :
@@ -345,10 +360,42 @@ export function UnifiedAssessmentsAssignmentsPage({ defaultTab = "devoirs" }: Pr
     }
     setAllAssignments(newList);
     await persistAssignmentToSupabase(updated);
+    broadcastSubmissionsChange();
+
+    // Notification aux apprenants si le devoir est publié
+    if (updated.statut === "publie" || updated.statut === "ouvert") {
+      notifyAssessmentEvent({
+        targetUserId: "all",
+        title: "Nouveau devoir disponible",
+        body: `Le devoir « ${updated.titre} » est désormais accessible. Échéance : ${updated.dateLimite || "bientôt"}.`,
+        type: "devoir",
+        url: "/app/mes-evaluations-devoirs",
+        storeNotify: notify,
+      });
+    }
+
     toastMsg.success("Devoir enregistré", `« ${updated.titre} » a été mis à jour.`);
   };
 
-  // Actions Évaluations (Création / Enregistrement)
+  const handleDeleteAssignmentConfirm = async () => {
+    if (!deletingAssignment) return;
+    setIsDeleting(true);
+    try {
+      const res = await deleteAssignment(deletingAssignment.id);
+      if (!res.success) throw new Error(res.error || "Impossible de supprimer le devoir.");
+      setAllAssignments((prev) => prev.filter((a) => a.id !== deletingAssignment.id));
+      setAllSubmissions((prev) => prev.filter((s) => s.assignmentId !== deletingAssignment.id));
+      broadcastSubmissionsChange();
+      toastMsg.success("Devoir supprimé", `Le devoir « ${deletingAssignment.titre} » a été supprimé.`);
+      setDeletingAssignment(null);
+    } catch (e: any) {
+      toastMsg.error("Erreur de suppression", e.message || "Échec.");
+    } finally {
+      setIsDeleting(false);
+    }
+  };
+
+  // Actions Évaluations (Création / Enregistrement / Suppression)
   const handleCreateAssessment = () => {
     const newTest: Assessment = {
       id: `TEST-${Date.now().toString(36)}`,
@@ -390,7 +437,43 @@ export function UnifiedAssessmentsAssignmentsPage({ defaultTab = "devoirs" }: Pr
     // Mettre à jour le store global
     update((d) => ({ ...d, tests: newList }));
     await persistTestToSupabase(updated);
+    broadcastSubmissionsChange();
+
+    // Notification aux apprenants si l'évaluation est publiée
+    if (updated.statut === "publie") {
+      notifyAssessmentEvent({
+        targetUserId: "all",
+        title: "Nouvelle évaluation programmée",
+        body: `L'évaluation « ${updated.titre} » (${updated.duree} min) est ouverte pour passage.`,
+        type: "evaluation",
+        url: "/app/mes-evaluations-devoirs",
+        storeNotify: notify,
+      });
+    }
+
     toastMsg.success("Évaluation enregistrée", `« ${updated.titre} » a été mise à jour.`);
+  };
+
+  const handleDeleteAssessmentConfirm = async () => {
+    if (!deletingAssessment) return;
+    setIsDeleting(true);
+    try {
+      const res = await deleteAssessment(deletingAssessment.id);
+      if (!res.success) throw new Error(res.error || "Impossible de supprimer l'évaluation.");
+      setAllAssessments((prev) => prev.filter((t) => t.id !== deletingAssessment.id));
+      update((d) => ({
+        ...d,
+        tests: d.tests.filter((t) => t.id !== deletingAssessment.id),
+        results: d.results.filter((r) => r.testId !== deletingAssessment.id),
+      }));
+      broadcastSubmissionsChange();
+      toastMsg.success("Évaluation supprimée", `L'évaluation « ${deletingAssessment.titre} » a été supprimée.`);
+      setDeletingAssessment(null);
+    } catch (e: any) {
+      toastMsg.error("Erreur de suppression", e.message || "Échec.");
+    } finally {
+      setIsDeleting(false);
+    }
   };
 
   // Si l'éditeur d'évaluation est ouvert, on affiche l'AssessmentEditor complet
@@ -621,31 +704,45 @@ export function UnifiedAssessmentsAssignmentsPage({ defaultTab = "devoirs" }: Pr
                       </div>
                     </div>
 
-                    <div className="mt-4 flex items-center justify-between border-t border-slate-800 pt-3">
-                      <button
+                    <div className="mt-4 flex flex-wrap items-center justify-between gap-2 border-t border-slate-800 pt-3">
+                      <Btn
+                        size="sm"
+                        variant="outline"
                         onClick={() => handleJumpToSubmissions(a.id)}
-                        className="flex items-center gap-1 text-xs font-semibold text-cyan-400 hover:text-cyan-300"
+                        className="gap-2 border-cyan-500/50 bg-cyan-950/20 text-cyan-300 hover:bg-cyan-500/20 hover:border-cyan-400 font-semibold shadow-sm transition"
                       >
-                        Voir les remises <ArrowRight size={13} />
-                      </button>
+                        <Inbox size={14} className="text-cyan-400" />
+                        <span>Consulter les remises</span>
+                        <ArrowRight size={13} />
+                      </Btn>
 
                       <div className="flex items-center gap-1">
                         <button
+                          type="button"
                           onClick={() => setPreviewingAssignment(a)}
                           title="Aperçu"
-                          className="rounded p-1.5 text-slate-400 hover:bg-slate-800 hover:text-white"
+                          className="rounded-lg p-2 text-slate-400 hover:bg-slate-800 hover:text-white transition"
                         >
                           <Eye size={15} />
                         </button>
                         <button
+                          type="button"
                           onClick={() => {
                             setEditingAssignment(a);
                             setIsEditorOpen(true);
                           }}
                           title="Modifier"
-                          className="rounded p-1.5 text-slate-400 hover:bg-slate-800 hover:text-white"
+                          className="rounded-lg p-2 text-slate-400 hover:bg-slate-800 hover:text-white transition"
                         >
                           <Edit3 size={15} />
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() => setDeletingAssignment(a)}
+                          title="Supprimer ce devoir (Onglet 1)"
+                          className="rounded-lg p-2 text-slate-400 hover:bg-red-500/10 hover:text-red-400 transition"
+                        >
+                          <Trash2 size={15} />
                         </button>
                       </div>
                     </div>
@@ -734,31 +831,45 @@ export function UnifiedAssessmentsAssignmentsPage({ defaultTab = "devoirs" }: Pr
                       </div>
                     </div>
 
-                    <div className="mt-4 flex items-center justify-between border-t border-slate-800 pt-3">
-                      <button
+                    <div className="mt-4 flex flex-wrap items-center justify-between gap-2 border-t border-slate-800 pt-3">
+                      <Btn
+                        size="sm"
+                        variant="outline"
                         onClick={() => handleJumpToSubmissions(t.id)}
-                        className="flex items-center gap-1 text-xs font-semibold text-purple-400 hover:text-purple-300"
+                        className="gap-2 border-purple-500/50 bg-purple-950/20 text-purple-300 hover:bg-purple-500/20 hover:border-purple-400 font-semibold shadow-sm transition"
                       >
-                        Voir les résultats <ArrowRight size={13} />
-                      </button>
+                        <Award size={14} className="text-purple-400" />
+                        <span>Voir les résultats</span>
+                        <ArrowRight size={13} />
+                      </Btn>
 
                       <div className="flex items-center gap-1">
                         <button
+                          type="button"
                           onClick={() => setPreviewingAssessment(t)}
                           title="Aperçu"
-                          className="rounded p-1.5 text-slate-400 hover:bg-slate-800 hover:text-white"
+                          className="rounded-lg p-2 text-slate-400 hover:bg-slate-800 hover:text-white transition"
                         >
                           <Eye size={15} />
                         </button>
                         <button
+                          type="button"
                           onClick={() => {
                             setEditingAssessment(t);
                             setIsTestEditorOpen(true);
                           }}
                           title="Modifier"
-                          className="rounded p-1.5 text-slate-400 hover:bg-slate-800 hover:text-white"
+                          className="rounded-lg p-2 text-slate-400 hover:bg-slate-800 hover:text-white transition"
                         >
                           <Edit3 size={15} />
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() => setDeletingAssessment(t)}
+                          title="Supprimer cette évaluation (Onglet 2)"
+                          className="rounded-lg p-2 text-slate-400 hover:bg-red-500/10 hover:text-red-400 transition"
+                        >
+                          <Trash2 size={15} />
                         </button>
                       </div>
                     </div>
@@ -863,6 +974,90 @@ export function UnifiedAssessmentsAssignmentsPage({ defaultTab = "devoirs" }: Pr
           allowedModules={db.modules.map((m) => ({ id: m.id, titre: m.titre }))}
           testsList={myAssessments.map((t) => ({ id: t.id, titre: t.titre }))}
         />
+      )}
+
+      {/* MODAL DE CONFIRMATION DE SUPPRESSION DEVOIR (ONGLET 1) */}
+      {deletingAssignment && (
+        <Modal
+          open={!!deletingAssignment}
+          onClose={() => setDeletingAssignment(null)}
+          title="Supprimer ce devoir"
+        >
+          <div className="space-y-4">
+            <div className="flex items-start gap-3 rounded-lg border border-red-500/20 bg-red-500/10 p-3 text-red-300">
+              <AlertTriangle className="h-5 w-5 shrink-0 text-red-400 mt-0.5" />
+              <div className="text-sm">
+                <p className="font-semibold text-white">Attention : suppression définitive</p>
+                <p className="mt-1 text-slate-300">
+                  Êtes-vous sûr de vouloir supprimer le devoir <strong>« {deletingAssignment.titre} »</strong> ?
+                  Toutes les remises et copies rendues par les apprenants pour ce devoir seront également supprimées.
+                </p>
+              </div>
+            </div>
+
+            <div className="flex items-center justify-end gap-2 pt-2">
+              <Btn
+                type="button"
+                variant="outline"
+                onClick={() => setDeletingAssignment(null)}
+                disabled={isDeleting}
+              >
+                Annuler
+              </Btn>
+              <Btn
+                type="button"
+                className="bg-red-600 hover:bg-red-500 text-white gap-2 font-semibold"
+                onClick={handleDeleteAssignmentConfirm}
+                disabled={isDeleting}
+              >
+                <Trash2 size={16} />
+                <span>{isDeleting ? "Suppression en cours..." : "Confirmer la suppression"}</span>
+              </Btn>
+            </div>
+          </div>
+        </Modal>
+      )}
+
+      {/* MODAL DE CONFIRMATION DE SUPPRESSION ÉVALUATION (ONGLET 2) */}
+      {deletingAssessment && (
+        <Modal
+          open={!!deletingAssessment}
+          onClose={() => setDeletingAssessment(null)}
+          title="Supprimer cette évaluation"
+        >
+          <div className="space-y-4">
+            <div className="flex items-start gap-3 rounded-lg border border-red-500/20 bg-red-500/10 p-3 text-red-300">
+              <AlertTriangle className="h-5 w-5 shrink-0 text-red-400 mt-0.5" />
+              <div className="text-sm">
+                <p className="font-semibold text-white">Attention : suppression définitive</p>
+                <p className="mt-1 text-slate-300">
+                  Êtes-vous sûr de vouloir supprimer l'évaluation <strong>« {deletingAssessment.titre} »</strong> ?
+                  Les questions, barèmes et tous les résultats d'examen associés seront définitivement effacés.
+                </p>
+              </div>
+            </div>
+
+            <div className="flex items-center justify-end gap-2 pt-2">
+              <Btn
+                type="button"
+                variant="outline"
+                onClick={() => setDeletingAssessment(null)}
+                disabled={isDeleting}
+              >
+                Annuler
+              </Btn>
+              <Btn
+                type="button"
+                className="bg-red-600 hover:bg-red-500 text-white gap-2 font-semibold"
+                onClick={handleDeleteAssessmentConfirm}
+                disabled={isDeleting}
+              >
+                <Trash2 size={16} />
+                <span>{isDeleting ? "Suppression en cours..." : "Confirmer la suppression"}</span>
+              </Btn>
+            </div>
+          </div>
+        </Modal>
       )}
     </div>
   );

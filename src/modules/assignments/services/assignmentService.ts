@@ -490,3 +490,45 @@ export async function gradeAssignmentSubmission(
     return { success: false, error: err.message || "Erreur de notation" };
   }
 }
+
+// 9. Suppression sécurisée d'un devoir
+export async function deleteAssignment(id: string): Promise<{ success: boolean; error?: string }> {
+  // Mise à jour cache local
+  const localList = getLocalAssignments().filter((a) => a.id !== id);
+  saveLocalAssignments(localList);
+
+  const localSubs = getLocalSubmissions().filter((s) => s.assignmentId !== id);
+  saveLocalSubmissions(localSubs);
+
+  if (!isSupabaseConfigured) {
+    return { success: true };
+  }
+
+  try {
+    const { error } = await supabase.from("assignments").delete().eq("id", id);
+    if (error) throw error;
+    return { success: true };
+  } catch (err: any) {
+    console.error("Erreur suppression devoir:", err);
+    return { success: false, error: err.message };
+  }
+}
+
+// 10. Suppression d'une remise
+export async function deleteSubmission(id: string): Promise<{ success: boolean; error?: string }> {
+  const localSubs = getLocalSubmissions().filter((s) => s.id !== id);
+  saveLocalSubmissions(localSubs);
+
+  if (!isSupabaseConfigured) {
+    return { success: true };
+  }
+
+  try {
+    const { error } = await supabase.from("assignment_submissions").delete().eq("id", id);
+    if (error) throw error;
+    return { success: true };
+  } catch (err: any) {
+    console.error("Erreur suppression remise:", err);
+    return { success: false, error: err.message };
+  }
+}

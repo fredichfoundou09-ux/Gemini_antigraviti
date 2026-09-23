@@ -3,11 +3,13 @@ import {
   ClipboardCheck, TestTube2, Download, CheckCircle2, Clock,
   AlertTriangle, Search, Filter, PenLine, User, Calendar,
   Check, FileText, Award, Eye, ShieldAlert, ArrowUpDown, ChevronRight,
-  TrendingUp, RefreshCw
+  TrendingUp, RefreshCw, Trash2
 } from "lucide-react";
 import { Assignment, AssignmentSubmission } from "@/modules/assignments/types";
 import { Assessment, AssessmentQuestion, AssessmentResultSummary } from "@/modules/assessments/types";
-import { gradeAssignmentSubmission } from "@/modules/assignments/services/assignmentService";
+import { gradeAssignmentSubmission, deleteSubmission } from "@/modules/assignments/services/assignmentService";
+import { deleteTestResult } from "@/modules/assessments/services/assessmentService";
+import { notifyAssessmentEvent, broadcastSubmissionsChange } from "../services/unifiedSyncService";
 import { Btn, Badge, Card, Empty, Field, Input, Modal, Select, Textarea } from "@/lib/ui";
 import { useStore } from "@/lib/store";
 import { toastMsg } from "@/lib/toast";
@@ -58,12 +60,44 @@ export function UnifiedSubmissionsInbox({
   onRefresh,
   onNavigateToTab,
 }: UnifiedSubmissionsInboxProps) {
-  const { db, user, update, log } = useStore();
+  const { db, user, update, log, notify } = useStore();
 
   const [search, setSearch] = useState("");
   const [filterType, setFilterType] = useState<"all" | "devoir" | "evaluation">("all");
   const [filterStatus, setFilterStatus] = useState<"all" | "to_grade" | "graded" | "late">("all");
   const [selectedParentId, setSelectedParentId] = useState<string>(preselectedParentId || "all");
+
+  // Modal de suppression (Onglet 3)
+  const [deletingItem, setDeletingItem] = useState<UnifiedSubmissionItem | null>(null);
+  const [isDeleting, setIsDeleting] = useState(false);
+
+  const handleConfirmDelete = async () => {
+    if (!deletingItem) return;
+    setIsDeleting(true);
+    try {
+      if (deletingItem.sourceType === "devoir" && deletingItem.devoirSubmission) {
+        const res = await deleteSubmission(deletingItem.devoirSubmission.id);
+        if (!res.success) throw new Error(res.error || "Impossible de supprimer la remise.");
+        toastMsg.success("Remise supprimée", `La remise de ${deletingItem.studentNom} a été supprimée.`);
+      } else if (deletingItem.sourceType === "evaluation" && deletingItem.evaluationResult) {
+        const res = await deleteTestResult(deletingItem.evaluationResult.id);
+        if (!res.success) throw new Error(res.error || "Impossible de supprimer le résultat.");
+        update((d) => ({
+          ...d,
+          results: d.results.filter((r) => r.id !== deletingItem.evaluationResult?.id),
+        }));
+        toastMsg.success("Résultat supprimé", `Le résultat de ${deletingItem.studentNom} a été supprimé.`);
+      }
+
+      broadcastSubmissionsChange();
+      setDeletingItem(null);
+      if (onRefresh) onRefresh();
+    } catch (e: any) {
+      toastMsg.error("Erreur de suppression", e.message || "Échec de l'opération.");
+    } finally {
+      setIsDeleting(false);
+    }
+  };
 
   // Modal de notation devoir
   const [gradingSubmission, setGradingSubmission] = useState<{
@@ -231,6 +265,22 @@ export function UnifiedSubmissionsInbox({
       if (res.success) {
         toastMsg.success("Note enregistrée ✓", `La note de ${num}/${assignment.bareme} a été validée et enregistrée dans le bulletin.`);
         setGradingSubmission(null);
+
+        // Notifier l'apprenant concerné
+        const studentObj = db.students.find((s) => s.id === submission.studentId);
+        const targetUserId = studentObj?.userId || submission.studentId;
+        if (targetUserId) {
+          notifyAssessmentEvent({
+            targetUserId,
+            title: "Devoir noté",
+            body: `Votre copie pour « ${assignment.titre} » a été notée : ${num}/${assignment.bareme} pts.${appreciationVal ? ` Remarque : « ${appreciationVal} »` : ""}`,
+            type: "note",
+            url: "/app/mes-evaluations-devoirs",
+            storeNotify: notify,
+          });
+        }
+        broadcastSubmissionsChange();
+
         if (onRefresh) onRefresh();
       } else {
         toastMsg.error("Erreur", res.error || "Impossible d'enregistrer la note.");
@@ -522,6 +572,16 @@ export function UnifiedSubmissionsInbox({
                         Voir la copie
                       </Btn>
                     )}
+
+                    {/* Bouton Supprimer (Onglet 3) */}
+                    <button
+                      type="button"
+                      onClick={() => setDeletingItem(item)}
+                      title="Supprimer cette copie / ce résultat"
+                      className="rounded-lg p-2 text-slate-400 hover:bg-red-500/10 hover:text-red-400 transition"
+                    >
+                      <Trash2 size={15} />
+                    </button>
                   </div>
                 </div>
               </Card>
@@ -715,6 +775,45 @@ export function UnifiedSubmissionsInbox({
             <div className="flex justify-end pt-2 border-t border-slate-800">
               <Btn variant="outline" onClick={() => setViewingTestResult(null)}>
                 Fermer
+              </Btn>
+            </div>
+          </div>
+        </Modal>
+      )}
+
+      {/* MODAL 3 : CONFIRMATION DE SUPPRESSION (Onglet 3) */}
+      {deletingItem && (
+        <Modal
+          open={!!deletingItem}
+          onClose={() => setDeletingItem(null)}
+          title="Confirmer la suppression"
+        >
+          <div className="space-y-4">
+            <div className="flex items-center gap-3 rounded-xl border border-red-500/20 bg-red-500/10 p-4 text-sm text-red-200">
+              <AlertTriangle size={24} className="shrink-0 text-red-400" />
+              <div>
+                <p className="font-semibold text-white">Cette action est irréversible.</p>
+                <p className="text-xs text-red-300">
+                  Voulez-vous vraiment supprimer la copie / le résultat de{" "}
+                  <strong>
+                    {deletingItem.studentPrenom} {deletingItem.studentNom}
+                  </strong>{" "}
+                  pour « {deletingItem.parentTitle} » ?
+                </p>
+              </div>
+            </div>
+
+            <div className="flex justify-end gap-2 pt-2">
+              <Btn variant="outline" onClick={() => setDeletingItem(null)}>
+                Annuler
+              </Btn>
+              <Btn
+                onClick={handleConfirmDelete}
+                disabled={isDeleting}
+                className="bg-red-600 hover:bg-red-500 text-white gap-1.5"
+              >
+                <Trash2 size={14} />
+                {isDeleting ? "Suppression..." : "Supprimer définitivement"}
               </Btn>
             </div>
           </div>

@@ -9,6 +9,7 @@ import { Badge, Btn, Field, Input, Modal, Textarea } from "@/lib/ui";
 import { useStore } from "@/lib/store";
 import { toastMsg } from "@/lib/toast";
 import { humanSize, fileKind } from "@/lib/files";
+import { notifyAssessmentEvent, broadcastSubmissionsChange } from "@/modules/unified-assessments/services/unifiedSyncService";
 
 interface StudentAssignmentModalProps {
   open: boolean;
@@ -32,7 +33,7 @@ export function StudentAssignmentModal({
   submission,
   onSubmitted,
 }: StudentAssignmentModalProps) {
-  const { db, user } = useStore();
+  const { db, user, notify } = useStore();
 
   const [texte, setTexte] = useState("");
   const [stagedFiles, setStagedFiles] = useState<StagedFile[]>([]);
@@ -177,6 +178,21 @@ export function StudentAssignmentModal({
           ? "Votre devoir a été enregistré avec la mention « En retard »."
           : "Votre travail a été transmis au formateur."
       );
+
+      // Notification automatique de l'enseignant et synchronisation en direct
+      if (assignment.teacherId && student) {
+        const teacherObj = db.teachers.find((t) => t.id === assignment.teacherId);
+        const targetUserId = teacherObj?.userId || assignment.teacherId;
+        notifyAssessmentEvent({
+          targetUserId,
+          title: "Nouveau devoir déposé",
+          body: `${student.prenom} ${student.nom} a déposé son devoir pour « ${assignment.titre} »${isLate ? " (en retard)" : ""}.`,
+          type: "devoir",
+          url: "/app/evaluations-devoirs",
+          storeNotify: notify,
+        });
+      }
+      broadcastSubmissionsChange();
 
       setShowConfirmModal(false);
       setStagedFiles([]);

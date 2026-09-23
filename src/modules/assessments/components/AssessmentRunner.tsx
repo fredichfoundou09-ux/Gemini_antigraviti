@@ -15,6 +15,7 @@ import { supabase, isSupabaseConfigured } from "@/lib/supabase/client";
 import { useStore } from "@/lib/store";
 import { Btn, Badge, Card, Modal } from "@/lib/ui";
 import { toastMsg } from "@/lib/toast";
+import { notifyAssessmentEvent, broadcastSubmissionsChange } from "@/modules/unified-assessments/services/unifiedSyncService";
 
 interface Props {
   rawAssessment: Assessment;
@@ -31,7 +32,7 @@ export function AssessmentRunner({
   onFinish,
   onCancel,
 }: Props) {
-  const { update, log, db } = useStore();
+  const { update, log, db, notify } = useStore();
 
   // Aseptiser le sujet : aucune bonne réponse n'est transmise au composant apprenant
   const assessment = sanitizeAssessmentForStudent(rawAssessment);
@@ -320,6 +321,39 @@ export function AssessmentRunner({
         ...d,
         results: [resultPayload, ...d.results.filter((r) => !(r.testId === rawAssessment.id && r.studentId === studentId))],
       }));
+
+      // Persistance Supabase test_results
+      if (isSupabaseConfigured) {
+        try {
+          await supabase.from("test_results").insert({
+            test_id: rawAssessment.id,
+            student_id: studentId,
+            note: finalEval.note,
+            pourcentage: finalEval.pourcentage,
+            date: resultPayload.date,
+            heure: resultPayload.heure,
+            valide: resultPayload.valide,
+            statut: resultPayload.statut,
+          });
+        } catch (e) {
+          console.warn("Échec insertion direct test_results:", e);
+        }
+      }
+
+      // Notification automatique du formateur
+      if (rawAssessment.teacherId) {
+        const teacherObj = db.teachers.find((t) => t.id === rawAssessment.teacherId);
+        const targetUserId = teacherObj?.userId || rawAssessment.teacherId;
+        notifyAssessmentEvent({
+          targetUserId,
+          title: "Nouvelle évaluation terminée",
+          body: `${studentName || "Un apprenant"} a terminé l'évaluation « ${rawAssessment.titre} » avec la note de ${finalEval.note}/${rawAssessment.bareme} pts.`,
+          type: "evaluation",
+          url: "/app/evaluations-devoirs",
+          storeNotify: notify,
+        });
+      }
+      broadcastSubmissionsChange();
 
       log(`Évaluation soumise par ${studentName || studentId} : ${finalEval.note}/${rawAssessment.bareme}`);
       clearLocalDraft(`sn_exam_${assessment.id}_${studentId}`);
