@@ -5,7 +5,7 @@ import {
   TestTube2, PenLine, Wallet, Award, BadgeDollarSign, MessagesSquare, Bell, Settings,
   PenSquare, LogOut, ShieldCheck, Menu, X, UserCircle, NotebookPen, FolderOpen, BookMarked,
   ScrollText, Database, Activity, Medal, Handshake, Megaphone, RotateCcw, Clock, Eye,
-  Search, ArrowRight, Home, Calendar, Palette,
+  Search, ArrowRight, Home, Calendar, Palette, Bot,
 } from "lucide-react";
 import { cn } from "@/utils/cn";
 import { useStore } from "@/lib/store";
@@ -24,6 +24,7 @@ import {
   sendTestNotification,
   isNotificationSupported,
 } from "@/lib/pushNotifications";
+import { AiAgentPanel } from "@/components/AiAgentPanel";
 
 const roleLabel: Record<string, string> = {
   superadmin: "SUPER ADMIN",
@@ -114,6 +115,7 @@ export default function DashboardLayout() {
   const { profile, logout: authLogout } = useAuth();
   const navigate = useNavigate();
   const [open, setOpen] = useState(false);
+  const [aiAgentOpen, setAiAgentOpen] = useState(false);
   const [searchOpen, setSearchOpen] = useState(false);
   const [searchQuery, setSearchQuery] = useState("");
   const searchInputRef = useRef<HTMLInputElement>(null);
@@ -830,6 +832,18 @@ export default function DashboardLayout() {
 
           {/* Actions Header : Messages, Notifications, Site public, Déconnexion */}
           <div className="flex items-center gap-1.5 sm:gap-2.5">
+            {["superadmin", "admin", "teacher"].includes(user.role) && (
+              <button
+                type="button"
+                onClick={() => setAiAgentOpen(true)}
+                className="relative rounded-lg border border-[#00C8FF]/30 bg-[#0B111A] p-2 sm:p-2.5 text-[#00E5FF] transition hover:border-[#00C8FF] hover:shadow-[0_0_14px_rgba(0,229,255,0.35)] shrink-0"
+                title="Assistant IA Agent"
+                aria-label="Assistant IA Agent"
+              >
+                <Bot size={18} />
+              </button>
+            )}
+
             <NavLink
               to="/app/messages"
               className="relative rounded-lg border border-[#006DFF]/30 bg-[#0B111A] p-2 sm:p-2.5 text-[#4C91B5] transition hover:border-[#00C8FF] hover:text-[#00E5FF] hover:shadow-[0_0_12px_rgba(0,229,255,0.25)] shrink-0"
@@ -1001,6 +1015,8 @@ export default function DashboardLayout() {
           <span>Profil</span>
         </NavLink>
       </nav>
+
+      <AiAgentPanel open={aiAgentOpen} onClose={() => setAiAgentOpen(false)} />
     </div>
   );
 }
