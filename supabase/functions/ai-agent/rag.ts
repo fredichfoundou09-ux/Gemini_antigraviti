@@ -19,7 +19,13 @@ export async function searchKnowledgeBase(
   query: string,
   category?: string
 ): Promise<KnowledgeItem[]> {
-  const sb = user.sbUser;
+  // Préférer sbAdmin pour accéder aux fragments et aux documents sans restriction RLS ou récursion
+  const sb = user.sbAdmin || user.sbUser;
+
+  // Détection d'un nom de fichier spécifique cité dans la requête (ex: OpenSSL_Cours_TP.pdf)
+  const fileMatch = query.match(/[\w.-]+\.(pdf|docx|txt|csv|json|md)/i);
+  const targetDocName = fileMatch ? fileMatch[0] : null;
+
   const terms = query
     .toLowerCase()
     .replace(/[^a-z0-9àâäéèêëîïôöùûüç\s-]/g, "")
@@ -33,10 +39,26 @@ export async function searchKnowledgeBase(
     let chunkQuery = sb
       .from("ai_document_chunks")
       .select("id, document_title, content, version, chunk_index, metadata")
-      .eq("active", true)
-      .limit(6);
+      .eq("active", true);
 
-    const { data: chunks } = await chunkQuery;
+    if (targetDocName) {
+      chunkQuery = chunkQuery
+        .ilike("document_title", `%${targetDocName}%`)
+        .order("chunk_index", { ascending: true })
+        .limit(14);
+    } else if (terms.length > 0) {
+      chunkQuery = chunkQuery
+        .or(`document_title.ilike.%${terms[0]}%,content.ilike.%${terms[0]}%`)
+        .limit(10);
+    } else {
+      chunkQuery = chunkQuery.limit(8);
+    }
+
+    const { data: chunks, error: chunkErr } = await chunkQuery;
+    if (chunkErr) {
+      console.warn("Erreur query ai_document_chunks :", chunkErr);
+    }
+
     if (chunks && chunks.length > 0) {
       for (const ch of chunks) {
         const text = `${ch.document_title} ${ch.content}`.toLowerCase();
@@ -44,7 +66,7 @@ export async function searchKnowledgeBase(
         for (const t of terms) {
           if (text.includes(t)) matchCount++;
         }
-        if (terms.length === 0 || matchCount > 0) {
+        if (targetDocName || terms.length === 0 || matchCount > 0) {
           results.push({
             id: ch.id,
             title: ch.document_title,
@@ -52,7 +74,7 @@ export async function searchKnowledgeBase(
             category: "course_chunk",
             sourceType: "course_chunk",
             version: ch.version,
-            similarityScore: matchCount * 1.5,
+            similarityScore: targetDocName ? 10 + matchCount * 2 : matchCount * 1.5,
           });
         }
       }

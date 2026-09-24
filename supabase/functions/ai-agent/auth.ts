@@ -9,6 +9,7 @@ export interface UserContext {
   teacherId?: string | null;
   studentId?: string | null;
   sbUser: any;
+  sbAdmin: any;
 }
 
 export async function authenticateRequest(req: Request): Promise<UserContext | null> {
@@ -19,11 +20,15 @@ export async function authenticateRequest(req: Request): Promise<UserContext | n
 
   const supabaseUrl = Deno.env.get("SUPABASE_URL") || "";
   const supabaseAnonKey = Deno.env.get("SUPABASE_ANON_KEY") || "";
+  const supabaseServiceKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY") || supabaseAnonKey;
 
   // Client utilisant le JWT de l'utilisateur pour respecter scrupuleusement les RLS
   const sbUser = createClient(supabaseUrl, supabaseAnonKey, {
     global: { headers: { Authorization: authHeader } },
   });
+
+  // Client avec privilèges d'administration pour accès sécurisé et sans récursion aux documents indexés
+  const sbAdmin = createClient(supabaseUrl, supabaseServiceKey);
 
   const { data: { user }, error: authErr } = await sbUser.auth.getUser();
   if (authErr || !user) {
@@ -69,5 +74,6 @@ export async function authenticateRequest(req: Request): Promise<UserContext | n
     teacherId,
     studentId,
     sbUser,
+    sbAdmin,
   };
 }
