@@ -326,8 +326,31 @@ export default function DashboardLayout() {
         </div>
       </div>
 
+      {/* Assistant IA dans la barre latérale */}
+      <div className="px-3 pt-3 pb-1">
+        <button
+          type="button"
+          onClick={() => {
+            setOpen(false);
+            setAiAgentOpen(true);
+          }}
+          className="w-full flex items-center justify-between rounded-xl border border-cyan-400/40 bg-gradient-to-r from-cyan-950/60 to-[#0B111A] p-2.5 text-left text-xs text-cyan-300 hover:border-cyan-300 hover:shadow-[0_0_15px_rgba(0,229,255,0.25)] transition group cursor-pointer"
+        >
+          <div className="flex items-center gap-2.5">
+            <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-cyan-400/20 text-cyan-300 border border-cyan-400/40 group-hover:scale-105 transition-transform">
+              <Bot size={18} />
+            </div>
+            <div>
+              <p className="font-bold text-white group-hover:text-cyan-200">Assistant IA</p>
+              <p className="text-[10px] text-cyan-400/80">Agent autonome</p>
+            </div>
+          </div>
+          <span className="flex h-2 w-2 rounded-full bg-emerald-400 animate-pulse" title="Prêt" />
+        </button>
+      </div>
+
       {/* Navigation Links */}
-      <nav className="flex-1 space-y-1 overflow-y-auto px-3 py-4">
+      <nav className="flex-1 space-y-1 overflow-y-auto px-3 py-3">
         {items.map((m) => (
           <NavLink
             key={m.to}
@@ -832,17 +855,23 @@ export default function DashboardLayout() {
 
           {/* Actions Header : Messages, Notifications, Site public, Déconnexion */}
           <div className="flex items-center gap-1.5 sm:gap-2.5">
-            {["superadmin", "admin", "teacher"].includes(user.role) && (
-              <button
-                type="button"
-                onClick={() => setAiAgentOpen(true)}
-                className="relative rounded-lg border border-[#00C8FF]/30 bg-[#0B111A] p-2 sm:p-2.5 text-[#00E5FF] transition hover:border-[#00C8FF] hover:shadow-[0_0_14px_rgba(0,229,255,0.35)] shrink-0"
-                title="Assistant IA Agent"
-                aria-label="Assistant IA Agent"
-              >
-                <Bot size={18} />
-              </button>
-            )}
+            {/* Bouton Assistant IA ultra-visible dans le Header */}
+            <button
+              type="button"
+              onClick={() => setAiAgentOpen(true)}
+              className="relative flex items-center gap-2 rounded-xl border border-cyan-400/60 bg-gradient-to-r from-cyan-950/80 to-[#0B111A] px-3 py-1.5 text-cyan-300 transition hover:border-cyan-300 hover:shadow-[0_0_18px_rgba(0,229,255,0.4)] shrink-0 cursor-pointer"
+              title="Ouvrir l'Assistant IA"
+              aria-label="Assistant IA Agent"
+            >
+              <div className="relative">
+                <Bot size={18} className="text-cyan-400" />
+                <span className="absolute -top-0.5 -right-0.5 flex h-2 w-2">
+                  <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-cyan-400 opacity-75"></span>
+                  <span className="relative inline-flex rounded-full h-2 w-2 bg-emerald-400"></span>
+                </span>
+              </div>
+              <span className="hidden sm:inline text-xs font-bold text-cyan-200">Assistant IA</span>
+            </button>
 
             <NavLink
               to="/app/messages"
@@ -1015,6 +1044,24 @@ export default function DashboardLayout() {
           <span>Profil</span>
         </NavLink>
       </nav>
+
+      {/* Bouton Flottant (FAB) Assistant IA — Toujours visible à l'écran */}
+      <button
+        type="button"
+        onClick={() => setAiAgentOpen(true)}
+        className="fixed bottom-20 lg:bottom-6 right-6 z-50 flex items-center gap-2.5 rounded-full border-2 border-cyan-400/60 bg-[#060b12]/95 px-4 py-3 text-cyan-300 shadow-[0_0_25px_rgba(0,229,255,0.45)] backdrop-blur-md transition-all hover:scale-105 hover:border-cyan-300 hover:shadow-[0_0_35px_rgba(0,229,255,0.7)] group cursor-pointer"
+        title="Ouvrir l'Assistant IA"
+        aria-label="Ouvrir l'Assistant IA"
+      >
+        <div className="relative">
+          <Bot size={22} className="text-cyan-400 group-hover:rotate-12 transition-transform" />
+          <span className="absolute -top-1 -right-1 flex h-2.5 w-2.5">
+            <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-cyan-400 opacity-75"></span>
+            <span className="relative inline-flex rounded-full h-2.5 w-2.5 bg-emerald-400"></span>
+          </span>
+        </div>
+        <span className="text-xs font-black tracking-wider uppercase text-white drop-shadow">Assistant IA</span>
+      </button>
 
       <AiAgentPanel open={aiAgentOpen} onClose={() => setAiAgentOpen(false)} />
     </div>
