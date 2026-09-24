@@ -23,11 +23,12 @@ if (Get-Command "npx" -ErrorAction SilentlyContinue) {
         Write-Host "⚠️ Erreur lors du db push. Assurez-vous d'être connecté." -ForegroundColor Red
     }
 
-    # 3. Déploiement de la fonction Edge create-user
-    Write-Host "`n3. Déploiement de la fonction Edge 'create-user'..." -ForegroundColor Yellow
-    npx supabase functions deploy create-user
+    # 3. Déploiement des fonctions Edge 'create-user' et 'ai-agent'
+    Write-Host "`n3. Déploiement des fonctions Edge 'create-user' et 'ai-agent'..." -ForegroundColor Yellow
+    npx supabase functions deploy create-user --no-verify-jwt
+    npx supabase functions deploy ai-agent --no-verify-jwt
     if ($LASTEXITCODE -eq 0) {
-        Write-Host "✅ Fonction Edge 'create-user' déployée." -ForegroundColor Green
+        Write-Host "✅ Fonctions Edge déployées avec succès." -ForegroundColor Green
     }
 } else {
     Write-Host "ℹ️ Supabase CLI n'est pas installé localement." -ForegroundColor Cyan
