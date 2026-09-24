@@ -198,4 +198,70 @@ describe("SENTINEL'S AI v2 - Suite Complète de Tests Avancés", () => {
       expect(ok).toBe(true);
     });
   });
+
+  describe("6. Ingestion documentaire et Chunking RAG", () => {
+    it("découpe un texte long en fragments avec chevauchement", async () => {
+      const { chunkText, computeSha256 } = await import("@/lib/ai/documentIngestion");
+      const longText = "A".repeat(1600);
+      const chunks = chunkText(longText, 700, 100);
+
+      expect(chunks.length).toBeGreaterThanOrEqual(2);
+      expect(chunks[0].length).toBeLessThanOrEqual(700);
+
+      const hash = await computeSha256("Bonjour SENTINEL");
+      expect(typeof hash).toBe("string");
+      expect(hash.length).toBe(64); // SHA-256 hex length
+    });
+  });
+
+  describe("7. Normalisation et Export des Évaluations IA", () => {
+    it("normalise des questions brutes IA en questions d'évaluation conformes", async () => {
+      const { normalizeAiQuestions, buildAssessmentFromAi } = await import(
+        "@/lib/ai/exportAiContent"
+      );
+
+      const rawQuestions = [
+        {
+          question: "Qu'est-ce qu'un certificat X.509 ?",
+          type: "courte",
+          points: 5,
+        },
+        {
+          question: "Quel protocole est chiffré par défaut ?",
+          type: "qcm",
+          options: ["HTTP", "HTTPS", "FTP"],
+          bonneReponse: "HTTPS",
+          points: 5,
+        },
+      ];
+
+      const normalized = normalizeAiQuestions(rawQuestions);
+      expect(normalized).toHaveLength(2);
+      expect(normalized[0].points).toBe(5);
+      expect(normalized[1].type).toBe("qcm");
+      expect(normalized[1].options).toContain("HTTPS");
+
+      const assessment = buildAssessmentFromAi({
+        titre: "Évaluation Cybersécurité",
+        questions: rawQuestions,
+      });
+
+      expect(assessment.titre).toBe("Évaluation Cybersécurité");
+      expect(assessment.questions).toHaveLength(2);
+      expect(assessment.statut).toBe("publie");
+    });
+  });
+
+  describe("8. Support Vocal (Speech-to-Text & Text-to-Speech)", () => {
+    it("détecte le support ou l'absence du Web Speech API de manière sécurisée", async () => {
+      const { isVoiceRecognitionSupported, isSpeechSynthesisSupported } = await import(
+        "@/lib/ai/voice"
+      );
+
+      // Dans l'environnement Node/Vitest, window.SpeechRecognition n'existe pas par défaut
+      expect(typeof isVoiceRecognitionSupported()).toBe("boolean");
+      expect(typeof isSpeechSynthesisSupported()).toBe("boolean");
+    });
+  });
 });
+

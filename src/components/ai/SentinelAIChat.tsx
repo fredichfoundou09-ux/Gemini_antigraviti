@@ -20,10 +20,27 @@ import {
   ThumbsDown,
   FileText,
   Zap,
+  Paperclip,
+  Mic,
+  MicOff,
+  Volume2,
+  VolumeX,
+  Download,
+  FileCode,
 } from "lucide-react";
 import { useSentinelAi } from "@/hooks/useSentinelAi";
 import { toolLabel, AiPendingAction } from "@/lib/ai/types";
 import { toastMsg } from "@/lib/toast";
+import { ingestDocumentForRag } from "@/lib/ai/documentIngestion";
+import {
+  startVoiceRecognition,
+  isVoiceRecognitionSupported,
+  speakText,
+  stopSpeaking,
+  isSpeechSynthesisSupported,
+} from "@/lib/ai/voice";
+import { exportEvaluationToDocx, exportEvaluationToPdf } from "@/lib/ai/exportAiContent";
+
 
 interface SentinelAIChatProps {
   open: boolean;
@@ -90,6 +107,51 @@ function ActionConfirmationCard({
               </div>
             ))}
           </div>
+        </div>
+
+        <div className="flex gap-2 mb-3">
+          <button
+            onClick={async () => {
+              try {
+                await exportEvaluationToDocx(args, { includeSolutions: false });
+                toastMsg.success("DOCX Épreuve téléchargé avec succès !");
+              } catch (err: any) {
+                toastMsg.error("Erreur export DOCX : " + (err.message || "inconnue"));
+              }
+            }}
+            className="flex-1 flex items-center justify-center gap-1 rounded-lg border border-blue-400/30 bg-blue-500/10 px-2 py-1.5 text-[11px] font-semibold text-blue-300 hover:bg-blue-500/20 transition cursor-pointer"
+            title="Télécharger l'épreuve au format Word DOCX"
+          >
+            <Download size={12} /> DOCX Épreuve
+          </button>
+          <button
+            onClick={async () => {
+              try {
+                await exportEvaluationToDocx(args, { includeSolutions: true });
+                toastMsg.success("DOCX Corrigé enseignant téléchargé !");
+              } catch (err: any) {
+                toastMsg.error("Erreur export DOCX : " + (err.message || "inconnue"));
+              }
+            }}
+            className="flex-1 flex items-center justify-center gap-1 rounded-lg border border-indigo-400/30 bg-indigo-500/10 px-2 py-1.5 text-[11px] font-semibold text-indigo-300 hover:bg-indigo-500/20 transition cursor-pointer"
+            title="Télécharger le corrigé professeur au format Word DOCX"
+          >
+            <Download size={12} /> DOCX Corrigé
+          </button>
+          <button
+            onClick={async () => {
+              try {
+                await exportEvaluationToPdf(args, { includeSolutions: false });
+                toastMsg.success("PDF Épreuve généré avec succès !");
+              } catch (err: any) {
+                toastMsg.error("Erreur export PDF : " + (err.message || "inconnue"));
+              }
+            }}
+            className="flex-1 flex items-center justify-center gap-1 rounded-lg border border-emerald-400/30 bg-emerald-500/10 px-2 py-1.5 text-[11px] font-semibold text-emerald-300 hover:bg-emerald-500/20 transition cursor-pointer"
+            title="Télécharger l'épreuve officielle au format PDF"
+          >
+            <Download size={12} /> PDF Officiel
+          </button>
         </div>
 
         <div className="flex gap-2">
@@ -189,11 +251,110 @@ export function SentinelAIChat({ open, onClose, userRole, userName }: SentinelAI
 
   const [input, setInput] = useState("");
   const [copiedIdx, setCopiedIdx] = useState<number | null>(null);
+  const [isListening, setIsListening] = useState(false);
+  const stopListeningRef = useRef<(() => void) | null>(null);
+  const [speakingIdx, setSpeakingIdx] = useState<number | null>(null);
+  const [isDragging, setIsDragging] = useState(false);
+  const [uploadingDoc, setUploadingDoc] = useState(false);
+  const fileInputRef = useRef<HTMLInputElement>(null);
   const endRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
     endRef.current?.scrollIntoView({ behavior: "smooth" });
   }, [messages, pendingActions, loading]);
+
+  useEffect(() => {
+    return () => {
+      stopSpeaking();
+      stopListeningRef.current?.();
+    };
+  }, []);
+
+  const handleToggleVoice = () => {
+    if (isListening) {
+      stopListeningRef.current?.();
+      setIsListening(false);
+      return;
+    }
+    if (!isVoiceRecognitionSupported()) {
+      toastMsg.warning("La reconnaissance vocale n'est pas supportée sur ce navigateur.");
+      return;
+    }
+    setIsListening(true);
+    const stopFn = startVoiceRecognition({
+      lang: "fr-FR",
+      continuous: true,
+      onResult: (transcript) => {
+        setInput((prev) => (prev ? `${prev} ${transcript}` : transcript));
+      },
+      onError: (err) => {
+        console.warn("Erreur vocale :", err);
+        setIsListening(false);
+      },
+      onEnd: () => {
+        setIsListening(false);
+      },
+    });
+    stopListeningRef.current = stopFn;
+  };
+
+  const handleToggleSpeak = (text: string, idx: number) => {
+    if (speakingIdx === idx) {
+      stopSpeaking();
+      setSpeakingIdx(null);
+      return;
+    }
+    stopSpeaking();
+    setSpeakingIdx(idx);
+    speakText(text, {
+      lang: "fr-FR",
+      onEnd: () => setSpeakingIdx(null),
+      onError: () => setSpeakingIdx(null),
+    });
+  };
+
+  const handleProcessFile = async (file: File) => {
+    setUploadingDoc(true);
+    toastMsg.info(`Indexation du fichier "${file.name}"...`);
+    try {
+      const result = await ingestDocumentForRag(file, {
+        title: file.name,
+        category: "cours",
+      });
+      toastMsg.success(`Document ingéré avec succès (${result.chunksCount} fragments indexés).`);
+      send(
+        `J'ai indexé le document "${file.name}" (${result.chunksCount} fragments dans la base). Analyse son contenu et résume-moi les points clés.`
+      );
+    } catch (err: any) {
+      console.error("Erreur ingestion document:", err);
+      toastMsg.error(err.message || "Échec de l'indexation du document");
+    } finally {
+      setUploadingDoc(false);
+    }
+  };
+
+  const handleDragOver = (e: React.DragEvent) => {
+    e.preventDefault();
+    e.stopPropagation();
+    setIsDragging(true);
+  };
+
+  const handleDragLeave = (e: React.DragEvent) => {
+    e.preventDefault();
+    e.stopPropagation();
+    setIsDragging(false);
+  };
+
+  const handleDrop = async (e: React.DragEvent) => {
+    e.preventDefault();
+    e.stopPropagation();
+    setIsDragging(false);
+    const files = e.dataTransfer.files;
+    if (files && files.length > 0) {
+      await handleProcessFile(files[0]);
+    }
+  };
+
 
   if (!open) return null;
 
@@ -242,9 +403,23 @@ export function SentinelAIChat({ open, onClose, userRole, userName }: SentinelAI
   return (
     <div className="fixed inset-0 z-[70] flex justify-end bg-black/65 backdrop-blur-sm" onClick={onClose}>
       <div
-        className="flex h-full w-full max-w-lg flex-col border-l border-cyan-400/30 bg-[#060b12] text-slate-100 shadow-[0_0_50px_rgba(0,0,0,0.8)]"
+        className="relative flex h-full w-full max-w-lg flex-col border-l border-cyan-400/30 bg-[#060b12] text-slate-100 shadow-[0_0_50px_rgba(0,0,0,0.8)]"
         onClick={(e) => e.stopPropagation()}
+        onDragOver={handleDragOver}
+        onDragLeave={handleDragLeave}
+        onDrop={handleDrop}
       >
+        {/* Overlay Drag & Drop */}
+        {isDragging && (
+          <div className="absolute inset-0 z-50 flex flex-col items-center justify-center bg-cyan-950/90 backdrop-blur-md border-2 border-dashed border-cyan-400 p-6 text-center pointer-events-none">
+            <Paperclip size={48} className="text-cyan-300 mb-3 animate-bounce" />
+            <p className="text-lg font-bold text-white mb-1">Déposez votre document ici</p>
+            <p className="text-xs text-cyan-200">
+              PDF, DOCX, TXT ou CSV seront découpés et indexés dans la base de connaissances
+            </p>
+          </div>
+        )}
+
         {/* Header HUD */}
         <div className="flex items-center justify-between border-b border-cyan-400/20 bg-[#04070c]/90 px-4 py-3.5 backdrop-blur-md">
           <div className="flex items-center gap-3">
@@ -353,6 +528,26 @@ export function SentinelAIChat({ open, onClose, userRole, userName }: SentinelAI
                       )}
                       {copiedIdx === idx ? "Copié" : "Copier"}
                     </button>
+
+                    {isSpeechSynthesisSupported() && (
+                      <button
+                        onClick={() => handleToggleSpeak(m.content, idx)}
+                        className={`flex items-center gap-1 transition cursor-pointer ${
+                          speakingIdx === idx
+                            ? "text-cyan-400 font-bold"
+                            : "hover:text-cyan-300"
+                        }`}
+                        title={speakingIdx === idx ? "Arrêter la lecture" : "Écouter la réponse"}
+                      >
+                        {speakingIdx === idx ? (
+                          <VolumeX size={12} className="animate-pulse text-cyan-400" />
+                        ) : (
+                          <Volume2 size={12} />
+                        )}
+                        {speakingIdx === idx ? "Arrêter" : "Écouter"}
+                      </button>
+                    )}
+
                     {idx === messages.length - 1 && (
                       <button
                         onClick={regenerate}
@@ -416,26 +611,79 @@ export function SentinelAIChat({ open, onClose, userRole, userName }: SentinelAI
           <div ref={endRef} />
         </div>
 
-        {/* Zone de saisie */}
+        {/* Zone de saisie avec support vocal et ingestion documentaire */}
         <div className="border-t border-cyan-400/20 bg-[#04070c]/90 p-3.5 backdrop-blur-md">
-          <form onSubmit={handleSubmit} className="flex gap-2">
+          {/* Input fichier caché pour téléversement de documents */}
+          <input
+            type="file"
+            ref={fileInputRef}
+            className="hidden"
+            accept=".pdf,.docx,.txt,.csv,.json,.md"
+            onChange={async (e) => {
+              const file = e.target.files?.[0];
+              if (file) {
+                await handleProcessFile(file);
+                e.target.value = "";
+              }
+            }}
+          />
+
+          <form onSubmit={handleSubmit} className="flex items-center gap-2">
+            {/* Bouton Ingestion Document */}
+            <button
+              type="button"
+              onClick={() => fileInputRef.current?.click()}
+              disabled={loading || uploadingDoc}
+              className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl border border-white/10 bg-white/[0.04] text-slate-400 hover:border-cyan-400/40 hover:bg-cyan-950/30 hover:text-cyan-300 transition cursor-pointer disabled:opacity-40"
+              title="Ajouter un document à la base RAG (PDF, DOCX, TXT, CSV)"
+            >
+              {uploadingDoc ? (
+                <Loader2 size={16} className="animate-spin text-cyan-400" />
+              ) : (
+                <Paperclip size={16} />
+              )}
+            </button>
+
+            {/* Champ de saisie */}
             <input
               value={input}
               onChange={(e) => setInput(e.target.value)}
-              placeholder="Posez une question, demandez un exercice ou une action..."
+              placeholder="Posez une question, dictez ou glissez un fichier..."
               className="flex-1 rounded-xl border border-white/10 bg-white/[0.04] px-4 py-2.5 text-sm text-white placeholder:text-slate-500 focus:border-cyan-400 focus:bg-white/[0.06] focus:outline-none transition shadow-inner"
             />
+
+            {/* Bouton Dictée vocale */}
+            {isVoiceRecognitionSupported() && (
+              <button
+                type="button"
+                onClick={handleToggleVoice}
+                className={`flex h-10 w-10 shrink-0 items-center justify-center rounded-xl border transition cursor-pointer ${
+                  isListening
+                    ? "border-red-400/60 bg-red-500/20 text-red-400 animate-pulse shadow-[0_0_12px_rgba(239,68,68,0.4)]"
+                    : "border-white/10 bg-white/[0.04] text-slate-400 hover:border-cyan-400/40 hover:bg-cyan-950/30 hover:text-cyan-300"
+                }`}
+                title={isListening ? "Arrêter la dictée" : "Dicter vocalement en français"}
+              >
+                {isListening ? <MicOff size={16} /> : <Mic size={16} />}
+              </button>
+            )}
+
+            {/* Bouton Envoyer */}
             <button
               type="submit"
               disabled={loading || !input.trim()}
-              className="flex items-center justify-center rounded-xl border border-cyan-400/50 bg-cyan-400/20 px-4 text-cyan-300 hover:bg-cyan-400/30 hover:scale-105 active:scale-95 disabled:opacity-40 disabled:hover:scale-100 transition shadow-[0_0_15px_rgba(0,229,255,0.2)] cursor-pointer"
+              className="flex h-10 items-center justify-center rounded-xl border border-cyan-400/50 bg-cyan-400/20 px-4 text-cyan-300 hover:bg-cyan-400/30 hover:scale-105 active:scale-95 disabled:opacity-40 disabled:hover:scale-100 transition shadow-[0_0_15px_rgba(0,229,255,0.2)] cursor-pointer"
             >
               <Send size={16} />
             </button>
           </form>
+
           <div className="mt-2 flex items-center justify-between text-[10px] text-slate-500 px-1">
-            <span>RAG & Mémoire active • RLS Supabase</span>
-            <span>Entrée pour envoyer</span>
+            <span className="flex items-center gap-1">
+              <Zap size={10} className="text-cyan-400" />
+              RAG & Mémoire active • Glissez-déposez vos cours
+            </span>
+            <span>{isListening ? "Écoute en cours..." : "Entrée pour envoyer"}</span>
           </div>
         </div>
       </div>
