@@ -1,6 +1,10 @@
 import { describe, it, expect, beforeAll } from "vitest";
 import { toolLabel } from "@/lib/ai/types";
-import { localAgentProcess, localAgentExecute } from "@/lib/ai/sentinelAiService";
+import {
+  localAgentProcess,
+  localAgentExecute,
+  sendSentinelAiFeedback,
+} from "@/lib/ai/sentinelAiService";
 
 // Mock localStorage et window.dispatchEvent pour l'environnement Node de Vitest
 beforeAll(() => {
@@ -26,7 +30,7 @@ beforeAll(() => {
   (globalThis as any).window.dispatchEvent = () => true;
 });
 
-describe("SENTINEL'S AI - Suite Complète de Tests", () => {
+describe("SENTINEL'S AI v2 - Suite Complète de Tests Avancés", () => {
   describe("1. Dictionnaire des outils et libellés", () => {
     it("fournit un libellé compréhensible pour les outils de Niveau 1, 2 et 3", () => {
       // Niveau 1
@@ -47,13 +51,16 @@ describe("SENTINEL'S AI - Suite Complète de Tests", () => {
     });
   });
 
-  describe("2. Détection d'intention et génération de propositions (Niveau 3)", () => {
-    it("détecte une demande d'évaluation et prépare une proposition avec questions", async () => {
+  describe("2. Détection d'intention et routage contextuel", () => {
+    it("détecte une demande d'évaluation et prépare une proposition avec questions et sources", async () => {
       const res = await localAgentProcess([
         { role: "user", content: "Peux-tu créer un quiz QCM sur le chiffrement RSA ?" },
       ]);
 
       expect(res.reply).toContain("évaluation");
+      expect(res.intent).toBe("PEDAGOGY");
+      expect(res.sources).toBeDefined();
+      expect(res.sources?.length).toBeGreaterThanOrEqual(1);
       expect(res.pending_actions).toHaveLength(1);
 
       const action = res.pending_actions[0];
@@ -68,7 +75,7 @@ describe("SENTINEL'S AI - Suite Complète de Tests", () => {
       expect(q1.bonne_reponse).toBeDefined();
     });
 
-    it("détecte une demande de pointage de présence et génère une proposition à valider", async () => {
+    it("détecte une demande d'assiduité / présence et route vers ATTENDANCE", async () => {
       localStorage.setItem(
         "sn_db_v2",
         JSON.stringify({
@@ -81,6 +88,7 @@ describe("SENTINEL'S AI - Suite Complète de Tests", () => {
         { role: "user", content: "Valide la présence des élèves au cours aujourd'hui." },
       ]);
 
+      expect(res.intent).toBe("ATTENDANCE");
       expect(res.pending_actions.length).toBeGreaterThanOrEqual(1);
       const action = res.pending_actions[0];
       expect(action.tool_name).toBe("valider_presence");
@@ -88,14 +96,26 @@ describe("SENTINEL'S AI - Suite Complète de Tests", () => {
       expect(action.arguments.statut).toBe("present");
     });
 
-    it("répond aux questions sur le règlement ou la certification via la base de connaissances", async () => {
+    it("répond aux questions sur le règlement avec attribution de sources", async () => {
       const res = await localAgentProcess([
         { role: "user", content: "Quelles sont les conditions pour obtenir le certificat ?" },
       ]);
 
+      expect(res.intent).toBe("DOCUMENT_RAG");
       expect(res.reply).toContain("certificat");
       expect(res.reply).toContain("12/20");
+      expect(res.sources).toContain("Règlement des Études ENIA 2.0");
       expect(res.pending_actions).toHaveLength(0);
+    });
+
+    it("répond aux questions d'horaires et planning", async () => {
+      const res = await localAgentProcess([
+        { role: "user", content: "À quelle heure est mon planning de cours ?" },
+      ]);
+
+      expect(res.intent).toBe("SCHEDULE");
+      expect(res.sources).toBeDefined();
+      expect(res.reply).toContain("planning");
     });
   });
 
@@ -165,6 +185,17 @@ describe("SENTINEL'S AI - Suite Complète de Tests", () => {
       expect(res.reply).not.toContain("nvapi-");
       expect(res.reply).not.toContain("SUPABASE_SERVICE_ROLE_KEY");
       expect(res.reply).not.toContain("secret_key");
+    });
+  });
+
+  describe("5. Feedback utilisateur", () => {
+    it("accepte l'enregistrement d'un vote positif sans lever d'exception", async () => {
+      const ok = await sendSentinelAiFeedback({
+        message_id: "msg-1234",
+        rating: "positive",
+        comment: "Réponse très claire et pédagogique",
+      });
+      expect(ok).toBe(true);
     });
   });
 });

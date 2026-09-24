@@ -16,7 +16,9 @@ import {
   Trash2,
   CheckCheck,
   ShieldAlert,
-  Terminal,
+  ThumbsUp,
+  ThumbsDown,
+  FileText,
   Zap,
 } from "lucide-react";
 import { useSentinelAi } from "@/hooks/useSentinelAi";
@@ -138,7 +140,7 @@ function ActionConfirmationCard({
     );
   }
 
-  // Carte générique
+  // Carte générique pour actions sensibles
   return (
     <div className="mr-6 rounded-xl border border-amber-400/40 bg-amber-950/30 p-4 shadow-xl backdrop-blur-md">
       <div className="flex items-center justify-between mb-2">
@@ -172,7 +174,19 @@ function ActionConfirmationCard({
 }
 
 export function SentinelAIChat({ open, onClose, userRole, userName }: SentinelAIChatProps) {
-  const { messages, pendingActions, loading, error, send, confirm, dismiss, clear, regenerate } = useSentinelAi();
+  const {
+    messages,
+    pendingActions,
+    loading,
+    error,
+    send,
+    confirm,
+    dismiss,
+    feedback,
+    clear,
+    regenerate,
+  } = useSentinelAi();
+
   const [input, setInput] = useState("");
   const [copiedIdx, setCopiedIdx] = useState<number | null>(null);
   const endRef = useRef<HTMLDivElement>(null);
@@ -198,6 +212,33 @@ export function SentinelAIChat({ open, onClose, userRole, userName }: SentinelAI
     setTimeout(() => setCopiedIdx(null), 2000);
   };
 
+  // Suggestions rapides contextualisées selon le rôle de l'utilisateur
+  const getSuggestions = () => {
+    if (userRole === "student") {
+      return [
+        "À quelle heure est mon prochain cours aujourd'hui ?",
+        "Explique-moi le chiffrement asymétrique simplement.",
+        "Fais-moi réviser avec un quiz de 3 questions.",
+        "Quelles sont les conditions pour obtenir mon certificat ?",
+      ];
+    }
+    if (userRole === "teacher") {
+      return [
+        "Quels apprenants sont inscrits à mon module ?",
+        "Fais l'appel des présences pour la séance d'aujourd'hui.",
+        "Crée une évaluation QCM de 3 questions sur la cybersécurité.",
+        "Rédige un devoir pratique à faire pour vendredi.",
+      ];
+    }
+    // Admin / superadmin / partner
+    return [
+      "Donne-moi le résumé financier et le total des impayés.",
+      "Affiche les statistiques globales de l'école (élèves, profs).",
+      "Prépare une annonce pour les apprenants.",
+      "Y a-t-il des anomalies d'assiduité récentes ?",
+    ];
+  };
+
   return (
     <div className="fixed inset-0 z-[70] flex justify-end bg-black/65 backdrop-blur-sm" onClick={onClose}>
       <div
@@ -218,12 +259,12 @@ export function SentinelAIChat({ open, onClose, userRole, userName }: SentinelAI
               <div className="flex items-center gap-2">
                 <p className="font-display text-sm font-black tracking-wider uppercase text-white">SENTINEL'S AI</p>
                 <span className="rounded bg-cyan-400/10 px-1.5 py-0.2 text-[9px] font-mono font-bold text-cyan-300 border border-cyan-400/30">
-                  NVIDIA NIM
+                  NVIDIA NEMOTRON
                 </span>
               </div>
               <p className="text-[11px] text-slate-400 flex items-center gap-1.5">
                 <Zap size={10} className="text-emerald-400" />
-                Assistant sécurisé • {userRole?.toUpperCase() || "CONNECTÉ"}
+                Intelligence contextuelle • {userRole?.toUpperCase() || "CONNECTÉ"}
               </p>
             </div>
           </div>
@@ -251,33 +292,18 @@ export function SentinelAIChat({ open, onClose, userRole, userName }: SentinelAI
           {messages.length === 0 && (
             <div className="rounded-2xl border border-cyan-400/20 bg-gradient-to-b from-cyan-950/20 to-transparent p-5 text-sm text-slate-300">
               <div className="flex items-center gap-2 text-cyan-300 font-bold mb-3">
-                <Sparkles size={16} /> Suggestions rapides pour démarrer :
+                <Sparkles size={16} /> Suggestions contextuelles pour vous :
               </div>
               <div className="space-y-2 text-xs">
-                <button
-                  onClick={() => send("Quels sont les cours ou modules prévus aujourd'hui ?")}
-                  className="w-full text-left rounded-xl border border-white/5 bg-black/40 p-2.5 text-slate-300 hover:border-cyan-400/40 hover:text-cyan-200 transition"
-                >
-                  • « Quels sont les cours ou modules prévus aujourd'hui ? »
-                </button>
-                <button
-                  onClick={() => send("Fais un point sur les présences et les anomalies récentes.")}
-                  className="w-full text-left rounded-xl border border-white/5 bg-black/40 p-2.5 text-slate-300 hover:border-cyan-400/40 hover:text-cyan-200 transition"
-                >
-                  • « Fais un point sur les présences et les anomalies récentes. »
-                </button>
-                <button
-                  onClick={() => send("Crée une évaluation QCM de 3 questions sur la cybersécurité.")}
-                  className="w-full text-left rounded-xl border border-white/5 bg-black/40 p-2.5 text-slate-300 hover:border-cyan-400/40 hover:text-cyan-200 transition"
-                >
-                  • « Crée une évaluation QCM de 3 questions sur la cybersécurité. »
-                </button>
-                <button
-                  onClick={() => send("Quelles sont les conditions pour obtenir la certification ENIA ?")}
-                  className="w-full text-left rounded-xl border border-white/5 bg-black/40 p-2.5 text-slate-300 hover:border-cyan-400/40 hover:text-cyan-200 transition"
-                >
-                  • « Quelles sont les conditions pour obtenir la certification ENIA ? »
-                </button>
+                {getSuggestions().map((sug, i) => (
+                  <button
+                    key={i}
+                    onClick={() => send(sug)}
+                    className="w-full text-left rounded-xl border border-white/5 bg-black/40 p-2.5 text-slate-300 hover:border-cyan-400/40 hover:text-cyan-200 transition cursor-pointer"
+                  >
+                    • « {sug} »
+                  </button>
+                ))}
               </div>
             </div>
           )}
@@ -292,22 +318,72 @@ export function SentinelAIChat({ open, onClose, userRole, userName }: SentinelAI
                 }
               >
                 {m.content}
+
+                {/* Sources utilisées (RAG) */}
+                {m.sources && m.sources.length > 0 && (
+                  <div className="mt-3 pt-2.5 border-t border-white/10 text-[11px] text-cyan-300/80">
+                    <p className="font-semibold flex items-center gap-1 mb-1 text-slate-400">
+                      <FileText size={12} className="text-cyan-400" /> Sources consultées :
+                    </p>
+                    <div className="flex flex-wrap gap-1.5">
+                      {m.sources.map((src, sIdx) => (
+                        <span
+                          key={sIdx}
+                          className="rounded bg-cyan-950/60 px-2 py-0.5 border border-cyan-400/20 text-cyan-200"
+                        >
+                          {src}
+                        </span>
+                      ))}
+                    </div>
+                  </div>
+                )}
               </div>
 
               {m.role === "assistant" && (
-                <div className="mt-1 flex items-center gap-2 opacity-0 group-hover:opacity-100 transition-opacity text-[11px] text-slate-500">
-                  <button
-                    onClick={() => handleCopy(m.content, idx)}
-                    className="flex items-center gap-1 hover:text-cyan-300 transition"
-                  >
-                    {copiedIdx === idx ? <CheckCheck size={12} className="text-emerald-400" /> : <Copy size={12} />}
-                    {copiedIdx === idx ? "Copié" : "Copier"}
-                  </button>
-                  {idx === messages.length - 1 && (
-                    <button onClick={regenerate} className="flex items-center gap-1 hover:text-cyan-300 transition">
-                      <RotateCcw size={12} /> Régénérer
+                <div className="mt-1 flex items-center justify-between text-[11px] text-slate-500 px-1">
+                  <div className="flex items-center gap-3">
+                    <button
+                      onClick={() => handleCopy(m.content, idx)}
+                      className="flex items-center gap-1 hover:text-cyan-300 transition cursor-pointer"
+                    >
+                      {copiedIdx === idx ? (
+                        <CheckCheck size={12} className="text-emerald-400" />
+                      ) : (
+                        <Copy size={12} />
+                      )}
+                      {copiedIdx === idx ? "Copié" : "Copier"}
                     </button>
-                  )}
+                    {idx === messages.length - 1 && (
+                      <button
+                        onClick={regenerate}
+                        className="flex items-center gap-1 hover:text-cyan-300 transition cursor-pointer"
+                      >
+                        <RotateCcw size={12} /> Régénérer
+                      </button>
+                    )}
+                  </div>
+
+                  {/* Feedback 👍 / 👎 */}
+                  <div className="flex items-center gap-1.5">
+                    <button
+                      onClick={() => m.id && feedback(m.id, "positive")}
+                      className={`p-1 rounded hover:text-emerald-400 transition cursor-pointer ${
+                        m.feedback === "positive" ? "text-emerald-400 font-bold" : ""
+                      }`}
+                      title="Réponse utile"
+                    >
+                      <ThumbsUp size={12} />
+                    </button>
+                    <button
+                      onClick={() => m.id && feedback(m.id, "negative")}
+                      className={`p-1 rounded hover:text-red-400 transition cursor-pointer ${
+                        m.feedback === "negative" ? "text-red-400 font-bold" : ""
+                      }`}
+                      title="Réponse inexacte ou incomplète"
+                    >
+                      <ThumbsDown size={12} />
+                    </button>
+                  </div>
                 </div>
               )}
             </div>
@@ -326,7 +402,7 @@ export function SentinelAIChat({ open, onClose, userRole, userName }: SentinelAI
           {loading && (
             <div className="mr-10 flex items-center gap-2.5 rounded-2xl border border-cyan-400/30 bg-cyan-950/20 p-3.5 text-xs text-cyan-300 shadow-lg">
               <Loader2 size={16} className="animate-spin text-cyan-400" />
-              <span>SENTINEL'S AI consulte vos données et analyse la requête...</span>
+              <span>SENTINEL'S AI analyse vos connaissances et élabore la réponse...</span>
             </div>
           )}
 
@@ -346,7 +422,7 @@ export function SentinelAIChat({ open, onClose, userRole, userName }: SentinelAI
             <input
               value={input}
               onChange={(e) => setInput(e.target.value)}
-              placeholder="Posez une question ou demandez une action..."
+              placeholder="Posez une question, demandez un exercice ou une action..."
               className="flex-1 rounded-xl border border-white/10 bg-white/[0.04] px-4 py-2.5 text-sm text-white placeholder:text-slate-500 focus:border-cyan-400 focus:bg-white/[0.06] focus:outline-none transition shadow-inner"
             />
             <button
@@ -358,7 +434,7 @@ export function SentinelAIChat({ open, onClose, userRole, userName }: SentinelAI
             </button>
           </form>
           <div className="mt-2 flex items-center justify-between text-[10px] text-slate-500 px-1">
-            <span>Sécurisé par Supabase RLS & NVIDIA NIM</span>
+            <span>RAG & Mémoire active • RLS Supabase</span>
             <span>Entrée pour envoyer</span>
           </div>
         </div>

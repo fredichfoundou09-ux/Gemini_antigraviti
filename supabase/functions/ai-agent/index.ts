@@ -1,10 +1,12 @@
 import { authenticateRequest } from "./auth.ts";
 import { isToolAllowedForRole, validateAccessScope } from "./permissions.ts";
 import { NvidiaNimProvider, ChatMessage } from "./provider.ts";
-import { TOOLS, WRITE_TOOLS, executeTool } from "./tools.ts";
+import { WRITE_TOOLS, executeTool } from "./tools.ts";
 import { getSystemPrompt } from "./prompts.ts";
 import { checkPromptInjection, sanitizeOutput } from "./validation.ts";
 import { logAgentAction, updateAgentActionStatus } from "./audit.ts";
+import { getOptimizedTools, classifyIntent } from "./router.ts";
+import { getRelevantMemories, captureCandidateMemory } from "./memory.ts";
 
 function getCorsHeaders(req: Request) {
   const origin = req.headers.get("Origin") || "";
@@ -45,7 +47,25 @@ if (typeof Deno !== "undefined" && typeof (Deno as any).serve === "function") {
       const body = await req.json().catch(() => ({}));
 
       // =========================================================================
-      // BRANCHE 1 : Confirmation explicite d'une action d'écriture sensible
+      // BRANCHE 1 : Enregistrement de Feedback utilisateur (👍 / 👎)
+      // =========================================================================
+      if (body.feedback) {
+        const { message_id, rating, comment } = body.feedback;
+        if (message_id && (rating === "positive" || rating === "negative")) {
+          await user.sbUser.from("ai_feedback").insert({
+            user_id: user.userId,
+            message_id,
+            rating,
+            comment: comment || null,
+          });
+          return new Response(JSON.stringify({ ok: true }), {
+            headers: { ...corsHeaders, "Content-Type": "application/json" },
+          });
+        }
+      }
+
+      // =========================================================================
+      // BRANCHE 2 : Confirmation explicite d'une action sensible (Niveau 3)
       // =========================================================================
       if (body.confirm_action) {
         const { tool_name, arguments: args, action_id } = body.confirm_action;
@@ -89,12 +109,12 @@ if (typeof Deno !== "undefined" && typeof (Deno as any).serve === "function") {
       }
 
       // =========================================================================
-      // BRANCHE 2 : Conversation normale avec boucle d'outils
+      // BRANCHE 3 : Conversation intelligente avec Context Engine & Mémoire
       // =========================================================================
       const incomingMessages = body.messages || [];
       const lastUserMsg = incomingMessages.filter((m: any) => m.role === "user").pop()?.content || "";
 
-      // Vérification préventive anti-injection
+      // Vérification de sécurité anti-injection
       const injectionCheck = checkPromptInjection(lastUserMsg);
       if (injectionCheck.isSuspicious) {
         return new Response(
@@ -106,23 +126,31 @@ if (typeof Deno !== "undefined" && typeof (Deno as any).serve === "function") {
         );
       }
 
-      // Filtrage des outils selon le rôle de l'utilisateur
-      const allowedTools = TOOLS.filter((t) => isToolAllowedForRole(user.role, t.function.name));
+      // Apprentissage automatique passif : détection de mémoires candidates
+      await captureCandidateMemory(user, lastUserMsg);
+
+      // Récupération des mémoires actives
+      const memories = await getRelevantMemories(user);
+
+      // Routeur de contexte : sélection prédictive des 2 à 4 outils optimaux
+      const intent = classifyIntent(lastUserMsg);
+      const optimizedTools = getOptimizedTools(user.role, lastUserMsg);
 
       const conversation: ChatMessage[] = [
-        { role: "system", content: getSystemPrompt(user) },
+        { role: "system", content: getSystemPrompt(user, memories) },
         ...incomingMessages,
       ];
 
       const provider = new NvidiaNimProvider();
       const pendingActions: any[] = [];
+      const sourcesUsed: string[] = [];
       let finalReply = "";
 
       for (let step = 0; step < 4; step++) {
         const { message: aiMessage } = await provider.createCompletion({
           messages: conversation,
-          tools: allowedTools,
-          temperature: 0.2,
+          tools: optimizedTools.length > 0 ? optimizedTools : undefined,
+          temperature: 0.25,
           max_tokens: 1024,
         });
 
@@ -138,7 +166,7 @@ if (typeof Deno !== "undefined" && typeof (Deno as any).serve === "function") {
           const toolName = call.function.name;
           const args = JSON.parse(call.function.arguments || "{}");
 
-          // Vérification de sécurité du scope d'arguments
+          // Vérification du scope d'accès aux arguments
           const scope = validateAccessScope(user, toolName, args);
           if (!scope.ok) {
             conversation.push({
@@ -150,8 +178,7 @@ if (typeof Deno !== "undefined" && typeof (Deno as any).serve === "function") {
           }
 
           if (WRITE_TOOLS.has(toolName)) {
-            // Action sensible d'écriture : NE PAS exécuter immédiatement.
-            // Journalisation de la proposition et renvoi au client pour confirmation.
+            // Action de Niveau 3 : enregistrement d'une proposition soumise à confirmation
             const actionId = await logAgentAction(user, {
               tool_name: toolName,
               arguments: args,
@@ -169,13 +196,18 @@ if (typeof Deno !== "undefined" && typeof (Deno as any).serve === "function") {
               tool_call_id: call.id,
               content: JSON.stringify({
                 status: "proposition_enregistree",
-                message: "Cette action requiert la confirmation explicite de l'utilisateur.",
+                message: "Cette action requiert la validation explicite de l'utilisateur.",
               }),
             });
           } else {
-            // Action de lecture ou préparation : exécution directe
+            // Action de lecture ou RAG : exécution directe
             try {
               const res = await executeTool(user, toolName, args);
+              if (toolName === "search_documents" && res?.results) {
+                for (const r of res.results) {
+                  if (r.title && !sourcesUsed.includes(r.title)) sourcesUsed.push(r.title);
+                }
+              }
               conversation.push({
                 role: "tool",
                 tool_call_id: call.id,
@@ -193,20 +225,23 @@ if (typeof Deno !== "undefined" && typeof (Deno as any).serve === "function") {
       }
 
       if (!finalReply) {
-        finalReply = "J'ai traité votre demande et préparé les éléments nécessaires.";
+        finalReply = "J'ai traité votre demande selon les informations disponibles.";
       }
 
       return new Response(
         JSON.stringify({
           reply: sanitizeOutput(finalReply),
           pending_actions: pendingActions,
+          intent,
+          sources: sourcesUsed,
+          memories_count: memories.length,
         }),
         { headers: { ...corsHeaders, "Content-Type": "application/json" } }
       );
     } catch (e: any) {
       return new Response(
         JSON.stringify({
-          error: "Le service IA est temporairement indisponible. Veuillez réessayer dans quelques instants.",
+          error: "Le service IA est temporairement indisponible. Veuillez réessayer dans un instant.",
           details: String(e.message || e).replace(/nvapi-[a-zA-Z0-9_-]+/g, "[REDACTED]"),
         }),
         { status: 500, headers: getCorsHeaders(req) }

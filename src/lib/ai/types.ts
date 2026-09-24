@@ -3,6 +3,9 @@ export interface AiChatMessage {
   content: string;
   id?: string;
   createdAt?: string;
+  sources?: string[];
+  intent?: string;
+  feedback?: "positive" | "negative" | null;
   toolCalls?: Array<{
     id: string;
     type: "function";
@@ -44,11 +47,20 @@ export interface AiPendingAction {
 export interface AiAgentReply {
   reply: string;
   pending_actions: AiPendingAction[];
+  intent?: string;
+  sources?: string[];
+  memories_count?: number;
   usage?: {
     prompt_tokens?: number;
     completion_tokens?: number;
     total_tokens?: number;
   };
+}
+
+export interface AiFeedbackPayload {
+  message_id: string;
+  rating: "positive" | "negative";
+  comment?: string;
 }
 
 /** Libellé lisible en français pour chaque outil */

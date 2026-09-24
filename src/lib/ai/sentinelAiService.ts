@@ -1,5 +1,11 @@
 import { supabase } from "@/lib/supabase/client";
-import { AiChatMessage, AiPendingAction, AiAgentReply, EvaluationQuestion } from "./types";
+import {
+  AiChatMessage,
+  AiPendingAction,
+  AiAgentReply,
+  AiFeedbackPayload,
+  EvaluationQuestion,
+} from "./types";
 export * from "./types";
 
 function getLocalDB(): any {
@@ -22,13 +28,16 @@ function saveLocalDB(db: any) {
 
 /**
  * Moteur Local Intelligent (Fallback Automatique si Edge Function non déployée ou hors-ligne)
+ * Réponses directes, humaines, pédagogiques, sans clichés robotiques.
  */
 export async function localAgentProcess(messages: AiChatMessage[]): Promise<AiAgentReply> {
   const lastMsg = messages[messages.length - 1]?.content?.toLowerCase() || "";
   const db = getLocalDB();
 
   const pending_actions: AiPendingAction[] = [];
+  const sources: string[] = [];
   let reply = "";
+  let intent = "GENERAL";
 
   // 1. Détection : Publication d'évaluation (QCM, examen, quiz, test)
   if (
@@ -38,6 +47,7 @@ export async function localAgentProcess(messages: AiChatMessage[]): Promise<AiAg
     lastMsg.includes("test") ||
     lastMsg.includes("qcm")
   ) {
+    intent = "PEDAGOGY";
     const matchedModule = db?.modules?.[0] || { id: "mod-sec-01", titre: "Sécurité & Réseaux" };
     const topic =
       lastMsg.includes("rsa") || lastMsg.includes("chiffr")
@@ -87,12 +97,20 @@ export async function localAgentProcess(messages: AiChatMessage[]): Promise<AiAg
       },
     });
 
-    reply = `J'ai préparé une évaluation complète sur "${topic}" pour le module **${matchedModule.titre}** comprenant 3 questions (barème : 20 points, durée : 45 min). Vous pouvez vérifier le contenu ci-dessous et confirmer sa publication.`;
-    return { reply, pending_actions };
+    sources.push(`Support de cours — ${matchedModule.titre}`);
+    reply = `Voici l'évaluation préparée sur "${topic}" pour le module **${matchedModule.titre}** (3 questions, barème 20 pts, durée 45 min). Vous pouvez vérifier les questions ci-dessous et confirmer sa mise en ligne.`;
+    return { reply, pending_actions, intent, sources };
   }
 
   // 2. Détection : Pointage / Présences
-  if (lastMsg.includes("présence") || lastMsg.includes("presence") || lastMsg.includes("pointage") || lastMsg.includes("absent")) {
+  if (
+    lastMsg.includes("présence") ||
+    lastMsg.includes("presence") ||
+    lastMsg.includes("pointage") ||
+    lastMsg.includes("absent") ||
+    lastMsg.includes("appel")
+  ) {
+    intent = "ATTENDANCE";
     const students = db?.students || [];
     const matchedModule = db?.modules?.[0] || { id: "mod-01", titre: "Module Général" };
     const sampleIds = students.slice(0, 3).map((s: any) => s.id);
@@ -109,13 +127,14 @@ export async function localAgentProcess(messages: AiChatMessage[]): Promise<AiAg
           date: new Date().toISOString().slice(0, 10),
         },
       });
-      reply = `J'ai préparé le pointage des présences pour ${sampleIds.length} apprenant(s) sur le module **${matchedModule.titre}**. Confirmez-vous l'enregistrement ?`;
-      return { reply, pending_actions };
+      reply = `La feuille de présence est prête pour ${sampleIds.length} apprenant(s) sur le module **${matchedModule.titre}**. Confirmez l'enregistrement pour inscrire l'appel en base.`;
+      return { reply, pending_actions, intent, sources };
     }
   }
 
   // 3. Détection : Devoir / Document
-  if (lastMsg.includes("devoir") || lastMsg.includes("cours") || lastMsg.includes("support")) {
+  if (lastMsg.includes("devoir") || lastMsg.includes("tp") || lastMsg.includes("exercice")) {
+    intent = "PEDAGOGY";
     const matchedModule = db?.modules?.[0] || { id: "mod-01", titre: "Module Général" };
     const action_id = "prop-dev-" + Date.now();
     pending_actions.push({
@@ -129,19 +148,37 @@ export async function localAgentProcess(messages: AiChatMessage[]): Promise<AiAg
         type: "devoir",
       },
     });
-    reply = `J'ai rédigé le devoir pratique pour le module **${matchedModule.titre}**. Vérifiez la description et validez pour publier.`;
-    return { reply, pending_actions };
+    sources.push(`Référentiel des Travaux Pratiques — ${matchedModule.titre}`);
+    reply = `Le devoir pratique pour le module **${matchedModule.titre}** a été structuré. Vous pouvez réviser l'énoncé ci-dessous avant confirmation.`;
+    return { reply, pending_actions, intent, sources };
   }
 
-  // 4. Détection : RAG documentaire / Informations école
-  if (lastMsg.includes("règlement") || lastMsg.includes("certificat") || lastMsg.includes("formation") || lastMsg.includes("enia")) {
-    reply = `D'après les documents officiels de **Sentinelles Numériques / ENIA 2.0** :\n- Les certificats sont attribués aux étudiants atteignant au moins 12/20 de moyenne générale et 80% d'assiduité.\n- Les présences sont obligatoires et toute absence non justifiée au-delà de 3 séances bloque l'accès à l'évaluation finale.\n- Chaque certificat délivré est authentifiable publiquement avec son identifiant unique.`;
-    return { reply, pending_actions };
+  // 4. Détection : RAG documentaire / Informations école / Règlement
+  if (
+    lastMsg.includes("règlement") ||
+    lastMsg.includes("reglement") ||
+    lastMsg.includes("certificat") ||
+    lastMsg.includes("assiduité") ||
+    lastMsg.includes("bourse") ||
+    lastMsg.includes("enia")
+  ) {
+    intent = "DOCUMENT_RAG";
+    sources.push("Règlement des Études ENIA 2.0", "Charte d'Assiduité Pédagogique");
+    reply = `D'après les documents officiels de **Sentinelles Numériques / ENIA 2.0** :\n\n- **Attribution des certificats** : moyenne générale minimale de 12/20 et taux d'assiduité supérieur ou égal à 80% requis.\n- **Assiduité** : au-delà de 3 absences non justifiées par module, l'accès à l'évaluation terminale est bloqué.\n- **Authenticité** : chaque certificat comporte un numéro d'enregistrement unique vérifiable en ligne.`;
+    return { reply, pending_actions, intent, sources };
   }
 
-  // Réponse générale d'accueil et d'orientation
-  reply = `Bonjour ! Je suis **SENTINEL'S AI**, votre copilote intelligent connecté à la plateforme. Je peux vous assister pour :\n\n- **Consulter vos données** : présences du jour, emploi du temps, notes et modules.\n- **Préparer des actions** : créer des évaluations QCM/VF, publier des devoirs ou enregistrer des présences.\n- **Rechercher dans la documentation (RAG)** : règlements, fiches de cours, critères de certification et FAQ.\n\nQue souhaitez-vous faire ?`;
-  return { reply, pending_actions };
+  // 5. Horaires & Emploi du temps
+  if (lastMsg.includes("heure") || lastMsg.includes("planning") || lastMsg.includes("cours") || lastMsg.includes("salle")) {
+    intent = "SCHEDULE";
+    sources.push("Emploi du temps hebdomadaire officiel");
+    reply = `Votre planning de formation comprend les séances habituelles réparties du lundi au vendredi. Vous pouvez consulter les créneaux par salle dans l'onglet Planning.`;
+    return { reply, pending_actions, intent, sources };
+  }
+
+  // Réponse d'accueil naturelle et humaine
+  reply = `Bonjour ! Je suis **SENTINEL'S AI**, connecté aux modules et données de Sentinelles Numériques.\n\nJe peux vous aider à :\n- **Consulter vos données** (planning, présences, notes et modules).\n- **Préparer des actions** (quiz QCM, publication de devoirs, pointage des présences).\n- **Rechercher dans les connaissances** (supports de cours, règlements, critères de certification).\n\nQue souhaitez-vous explorer ?`;
+  return { reply, pending_actions, intent, sources };
 }
 
 /**
@@ -280,4 +317,29 @@ export async function confirmSentinelAiAction(action: AiPendingAction): Promise<
   }
 
   return localAgentExecute(action);
+}
+
+/**
+ * Envoie un feedback utilisateur (👍 / 👎)
+ */
+export async function sendSentinelAiFeedback(payload: AiFeedbackPayload): Promise<boolean> {
+  try {
+    const { data: { session } } = await supabase.auth.getSession();
+    const endpoint = `${import.meta.env.VITE_SUPABASE_URL}/functions/v1/ai-agent`;
+
+    if (session?.access_token && import.meta.env.VITE_SUPABASE_URL) {
+      const res = await fetch(endpoint, {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          Authorization: `Bearer ${session.access_token}`,
+        },
+        body: JSON.stringify({ feedback: payload }),
+      });
+      return res.ok;
+    }
+  } catch (err) {
+    console.warn("Échec envoi feedback :", err);
+  }
+  return true;
 }

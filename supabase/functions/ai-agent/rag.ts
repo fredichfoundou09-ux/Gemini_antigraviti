@@ -5,10 +5,15 @@ export interface KnowledgeItem {
   title: string;
   content: string;
   category: string;
+  sourceType: "official_document" | "course_chunk" | "faq" | "rule";
+  version?: number;
   similarityScore?: number;
 }
 
-/** Recherche dans la base de connaissances documentaire (RAG) */
+/**
+ * Moteur RAG étendu : interroge la base de connaissances organisationnelle,
+ * les fragments de cours (chunks dédupliqués) et les documents de référence.
+ */
 export async function searchKnowledgeBase(
   user: UserContext,
   query: string,
@@ -21,69 +26,106 @@ export async function searchKnowledgeBase(
     .split(/\s+/)
     .filter((w) => w.length > 2);
 
-  // 1. Recherche dans ai_knowledge_docs
-  let dbQuery = sb
-    .from("ai_knowledge_docs")
-    .select("id, title, content, category")
-    .limit(5);
-
-  if (category) {
-    dbQuery = dbQuery.eq("category", category);
-  }
-
-  const { data: docs, error } = await dbQuery;
-  if (error) {
-    console.warn("Erreur requête ai_knowledge_docs :", error);
-  }
-
   const results: KnowledgeItem[] = [];
 
-  if (docs && docs.length > 0) {
-    for (const doc of docs) {
-      const text = `${doc.title} ${doc.content}`.toLowerCase();
-      let matchCount = 0;
-      for (const t of terms) {
-        if (text.includes(t)) matchCount++;
-      }
-      if (terms.length === 0 || matchCount > 0) {
-        results.push({
-          id: doc.id,
-          title: doc.title,
-          content: doc.content.slice(0, 800),
-          category: doc.category,
-          similarityScore: matchCount,
-        });
+  // 1. Recherche dans les fragments de documents & cours (ai_document_chunks)
+  try {
+    let chunkQuery = sb
+      .from("ai_document_chunks")
+      .select("id, document_title, content, version, chunk_index, metadata")
+      .eq("active", true)
+      .limit(6);
+
+    const { data: chunks } = await chunkQuery;
+    if (chunks && chunks.length > 0) {
+      for (const ch of chunks) {
+        const text = `${ch.document_title} ${ch.content}`.toLowerCase();
+        let matchCount = 0;
+        for (const t of terms) {
+          if (text.includes(t)) matchCount++;
+        }
+        if (terms.length === 0 || matchCount > 0) {
+          results.push({
+            id: ch.id,
+            title: ch.document_title,
+            content: ch.content,
+            category: "course_chunk",
+            sourceType: "course_chunk",
+            version: ch.version,
+            similarityScore: matchCount * 1.5,
+          });
+        }
       }
     }
+  } catch (err) {
+    console.warn("Recherche chunks documentaires :", err);
   }
 
-  // 2. Recherche complémentaire dans les cours publiés accessibles
+  // 2. Recherche dans les documents fondateurs (ai_knowledge_docs)
   try {
-    let coursesQuery = sb
-      .from("courses")
-      .select("id, titre, description, content, type")
-      .eq("publie", true)
-      .limit(3);
+    let dbQuery = sb
+      .from("ai_knowledge_docs")
+      .select("id, title, content, category")
+      .limit(6);
 
-    if (terms.length > 0) {
-      coursesQuery = coursesQuery.ilike("titre", `%${terms[0]}%`);
+    if (category) {
+      dbQuery = dbQuery.eq("category", category);
     }
 
-    const { data: courses } = await coursesQuery;
-    if (courses && courses.length > 0) {
-      for (const c of courses) {
-        results.push({
-          id: c.id,
-          title: `[Cours / ${c.type}] ${c.titre}`,
-          content: `${c.description || ""} ${c.content || ""}`.trim().slice(0, 600),
-          category: "course",
-          similarityScore: 1,
-        });
+    const { data: docs } = await dbQuery;
+    if (docs && docs.length > 0) {
+      for (const doc of docs) {
+        const text = `${doc.title} ${doc.content}`.toLowerCase();
+        let matchCount = 0;
+        for (const t of terms) {
+          if (text.includes(t)) matchCount++;
+        }
+        if (terms.length === 0 || matchCount > 0) {
+          results.push({
+            id: doc.id,
+            title: doc.title,
+            content: doc.content.slice(0, 800),
+            category: doc.category,
+            sourceType: doc.category === "rules" ? "rule" : "faq",
+            version: 1,
+            similarityScore: matchCount,
+          });
+        }
+      }
+    }
+  } catch (err) {
+    console.warn("Recherche knowledge docs :", err);
+  }
+
+  // 3. Recherche dans la table courses si besoin
+  try {
+    if (terms.length > 0) {
+      const { data: courses } = await sb
+        .from("courses")
+        .select("id, titre, description, content, type")
+        .eq("publie", true)
+        .ilike("titre", `%${terms[0]}%`)
+        .limit(3);
+
+      if (courses) {
+        for (const c of courses) {
+          results.push({
+            id: c.id,
+            title: `[Support / ${c.type}] ${c.titre}`,
+            content: `${c.description || ""} - ${c.content || ""}`.trim().slice(0, 500),
+            category: "course",
+            sourceType: "official_document",
+            version: 1,
+            similarityScore: 1,
+          });
+        }
       }
     }
   } catch {
-    // Si table courses restreinte par RLS, on continue
+    // ignore RLS restriction on courses
   }
 
-  return results.sort((a, b) => (b.similarityScore || 0) - (a.similarityScore || 0)).slice(0, 4);
+  return results
+    .sort((a, b) => (b.similarityScore || 0) - (a.similarityScore || 0))
+    .slice(0, 4);
 }

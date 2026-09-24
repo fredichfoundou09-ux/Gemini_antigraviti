@@ -3,6 +3,7 @@ import { AiChatMessage, AiPendingAction } from "@/lib/ai/types";
 import {
   askSentinelAi,
   confirmSentinelAiAction,
+  sendSentinelAiFeedback,
 } from "@/lib/ai/sentinelAiService";
 import { toastMsg } from "@/lib/toast";
 
@@ -36,7 +37,12 @@ export function useSentinelAi() {
       const query = text.trim();
       if (!query || loading) return;
 
-      const userMsg: AiChatMessage = { role: "user", content: query, id: "msg-" + Date.now() };
+      const userMsg: AiChatMessage = {
+        role: "user",
+        content: query,
+        id: "msg-" + Date.now(),
+        createdAt: new Date().toISOString(),
+      };
       const updatedMessages = [...messages, userMsg];
       setMessages(updatedMessages);
       setLoading(true);
@@ -49,6 +55,9 @@ export function useSentinelAi() {
             role: "assistant",
             content: res.reply,
             id: "msg-" + (Date.now() + 1),
+            createdAt: new Date().toISOString(),
+            sources: res.sources,
+            intent: res.intent,
           };
           setMessages([...updatedMessages, assistantMsg]);
         }
@@ -57,7 +66,8 @@ export function useSentinelAi() {
           setPendingActions((prev) => [...prev, ...res.pending_actions]);
         }
       } catch (err: any) {
-        const errorMsg = err?.message || "Une erreur est survenue lors de la communication avec l'assistant.";
+        const errorMsg =
+          err?.message || "Une erreur est survenue lors de la communication avec l'assistant.";
         setError(errorMsg);
         setMessages((prev) => [
           ...prev,
@@ -101,6 +111,14 @@ export function useSentinelAi() {
     toastMsg.info("Action ignorée");
   }, []);
 
+  const handleFeedback = useCallback(async (messageId: string, rating: "positive" | "negative") => {
+    setMessages((prev) =>
+      prev.map((m) => (m.id === messageId ? { ...m, feedback: rating } : m))
+    );
+    await sendSentinelAiFeedback({ message_id: messageId, rating });
+    toastMsg.success("Merci pour votre retour !");
+  }, []);
+
   const clear = useCallback(() => {
     setMessages([]);
     setPendingActions([]);
@@ -131,6 +149,7 @@ export function useSentinelAi() {
     send,
     confirm,
     dismiss,
+    feedback: handleFeedback,
     clear,
     regenerate,
   };
