@@ -1,10 +1,11 @@
 import { Link, NavLink, Outlet, useLocation } from "react-router-dom";
-import { ShieldCheck, LogIn, Menu, X, MessageCircle, Handshake } from "lucide-react";
+import { ShieldCheck, LogIn, Menu, X, MessageCircle, Handshake, Bot } from "lucide-react";
 import { useState } from "react";
 import { cn } from "@/utils/cn";
 import { useStore } from "@/lib/store";
 import { Btn, SentinelLogo } from "@/lib/ui";
 import { ThemeToggle } from "@/components/ThemeToggle";
+import { AiAgentPanel } from "@/components/AiAgentPanel";
 
 const LINKS = [
   { to: "/", label: "Accueil" },
@@ -16,6 +17,7 @@ const LINKS = [
 export default function PublicLayout() {
   const { db, user } = useStore();
   const [open, setOpen] = useState(false);
+  const [aiOpen, setAiOpen] = useState(false);
   const loc = useLocation();
   const s = db.settings;
 
@@ -109,6 +111,16 @@ export default function PublicLayout() {
                 <span>MON ESPACE</span>
               </button>
             </Link>
+
+            {/* Bouton Assistant IA Public */}
+            <button
+              type="button"
+              onClick={() => setAiOpen(true)}
+              className="flex h-[38px] items-center gap-2 rounded-md border border-[#00D9FF] bg-gradient-to-r from-cyan-950/70 to-[#071A2B] px-3.5 sm:px-4 font-display text-xs font-bold tracking-wider uppercase text-[#00D9FF] shadow-[0_0_12px_rgba(0,217,255,0.35)] transition-all hover:bg-[#00D9FF]/20 hover:shadow-[0_0_20px_rgba(0,217,255,0.6)] cursor-pointer"
+            >
+              <Bot size={16} className="text-[#00F0FF] animate-pulse" />
+              <span>ASSISTANT IA</span>
+            </button>
 
             {/* Sélecteur de Thème Public */}
             <ThemeToggle showLabel />
@@ -265,6 +277,26 @@ export default function PublicLayout() {
           </div>
         </div>
       </footer>
+
+      {/* Bouton Flottant (FAB) Assistant IA Public */}
+      <button
+        type="button"
+        onClick={() => setAiOpen(true)}
+        className="fixed bottom-6 right-6 z-50 flex items-center gap-2.5 rounded-full border-2 border-cyan-400/70 bg-[#060b12]/95 px-4 py-3 text-cyan-300 shadow-[0_0_25px_rgba(0,229,255,0.5)] backdrop-blur-md transition-all hover:scale-105 hover:border-cyan-300 hover:shadow-[0_0_35px_rgba(0,229,255,0.8)] cursor-pointer group"
+        title="Ouvrir l'Assistant IA"
+        aria-label="Ouvrir l'Assistant IA"
+      >
+        <div className="relative">
+          <Bot size={22} className="text-cyan-400 group-hover:rotate-12 transition-transform" />
+          <span className="absolute -top-1 -right-1 flex h-2.5 w-2.5">
+            <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-cyan-400 opacity-75"></span>
+            <span className="relative inline-flex rounded-full h-2.5 w-2.5 bg-emerald-400"></span>
+          </span>
+        </div>
+        <span className="text-xs font-black tracking-wider uppercase text-white drop-shadow">Assistant IA</span>
+      </button>
+
+      <AiAgentPanel open={aiOpen} onClose={() => setAiOpen(false)} />
     </div>
   );
 }
