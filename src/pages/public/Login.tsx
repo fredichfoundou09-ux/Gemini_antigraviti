@@ -13,6 +13,8 @@ import { checkPassword, passwordScore, getLockState, formatDuration } from "@/li
 import { isSupabaseConfigured } from "@/lib/supabase/client";
 import { hasAnySuperadmin as sbHasAnySuperadmin } from "@/lib/supabase/auth";
 import { Sentinel3DBackground } from "@/components/Sentinel3DBackground";
+import { isUser2faEnabled, getAdminTotpConfig, verifyTotpCode } from "@/lib/totp";
+import { toastMsg } from "@/lib/toast";
 
 type Group = "admin" | "teacher" | "student" | "partner";
 
@@ -92,6 +94,11 @@ export function LoginPage() {
   // confirme explicitement qu'aucun superadmin n'existe.
   const canFirstBoot = serverHasAdmin === false;
 
+  const [pending2faUser, setPending2faUser] = useState<any | null>(null);
+  const [totpCode, setTotpCode] = useState("");
+  const [totpError, setTotpError] = useState("");
+  const [verifying2fa, setVerifying2fa] = useState(false);
+
   const submit = async (e: React.FormEvent) => {
     e.preventDefault();
     setError(""); setBusy(true);
@@ -101,6 +108,19 @@ export function LoginPage() {
     setBusy(false);
     if (res.ok) {
       setPassword("");
+      const loggedUser = res.user;
+      const isAdminRole = loggedUser?.role === "admin" || loggedUser?.role === "superadmin";
+
+      if (isAdminRole && loggedUser?.id) {
+        const needs2fa = await isUser2faEnabled(loggedUser.id);
+        if (needs2fa) {
+          setPending2faUser(loggedUser);
+          setTotpCode("");
+          setTotpError("");
+          return;
+        }
+      }
+
       // Rafraîchissement asynchrone en arrière-plan pour transition instantanée
       if (isSupabaseConfigured) {
         auth.refresh().catch((err) => console.warn("Actualisation session post-connexion:", err));
@@ -110,6 +130,38 @@ export function LoginPage() {
       setError(res.error || "Identifiants incorrects.");
       if ((res as any).locked && (res as any).remainingMs)
         setLocked({ ms: (res as any).remainingMs });
+    }
+  };
+
+  const handleVerify2fa = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!pending2faUser || totpCode.length !== 6) return;
+    setTotpError("");
+    setVerifying2fa(true);
+
+    try {
+      const config = await getAdminTotpConfig(pending2faUser.id);
+      if (!config?.secret) {
+        setTotpError("Configuration 2FA introuvable. Veuillez contacter l'assistance.");
+        return;
+      }
+
+      const isValid = await verifyTotpCode(config.secret, totpCode);
+      if (!isValid) {
+        setTotpError("Code TOTP incorrect ou expiré. Vérifiez que l'heure de votre téléphone est synchronisée.");
+        return;
+      }
+
+      sessionStorage.setItem(`sentinelles:2fa_verified_${pending2faUser.id}`, "true");
+      toastMsg.success("Code 2FA validé ✓", `Bienvenue ${pending2faUser.name}`);
+      if (isSupabaseConfigured) {
+        auth.refresh().catch((err) => console.warn("Actualisation session post-connexion:", err));
+      }
+      navigate("/app/dashboard", { replace: true });
+    } catch (err: any) {
+      setTotpError(err.message || "Erreur de validation du code 2FA.");
+    } finally {
+      setVerifying2fa(false);
     }
   };
   const [rememberMe, setRememberMe] = useState(true);
@@ -227,121 +279,184 @@ export function LoginPage() {
               </div>
             )}
 
-            {/* Sélecteur d'espace */}
-            <div className="mb-5">
-              <p className="mb-2 text-[10px] font-mono font-bold uppercase tracking-wider text-[#4C91B5]">Espace de connexion :</p>
-              <div className="grid grid-cols-2 gap-2 sm:grid-cols-4">
-                {GROUPS.map((g) => (
-                  <button
-                    key={g.key}
-                    type="button"
-                    onClick={() => { setGroup(g.key); setError(""); }}
-                    className={cn(
-                      "flex flex-col items-center gap-1.5 rounded border p-2.5 text-center transition-all",
-                      group === g.key
-                        ? "border-[#00C8FF] bg-[#071A2B] text-[#00E5FF] shadow-[0_0_15px_rgba(0,229,255,0.4)]"
-                        : "border-[#006DFF]/25 text-[#4C91B5] hover:border-[#006DFF]/50 hover:bg-[#071A2B]/50 hover:text-[#B8F3FF]"
-                    )}
-                  >
-                    {g.icon}
-                    <span className="text-[10px] font-bold uppercase tracking-wider">{g.label}</span>
-                  </button>
-                ))}
-              </div>
-
-              {/* Indicateur explicite d'espace dédié */}
-              <div className={cn("mt-3 flex items-start gap-2.5 rounded-lg border p-2.5 text-xs transition-all", groupInfo.badgeColor)}>
-                <ShieldCheck size={16} className="mt-0.5 shrink-0" />
-                <div className="min-w-0 flex-1">
-                  <p className="font-bold">{groupInfo.title}</p>
-                  <p className="text-[11px] opacity-85 mt-0.5">{groupInfo.desc}</p>
+            {/* Formulaire de connexion ou challenge 2FA */}
+            {pending2faUser ? (
+              <form onSubmit={handleVerify2fa} className="space-y-5" autoComplete="off">
+                <div className="text-center">
+                  <div className="mx-auto flex h-14 w-14 items-center justify-center rounded-2xl border border-cyan-400/40 bg-cyan-400/10 text-cyan-300 shadow-[0_0_20px_rgba(0,229,255,0.25)]">
+                    <ShieldCheck size={28} />
+                  </div>
+                  <h3 className="mt-3 font-display text-lg font-bold text-white">Validation en deux étapes (2FA)</h3>
+                  <p className="mt-1 text-xs text-slate-300">
+                    Compte administrateur : <span className="font-bold text-cyan-300">{pending2faUser.name}</span>
+                  </p>
+                  <p className="mt-1 text-[11px] text-slate-400">
+                    Entrez le code à 6 chiffres affiché sur votre application d'authentification (Google Authenticator, Microsoft Authenticator, etc.).
+                  </p>
                 </div>
-              </div>
-            </div>
 
-            {/* Formulaire */}
-            <form onSubmit={submit} className="space-y-4" autoComplete="off">
-              <Field label={groupInfo.fieldLabel}>
-                <div className="relative">
-                  <UserIcon size={14} className="pointer-events-none absolute left-3.5 top-1/2 -translate-y-1/2 text-slate-500" />
+                <div>
+                  <label className="block text-xs font-semibold text-slate-300 mb-1.5 text-center">
+                    Code de sécurité à 6 chiffres
+                  </label>
                   <Input
-                    value={username}
-                    onChange={(e) => setUsername(e.target.value)}
-                    placeholder={groupInfo.placeholder}
-                    autoComplete="username"
-                    spellCheck={false}
-                    required
+                    type="text"
+                    inputMode="numeric"
+                    autoComplete="one-time-code"
                     autoFocus
-                    className="pl-9"
+                    value={totpCode}
+                    onChange={(e) => {
+                      setTotpCode(e.target.value.replace(/[^0-9]/g, "").slice(0, 6));
+                      setTotpError("");
+                    }}
+                    placeholder="123456"
+                    className="text-center font-mono font-bold tracking-[0.3em] text-2xl h-13 bg-slate-950/70 border-cyan-500/40 focus:border-cyan-400"
+                    maxLength={6}
                   />
                 </div>
-              </Field>
 
-              <Field label="Mot de passe">
-                <div className="relative">
-                  <Lock size={14} className="pointer-events-none absolute left-3.5 top-1/2 -translate-y-1/2 text-slate-500" />
-                  <Input
-                    type={show ? "text" : "password"}
-                    value={password}
-                    onChange={(e) => setPassword(e.target.value)}
-                    placeholder="••••••••••••"
-                    autoComplete="current-password"
-                    required
-                    className="pl-9 pr-10"
-                  />
-                  <button
-                    type="button"
-                    onClick={() => setShow(!show)}
-                    className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-500 hover:text-slate-300"
-                    aria-label="Afficher le mot de passe"
-                  >
-                    {show ? <EyeOff size={16} /> : <Eye size={16} />}
-                  </button>
-                </div>
-              </Field>
+                {totpError && (
+                  <div className="flex items-center gap-2 rounded-lg border border-red-500/40 bg-red-500/10 p-2.5 text-xs font-semibold text-red-300">
+                    <AlertTriangle size={14} className="shrink-0" />
+                    <span>{totpError}</span>
+                  </div>
+                )}
 
-              {/* Options Se souvenir de moi & Mot de passe oublié */}
-              <div className="flex items-center justify-between text-xs">
-                <label className="flex cursor-pointer items-center gap-2 text-slate-400 hover:text-slate-200">
-                  <input
-                    type="checkbox"
-                    checked={rememberMe}
-                    onChange={(e) => setRememberMe(e.target.checked)}
-                    className="rounded border-white/20 bg-white/5 text-cyan-400 focus:ring-cyan-400"
-                  />
-                  <span>Se souvenir de moi</span>
-                </label>
+                <Btn type="submit" className="w-full py-3" disabled={totpCode.length !== 6 || verifying2fa}>
+                  <CheckCircle2 size={16} /> {verifying2fa ? "Vérification en cours…" : "Confirmer et accéder"}
+                </Btn>
+
                 <button
                   type="button"
-                  onClick={() => setShowForgot(true)}
-                  className="font-medium text-cyan-400 hover:text-cyan-300 hover:underline"
+                  onClick={() => {
+                    setPending2faUser(null);
+                    setTotpCode("");
+                    setTotpError("");
+                  }}
+                  className="w-full text-center text-xs text-slate-400 hover:text-white transition pt-1"
                 >
-                  Mot de passe oublié ?
+                  ← Annuler / Changer de compte
                 </button>
-              </div>
+              </form>
+            ) : (
+              <>
+                {/* Sélecteur d'espace */}
+                <div className="mb-5">
+                  <p className="mb-2 text-[10px] font-mono font-bold uppercase tracking-wider text-[#4C91B5]">Espace de connexion :</p>
+                  <div className="grid grid-cols-2 gap-2 sm:grid-cols-4">
+                    {GROUPS.map((g) => (
+                      <button
+                        key={g.key}
+                        type="button"
+                        onClick={() => { setGroup(g.key); setError(""); }}
+                        className={cn(
+                          "flex flex-col items-center gap-1.5 rounded border p-2.5 text-center transition-all",
+                          group === g.key
+                            ? "border-[#00C8FF] bg-[#071A2B] text-[#00E5FF] shadow-[0_0_15px_rgba(0,229,255,0.4)]"
+                            : "border-[#006DFF]/25 text-[#4C91B5] hover:border-[#006DFF]/50 hover:bg-[#071A2B]/50 hover:text-[#B8F3FF]"
+                        )}
+                      >
+                        {g.icon}
+                        <span className="text-[10px] font-bold uppercase tracking-wider">{g.label}</span>
+                      </button>
+                    ))}
+                  </div>
 
-              {error && (
-                <div className={cn(
-                  "flex items-start gap-2 rounded-lg border px-3 py-2.5 text-xs font-semibold",
-                  locked
-                    ? "border-red-500/40 bg-red-500/10 text-red-300"
-                    : "border-red-500/30 bg-red-500/5 text-red-400"
-                )}>
-                  {locked
-                    ? <ShieldAlert size={14} className="mt-0.5 shrink-0" />
-                    : <AlertTriangle size={14} className="mt-0.5 shrink-0" />}
-                  <span>
-                    {locked
-                      ? `Compte temporairement verrouillé — ${formatDuration(locked.ms)} restantes.`
-                      : error}
-                  </span>
+                  {/* Indicateur explicite d'espace dédié */}
+                  <div className={cn("mt-3 flex items-start gap-2.5 rounded-lg border p-2.5 text-xs transition-all", groupInfo.badgeColor)}>
+                    <ShieldCheck size={16} className="mt-0.5 shrink-0" />
+                    <div className="min-w-0 flex-1">
+                      <p className="font-bold">{groupInfo.title}</p>
+                      <p className="text-[11px] opacity-85 mt-0.5">{groupInfo.desc}</p>
+                    </div>
+                  </div>
                 </div>
-              )}
 
-              <Btn type="submit" className="w-full py-3" disabled={busy || !!locked}>
-                <LogIn size={17} /> {busy ? "Connexion…" : "Se connecter"}
-              </Btn>
-            </form>
+                {/* Formulaire identifiants */}
+                <form onSubmit={submit} className="space-y-4" autoComplete="off">
+                  <Field label={groupInfo.fieldLabel}>
+                    <div className="relative">
+                      <UserIcon size={14} className="pointer-events-none absolute left-3.5 top-1/2 -translate-y-1/2 text-slate-500" />
+                      <Input
+                        value={username}
+                        onChange={(e) => setUsername(e.target.value)}
+                        placeholder={groupInfo.placeholder}
+                        autoComplete="username"
+                        spellCheck={false}
+                        required
+                        autoFocus
+                        className="pl-9"
+                      />
+                    </div>
+                  </Field>
+
+                  <Field label="Mot de passe">
+                    <div className="relative">
+                      <Lock size={14} className="pointer-events-none absolute left-3.5 top-1/2 -translate-y-1/2 text-slate-500" />
+                      <Input
+                        type={show ? "text" : "password"}
+                        value={password}
+                        onChange={(e) => setPassword(e.target.value)}
+                        placeholder="••••••••••••"
+                        autoComplete="current-password"
+                        required
+                        className="pl-9 pr-10"
+                      />
+                      <button
+                        type="button"
+                        onClick={() => setShow(!show)}
+                        className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-500 hover:text-slate-300"
+                        aria-label="Afficher le mot de passe"
+                      >
+                        {show ? <EyeOff size={16} /> : <Eye size={16} />}
+                      </button>
+                    </div>
+                  </Field>
+
+                  {/* Options Se souvenir de moi & Mot de passe oublié */}
+                  <div className="flex items-center justify-between text-xs">
+                    <label className="flex cursor-pointer items-center gap-2 text-slate-400 hover:text-slate-200">
+                      <input
+                        type="checkbox"
+                        checked={rememberMe}
+                        onChange={(e) => setRememberMe(e.target.checked)}
+                        className="rounded border-white/20 bg-white/5 text-cyan-400 focus:ring-cyan-400"
+                      />
+                      <span>Se souvenir de moi</span>
+                    </label>
+                    <button
+                      type="button"
+                      onClick={() => setShowForgot(true)}
+                      className="font-medium text-cyan-400 hover:text-cyan-300 hover:underline"
+                    >
+                      Mot de passe oublié ?
+                    </button>
+                  </div>
+
+                  {error && (
+                    <div className={cn(
+                      "flex items-start gap-2 rounded-lg border px-3 py-2.5 text-xs font-semibold",
+                      locked
+                        ? "border-red-500/40 bg-red-500/10 text-red-300"
+                        : "border-red-500/30 bg-red-500/5 text-red-400"
+                    )}>
+                      {locked
+                        ? <ShieldAlert size={14} className="mt-0.5 shrink-0" />
+                        : <AlertTriangle size={14} className="mt-0.5 shrink-0" />}
+                      <span>
+                        {locked
+                          ? `Compte temporairement verrouillé — ${formatDuration(locked.ms)} restantes.`
+                          : error}
+                      </span>
+                    </div>
+                  )}
+
+                  <Btn type="submit" className="w-full py-3" disabled={busy || !!locked}>
+                    <LogIn size={17} /> {busy ? "Connexion…" : "Se connecter"}
+                  </Btn>
+                </form>
+              </>
+            )}
 
             {/* Zone bas de formulaire */}
             <div className="mt-5 border-t border-white/5 pt-4 text-center">

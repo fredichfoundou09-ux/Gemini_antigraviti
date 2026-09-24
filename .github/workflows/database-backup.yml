@@ -1,0 +1,68 @@
+name: Sauvegardes Automatisées PostgreSQL
+
+on:
+  schedule:
+    # Exécution quotidienne à 02:00 UTC (03:00 heure de Brazzaville/Paris)
+    - cron: "0 2 * * *"
+  workflow_dispatch: # Permet de déclencher un export manuel depuis l'interface GitHub Actions
+
+jobs:
+  backup:
+    name: Export & Sauvegarde Base de Données
+    runs-on: ubuntu-latest
+    steps:
+      - name: Vérification des prérequis
+        run: |
+          if [ -z "${{ secrets.DATABASE_URL }}" ]; then
+            echo "::error::Le secret DATABASE_URL n'est pas configuré dans les secrets GitHub du dépôt."
+            exit 1
+          fi
+
+      - name: Installation du client PostgreSQL
+        run: |
+          sudo apt-get update -qq
+          sudo apt-get install -y -qq postgresql-client gzip
+
+      - name: Export compressé pg_dump
+        run: |
+          TIMESTAMP=$(date +%Y%m%d_%H%M%S)
+          BACKUP_FILENAME="sentinelles_backup_${TIMESTAMP}.sql.gz"
+          echo "BACKUP_FILENAME=${BACKUP_FILENAME}" >> $GITHUB_ENV
+
+          # pg_dump sécurisé avec masquage strict des identifiants
+          pg_dump "${{ secrets.DATABASE_URL }}" \
+            --no-owner \
+            --no-privileges \
+            --clean \
+            --if-exists \
+            --encoding=UTF8 | gzip -9 > "${BACKUP_FILENAME}"
+
+          BACKUP_SIZE=$(du -h "${BACKUP_FILENAME}" | cut -f1)
+          echo "Dump généré avec succès (${BACKUP_SIZE})"
+
+      - name: Upload vers stockage Cloud externe (S3 / Backblaze B2 / R2)
+        if: env.HAS_STORAGE_SECRETS == 'true'
+        env:
+          AWS_ACCESS_KEY_ID: ${{ secrets.BACKUP_AWS_ACCESS_KEY_ID }}
+          AWS_SECRET_ACCESS_KEY: ${{ secrets.BACKUP_AWS_SECRET_ACCESS_KEY }}
+          AWS_DEFAULT_REGION: ${{ secrets.BACKUP_S3_REGION || 'eu-west-3' }}
+          S3_BUCKET: ${{ secrets.BACKUP_S3_BUCKET }}
+          S3_ENDPOINT: ${{ secrets.BACKUP_S3_ENDPOINT }}
+          HAS_STORAGE_SECRETS: ${{ secrets.BACKUP_AWS_ACCESS_KEY_ID != '' && secrets.BACKUP_S3_BUCKET != '' }}
+        run: |
+          ENDPOINT_FLAG=""
+          if [ -n "$S3_ENDPOINT" ]; then
+            ENDPOINT_FLAG="--endpoint-url $S3_ENDPOINT"
+          fi
+
+          aws s3 cp "${{ env.BACKUP_FILENAME }}" "s3://${S3_BUCKET}/backups/${{ env.BACKUP_FILENAME }}" \
+            --sse AES256 $ENDPOINT_FLAG
+
+          echo "Sauvegarde externalisée avec chiffrement AES256 sur s3://${S3_BUCKET}/backups/"
+
+      - name: Archivage Artifact GitHub de rétention (30 jours)
+        uses: actions/upload-artifact@v4
+        with:
+          name: ${{ env.BACKUP_FILENAME }}
+          path: ${{ env.BACKUP_FILENAME }}
+          retention-days: 30

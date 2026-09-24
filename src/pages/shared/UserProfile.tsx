@@ -1,11 +1,13 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import {
   UserCircle2, Phone, MapPin, ShieldCheck, KeyRound, Lock, Eye, EyeOff,
-  Bell, BellRing, Volume2, Smartphone, CheckCircle2, AlertCircle, Sparkles,
+  Bell, BellRing, Volume2, Smartphone, CheckCircle2, AlertCircle,
+  QrCode, Copy, Check,
 } from "lucide-react";
+import { QRCodeSVG } from "qrcode.react";
 import { useStore } from "@/lib/store";
 import { supabase, isSupabaseConfigured } from "@/lib/supabase/client";
-import { Btn, Card, Field, Input, PageHead, Badge, readImage } from "@/lib/ui";
+import { Btn, Card, Field, Input, PageHead, Badge, Modal, readImage } from "@/lib/ui";
 import { validatePassword, passwordScore } from "@/lib/auth";
 import { toastMsg } from "@/lib/toast";
 import {
@@ -15,6 +17,14 @@ import {
   sendTestNotification,
   playNotificationChime,
 } from "@/lib/pushNotifications";
+import {
+  generateTotpSecret,
+  generateTotpUri,
+  verifyTotpCode,
+  isUser2faEnabled,
+  saveAdminTotpConfig,
+  removeAdminTotpConfig,
+} from "@/lib/totp";
 
 export function UnifiedProfilePage() {
   const { db, user, update, log } = useStore();
@@ -50,6 +60,96 @@ export function UnifiedProfilePage() {
   // États des notifications natives
   const [notifPerm, setNotifPerm] = useState(() => getNotificationPermission());
   const [testingNotif, setTestingNotif] = useState(false);
+
+  // États 2FA TOTP pour les comptes administrateurs
+  const isAdmin = user.role === "admin" || user.role === "superadmin";
+  const [is2faActive, setIs2faActive] = useState(false);
+  const [setupStep, setSetupStep] = useState<"idle" | "configuring">("idle");
+  const [totpSecret, setTotpSecret] = useState("");
+  const [totpUri, setTotpUri] = useState("");
+  const [totpCode, setTotpCode] = useState("");
+  const [totpError, setTotpError] = useState("");
+  const [copied, setCopied] = useState(false);
+  const [saving2fa, setSaving2fa] = useState(false);
+  const [confirmDisable2fa, setConfirmDisable2fa] = useState(false);
+
+  useEffect(() => {
+    if (user?.id && isAdmin) {
+      isUser2faEnabled(user.id).then(setIs2faActive).catch(() => {});
+    }
+  }, [user?.id, isAdmin]);
+
+  const start2faSetup = () => {
+    const sec = generateTotpSecret();
+    const uri = generateTotpUri("Sentinelles Numériques", user?.email || user?.username || "admin", sec);
+    setTotpSecret(sec);
+    setTotpUri(uri);
+    setTotpCode("");
+    setTotpError("");
+    setSetupStep("configuring");
+  };
+
+  const cancel2faSetup = () => {
+    setSetupStep("idle");
+    setTotpSecret("");
+    setTotpUri("");
+    setTotpCode("");
+    setTotpError("");
+  };
+
+  const copySecret = () => {
+    if (!totpSecret) return;
+    navigator.clipboard?.writeText(totpSecret).then(() => {
+      setCopied(true);
+      toastMsg.info("Clé copiée !", "Collez-la dans votre application d'authentification.");
+      setTimeout(() => setCopied(false), 2000);
+    }).catch(() => {});
+  };
+
+  const confirmAndActivate2fa = async () => {
+    if (!user?.id || !totpSecret) return;
+    if (totpCode.length !== 6) {
+      setTotpError("Le code doit comporter 6 chiffres.");
+      return;
+    }
+    setSaving2fa(true);
+    setTotpError("");
+
+    try {
+      const isValid = await verifyTotpCode(totpSecret, totpCode);
+      if (!isValid) {
+        setTotpError("Code incorrect ou expiré. Assurez-vous que l'heure de votre téléphone est à l'heure automatique.");
+        return;
+      }
+
+      await saveAdminTotpConfig(user.id, totpSecret, true);
+      setIs2faActive(true);
+      setSetupStep("idle");
+      setTotpSecret("");
+      setTotpUri("");
+      setTotpCode("");
+      toastMsg.success("2FA activé avec succès !", "Votre compte est désormais protégé par validation TOTP.");
+      log(`2FA activé pour l'administrateur ${user.username}`);
+    } catch (err: any) {
+      setTotpError(err.message || "Erreur lors de l'activation du 2FA");
+    } finally {
+      setSaving2fa(false);
+    }
+  };
+
+  const handleDisable2fa = async () => {
+    if (!user?.id) return;
+    setSaving2fa(true);
+    try {
+      await removeAdminTotpConfig(user.id);
+      setIs2faActive(false);
+      setConfirmDisable2fa(false);
+      toastMsg.info("2FA désactivé", "L'authentification en deux étapes a été retirée.");
+      log(`2FA désactivé pour l'administrateur ${user.username}`);
+    } finally {
+      setSaving2fa(false);
+    }
+  };
 
   const handleRequestPermission = async () => {
     const res = await requestNotificationPermission();
@@ -351,6 +451,113 @@ export function UnifiedProfilePage() {
               </Btn>
             </form>
           </Card>
+
+          {/* Bloc Sécurité 2FA TOTP pour Administrateurs */}
+          {isAdmin && (
+            <Card className="p-6 border-cyan-500/30 bg-gradient-to-br from-slate-900/90 to-cyan-950/20 shadow-[0_0_20px_rgba(0,229,255,0.06)]">
+              <div className="flex items-center justify-between border-b border-white/10 pb-3 mb-4">
+                <div className="flex items-center gap-2">
+                  <ShieldCheck size={18} className="text-cyan-400" />
+                  <div>
+                    <h3 className="font-display text-sm font-bold text-white">Validation 2FA (TOTP)</h3>
+                    <p className="text-[11px] text-slate-400">Protection renforcée pour l'administration</p>
+                  </div>
+                </div>
+                {is2faActive ? (
+                  <Badge color="green">2FA Actif</Badge>
+                ) : (
+                  <Badge color="gray">Désactivé</Badge>
+                )}
+              </div>
+
+              {is2faActive ? (
+                <div className="space-y-4">
+                  <div className="rounded-xl border border-emerald-500/30 bg-emerald-500/10 p-3.5 text-xs text-emerald-200">
+                    <p className="font-bold flex items-center gap-1.5 text-emerald-300">
+                      <CheckCircle2 size={15} /> Compte administrateur hautement protégé
+                    </p>
+                    <p className="mt-1 text-slate-300 leading-relaxed">
+                      La double authentification TOTP est active. Un code à 6 chiffres depuis votre application d'authentification vous sera demandé à chaque connexion.
+                    </p>
+                  </div>
+                  <Btn
+                    variant="outline"
+                    onClick={() => setConfirmDisable2fa(true)}
+                    className="w-full text-xs text-rose-300 border-rose-500/30 hover:bg-rose-500/10 hover:border-rose-400"
+                  >
+                    Désactiver la protection 2FA
+                  </Btn>
+                </div>
+              ) : setupStep === "idle" ? (
+                <div className="space-y-3">
+                  <p className="text-xs text-slate-300 leading-relaxed">
+                    Protégez votre compte avec Google Authenticator, Microsoft Authenticator ou n'importe quelle application TOTP standard.
+                  </p>
+                  <Btn onClick={start2faSetup} className="w-full text-xs">
+                    <QrCode size={14} /> Configurer le 2FA maintenant
+                  </Btn>
+                </div>
+              ) : (
+                <div className="space-y-4">
+                  <p className="text-xs text-slate-300">
+                    1. Scannez ce QR Code avec votre application d'authentification :
+                  </p>
+                  <div className="p-3 bg-white rounded-xl mx-auto w-fit shadow-lg border border-white/20">
+                    <QRCodeSVG value={totpUri} size={150} />
+                  </div>
+
+                  <div className="rounded-xl border border-white/10 bg-slate-950/60 p-2.5 text-xs">
+                    <p className="text-slate-400 text-[11px] mb-1">Clé de configuration manuelle :</p>
+                    <div className="flex items-center justify-between gap-2">
+                      <code className="font-mono text-cyan-300 font-bold tracking-widest text-xs select-all truncate">
+                        {totpSecret}
+                      </code>
+                      <button
+                        type="button"
+                        onClick={copySecret}
+                        className="shrink-0 p-1.5 rounded bg-white/10 hover:bg-white/20 text-slate-200 transition"
+                        title="Copier la clé secrète"
+                      >
+                        {copied ? <Check size={14} className="text-emerald-400" /> : <Copy size={14} />}
+                      </button>
+                    </div>
+                  </div>
+
+                  <div>
+                    <label className="block text-xs font-semibold text-slate-300 mb-1">
+                      2. Saisissez le code à 6 chiffres généré :
+                    </label>
+                    <Input
+                      value={totpCode}
+                      onChange={(e) => {
+                        setTotpCode(e.target.value.replace(/[^0-9]/g, "").slice(0, 6));
+                        setTotpError("");
+                      }}
+                      placeholder="123456"
+                      className="text-center font-mono font-bold tracking-widest text-lg"
+                      maxLength={6}
+                    />
+                    {totpError && (
+                      <p className="mt-1.5 text-xs text-rose-400 font-medium">{totpError}</p>
+                    )}
+                  </div>
+
+                  <div className="flex gap-2 pt-1">
+                    <Btn variant="ghost" onClick={cancel2faSetup} className="flex-1 text-xs">
+                      Annuler
+                    </Btn>
+                    <Btn
+                      onClick={confirmAndActivate2fa}
+                      disabled={totpCode.length !== 6 || saving2fa}
+                      className="flex-1 text-xs"
+                    >
+                      {saving2fa ? "Validation…" : "Activer le 2FA"}
+                    </Btn>
+                  </div>
+                </div>
+              )}
+            </Card>
+          )}
         </div>
 
         {/* Colonne droite : Coordonnées modifiables par l'utilisateur */}
@@ -521,6 +728,21 @@ export function UnifiedProfilePage() {
           </div>
         </Card>
       </div>
+
+      {/* Modal confirmation de désactivation 2FA */}
+      <Modal open={confirmDisable2fa} onClose={() => setConfirmDisable2fa(false)} title="Désactivation du 2FA">
+        <div className="space-y-4">
+          <p className="text-sm text-slate-300">
+            Êtes-vous certain de vouloir désactiver l'authentification à deux facteurs ? Votre compte administrateur sera moins protégé contre les compromissions de mot de passe.
+          </p>
+          <div className="flex justify-end gap-2 pt-2">
+            <Btn variant="ghost" onClick={() => setConfirmDisable2fa(false)}>Annuler</Btn>
+            <Btn variant="red" onClick={handleDisable2fa} disabled={saving2fa}>
+              {saving2fa ? "Désactivation…" : "Confirmer la désactivation"}
+            </Btn>
+          </div>
+        </div>
+      </Modal>
     </div>
   );
 }

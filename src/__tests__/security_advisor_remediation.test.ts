@@ -205,18 +205,24 @@ describe("AUDIT DE SÉCURITÉ & REMÉDIATION RLS (SUPABASE CZX)", () => {
   describe("2. Cloisonnement strict entre Apprenants (Alice vs Bob)", () => {
     const userAlice: User = {
       id: "student-a-uid",
+      username: "alice",
+      password: "",
       email: "studentA@sentinels.com",
       name: "Alice",
       role: "student",
-      active: true,
+      createdAt: "2026-01-01",
+      actif: true,
     };
 
     const userBob: User = {
       id: "student-b-uid",
+      username: "bob",
+      password: "",
       email: "studentB@sentinels.com",
       name: "Bob",
       role: "student",
-      active: true,
+      createdAt: "2026-01-01",
+      actif: true,
     };
 
     it("Alice ne peut voir que les devoirs de sa formation et ses modules", () => {
@@ -260,18 +266,24 @@ describe("AUDIT DE SÉCURITÉ & REMÉDIATION RLS (SUPABASE CZX)", () => {
   describe("3. Cloisonnement strict entre Formateurs (Prof Alpha vs Prof Beta)", () => {
     const userTeacherAlpha: User = {
       id: "teacher-1-uid",
+      username: "teacher1",
+      password: "",
       email: "teacher1@sentinels.com",
       name: "Prof Alpha",
       role: "teacher",
-      active: true,
+      createdAt: "2026-01-01",
+      actif: true,
     };
 
     const userTeacherBeta: User = {
       id: "teacher-2-uid",
+      username: "teacher2",
+      password: "",
       email: "teacher2@sentinels.com",
       name: "Prof Beta",
       role: "teacher",
-      active: true,
+      createdAt: "2026-01-01",
+      actif: true,
     };
 
     it("Prof Alpha ne voit QUE ses propres devoirs créés", () => {
@@ -305,10 +317,13 @@ describe("AUDIT DE SÉCURITÉ & REMÉDIATION RLS (SUPABASE CZX)", () => {
   describe("4. Droits superviseur Administrateur", () => {
     const userAdmin: User = {
       id: "admin-uid",
+      username: "admin",
+      password: "",
       email: "admin@sentinels.com",
       name: "Admin",
       role: "admin",
-      active: true,
+      createdAt: "2026-01-01",
+      actif: true,
     };
 
     it("L'administrateur conserve l'accès superviseur à tous les devoirs", () => {

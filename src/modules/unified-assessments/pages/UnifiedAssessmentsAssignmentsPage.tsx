@@ -524,16 +524,16 @@ export function UnifiedAssessmentsAssignmentsPage({ defaultTab = "devoirs" }: Pr
         }
         actions={
           <div className="flex flex-wrap items-center gap-2">
-            <Btn size="sm" variant="outline" onClick={() => setIsDocImporterOpen(true)} className="gap-1.5">
+            <Btn variant="outline" onClick={() => setIsDocImporterOpen(true)} className="gap-1.5 text-xs py-1 px-2.5">
               <FileUp size={14} /> Importer Sujet
             </Btn>
-            <Btn size="sm" variant="outline" onClick={() => setIsGeneratorOpen(true)} className="gap-1.5">
+            <Btn variant="outline" onClick={() => setIsGeneratorOpen(true)} className="gap-1.5 text-xs py-1 px-2.5">
               <Sparkles size={14} className="text-cyan-400" /> Générateur QCM
             </Btn>
-            <Btn size="sm" variant="outline" onClick={handleCreateAssessment} className="gap-1.5">
+            <Btn variant="outline" onClick={handleCreateAssessment} className="gap-1.5 text-xs py-1 px-2.5">
               <TestTube2 size={14} /> + Nouvelle Évaluation
             </Btn>
-            <Btn size="sm" onClick={handleCreateAssignment} className="gap-1.5">
+            <Btn onClick={handleCreateAssignment} className="gap-1.5 text-xs py-1 px-2.5">
               <Plus size={14} /> + Nouveau Devoir
             </Btn>
           </div>
@@ -706,10 +706,9 @@ export function UnifiedAssessmentsAssignmentsPage({ defaultTab = "devoirs" }: Pr
 
                     <div className="mt-4 flex flex-wrap items-center justify-between gap-2 border-t border-slate-800 pt-3">
                       <Btn
-                        size="sm"
                         variant="outline"
                         onClick={() => handleJumpToSubmissions(a.id)}
-                        className="gap-2 border-cyan-500/50 bg-cyan-950/20 text-cyan-300 hover:bg-cyan-500/20 hover:border-cyan-400 font-semibold shadow-sm transition"
+                        className="gap-2 border-cyan-500/50 bg-cyan-950/20 text-cyan-300 hover:bg-cyan-500/20 hover:border-cyan-400 font-semibold shadow-sm transition text-xs py-1 px-2.5"
                       >
                         <Inbox size={14} className="text-cyan-400" />
                         <span>Consulter les remises</span>
@@ -817,7 +816,7 @@ export function UnifiedAssessmentsAssignmentsPage({ defaultTab = "devoirs" }: Pr
                         <Badge color={t.statut === "publie" ? "green" : t.statut === "archive" ? "gray" : "gold"}>
                           {t.statut === "publie" ? "Publié" : t.statut === "archive" ? "Archivé" : "Brouillon"}
                         </Badge>
-                        <Badge color="purple">{t.duree} min</Badge>
+                        <Badge color="blue">{t.duree} min</Badge>
                       </div>
 
                       <h3 className="mt-3 font-bold text-white text-base line-clamp-1">{t.titre}</h3>
@@ -833,10 +832,9 @@ export function UnifiedAssessmentsAssignmentsPage({ defaultTab = "devoirs" }: Pr
 
                     <div className="mt-4 flex flex-wrap items-center justify-between gap-2 border-t border-slate-800 pt-3">
                       <Btn
-                        size="sm"
                         variant="outline"
                         onClick={() => handleJumpToSubmissions(t.id)}
-                        className="gap-2 border-purple-500/50 bg-purple-950/20 text-purple-300 hover:bg-purple-500/20 hover:border-purple-400 font-semibold shadow-sm transition"
+                        className="gap-2 border-purple-500/50 bg-purple-950/20 text-purple-300 hover:bg-purple-500/20 hover:border-purple-400 font-semibold shadow-sm transition text-xs py-1 px-2.5"
                       >
                         <Award size={14} className="text-purple-400" />
                         <span>Voir les résultats</span>

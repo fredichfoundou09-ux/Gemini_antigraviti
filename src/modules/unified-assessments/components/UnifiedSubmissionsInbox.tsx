@@ -130,7 +130,7 @@ export function UnifiedSubmissionsInbox({
       const bareme = parentAssignment?.bareme || 20;
 
       const isGraded = sub.statut === "corrige" || sub.statut === "retourne";
-      const isLate = sub.statut === "en_retard" || sub.latePenaltyApplied;
+      const isLate = sub.statut === "en_retard" || Boolean((sub as any).latePenaltyApplied);
 
       list.push({
         id: `sub-${sub.id}`,
@@ -258,8 +258,7 @@ export function UnifiedSubmissionsInbox({
         appreciationVal,
         pointsFortsVal,
         pointsAmeliorationVal,
-        true,
-        user?.id
+        true
       );
 
       if (res.success) {
@@ -442,7 +441,7 @@ export function UnifiedSubmissionsInbox({
               </optgroup>
             </select>
 
-            <Btn size="sm" variant="outline" onClick={handleExportCsv} className="shrink-0">
+            <Btn variant="outline" onClick={handleExportCsv} className="shrink-0 text-xs py-1 px-2.5">
               <Download size={14} /> Export CSV
             </Btn>
           </div>
@@ -489,7 +488,7 @@ export function UnifiedSubmissionsInbox({
                         {item.studentMatricule && (
                           <span className="text-xs text-slate-400 font-mono">({item.studentMatricule})</span>
                         )}
-                        <Badge color={isDevoir ? "cyan" : "purple"}>
+                        <Badge color={isDevoir ? "cyan" : "blue"}>
                           {isDevoir ? "Devoir" : "Évaluation"}
                         </Badge>
                         {item.estEnRetard ? (
@@ -546,17 +545,15 @@ export function UnifiedSubmissionsInbox({
                     {/* Bouton d'action */}
                     {isDevoir ? (
                       <Btn
-                        size="sm"
                         variant={item.note !== undefined ? "outline" : "primary"}
                         onClick={() => handleOpenGradeModal(item)}
-                        className="gap-1.5"
+                        className="gap-1.5 text-xs py-1 px-2.5"
                       >
                         <PenLine size={14} />
                         {item.note !== undefined ? "Modifier note" : "Noter la copie"}
                       </Btn>
                     ) : (
                       <Btn
-                        size="sm"
                         variant="outline"
                         onClick={() => {
                           if (item.evaluationResult && item.evaluationAssessment) {
@@ -566,7 +563,7 @@ export function UnifiedSubmissionsInbox({
                             });
                           }
                         }}
-                        className="gap-1.5 text-purple-300 hover:text-white"
+                        className="gap-1.5 text-xs py-1 px-2.5 text-purple-300 hover:text-white"
                       >
                         <Eye size={14} />
                         Voir la copie
@@ -603,14 +600,14 @@ export function UnifiedSubmissionsInbox({
                 Apprenant : {gradingSubmission.submission.studentId}
               </p>
               <p className="text-xs text-slate-400">
-                Remis le : {new Date(gradingSubmission.submission.submittedAt || gradingSubmission.submission.createdAt).toLocaleString("fr-FR")}
+                Remis le : {new Date((gradingSubmission.submission as any).submittedAt || (gradingSubmission.submission as any).dateRemise || gradingSubmission.submission.createdAt).toLocaleString("fr-FR")}
                 {gradingSubmission.submission.statut === "en_retard" && (
                   <span className="ml-2 font-semibold text-rose-400">(Remise en retard)</span>
                 )}
               </p>
-              {gradingSubmission.submission.comment && (
+              {(gradingSubmission.submission as any).comment && (
                 <p className="mt-2 text-xs italic text-slate-300 bg-slate-900/60 p-2 rounded-lg border border-slate-800">
-                  « {gradingSubmission.submission.comment} »
+                  « {(gradingSubmission.submission as any).comment} »
                 </p>
               )}
             </div>
@@ -620,19 +617,19 @@ export function UnifiedSubmissionsInbox({
               <label className="text-xs font-semibold text-slate-300">Fichiers remis par l'apprenant :</label>
               {gradingSubmission.submission.files && gradingSubmission.submission.files.length > 0 ? (
                 <div className="mt-1 space-y-1.5">
-                  {gradingSubmission.submission.files.map((f) => (
+                  {gradingSubmission.submission.files.map((f: any) => (
                     <div
                       key={f.id}
                       className="flex items-center justify-between rounded-lg border border-slate-800 bg-slate-900/60 p-2 text-xs"
                     >
-                      <span className="truncate font-medium text-white max-w-[220px]">{f.fileName}</span>
+                      <span className="truncate font-medium text-white max-w-[220px]">{f.fileName || f.name}</span>
                       <a
-                        href={f.fileUrl}
+                        href={f.fileUrl || f.url}
                         target="_blank"
                         rel="noreferrer"
                         className="flex items-center gap-1 rounded bg-cyan-500/20 px-2 py-1 text-cyan-300 hover:bg-cyan-500/30"
                       >
-                        <Download size={12} /> Télécharger ({humanSize(f.fileSize)})
+                        <Download size={12} /> Télécharger ({humanSize(f.fileSize || f.size || 0)})
                       </a>
                     </div>
                   ))}

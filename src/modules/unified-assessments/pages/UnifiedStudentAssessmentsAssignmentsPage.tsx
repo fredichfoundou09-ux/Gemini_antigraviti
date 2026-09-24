@@ -237,11 +237,11 @@ export function UnifiedStudentAssessmentsAssignmentsPage({ defaultTab = "devoirs
 
   useEffect(() => {
     loadData();
-    const unsubscribe = subscribeToAssessmentsSync(() => {
+    const sub = subscribeToAssessmentsSync(() => {
       loadData();
     });
     return () => {
-      unsubscribe();
+      sub?.unsubscribe?.();
     };
   }, [user, student]);
 
@@ -393,7 +393,7 @@ export function UnifiedStudentAssessmentsAssignmentsPage({ defaultTab = "devoirs
                   <Card key={t.id} className="p-5 flex flex-col justify-between bg-slate-900/60 border-slate-800">
                     <div>
                       <div className="flex items-center justify-between">
-                        <Badge color="purple">{t.moduleId || "Évaluation"}</Badge>
+                        <Badge color="blue">{t.moduleId || "Évaluation"}</Badge>
                         <Badge color="cyan">{t.duree} minutes</Badge>
                       </div>
 
@@ -456,7 +456,7 @@ export function UnifiedStudentAssessmentsAssignmentsPage({ defaultTab = "devoirs
                           )}
                         </div>
                         <p className="mt-1 text-xs text-slate-400">
-                          Remis le {new Date(sub.submittedAt || sub.createdAt).toLocaleString("fr-FR")}
+                          Remis le {new Date((sub as any).submittedAt || (sub as any).dateRemise || sub.createdAt).toLocaleString("fr-FR")}
                         </p>
                         {sub.appreciation && (
                           <p className="mt-2 text-xs italic text-cyan-300 bg-slate-950/60 p-2 rounded-lg border border-slate-800">
@@ -469,7 +469,7 @@ export function UnifiedStudentAssessmentsAssignmentsPage({ defaultTab = "devoirs
                         {sub.note !== undefined ? (
                           <div>
                             <span className="text-lg font-bold text-emerald-400">{sub.note}</span>
-                            <span className="text-xs text-slate-400"> / {sub.bareme} pts</span>
+                            <span className="text-xs text-slate-400"> / {(sub as any).bareme || parent?.bareme || 20} pts</span>
                           </div>
                         ) : (
                           <Badge color="gold">En attente de correction</Badge>
@@ -488,7 +488,7 @@ export function UnifiedStudentAssessmentsAssignmentsPage({ defaultTab = "devoirs
                     <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
                       <div>
                         <div className="flex items-center gap-2">
-                          <Badge color="purple">Évaluation</Badge>
+                          <Badge color="blue">Évaluation</Badge>
                           <span className="font-semibold text-white">{parent?.titre || "Examen"}</span>
                           <Badge color={res.statut === "reussi" ? "green" : "red"}>
                             {res.statut === "reussi" ? "Réussi" : "Échoué"}
