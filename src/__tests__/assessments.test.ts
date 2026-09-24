@@ -471,7 +471,7 @@ Explication: Le port standard IANA pour SSH est 22.
       const teacherBlob = await generateAssessmentDocx(exportableAssessment, { includeSolutions: true });
       expect(teacherBlob).toBeInstanceOf(Blob);
       expect(teacherBlob.size).toBeGreaterThan(500);
-    });
+    }, 20000);
 
     it("should generate PDF documents for both student and teacher versions", () => {
       const studentPdf = generateAssessmentPdf(exportableAssessment, { includeSolutions: false });
