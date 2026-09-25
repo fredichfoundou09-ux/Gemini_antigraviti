@@ -11,7 +11,10 @@ export type UserIntent =
   | "GENERAL";
 
 const INTENT_TOOL_MAPPING: Record<UserIntent, string[]> = {
-  SCHEDULE: ["get_schedule"],
+  SCHEDULE: [
+    "get_schedule",
+    "create_schedule_draft",
+  ],
   PEDAGOGY: [
     "search_courses",
     "create_learning_exercise",
@@ -42,6 +45,7 @@ const INTENT_TOOL_MAPPING: Record<UserIntent, string[]> = {
   GENERAL: [
     "get_dashboard_stats",
     "search_student",
+    "get_student",
     "search_teacher",
   ],
 };
@@ -59,6 +63,10 @@ export function classifyIntent(message: string): UserIntent {
     text.includes("planning") ||
     text.includes("horaire") ||
     text.includes("salle") ||
+    text.includes("créneau") ||
+    text.includes("creneau") ||
+    text.includes("séance") ||
+    text.includes("seance") ||
     text.includes("cours aujourd'hui") ||
     text.includes("cours demain") ||
     text.includes("prochain cours") ||
@@ -81,7 +89,7 @@ export function classifyIntent(message: string): UserIntent {
     return "ATTENDANCE";
   }
 
-  // Finances & Règlements
+  // Finances, Facturation, Rapports
   if (
     text.includes("facture") ||
     text.includes("solde") ||
@@ -90,7 +98,11 @@ export function classifyIntent(message: string): UserIntent {
     text.includes("payer") ||
     text.includes("frais") ||
     text.includes("financier") ||
-    text.includes("recouvrement")
+    text.includes("recouvrement") ||
+    text.includes("rapport") ||
+    text.includes("synthèse") ||
+    text.includes("synthese") ||
+    text.includes("bilan")
   ) {
     return "ADMIN_FINANCE";
   }

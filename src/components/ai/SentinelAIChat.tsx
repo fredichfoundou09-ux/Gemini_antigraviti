@@ -202,6 +202,148 @@ function ActionConfirmationCard({
     );
   }
 
+  if (tool_name === "publier_devoir") {
+    return (
+      <div className="mr-6 rounded-xl border border-indigo-400/40 bg-indigo-950/30 p-4 shadow-xl backdrop-blur-md">
+        <div className="flex items-center justify-between mb-2">
+          <p className="text-[11px] font-bold uppercase tracking-wider text-indigo-300 flex items-center gap-1.5">
+            <BookOpen size={14} /> Devoir prêt pour publication
+          </p>
+          <span className="rounded bg-indigo-400/15 px-2 py-0.5 text-[10px] font-bold text-indigo-200 border border-indigo-400/30">
+            Niveau 3
+          </span>
+        </div>
+        <p className="text-sm font-bold text-white mb-1">{args.titre || "Devoir d'application"}</p>
+        <p className="text-xs text-indigo-200/80 mb-2">{args.description || "Devoir pratique"}</p>
+        {args.contenu && (
+          <div className="mb-3 rounded-lg bg-black/50 p-2.5 text-xs text-slate-300 border border-white/5 line-clamp-3">
+            {args.contenu}
+          </div>
+        )}
+        <div className="flex gap-2">
+          <button
+            onClick={onConfirm}
+            className="flex-1 flex items-center justify-center gap-1.5 rounded-lg border border-indigo-400/50 bg-indigo-500/25 px-3 py-2 text-xs font-bold text-indigo-200 hover:bg-indigo-500/35 transition cursor-pointer"
+          >
+            <Check size={14} /> Publier le devoir
+          </button>
+          <button
+            onClick={onDismiss}
+            className="flex items-center justify-center gap-1.5 rounded-lg border border-white/10 px-3 py-2 text-xs text-slate-400 hover:bg-white/5 hover:text-white transition cursor-pointer"
+          >
+            <XCircle size={14} /> Annuler
+          </button>
+        </div>
+      </div>
+    );
+  }
+
+  if (tool_name === "send_message") {
+    const recipients = Array.isArray(args.recipient_ids) ? args.recipient_ids.join(", ") : args.recipient_ids || "Tous";
+    return (
+      <div className="mr-6 rounded-xl border border-cyan-400/40 bg-cyan-950/30 p-4 shadow-xl backdrop-blur-md">
+        <div className="flex items-center justify-between mb-2">
+          <p className="text-[11px] font-bold uppercase tracking-wider text-cyan-300 flex items-center gap-1.5">
+            <Send size={14} /> Message officiel à expédier
+          </p>
+          <span className="rounded bg-cyan-400/15 px-2 py-0.5 text-[10px] font-bold text-cyan-200 border border-cyan-400/30">
+            Niveau 3
+          </span>
+        </div>
+        <p className="text-xs text-slate-400 mb-1">Destinataire(s) : <strong className="text-cyan-200">{recipients}</strong></p>
+        <p className="text-sm font-bold text-white mb-2">{args.subject || "Sans objet"}</p>
+        {args.body && (
+          <div className="mb-3 rounded-lg bg-black/50 p-2.5 text-xs text-slate-300 border border-white/5 line-clamp-3">
+            {args.body}
+          </div>
+        )}
+        <div className="flex gap-2">
+          <button
+            onClick={onConfirm}
+            className="flex-1 flex items-center justify-center gap-1.5 rounded-lg border border-cyan-400/50 bg-cyan-500/25 px-3 py-2 text-xs font-bold text-cyan-200 hover:bg-cyan-500/35 transition cursor-pointer"
+          >
+            <Check size={14} /> Envoyer le message
+          </button>
+          <button
+            onClick={onDismiss}
+            className="flex items-center justify-center gap-1.5 rounded-lg border border-white/10 px-3 py-2 text-xs text-slate-400 hover:bg-white/5 hover:text-white transition cursor-pointer"
+          >
+            <XCircle size={14} /> Annuler
+          </button>
+        </div>
+      </div>
+    );
+  }
+
+  if (tool_name === "create_notification") {
+    return (
+      <div className="mr-6 rounded-xl border border-amber-400/40 bg-amber-950/30 p-4 shadow-xl backdrop-blur-md">
+        <div className="flex items-center justify-between mb-2">
+          <p className="text-[11px] font-bold uppercase tracking-wider text-amber-300 flex items-center gap-1.5">
+            <Zap size={14} /> Annonce / Alerte système
+          </p>
+          <span className="rounded bg-amber-400/15 px-2 py-0.5 text-[10px] font-bold text-amber-200 border border-amber-400/30">
+            Niveau 3
+          </span>
+        </div>
+        <p className="text-sm font-bold text-white mb-1">{args.title || "Nouvelle notification"}</p>
+        <p className="text-xs text-slate-300 mb-3 bg-black/50 p-2.5 rounded-lg border border-white/5">
+          {args.body}
+        </p>
+        <div className="flex gap-2">
+          <button
+            onClick={onConfirm}
+            className="flex-1 flex items-center justify-center gap-1.5 rounded-lg border border-amber-400/50 bg-amber-500/25 px-3 py-2 text-xs font-bold text-amber-200 hover:bg-amber-500/35 transition cursor-pointer"
+          >
+            <Check size={14} /> Diffuser l'alerte
+          </button>
+          <button
+            onClick={onDismiss}
+            className="flex items-center justify-center gap-1.5 rounded-lg border border-white/10 px-3 py-2 text-xs text-slate-400 hover:bg-white/5 hover:text-white transition cursor-pointer"
+          >
+            <XCircle size={14} /> Annuler
+          </button>
+        </div>
+      </div>
+    );
+  }
+
+  if (tool_name === "create_invoice_draft") {
+    return (
+      <div className="mr-6 rounded-xl border border-emerald-400/40 bg-emerald-950/30 p-4 shadow-xl backdrop-blur-md">
+        <div className="flex items-center justify-between mb-2">
+          <p className="text-[11px] font-bold uppercase tracking-wider text-emerald-300 flex items-center gap-1.5">
+            <Award size={14} /> Émission d'appel de paiement
+          </p>
+          <span className="rounded bg-emerald-400/15 px-2 py-0.5 text-[10px] font-bold text-emerald-200 border border-emerald-400/30">
+            Niveau 3
+          </span>
+        </div>
+        <p className="text-sm font-bold text-white mb-1">{args.libelle || "Frais de formation"}</p>
+        <div className="flex items-center justify-between text-xs bg-black/50 p-2.5 rounded-lg border border-white/5 mb-3">
+          <span className="text-slate-400">Apprenant : <strong className="text-white">{args.student_id}</strong></span>
+          <span className="text-emerald-300 font-bold text-sm">
+            {Number(args.montant || 0).toLocaleString("fr-FR")} FCFA
+          </span>
+        </div>
+        <div className="flex gap-2">
+          <button
+            onClick={onConfirm}
+            className="flex-1 flex items-center justify-center gap-1.5 rounded-lg border border-emerald-400/50 bg-emerald-500/25 px-3 py-2 text-xs font-bold text-emerald-200 hover:bg-emerald-500/35 transition cursor-pointer"
+          >
+            <Check size={14} /> Émettre la facture
+          </button>
+          <button
+            onClick={onDismiss}
+            className="flex items-center justify-center gap-1.5 rounded-lg border border-white/10 px-3 py-2 text-xs text-slate-400 hover:bg-white/5 hover:text-white transition cursor-pointer"
+          >
+            <XCircle size={14} /> Annuler
+          </button>
+        </div>
+      </div>
+    );
+  }
+
   // Carte générique pour actions sensibles
   return (
     <div className="mr-6 rounded-xl border border-amber-400/40 bg-amber-950/30 p-4 shadow-xl backdrop-blur-md">

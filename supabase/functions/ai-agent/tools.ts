@@ -582,14 +582,26 @@ export async function executeTool(user: UserContext, name: string, args: Record<
     // --- ACTIONS D'ÉCRITURE SENSIBLES (NIVEAU 3) : EXÉCUTÉES APRÈS CONFIRMATION ---
     case "valider_presence": {
       const date = args.date || new Date().toISOString().slice(0, 10);
+      let teacherId = user.teacherId;
+      if (!teacherId) {
+        const { data: tm } = await sb.from("teacher_modules").select("teacher_id").eq("module_id", args.module_id).limit(1);
+        if (tm && tm.length > 0) {
+          teacherId = tm[0].teacher_id;
+        } else {
+          const { data: t } = await sb.from("teachers").select("id").limit(1);
+          teacherId = t?.[0]?.id || "ENS-001";
+        }
+      }
+
       const rows = (args.student_ids as string[]).map((sid) => ({
         student_id: sid,
         module_id: args.module_id,
-        teacher_id: user.teacherId || null,
+        teacher_id: teacherId,
         date,
         heure: new Date().toTimeString().slice(0, 5),
         salle: args.salle || "",
         statut: args.statut,
+        schedule_id: args.schedule_id || null,
       }));
       const { data, error } = await sb.from("attendance").upsert(rows, { onConflict: "student_id,schedule_id,date" }).select();
       if (error) throw error;
@@ -597,13 +609,19 @@ export async function executeTool(user: UserContext, name: string, args: Record<
     }
 
     case "publier_devoir": {
+      let teacherId = user.teacherId;
+      if (!teacherId) {
+        const { data: tm } = await sb.from("teacher_modules").select("teacher_id").eq("module_id", args.module_id).limit(1);
+        teacherId = tm?.[0]?.teacher_id || "ENS-001";
+      }
+
       const { data, error } = await sb
         .from("courses")
         .insert({
           titre: args.titre,
           description: args.description || "",
           module_id: args.module_id,
-          teacher_id: user.teacherId || "ENS-001",
+          teacher_id: teacherId,
           type: args.type || "devoir",
           content: args.contenu,
           publie: true,
@@ -618,15 +636,22 @@ export async function executeTool(user: UserContext, name: string, args: Record<
       const duree = Number(args.duree) || 45;
       const bareme = Number(args.bareme) || 20;
 
+      let teacherId = user.teacherId;
+      if (!teacherId) {
+        const { data: tm } = await sb.from("teacher_modules").select("teacher_id").eq("module_id", args.module_id).limit(1);
+        teacherId = tm?.[0]?.teacher_id || "ENS-001";
+      }
+
       const { data: test, error: tErr } = await sb
         .from("tests")
         .insert({
           titre: args.titre,
           module_id: args.module_id,
-          teacher_id: user.teacherId || "ENS-001",
+          teacher_id: teacherId,
           duree,
           bareme,
           statut: "publie",
+          date: new Date().toISOString(),
           date_publication: new Date().toISOString(),
         })
         .select()
@@ -640,10 +665,35 @@ export async function executeTool(user: UserContext, name: string, args: Record<
         bonne_reponse: String(q.bonne_reponse ?? ""),
         points: Number(q.points) || 1,
         ordre: idx + 1,
+        explication: q.explication || null,
+        options_json: Array.isArray(q.options) ? q.options : [],
       }));
 
-      const { error: qErr } = await sb.from("questions").insert(questionsToInsert);
+      const { data: insertedQuestions, error: qErr } = await sb
+        .from("questions")
+        .insert(questionsToInsert)
+        .select();
       if (qErr) throw qErr;
+
+      // Insertion dans question_options pour compatibilité relationnelle
+      if (insertedQuestions && insertedQuestions.length > 0) {
+        const optionsToInsert: any[] = [];
+        insertedQuestions.forEach((iq: any, idx: number) => {
+          const original = args.questions?.[idx];
+          if (original && Array.isArray(original.options)) {
+            original.options.forEach((optText: string, oIdx: number) => {
+              optionsToInsert.push({
+                question_id: iq.id,
+                option_text: optText,
+                ordre: oIdx + 1,
+              });
+            });
+          }
+        });
+        if (optionsToInsert.length > 0) {
+          await sb.from("question_options").insert(optionsToInsert);
+        }
+      }
 
       return { test_id: test.id, titre: test.titre, total_questions: questionsToInsert.length };
     }

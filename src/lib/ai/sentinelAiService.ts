@@ -39,7 +39,34 @@ export async function localAgentProcess(messages: AiChatMessage[]): Promise<AiAg
   let reply = "";
   let intent = "GENERAL";
 
-  // 1. Détection : Publication d'évaluation (QCM, examen, quiz, test)
+  // 1. Détection : Ingestion / RAG documentaire local (si des fragments sont indexés dans db.ai_document_chunks)
+  if (
+    Array.isArray(db?.ai_document_chunks) &&
+    db.ai_document_chunks.length > 0 &&
+    (lastMsg.includes("indexé") ||
+      lastMsg.includes("document") ||
+      lastMsg.includes("résume") ||
+      lastMsg.includes("resume") ||
+      lastMsg.includes("analyse") ||
+      db.ai_document_chunks.some((ch: any) =>
+        lastMsg.includes(ch.document_title?.toLowerCase().slice(0, 10))
+      ))
+  ) {
+    intent = "DOCUMENT_RAG";
+    const chunks: any[] = db.ai_document_chunks;
+    const docTitles = Array.from(new Set(chunks.map((c) => c.document_title)));
+    docTitles.forEach((t) => sources.push(`Document indexé — ${t}`));
+
+    const sampleContent = chunks
+      .slice(0, 3)
+      .map((c) => c.content)
+      .join("\n\n");
+
+    reply = `J'ai analysé les documents déposés (${docTitles.join(", ")} — ${chunks.length} fragments indexés).\n\nVoici les points clés extraits de vos documents :\n- **Contenu indexé** : ${sampleContent.slice(0, 350)}...\n- **Recherche disponible** : Vous pouvez me poser des questions précises sur le contenu de ce document ou me demander de créer un quiz basé dessus.`;
+    return { reply, pending_actions, intent, sources };
+  }
+
+  // 2. Détection : Publication d'évaluation (QCM, examen, quiz, test)
   if (
     lastMsg.includes("éval") ||
     lastMsg.includes("eval") ||
@@ -102,15 +129,38 @@ export async function localAgentProcess(messages: AiChatMessage[]): Promise<AiAg
     return { reply, pending_actions, intent, sources };
   }
 
-  // 2. Détection : Pointage / Présences
+  // 3. Détection : Pointage / Présences / Assiduité & Anomalies
   if (
+    lastMsg.includes("anomalie") ||
     lastMsg.includes("présence") ||
     lastMsg.includes("presence") ||
     lastMsg.includes("pointage") ||
     lastMsg.includes("absent") ||
-    lastMsg.includes("appel")
+    lastMsg.includes("assiduité") ||
+    lastMsg.includes("assiduite") ||
+    /\bl'appel\b|\bfaire l'appel\b|\bpointage\b/i.test(lastMsg)
   ) {
     intent = "ATTENDANCE";
+
+    // Détection d'anomalies
+    if (lastMsg.includes("anomalie") || lastMsg.includes("inactif")) {
+      const students = db?.students || [];
+      const attendance = db?.attendance || [];
+      const studentIdsWithAttendance = new Set(attendance.map((a: any) => a.studentId || a.student_id));
+      const inactiveStudents = students.filter((s: any) => !studentIdsWithAttendance.has(s.id));
+
+      sources.push("Registre des assiduités de l'établissement");
+      if (inactiveStudents.length > 0) {
+        reply = `J'ai détecté une anomalie : **${inactiveStudents.length} apprenant(s)** sans aucun pointage enregistré : ${inactiveStudents
+          .slice(0, 3)
+          .map((s: any) => `${s.prenom || ""} ${s.nom || s.id}`)
+          .join(", ")}. Une relance par message est recommandée.`;
+      } else {
+        reply = `Aucune anomalie critique détectée. Tous les apprenants actifs disposent d'enregistrements réguliers de présence.`;
+      }
+      return { reply, pending_actions, intent, sources };
+    }
+
     const students = db?.students || [];
     const matchedModule = db?.modules?.[0] || { id: "mod-01", titre: "Module Général" };
     const sampleIds = students.slice(0, 3).map((s: any) => s.id);
@@ -132,7 +182,7 @@ export async function localAgentProcess(messages: AiChatMessage[]): Promise<AiAg
     }
   }
 
-  // 3. Détection : Devoir / Document
+  // 4. Détection : Devoir / TP / Exercice
   if (lastMsg.includes("devoir") || lastMsg.includes("tp") || lastMsg.includes("exercice")) {
     intent = "PEDAGOGY";
     const matchedModule = db?.modules?.[0] || { id: "mod-01", titre: "Module Général" };
@@ -153,7 +203,144 @@ export async function localAgentProcess(messages: AiChatMessage[]): Promise<AiAg
     return { reply, pending_actions, intent, sources };
   }
 
-  // 4. Détection : RAG documentaire / Informations école / Règlement
+  // 5. Détection : Explication pédagogique (Chiffrement, Réseau, Sécurité)
+  if (
+    lastMsg.includes("explique") ||
+    lastMsg.includes("qu'est-ce") ||
+    lastMsg.includes("comment fonctionne") ||
+    lastMsg.includes("définition") ||
+    lastMsg.includes("asymétrique") ||
+    lastMsg.includes("symétrique") ||
+    lastMsg.includes("rsa") ||
+    lastMsg.includes("chiffrement") ||
+    lastMsg.includes("tls") ||
+    lastMsg.includes("osi")
+  ) {
+    intent = "PEDAGOGY";
+    sources.push("Cours de Fondamentaux de la Cryptographie & Réseaux");
+
+    if (lastMsg.includes("asymétrique") || lastMsg.includes("rsa") || lastMsg.includes("clé publique")) {
+      reply = `En cryptographie asymétrique (comme **RSA**), on utilise une paire de clés mathématiquement liées :\n\n1. **Clé publique** : Distribuée à tout le monde. N'importe qui peut l'utiliser pour chiffrer un message destiné au destinataire.\n2. **Clé privée** : Strictement secrète et conservée par le propriétaire. Elle seule permet de déchiffrer les messages reçus.\n\n💡 *Analogie simple* : C'est comme une boîte aux lettres. Tout le monde peut y glisser une lettre par la fente (clé publique), mais seul le propriétaire dispose de la clé pour ouvrir la porte et lire le courrier (clé privée).`;
+    } else if (lastMsg.includes("osi") || lastMsg.includes("réseau") || lastMsg.includes("routage")) {
+      reply = `Le modèle **OSI** structure les communications réseau en 7 couches distinctes :\n\n- **Couche 3 (Réseau)** : Gère le routage et l'adressage IP des paquets.\n- **Couche 4 (Transport)** : Assure la fiabilité et le contrôle de flux (TCP/UDP).\n- **Couche 7 (Application)** : Interface utilisateur directe (HTTPS, SSH, DNS).\n\nCette séparation garantit l'interopérabilité entre constructeurs et protocoles.`;
+    } else {
+      reply = `Voici l'explication conceptuelle demandée :\n\nEn cybersécurité, le principe fondamental repose sur la triade **CIA** :\n- **Confidentialité** : Protection contre l'accès non autorisé (chiffrement).\n- **Intégrité** : Garantie que la donnée n'a pas été altérée (hachage, signature).\n- **Disponibilité** : Accessibilité continue des systèmes et services pour les ayants droit.`;
+    }
+    return { reply, pending_actions, intent, sources };
+  }
+
+  // 6. Détection : Communication & Messages
+  if (
+    lastMsg.includes("message") ||
+    lastMsg.includes("écri") ||
+    lastMsg.includes("contact") ||
+    lastMsg.includes("notif") ||
+    lastMsg.includes("annonc") ||
+    lastMsg.includes("diffus")
+  ) {
+    intent = "COMMUNICATION";
+    const students = db?.students || [];
+    const targetStudent = students[0];
+
+    if (lastMsg.includes("notif") || lastMsg.includes("annonc") || lastMsg.includes("diffus")) {
+      const action_id = "prop-notif-" + Date.now();
+      pending_actions.push({
+        action_id,
+        tool_name: "create_notification",
+        arguments: {
+          title: "Annonce importante : Planning et évaluations",
+          body: "Veuillez consulter l'espace pédagogique pour prendre connaissance du calendrier des examens.",
+          type: "info",
+          target_role: "all",
+        },
+      });
+      reply = `J'ai préparé la diffusion de l'annonce système pour l'ensemble des apprenants et formateurs. Vous pouvez la valider ci-dessous.`;
+      return { reply, pending_actions, intent, sources };
+    }
+
+    const action_id = "prop-msg-" + Date.now();
+    const recipientId = targetStudent?.id || "SN-2026-001";
+    const recipientName = targetStudent ? `${targetStudent.prenom} ${targetStudent.nom}` : "l'apprenant";
+
+    pending_actions.push({
+      action_id,
+      tool_name: "send_message",
+      arguments: {
+        recipient_ids: [recipientId],
+        subject: "Rappel Pédagogique — Suivi de séance",
+        body: `Bonjour ${recipientName}, nous vous informons que les supports de la prochaine séance sont en ligne sur la plateforme.`,
+      },
+    });
+    reply = `Le projet de message pour **${recipientName}** (${recipientId}) a été rédigé. Confirmez l'envoi pour le transmettre dans la messagerie interne.`;
+    return { reply, pending_actions, intent, sources };
+  }
+
+  // 7. Détection : Finances, Facturation & Solde
+  if (
+    lastMsg.includes("factur") ||
+    lastMsg.includes("solde") ||
+    lastMsg.includes("impayé") ||
+    lastMsg.includes("impaye") ||
+    lastMsg.includes("financ") ||
+    lastMsg.includes("trésor") ||
+    lastMsg.includes("tresor") ||
+    lastMsg.includes("paiement")
+  ) {
+    intent = "ADMIN_FINANCE";
+    sources.push("Registre de Trésorerie & Facturation");
+
+    if (lastMsg.includes("émet") || lastMsg.includes("emet") || lastMsg.includes("crée") || lastMsg.includes("creer")) {
+      const students = db?.students || [];
+      const sid = students[0]?.id || "SN-2026-001";
+      const action_id = "prop-inv-" + Date.now();
+      pending_actions.push({
+        action_id,
+        tool_name: "create_invoice_draft",
+        arguments: {
+          student_id: sid,
+          libelle: "Échéance Formation — Semestre 1",
+          montant: 50000,
+          type: "formation",
+        },
+      });
+      reply = `La proposition de facture d'un montant de **50 000 FCFA** pour l'apprenant **${sid}** est prête pour émission.`;
+      return { reply, pending_actions, intent, sources };
+    }
+
+    const invoices = db?.invoices || [];
+    const payments = db?.payments || [];
+    const totalFacture = invoices.reduce((acc: number, inv: any) => acc + Number(inv.montant || 0), 0);
+    const totalPaye = payments.reduce((acc: number, p: any) => acc + Number(p.montant || 0), 0);
+    const impaye = Math.max(0, totalFacture - totalPaye);
+
+    const fmt = (n: number) => n.toLocaleString("fr-FR").replace(/[\u202F\u00A0]/g, " ");
+
+    reply = `Voici la synthèse financière actuelle :\n\n- **Total facturé** : ${fmt(totalFacture)} FCFA\n- **Total recouvré** : ${fmt(totalPaye)} FCFA\n- **Solde d'impayés restant** : ${fmt(impaye)} FCFA\n- **Factures émises** : ${invoices.length} dossier(s).`;
+    return { reply, pending_actions, intent, sources };
+  }
+
+  // 8. Détection : Statistiques et recherche apprenants / profs
+  if (
+    lastMsg.includes("stat") ||
+    lastMsg.includes("combien") ||
+    lastMsg.includes("apprenant") ||
+    lastMsg.includes("élève") ||
+    lastMsg.includes("eleve") ||
+    lastMsg.includes("inscrit") ||
+    lastMsg.includes("prof") ||
+    lastMsg.includes("formateur")
+  ) {
+    intent = "GENERAL";
+    const students = db?.students || [];
+    const teachers = db?.teachers || [];
+    const modules = db?.modules || [];
+    sources.push("Base de données centrale Sentinelles Numériques");
+
+    reply = `Voici les statistiques actuelles de la plateforme :\n\n- **Apprenants enregistrés** : ${students.length}\n- **Formateurs actifs** : ${teachers.length}\n- **Modules pédagogiques** : ${modules.length}\n\nVous pouvez me demander la fiche détaillée d'un apprenant ou d'un enseignant spécifique.`;
+    return { reply, pending_actions, intent, sources };
+  }
+
+  // 9. Détection : RAG documentaire / Informations école / Règlement
   if (
     lastMsg.includes("règlement") ||
     lastMsg.includes("reglement") ||
@@ -168,7 +355,7 @@ export async function localAgentProcess(messages: AiChatMessage[]): Promise<AiAg
     return { reply, pending_actions, intent, sources };
   }
 
-  // 5. Horaires & Emploi du temps
+  // 10. Horaires & Emploi du temps
   if (lastMsg.includes("heure") || lastMsg.includes("planning") || lastMsg.includes("cours") || lastMsg.includes("salle")) {
     intent = "SCHEDULE";
     sources.push("Emploi du temps hebdomadaire officiel");
@@ -177,7 +364,7 @@ export async function localAgentProcess(messages: AiChatMessage[]): Promise<AiAg
   }
 
   // Réponse d'accueil naturelle et humaine
-  reply = `Bonjour ! Je suis **SENTINEL'S AI**, connecté aux modules et données de Sentinelles Numériques.\n\nJe peux vous aider à :\n- **Consulter vos données** (planning, présences, notes et modules).\n- **Préparer des actions** (quiz QCM, publication de devoirs, pointage des présences).\n- **Rechercher dans les connaissances** (supports de cours, règlements, critères de certification).\n\nQue souhaitez-vous explorer ?`;
+  reply = `Bonjour ! Je suis **SENTINEL'S AI**, connecté aux modules et données de Sentinelles Numériques.\n\nJe peux vous aider à :\n- **Consulter vos données** (planning, présences, notes et modules).\n- **Préparer des actions** (quiz QCM, publication de devoirs, pointage des présences, factures et messages).\n- **Rechercher dans les connaissances** (supports de cours, règlements, critères de certification).\n\nQue souhaitez-vous explorer ?`;
   return { reply, pending_actions, intent, sources };
 }
 
@@ -256,6 +443,64 @@ export async function localAgentExecute(action: AiPendingAction): Promise<{ ok: 
       saveLocalDB(db);
     }
     return { ok: true, result: { inserted: args.student_ids?.length || 0 } };
+  }
+
+  if (tool_name === "send_message") {
+    if (db) {
+      db.messages = db.messages || [];
+      const recipientIds = Array.isArray(args.recipient_ids)
+        ? args.recipient_ids
+        : [args.recipient_ids || "SN-2026-001"];
+      const newMessages = recipientIds.map((toId: string, idx: number) => ({
+        id: "msg-" + Date.now() + "-" + idx,
+        fromId: args.from_id || "admin",
+        fromName: args.from_name || "Administration SENTINEL'S",
+        toId,
+        subject: args.subject || "Message officiel",
+        body: args.body || "",
+        date: new Date().toISOString(),
+        lu: false,
+      }));
+      db.messages.push(...newMessages);
+      saveLocalDB(db);
+    }
+    return { ok: true, result: { sent: args.recipient_ids?.length || 1, subject: args.subject } };
+  }
+
+  if (tool_name === "create_notification") {
+    if (db) {
+      db.notifications = db.notifications || [];
+      const newNotif = {
+        id: "notif-" + Date.now(),
+        toId: args.target_role || "all",
+        title: args.title || "Information SENTINEL'S",
+        body: args.body || "",
+        type: args.type || "info",
+        date: new Date().toISOString(),
+        lu: false,
+      };
+      db.notifications.unshift(newNotif);
+      saveLocalDB(db);
+    }
+    return { ok: true, result: { notification_id: "notif-" + Date.now(), title: args.title } };
+  }
+
+  if (tool_name === "create_invoice_draft") {
+    if (db) {
+      db.invoices = db.invoices || [];
+      const newInvoice = {
+        id: "inv-" + Date.now(),
+        studentId: args.student_id,
+        libelle: args.libelle || "Frais de formation",
+        montant: Number(args.montant) || 0,
+        type: args.type || "formation",
+        date: new Date().toISOString().slice(0, 10),
+        createdBy: "sentinel-ai",
+      };
+      db.invoices.push(newInvoice);
+      saveLocalDB(db);
+    }
+    return { ok: true, result: { invoice_id: "inv-" + Date.now(), montant: args.montant } };
   }
 
   return { ok: true, result: { executed: true } };
