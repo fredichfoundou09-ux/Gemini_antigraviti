@@ -1,5 +1,6 @@
 import { UserContext } from "./auth.ts";
 import { searchKnowledgeBase } from "./rag.ts";
+import { WikipediaProvider, DocumentationProvider, AggregateWebSearchProvider } from "./webSearch.ts";
 
 export const WRITE_TOOLS = new Set([
   "valider_presence",
@@ -7,17 +8,198 @@ export const WRITE_TOOLS = new Set([
   "publier_evaluation",
   "send_message",
   "create_notification",
+  "manage_notifications",
   "create_invoice_draft",
 ]);
 
-// Définitions des outils au format standard OpenAI / NVIDIA NIM
+// Registre standard OpenAI / NVIDIA NIM
 export const TOOLS = [
-  // --- NIVEAU 1 : LECTURE ---
+  // =========================================================================
+  // 1. WEB SEARCH, WIKIPEDIA & SOURCES EXTERNES
+  // =========================================================================
+  {
+    type: "function",
+    function: {
+      name: "search_wikipedia",
+      description: "Recherche encyclopédique sur Wikipédia en français (personnages historiques, concepts scientifiques, définitions, histoire).",
+      parameters: {
+        type: "object",
+        properties: { query: { type: "string", description: "Terme ou sujet à rechercher sur Wikipédia" } },
+        required: ["query"],
+      },
+    },
+  },
+  {
+    type: "function",
+    function: {
+      name: "search_web",
+      description: "Recherche sur le Web et dans la documentation technique officielle (RFC IETF, OWASP, NIST, MDN).",
+      parameters: {
+        type: "object",
+        properties: { query: { type: "string", description: "Mots-clés de recherche technique ou web" } },
+        required: ["query"],
+      },
+    },
+  },
+  {
+    type: "function",
+    function: {
+      name: "fetch_web_page",
+      description: "Récupère le contenu détaillé d'un article Wikipédia ou d'une documentation technique.",
+      parameters: {
+        type: "object",
+        properties: { title_or_url: { type: "string", description: "Titre de l'article ou URL cible" } },
+        required: ["title_or_url"],
+      },
+    },
+  },
+
+  // =========================================================================
+  // 2. OUTILS APPRENANT (ESPACE ÉTUDIANT SCOPÉ)
+  // =========================================================================
+  {
+    type: "function",
+    function: {
+      name: "get_my_next_course",
+      description: "Récupère le prochain cours prévu dans l'emploi du temps de l'apprenant (heure, salle, module, enseignant).",
+      parameters: { type: "object", properties: {}, required: [] },
+    },
+  },
+  {
+    type: "function",
+    function: {
+      name: "get_my_schedule",
+      description: "Consulte l'emploi du temps complet de l'apprenant pour la journée ou la semaine.",
+      parameters: {
+        type: "object",
+        properties: { date: { type: "string", description: "Date cible AAAA-MM-JJ" } },
+        required: [],
+      },
+    },
+  },
+  {
+    type: "function",
+    function: {
+      name: "get_my_profile",
+      description: "Récupère le profil complet de l'apprenant connecté (coordonnées, formation, statut de scolarité, solde).",
+      parameters: { type: "object", properties: {}, required: [] },
+    },
+  },
+  {
+    type: "function",
+    function: {
+      name: "get_my_courses",
+      description: "Liste les cours, chapitres et devoirs disponibles pour les modules de l'apprenant.",
+      parameters: {
+        type: "object",
+        properties: { module_id: { type: "string", description: "Optionnel : filtrer par module" } },
+        required: [],
+      },
+    },
+  },
+  {
+    type: "function",
+    function: {
+      name: "get_my_attendance",
+      description: "Consulte le bilan d'assiduité personnel de l'apprenant (présences, retards, absences).",
+      parameters: { type: "object", properties: {}, required: [] },
+    },
+  },
+  {
+    type: "function",
+    function: {
+      name: "get_my_grades",
+      description: "Récupère le relevé des notes et évaluations passées par l'apprenant.",
+      parameters: { type: "object", properties: {}, required: [] },
+    },
+  },
+  {
+    type: "function",
+    function: {
+      name: "explain_course",
+      description: "Explique un concept complexe d'un cours avec clarté pédagogique, métaphores et exemples progressifs.",
+      parameters: {
+        type: "object",
+        properties: {
+          concept: { type: "string", description: "Notion à expliquer (ex: chiffrement RSA, routage BGP, handshake TLS)" },
+          niveau: { type: "string", enum: ["debutant", "intermediaire", "avance"], description: "Niveau d'explication" },
+        },
+        required: ["concept"],
+      },
+    },
+  },
+  {
+    type: "function",
+    function: {
+      name: "create_practice_exercise",
+      description: "Génère un exercice d'entraînement interactif adapté au niveau de l'apprenant pour réviser un cours.",
+      parameters: {
+        type: "object",
+        properties: {
+          sujet: { type: "string", description: "Matière ou concept ciblé" },
+          type: { type: "string", enum: ["qcm", "cas_pratique", "questions_courtes"] },
+        },
+        required: ["sujet"],
+      },
+    },
+  },
+
+  // =========================================================================
+  // 3. OUTILS FORMATEUR & INGÉNIERIE PÉDAGOGIQUE
+  // =========================================================================
+  {
+    type: "function",
+    function: {
+      name: "get_assigned_students",
+      description: "Liste les apprenants inscrits aux modules attribués à l'enseignant.",
+      parameters: {
+        type: "object",
+        properties: { module_id: { type: "string", description: "Identifiant du module" } },
+        required: [],
+      },
+    },
+  },
+  {
+    type: "function",
+    function: {
+      name: "create_quiz",
+      description: "Conçoit un quiz d'évaluation équilibré (QCM, Vrai/Faux, courtes) basé sur les cours du module.",
+      parameters: {
+        type: "object",
+        properties: {
+          module_id: { type: "string" },
+          sujet: { type: "string" },
+          nombre_questions: { type: "number" },
+        },
+        required: ["sujet"],
+      },
+    },
+  },
+  {
+    type: "function",
+    function: {
+      name: "generate_lesson_plan",
+      description: "Construit un déroulé pédagogique et plan de cours détaillé pour une séance de formation.",
+      parameters: {
+        type: "object",
+        properties: {
+          titre_seance: { type: "string" },
+          duree_heures: { type: "number" },
+          objectifs: { type: "string" },
+        },
+        required: ["titre_seance"],
+      },
+    },
+  },
+
+  // =========================================================================
+  // 4. OUTILS D'ADMINISTRATION & DE PILOTAGE
+  // =========================================================================
   {
     type: "function",
     function: {
       name: "get_dashboard_stats",
-      description: "Retourne les statistiques synthétiques adaptées au rôle de l'utilisateur (étudiants, formateurs, cours, assiduité).",
+      description: "Retourne les statistiques synthétiques globales adaptées au rôle (élèves, enseignants, modules).",
       parameters: { type: "object", properties: {}, required: [] },
     },
   },
@@ -25,10 +207,22 @@ export const TOOLS = [
     type: "function",
     function: {
       name: "search_student",
-      description: "Recherche un ou plusieurs apprenants par nom, prénom ou identifiant.",
+      description: "Recherche un ou plusieurs apprenants par nom, prénom ou matricule.",
       parameters: {
         type: "object",
-        properties: { query: { type: "string", description: "Terme de recherche (nom ou identifiant)" } },
+        properties: { query: { type: "string", description: "Nom ou identifiant" } },
+        required: ["query"],
+      },
+    },
+  },
+  {
+    type: "function",
+    function: {
+      name: "search_students",
+      description: "Alias pluriel pour search_student.",
+      parameters: {
+        type: "object",
+        properties: { query: { type: "string" } },
         required: ["query"],
       },
     },
@@ -37,10 +231,10 @@ export const TOOLS = [
     type: "function",
     function: {
       name: "get_student",
-      description: "Récupère les informations complètes d'un apprenant (profil, formation, solde).",
+      description: "Affiche le dossier complet d'un apprenant (profil, formation, coordonnées, solde).",
       parameters: {
         type: "object",
-        properties: { student_id: { type: "string", description: "Identifiant étudiant (ex: SN-2026-0001)" } },
+        properties: { student_id: { type: "string" } },
         required: ["student_id"],
       },
     },
@@ -49,10 +243,22 @@ export const TOOLS = [
     type: "function",
     function: {
       name: "search_teacher",
-      description: "Recherche des formateurs et affiche leurs spécialités et modules enseignés.",
+      description: "Recherche des enseignants par nom ou spécialité technique.",
       parameters: {
         type: "object",
-        properties: { query: { type: "string", description: "Nom ou spécialité du formateur" } },
+        properties: { query: { type: "string" } },
+        required: ["query"],
+      },
+    },
+  },
+  {
+    type: "function",
+    function: {
+      name: "search_teachers",
+      description: "Alias pluriel pour search_teacher.",
+      parameters: {
+        type: "object",
+        properties: { query: { type: "string" } },
         required: ["query"],
       },
     },
@@ -61,12 +267,12 @@ export const TOOLS = [
     type: "function",
     function: {
       name: "get_schedule",
-      description: "Récupère l'emploi du temps pour une date ou une semaine donnée.",
+      description: "Consulte l'emploi du temps officiel par date, module ou enseignant.",
       parameters: {
         type: "object",
         properties: {
-          date: { type: "string", description: "Date cible AAAA-MM-JJ (par défaut aujourd'hui)" },
-          module_id: { type: "string", description: "Identifiant optionnel d'un module" },
+          date: { type: "string" },
+          module_id: { type: "string" },
         },
         required: [],
       },
@@ -76,13 +282,13 @@ export const TOOLS = [
     type: "function",
     function: {
       name: "get_attendance",
-      description: "Consulte le registre des présences et absences pour une date ou un module.",
+      description: "Consulte le registre des présences et absences par date ou module.",
       parameters: {
         type: "object",
         properties: {
-          module_id: { type: "string", description: "Identifiant du module" },
-          date: { type: "string", description: "Date au format AAAA-MM-JJ" },
-          student_id: { type: "string", description: "Identifiant de l'apprenant" },
+          module_id: { type: "string" },
+          date: { type: "string" },
+          student_id: { type: "string" },
         },
         required: [],
       },
@@ -92,7 +298,7 @@ export const TOOLS = [
     type: "function",
     function: {
       name: "get_finance_summary",
-      description: "Affiche le récapitulatif financier global (recettes, impayés, factures) — réservé à l'administration.",
+      description: "Synthèse de trésorerie (recettes globales, total facturé, solde impayés).",
       parameters: { type: "object", properties: {}, required: [] },
     },
   },
@@ -100,10 +306,10 @@ export const TOOLS = [
     type: "function",
     function: {
       name: "get_student_balance",
-      description: "Consulte le solde et l'historique des règlements d'un apprenant.",
+      description: "Consulte le solde et les règlements d'un apprenant.",
       parameters: {
         type: "object",
-        properties: { student_id: { type: "string", description: "Identifiant de l'apprenant" } },
+        properties: { student_id: { type: "string" } },
         required: ["student_id"],
       },
     },
@@ -112,10 +318,10 @@ export const TOOLS = [
     type: "function",
     function: {
       name: "get_certificates",
-      description: "Liste les certificats émis ou obtenus avec leurs numéros de vérification.",
+      description: "Consulte les attestations officielles émises ou vérifie un matricule.",
       parameters: {
         type: "object",
-        properties: { student_id: { type: "string", description: "Optionnel : filtrer par apprenant" } },
+        properties: { student_id: { type: "string" } },
         required: [],
       },
     },
@@ -124,10 +330,10 @@ export const TOOLS = [
     type: "function",
     function: {
       name: "search_courses",
-      description: "Recherche parmi les cours, chapitres et devoirs publiés.",
+      description: "Recherche dans les cours et supports publiés.",
       parameters: {
         type: "object",
-        properties: { query: { type: "string", description: "Titre ou mot-clé de recherche" } },
+        properties: { query: { type: "string" } },
         required: ["query"],
       },
     },
@@ -136,12 +342,12 @@ export const TOOLS = [
     type: "function",
     function: {
       name: "search_documents",
-      description: "Recherche documentaire (RAG) dans les guides, règlements, FAQ et manuels de l'école.",
+      description: "Recherche documentaire (RAG) dans les guides, règlements et manuels de l'école.",
       parameters: {
         type: "object",
         properties: {
-          query: { type: "string", description: "Question ou mot-clé pour le RAG" },
-          category: { type: "string", enum: ["general", "rules", "faq", "course", "system"], description: "Catégorie documentaire" },
+          query: { type: "string" },
+          category: { type: "string", enum: ["general", "rules", "faq", "course", "system"] },
         },
         required: ["query"],
       },
@@ -151,45 +357,11 @@ export const TOOLS = [
     type: "function",
     function: {
       name: "detecter_anomalies",
-      description: "Détecte les apprenants inactifs ou non pointés depuis plus d'un certain nombre de jours.",
+      description: "Détecte les apprenants inactifs ou en situation d'absentéisme récurrent.",
       parameters: {
         type: "object",
-        properties: { jours: { type: "number", description: "Nombre de jours d'inactivité (défaut 14)" } },
+        properties: { jours: { type: "number" } },
         required: [],
-      },
-    },
-  },
-
-  // --- NIVEAU 2 : PRÉPARATION / BROUILLONS ---
-  {
-    type: "function",
-    function: {
-      name: "prepare_message",
-      description: "Prépare un projet de message pour un ou plusieurs utilisateurs cibles (ne l'envoie pas immédiatement).",
-      parameters: {
-        type: "object",
-        properties: {
-          recipient_ids: { type: "array", items: { type: "string" }, description: "Liste des UUIDs ou identifiants destinataires" },
-          subject: { type: "string", description: "Objet du message" },
-          body: { type: "string", description: "Contenu complet du message" },
-        },
-        required: ["recipient_ids", "subject", "body"],
-      },
-    },
-  },
-  {
-    type: "function",
-    function: {
-      name: "prepare_notification",
-      description: "Prépare une annonce ou notification système sans la diffuser immédiatement.",
-      parameters: {
-        type: "object",
-        properties: {
-          title: { type: "string", description: "Titre de la notification" },
-          body: { type: "string", description: "Corps du texte" },
-          target_role: { type: "string", enum: ["all", "teacher", "student", "partner"], description: "Public cible" },
-        },
-        required: ["title", "body"],
       },
     },
   },
@@ -197,12 +369,12 @@ export const TOOLS = [
     type: "function",
     function: {
       name: "generate_report",
-      description: "Génère un rapport de synthèse (présences, académique ou financier) prêt à être consulté.",
+      description: "Génère un rapport synthétique (présences, académique ou financier).",
       parameters: {
         type: "object",
         properties: {
-          type: { type: "string", enum: ["presences", "pedagogique", "financier", "global"], description: "Type de rapport" },
-          periode: { type: "string", description: "Période couverte (ex: mois en cours, trimestre)" },
+          type: { type: "string", enum: ["presences", "pedagogique", "financier", "global"] },
+          periode: { type: "string" },
         },
         required: ["type"],
       },
@@ -211,52 +383,34 @@ export const TOOLS = [
   {
     type: "function",
     function: {
-      name: "create_learning_exercise",
-      description: "Génère un exercice pratique, quiz ou étude de cas pédagogique adapté au module et au niveau.",
+      name: "remember_information",
+      description: "Enregistre une information contextuelle (préférence d'apprentissage, consigne récurrente, fait).",
       parameters: {
         type: "object",
         properties: {
-          sujet: { type: "string", description: "Thématique ciblée (ex: cryptographie symétrique, routage OSPF)" },
-          niveau: { type: "string", enum: ["debutant", "intermediaire", "avance"], description: "Niveau de difficulté" },
-          nombre_questions: { type: "number", description: "Nombre de questions souhaité" },
+          content: { type: "string", description: "Information exacte à mémoriser" },
+          type: { type: "string", enum: ["fact", "preference", "learning_context"] },
         },
-        required: ["sujet"],
-      },
-    },
-  },
-  {
-    type: "function",
-    function: {
-      name: "create_schedule_draft",
-      description: "Prépare une proposition de séance de cours dans l'emploi du temps.",
-      parameters: {
-        type: "object",
-        properties: {
-          module_id: { type: "string" },
-          teacher_id: { type: "string" },
-          date: { type: "string", description: "Date AAAA-MM-JJ" },
-          heure_debut: { type: "string", description: "HH:MM" },
-          heure_fin: { type: "string", description: "HH:MM" },
-          salle: { type: "string" },
-        },
-        required: ["module_id", "date", "heure_debut", "heure_fin"],
+        required: ["content"],
       },
     },
   },
 
-  // --- NIVEAU 3 : ACTIONS SENSIBLES (CONFIRMATION REQUISE) ---
+  // =========================================================================
+  // 5. ACTIONS SENSIBLES DE NIVEAU 3 (CONFIRMATION REQUISE)
+  // =========================================================================
   {
     type: "function",
     function: {
       name: "valider_presence",
-      description: "Enregistre formellement les présences ou retards en base de données. NÉCESSITE UNE CONFIRMATION EXPLICITE.",
+      description: "Enregistre les présences de séance en base de données. NÉCESSITE CONFIRMATION.",
       parameters: {
         type: "object",
         properties: {
           module_id: { type: "string" },
-          student_ids: { type: "array", items: { type: "string" }, description: "Identifiants des étudiants pointés" },
+          student_ids: { type: "array", items: { type: "string" } },
           statut: { type: "string", enum: ["present", "absent", "retard"] },
-          date: { type: "string", description: "Date AAAA-MM-JJ" },
+          date: { type: "string" },
           salle: { type: "string" },
         },
         required: ["module_id", "student_ids", "statut"],
@@ -267,7 +421,7 @@ export const TOOLS = [
     type: "function",
     function: {
       name: "publier_devoir",
-      description: "Publie un devoir ou document de cours officiel. NÉCESSITE UNE CONFIRMATION EXPLICITE.",
+      description: "Publie un devoir officiel pour un module. NÉCESSITE CONFIRMATION.",
       parameters: {
         type: "object",
         properties: {
@@ -285,14 +439,14 @@ export const TOOLS = [
     type: "function",
     function: {
       name: "publier_evaluation",
-      description: "Crée et publie une évaluation complète avec questions QCM/VF/courtes. NÉCESSITE UNE CONFIRMATION EXPLICITE.",
+      description: "Crée et publie une évaluation complète avec questions QCM/VF/courtes. NÉCESSITE CONFIRMATION.",
       parameters: {
         type: "object",
         properties: {
           module_id: { type: "string" },
           titre: { type: "string" },
-          duree: { type: "number", description: "Durée en minutes" },
-          bareme: { type: "number", description: "Total barème (ex: 20)" },
+          duree: { type: "number" },
+          bareme: { type: "number" },
           questions: {
             type: "array",
             items: {
@@ -316,7 +470,7 @@ export const TOOLS = [
     type: "function",
     function: {
       name: "send_message",
-      description: "Envoie un message formel dans la messagerie interne. NÉCESSITE UNE CONFIRMATION EXPLICITE.",
+      description: "Envoie un message formel dans la messagerie interne. NÉCESSITE CONFIRMATION.",
       parameters: {
         type: "object",
         properties: {
@@ -332,7 +486,7 @@ export const TOOLS = [
     type: "function",
     function: {
       name: "create_notification",
-      description: "Diffuse une notification aux utilisateurs cibles. NÉCESSITE UNE CONFIRMATION EXPLICITE.",
+      description: "Diffuse une notification système aux utilisateurs. NÉCESSITE CONFIRMATION.",
       parameters: {
         type: "object",
         properties: {
@@ -348,7 +502,7 @@ export const TOOLS = [
     type: "function",
     function: {
       name: "create_invoice_draft",
-      description: "Émet un appel de paiement / facture pour un apprenant. NÉCESSITE UNE CONFIRMATION EXPLICITE.",
+      description: "Émet un appel de paiement / facture pour un apprenant. NÉCESSITE CONFIRMATION.",
       parameters: {
         type: "object",
         properties: {
@@ -363,12 +517,209 @@ export const TOOLS = [
   },
 ];
 
-/** Exécution concrète d'un outil avec les droits RLS du client connecté */
+/**
+ * Exécute un outil autorisé de manière sécurisée sous le contexte d'accès de l'utilisateur
+ */
 export async function executeTool(user: UserContext, name: string, args: Record<string, any>): Promise<any> {
   const sb = user.sbUser;
 
   switch (name) {
-    // --- LECTURE ---
+    // =========================================================================
+    // RECHERCHE WEB & WIKIPÉDIA
+    // =========================================================================
+    case "search_wikipedia": {
+      const provider = new WikipediaProvider("fr");
+      const results = await provider.search(args.query || "");
+      return { query: args.query, results, provider: "Wikipédia" };
+    }
+
+    case "search_web": {
+      const provider = new AggregateWebSearchProvider();
+      const results = await provider.search(args.query || "");
+      return { query: args.query, results, provider: "Recherche Web / Documentation" };
+    }
+
+    case "fetch_web_page": {
+      const provider = new WikipediaProvider("fr");
+      const summary = await provider.getSummary(args.title_or_url || "");
+      return { title: args.title_or_url, extract: summary || "Contenu non trouvé ou indisponible." };
+    }
+
+    // =========================================================================
+    // OUTILS APPRENANT SCOPÉS
+    // =========================================================================
+    case "get_my_next_course": {
+      const today = new Date().toISOString().slice(0, 10);
+      const nowTime = new Date().toTimeString().slice(0, 5);
+
+      let query = sb
+        .from("schedule")
+        .select("id, date, jour, heure_debut, heure_fin, salle, module_id, modules(titre, code)")
+        .gte("date", today)
+        .order("date", { ascending: true })
+        .order("heure_debut", { ascending: true })
+        .limit(1);
+
+      const { data, error } = await query;
+      if (error) throw error;
+      const nextCourse = data?.[0] || null;
+
+      if (!nextCourse) {
+        return { message: "Aucun prochain cours prévu dans votre planning immédiat." };
+      }
+
+      return {
+        prochain_cours: {
+          module: nextCourse.modules?.titre || "Module",
+          date: nextCourse.date,
+          horaire: `${nextCourse.heure_debut} - ${nextCourse.heure_fin}`,
+          salle: nextCourse.salle || "Salle Virtuelle",
+        },
+      };
+    }
+
+    case "get_my_schedule": {
+      const date = args.date || new Date().toISOString().slice(0, 10);
+      const { data, error } = await sb
+        .from("schedule")
+        .select("id, date, jour, heure_debut, heure_fin, salle, module_id, modules(titre)")
+        .gte("date", date)
+        .limit(10);
+      if (error) throw error;
+      return { emploi_du_temps: data };
+    }
+
+    case "get_my_profile": {
+      if (!user.studentId) {
+        return { user_id: user.userId, nom: user.name, role: user.role };
+      }
+      const { data, error } = await sb
+        .from("students")
+        .select("id, nom, prenom, email, telephone, statut, formation_id, date_inscription")
+        .eq("id", user.studentId)
+        .maybeSingle();
+      if (error) throw error;
+      return { profil: data };
+    }
+
+    case "get_my_courses": {
+      const { data, error } = await sb
+        .from("courses")
+        .select("id, titre, description, type, content, date_publication, modules(titre)")
+        .eq("publie", true)
+        .limit(10);
+      if (error) throw error;
+      return { cours_disponibles: data };
+    }
+
+    case "get_my_attendance": {
+      if (!user.studentId) return { presences: [] };
+      const { data, error } = await sb
+        .from("attendance")
+        .select("id, date, heure, statut, salle, module_id")
+        .eq("student_id", user.studentId)
+        .order("date", { ascending: false })
+        .limit(20);
+      if (error) throw error;
+
+      const presents = (data || []).filter((p: any) => p.statut === "present").length;
+      const retards = (data || []).filter((p: any) => p.statut === "retard").length;
+      const absents = (data || []).filter((p: any) => p.statut === "absent").length;
+
+      return {
+        presences_detail: data,
+        synthese: { presents, retards, absents, total: data?.length || 0 },
+      };
+    }
+
+    case "get_my_grades": {
+      if (!user.studentId) return { notes: [] };
+      const { data, error } = await sb
+        .from("test_results")
+        .select("id, note, pourcentage, date, statut, tests(titre, bareme)")
+        .eq("student_id", user.studentId)
+        .order("date", { ascending: false })
+        .limit(15);
+      if (error) throw error;
+      return { notes_obtenues: data };
+    }
+
+    case "explain_course": {
+      return {
+        concept: args.concept,
+        niveau: args.niveau || "debutant",
+        explication_pedagogique: `D'après les référentiels de cours, voici l'explication progressive sur ${args.concept}.`,
+      };
+    }
+
+    case "create_practice_exercise": {
+      return {
+        exercice_entrainement: {
+          sujet: args.sujet,
+          type: args.type || "qcm",
+          enonce: `Exercice d'application préparé pour vous sur : ${args.sujet}`,
+          questions: [
+            {
+              type: "qcm",
+              enonce: `Quelle est la propriété essentielle de ${args.sujet} ?`,
+              options: ["Authenticité", "Intégrité", "Confidentialité", "Disponibilité"],
+              bonne_reponse: "Confidentialité",
+              explication: "Notion centrale vue en séance de formation.",
+            },
+          ],
+        },
+      };
+    }
+
+    // =========================================================================
+    // OUTILS ENSEIGNANT
+    // =========================================================================
+    case "get_assigned_students": {
+      const { data: students, error } = await sb
+        .from("students")
+        .select("id, nom, prenom, statut, formation_id")
+        .limit(30);
+      if (error) throw error;
+      return { apprenants_assignes: students, total: students?.length ?? 0 };
+    }
+
+    case "create_quiz": {
+      return {
+        quiz_propose: {
+          module_id: args.module_id || "general",
+          sujet: args.sujet,
+          questions: [
+            {
+              type: "qcm",
+              enonce: `Question de synthèse sur ${args.sujet}`,
+              options: ["Option 1", "Option 2", "Option 3", "Option 4"],
+              bonne_reponse: "Option 2",
+              points: 5,
+            },
+          ],
+        },
+      };
+    }
+
+    case "generate_lesson_plan": {
+      return {
+        plan_de_cours: {
+          titre: args.titre_seance,
+          duree: `${args.duree_heures || 2} heures`,
+          objectifs: args.objectifs || "Acquisition des compétences pratiques et théoriques",
+          parties: [
+            "1. Introduction & Rappel des prérequis (15 min)",
+            "2. Notions théoriques fondamentales & Démonstration (45 min)",
+            "3. Travaux pratiques guidés (45 min)",
+            "4. Synthèse, QCM de contrôle & Clôture (15 min)",
+          ],
+        },
+      };
+    }
+
+    // =========================================================================
+    // OUTILS LECTURE ADMIN & GÉNÉRAL
+    // =========================================================================
     case "get_dashboard_stats": {
       const stats: Record<string, any> = { role: user.role };
       if (user.role === "superadmin" || user.role === "admin") {
@@ -390,7 +741,8 @@ export async function executeTool(user: UserContext, name: string, args: Record<
       return stats;
     }
 
-    case "search_student": {
+    case "search_student":
+    case "search_students": {
       const q = args.query || "";
       const { data, error } = await sb
         .from("students")
@@ -413,7 +765,8 @@ export async function executeTool(user: UserContext, name: string, args: Record<
       return { student: st };
     }
 
-    case "search_teacher": {
+    case "search_teacher":
+    case "search_teachers": {
       const q = args.query || "";
       const { data, error } = await sb
         .from("teachers")
@@ -514,72 +867,36 @@ export async function executeTool(user: UserContext, name: string, args: Record<
       return { anomalies, total: anomalies.length, seuil_jours: jours };
     }
 
-    // --- PRÉPARATION (NIVEAU 2) ---
-    case "prepare_message": {
-      return {
-        brouillon: {
-          destinataires: args.recipient_ids,
-          objet: args.subject,
-          contenu: args.body,
-          statut: "pret_pour_envoi",
-        },
-      };
-    }
-
-    case "prepare_notification": {
-      return {
-        notification_prete: {
-          titre: args.title,
-          message: args.body,
-          cible: args.target_role || "all",
-          date_preparation: new Date().toISOString(),
-        },
-      };
-    }
-
     case "generate_report": {
       return {
         rapport_synthese: {
-          type: args.type,
-          periode: args.periode || "Actuelle",
+          type: args.type || "global",
+          periode: args.periode || "Mois en cours",
+          statut: "genere",
           date_generation: new Date().toISOString(),
-          statut: "généré",
         },
       };
     }
 
-    case "create_learning_exercise": {
-      return {
-        exercice: {
-          sujet: args.sujet,
-          difficulte: args.niveau || "intermediaire",
-          questions_proposees: [
-            {
-              type: "qcm",
-              enonce: `Question de synthèse sur : ${args.sujet}`,
-              options: ["Option A - Définition de base", "Option B - Approche recommandée", "Option C - Vulnérabilité", "Option D - Hors sujet"],
-              bonne_reponse: "Option B - Approche recommandée",
-              explication: "Cette réponse reflète la bonne pratique standard en ingénierie de sécurité.",
-            },
-          ],
-        },
-      };
+    case "remember_information": {
+      try {
+        await sb.from("ai_memories").insert({
+          user_id: user.userId,
+          scope: "user",
+          type: args.type || "fact",
+          content: args.content,
+          source: "user_explicit",
+          confidence: 0.95,
+        });
+        return { ok: true, message: "Information mémorisée avec succès." };
+      } catch (err: any) {
+        return { ok: false, error: String(err.message || err) };
+      }
     }
 
-    case "create_schedule_draft": {
-      return {
-        creneau_brouillon: {
-          module_id: args.module_id,
-          date: args.date,
-          heure_debut: args.heure_debut,
-          heure_fin: args.heure_fin,
-          salle: args.salle || "Salle Virtuelle",
-          statut: "brouillon_a_valider",
-        },
-      };
-    }
-
-    // --- ACTIONS D'ÉCRITURE SENSIBLES (NIVEAU 3) : EXÉCUTÉES APRÈS CONFIRMATION ---
+    // =========================================================================
+    // ACTIONS D'ÉCRITURE SENSIBLES DE NIVEAU 3
+    // =========================================================================
     case "valider_presence": {
       const date = args.date || new Date().toISOString().slice(0, 10);
       let teacherId = user.teacherId;
@@ -675,7 +992,7 @@ export async function executeTool(user: UserContext, name: string, args: Record<
         .select();
       if (qErr) throw qErr;
 
-      // Insertion dans question_options pour compatibilité relationnelle
+      // Insertion dans question_options pour compatibilité
       if (insertedQuestions && insertedQuestions.length > 0) {
         const optionsToInsert: any[] = [];
         insertedQuestions.forEach((iq: any, idx: number) => {
@@ -706,14 +1023,12 @@ export async function executeTool(user: UserContext, name: string, args: Record<
         .single();
       if (cErr) throw cErr;
 
-      // Inscription des membres
       const members = [user.userId, ...(args.recipient_ids || [])].map((uid) => ({
         conversation_id: conv.id,
         user_id: uid,
       }));
       await sb.from("conversation_members").insert(members);
 
-      // Insertion du message
       const { data: msg, error: mErr } = await sb
         .from("messages")
         .insert({
@@ -728,7 +1043,8 @@ export async function executeTool(user: UserContext, name: string, args: Record<
       return { conversation_id: conv.id, message_id: msg.id, statut: "envoye" };
     }
 
-    case "create_notification": {
+    case "create_notification":
+    case "manage_notifications": {
       const { data, error } = await sb
         .from("notifications")
         .insert({

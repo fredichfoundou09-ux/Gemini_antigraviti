@@ -636,21 +636,39 @@ export function SentinelAIChat({ open, onClose, userRole, userName }: SentinelAI
               >
                 {m.content}
 
-                {/* Sources utilisées (RAG) */}
+                {/* Sources utilisées (RAG, Web, Docs) */}
                 {m.sources && m.sources.length > 0 && (
-                  <div className="mt-3 pt-2.5 border-t border-white/10 text-[11px] text-cyan-300/80">
-                    <p className="font-semibold flex items-center gap-1 mb-1 text-slate-400">
-                      <FileText size={12} className="text-cyan-400" /> Sources consultées :
+                  <div className="mt-3 pt-2.5 border-t border-white/10 text-[11px]">
+                    <p className="font-semibold flex items-center gap-1 mb-1.5 text-slate-400">
+                      <FileText size={12} className="text-cyan-400" /> Sources vérifiées & consultées :
                     </p>
                     <div className="flex flex-wrap gap-1.5">
-                      {m.sources.map((src, sIdx) => (
-                        <span
-                          key={sIdx}
-                          className="rounded bg-cyan-950/60 px-2 py-0.5 border border-cyan-400/20 text-cyan-200"
-                        >
-                          {src}
-                        </span>
-                      ))}
+                      {m.sources.map((src, sIdx) => {
+                        const isWiki = src.toLowerCase().includes("wikipédia") || src.toLowerCase().includes("wikipedia");
+                        const isDoc = src.toLowerCase().includes("rfc") || src.toLowerCase().includes("owasp") || src.toLowerCase().includes("standard");
+                        const isUploaded = src.toLowerCase().includes("document indexé") || src.toLowerCase().includes("support");
+                        const isDb = src.toLowerCase().includes("base de données") || src.toLowerCase().includes("emploi") || src.toLowerCase().includes("registre");
+
+                        const badgeClass = isWiki
+                          ? "bg-blue-950/70 border-blue-400/40 text-blue-200"
+                          : isDoc
+                          ? "bg-purple-950/70 border-purple-400/40 text-purple-200"
+                          : isUploaded
+                          ? "bg-emerald-950/70 border-emerald-400/40 text-emerald-200"
+                          : isDb
+                          ? "bg-amber-950/70 border-amber-400/40 text-amber-200"
+                          : "bg-cyan-950/60 border-cyan-400/20 text-cyan-200";
+
+                        return (
+                          <span
+                            key={sIdx}
+                            className={`rounded-md px-2 py-0.5 border text-[10px] font-medium flex items-center gap-1 shadow-sm ${badgeClass}`}
+                          >
+                            <span className="inline-block w-1.5 h-1.5 rounded-full bg-current opacity-70" />
+                            {src}
+                          </span>
+                        );
+                      })}
                     </div>
                   </div>
                 )}

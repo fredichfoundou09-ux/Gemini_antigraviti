@@ -19,6 +19,35 @@ export async function computeSha256(input: ArrayBuffer | string): Promise<string
     .join("");
 }
 
+const INJECTION_PATTERNS = [
+  /ignore (all )?previous instructions/i,
+  /ignore toutes les instructions précédentes/i,
+  /disregard system (prompt|rules)/i,
+  /bypass (all )?(security|permissions)/i,
+  /you are now (an admin|unrestricted|DAN)/i,
+  /tu es maintenant (un administrateur|sans limites)/i,
+  /oublie tes règles/i,
+  /system:\s*role/i,
+];
+
+/**
+ * Analyse et neutralise les tentatives de prompt injection présentes dans un document.
+ * Conserve la donnée brute en neutralisant le pouvoir impératif de l'instruction.
+ */
+export function sanitizeExtractedText(raw: string): { cleanText: string; suspiciousPatterns: string[] } {
+  const suspicious: string[] = [];
+  let sanitized = raw;
+
+  for (const pattern of INJECTION_PATTERNS) {
+    if (pattern.test(sanitized)) {
+      suspicious.push(pattern.source);
+      sanitized = sanitized.replace(pattern, (match) => `[TENTATIVE D'INJECTION NEUTRALISÉE DANS DOCUMENT: "${match}"]`);
+    }
+  }
+
+  return { cleanText: sanitized, suspiciousPatterns: suspicious };
+}
+
 /**
  * Découpe un texte en fragments (chunks) cohérents avec un léger chevauchement (overlap).
  */
@@ -130,8 +159,9 @@ export async function ingestDocumentForRag(
 ): Promise<IngestedDocumentResult> {
   const buffer = await file.arrayBuffer();
   const hash = await computeSha256(buffer);
-  const text = await extractTextFromFile(file);
-  const chunks = chunkText(text);
+  const rawText = await extractTextFromFile(file);
+  const { cleanText, suspiciousPatterns } = sanitizeExtractedText(rawText);
+  const chunks = chunkText(cleanText);
 
   const documentTitle = options?.title || file.name;
 

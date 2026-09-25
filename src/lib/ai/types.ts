@@ -112,6 +112,44 @@ export function toolLabel(toolName: string): string {
       return "Création d'exercice";
     case "create_schedule_draft":
       return "Créneau prévisionnel";
+    case "search_wikipedia":
+      return "Recherche Wikipédia";
+    case "search_web":
+      return "Recherche Web & Références";
+    case "fetch_web_page":
+      return "Consultation de page Web";
+    case "get_my_profile":
+      return "Mon profil apprenant";
+    case "get_my_schedule":
+      return "Mon emploi du temps";
+    case "get_my_next_course":
+      return "Mon prochain cours";
+    case "get_my_courses":
+      return "Mes cours inscrits";
+    case "get_my_modules":
+      return "Mes modules";
+    case "get_my_attendance":
+      return "Mon assiduité & absences";
+    case "get_my_grades":
+      return "Mes notes et évaluations";
+    case "search_my_documents":
+      return "Mes documents de cours";
+    case "search_course_knowledge":
+      return "Connaissances du cours (RAG)";
+    case "explain_course":
+      return "Explication pédagogique";
+    case "create_practice_exercise":
+      return "Exercice d'entraînement";
+    case "get_assigned_students":
+      return "Apprenants affectés";
+    case "create_quiz":
+      return "Création de QCM interactif";
+    case "generate_lesson_plan":
+      return "Plan de cours pédagogique";
+    case "remember_information":
+      return "Mémorisation de connaissance";
+    case "search_document":
+      return "Recherche documentaire";
     default:
       return toolName;
   }

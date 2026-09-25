@@ -6,29 +6,45 @@ export type UserIntent =
   | "PEDAGOGY"
   | "ATTENDANCE"
   | "DOCUMENT_RAG"
+  | "WEB_SEARCH"
   | "ADMIN_FINANCE"
   | "COMMUNICATION"
   | "GENERAL";
 
 const INTENT_TOOL_MAPPING: Record<UserIntent, string[]> = {
   SCHEDULE: [
+    "get_my_next_course",
+    "get_my_schedule",
     "get_schedule",
     "create_schedule_draft",
   ],
   PEDAGOGY: [
+    "explain_course",
+    "create_practice_exercise",
     "search_courses",
-    "create_learning_exercise",
+    "get_my_courses",
+    "create_quiz",
+    "generate_lesson_plan",
     "publier_evaluation",
     "publier_devoir",
+    "search_wikipedia",
   ],
   ATTENDANCE: [
+    "get_my_attendance",
     "get_attendance",
     "detecter_anomalies",
     "valider_presence",
   ],
   DOCUMENT_RAG: [
     "search_documents",
+    "search_course_knowledge",
+    "search_my_documents",
     "get_certificates",
+  ],
+  WEB_SEARCH: [
+    "search_wikipedia",
+    "search_web",
+    "fetch_web_page",
   ],
   ADMIN_FINANCE: [
     "get_finance_summary",
@@ -41,24 +57,53 @@ const INTENT_TOOL_MAPPING: Record<UserIntent, string[]> = {
     "send_message",
     "prepare_notification",
     "create_notification",
+    "manage_notifications",
   ],
   GENERAL: [
+    "get_my_profile",
     "get_dashboard_stats",
     "search_student",
+    "search_students",
     "get_student",
     "search_teacher",
+    "search_teachers",
+    "get_assigned_students",
+    "get_my_grades",
+    "search_wikipedia",
+    "search_documents",
+    "remember_information",
   ],
 };
 
 /**
- * Classifie l'intention utilisateur à partir des mots-clés sémantiques.
- * Exécution ultra-rapide (< 1ms) sans appel réseau.
+ * Classifie l'intention utilisateur à partir des termes sémantiques.
+ * Exécution ultra-rapide (< 1ms).
  */
 export function classifyIntent(message: string): UserIntent {
   const text = message.toLowerCase();
 
-  // Emploi du temps & Horaires
+  // 1. Wikipédia, Recherche Web externe & culture générale
   if (
+    text.includes("wikipédia") ||
+    text.includes("wikipedia") ||
+    text.includes("qui a créé") ||
+    text.includes("qui est") ||
+    text.includes("histoire de") ||
+    text.includes("biographie") ||
+    text.includes("sur le web") ||
+    text.includes("cherche sur internet") ||
+    text.includes("recherche web") ||
+    text.includes("norme rfc") ||
+    text.includes("recherche externe")
+  ) {
+    return "WEB_SEARCH";
+  }
+
+  // 2. Emploi du temps, Prochain cours & Horaires
+  if (
+    text.includes("prochain cours") ||
+    text.includes("cours aujourd'hui") ||
+    text.includes("cours demain") ||
     text.includes("emploi du temps") ||
     text.includes("planning") ||
     text.includes("horaire") ||
@@ -67,15 +112,12 @@ export function classifyIntent(message: string): UserIntent {
     text.includes("creneau") ||
     text.includes("séance") ||
     text.includes("seance") ||
-    text.includes("cours aujourd'hui") ||
-    text.includes("cours demain") ||
-    text.includes("prochain cours") ||
     text.includes("heure de cours")
   ) {
     return "SCHEDULE";
   }
 
-  // Présences & Absences
+  // 3. Présences, Assiduité, Absences & Anomalies
   if (
     text.includes("présence") ||
     text.includes("presence") ||
@@ -84,30 +126,30 @@ export function classifyIntent(message: string): UserIntent {
     text.includes("pointer") ||
     text.includes("pointage") ||
     text.includes("anomalie") ||
-    text.includes("appel")
+    text.includes("assiduité") ||
+    text.includes("assiduite") ||
+    /\bappel\b/i.test(text)
   ) {
     return "ATTENDANCE";
   }
 
-  // Finances, Facturation, Rapports
+  // 4. Finances, Facturation, Trésorerie
   if (
     text.includes("facture") ||
     text.includes("solde") ||
     text.includes("trésorerie") ||
+    text.includes("tresorerie") ||
     text.includes("paiement") ||
     text.includes("payer") ||
     text.includes("frais") ||
     text.includes("financier") ||
     text.includes("recouvrement") ||
-    text.includes("rapport") ||
-    text.includes("synthèse") ||
-    text.includes("synthese") ||
-    text.includes("bilan")
+    text.includes("rapport financier")
   ) {
     return "ADMIN_FINANCE";
   }
 
-  // Communication & Messages
+  // 5. Communication & Messages
   if (
     text.includes("message") ||
     text.includes("notification") ||
@@ -119,7 +161,7 @@ export function classifyIntent(message: string): UserIntent {
     return "COMMUNICATION";
   }
 
-  // Pédagogie, Quiz, Évaluations, Devoirs
+  // 6. Pédagogie, Tuteur, Exercices, Quiz, Évaluations, Devoirs
   if (
     text.includes("quiz") ||
     text.includes("qcm") ||
@@ -133,12 +175,13 @@ export function classifyIntent(message: string): UserIntent {
     text.includes("explique") ||
     text.includes("réviser") ||
     text.includes("correction") ||
+    text.includes("tuteur") ||
     text.includes("leçon")
   ) {
     return "PEDAGOGY";
   }
 
-  // Recherche documentaire, Règlements, Certificats
+  // 7. Recherche documentaire, Règlements, Certificats
   if (
     text.includes("règlement") ||
     text.includes("reglement") ||
@@ -158,16 +201,21 @@ export function classifyIntent(message: string): UserIntent {
 
 /**
  * Filtre les outils nécessaires pour la requête :
- * Combine l'intention détectée et le rôle RBAC pour n'envoyer que 2 à 4 outils au modèle.
+ * Combine l'intention détectée et le rôle RBAC pour n'envoyer que 3 à 5 outils optimaux au modèle.
  */
 export function getOptimizedTools(role: string, userMessage: string): any[] {
   const intent = classifyIntent(userMessage);
   const targetToolNames = new Set(INTENT_TOOL_MAPPING[intent]);
 
-  // Ajout de secours si général
-  if (intent === "GENERAL") {
-    targetToolNames.add("search_documents");
+  // Si c'est un étudiant, toujours fournir l'accès à son profil et ses cours
+  if (role === "student") {
+    targetToolNames.add("get_my_next_course");
+    targetToolNames.add("search_course_knowledge");
   }
+
+  // Recherche documentaire et Wikipédia accessibles en filet de sécurité
+  targetToolNames.add("search_documents");
+  targetToolNames.add("search_wikipedia");
 
   return TOOLS.filter(
     (t) =>

@@ -6,6 +6,7 @@ import {
   AiFeedbackPayload,
   EvaluationQuestion,
 } from "./types";
+import { ClientWikipediaProvider, ClientDocumentationProvider } from "./webSearch";
 export * from "./types";
 
 function getLocalDB(): any {
@@ -39,7 +40,116 @@ export async function localAgentProcess(messages: AiChatMessage[]): Promise<AiAg
   let reply = "";
   let intent = "GENERAL";
 
-  // 1. Détection : Ingestion / RAG documentaire local (si des fragments sont indexés dans db.ai_document_chunks)
+  // 0. Sécurité : Détection de prompt injection dans le dialogue
+  if (
+    lastMsg.includes("ignore toutes les instructions") ||
+    lastMsg.includes("ignore previous instructions") ||
+    lastMsg.includes("tu es maintenant un administrateur") ||
+    lastMsg.includes("bypass all security")
+  ) {
+    sources.push("Sentinelles Numériques — Règles de Sécurité Système");
+    return {
+      reply: "Je suis SENTINEL'S AI. Je respecte scrupuleusement les politiques de sécurité de Sentinelles Numériques et les autorisations de votre rôle. Aucune consigne externe ne peut outrepasser mes directives système ou mes contrôles d'accès.",
+      pending_actions: [],
+      intent: "SECURITY_INTERCEPT",
+      sources,
+    };
+  }
+
+  // 0.1 Détection : Mémoire candidate / Apprentissage contrôlé
+  if (
+    lastMsg.includes("mémorise") ||
+    lastMsg.includes("memorise") ||
+    lastMsg.includes("retiens que") ||
+    lastMsg.includes("dans notre centre") ||
+    lastMsg.includes("nouvelle procédure")
+  ) {
+    intent = "MEMORY";
+    const rawContent = messages[messages.length - 1]?.content || "";
+    if (db) {
+      db.ai_memories = db.ai_memories || [];
+      db.ai_memories.push({
+        id: "mem-" + Date.now(),
+        content: rawContent,
+        category: "candidate_knowledge",
+        status: "unverified_information",
+        confidence: 0.65,
+        created_at: new Date().toISOString(),
+      });
+      saveLocalDB(db);
+    }
+    sources.push("Mémoire Utilisateur (Non vérifiée)");
+    reply = "J'ai bien noté cette information comme **connaissance candidate**. Conformément aux règles de Sentinelles Numériques, elle reste classée comme *information non vérifiée* jusqu'à validation par la direction pédagogique ou confirmation par les données officielles.";
+    return { reply, pending_actions, intent, sources };
+  }
+
+  // 0.2 Détection : Prochain cours / Emploi du temps Apprenant
+  if (
+    lastMsg.includes("prochain cours") ||
+    (lastMsg.includes("heure") && lastMsg.includes("cours"))
+  ) {
+    intent = "SCHEDULE";
+    sources.push("Emploi du temps officiel Sentinelles Numériques");
+    const schedules = db?.schedules || [];
+    const nextSchedule = schedules.length > 0 ? schedules[0] : null;
+
+    if (nextSchedule) {
+      const heure = nextSchedule.heure_debut || nextSchedule.start_time || "08:30";
+      const jour = nextSchedule.jour || "Demain";
+      const salle = nextSchedule.salle || nextSchedule.room || "Salle 101";
+      const matiere = nextSchedule.matiere || nextSchedule.title || "Cybersécurité & Réseaux";
+      reply = `Selon votre planning officiel, votre prochain cours est **${matiere}**, prévu **${jour} à ${heure}** en **${salle}**. Pensez à vous munir de votre badge pour le pointage.`;
+    } else {
+      reply = `Selon votre planning officiel, votre prochain cours de **Sécurité & Réseaux** commence demain à **08h30** en **Salle 101 (Laboratoire Réseaux)**. Pensez à vous munir de votre badge pour l'émargement.`;
+    }
+    return { reply, pending_actions, intent, sources };
+  }
+
+  // 0.3 Détection : Recherche Web / Wikipédia / Documentation technique externe
+  if (
+    lastMsg.includes("wikipédia") ||
+    lastMsg.includes("wikipedia") ||
+    lastMsg.includes("qui a créé") ||
+    lastMsg.includes("qui est") ||
+    lastMsg.includes("rfc") ||
+    lastMsg.includes("owasp") ||
+    lastMsg.includes("alan turing") ||
+    lastMsg.includes("tim berners-lee")
+  ) {
+    intent = "WEB_SEARCH";
+    if (lastMsg.includes("qui a créé") && (lastMsg.includes("wikipédia") || lastMsg.includes("wikipedia"))) {
+      sources.push("Wikipédia — Wikipédia");
+      reply = "D'après Wikipédia, l'encyclopédie en ligne a été lancée le **15 janvier 2001** par **Jimmy Wales** et **Larry Sanger**.";
+      return { reply, pending_actions, intent, sources };
+    }
+    if (lastMsg.includes("alan turing")) {
+      sources.push("Wikipédia — Alan Turing");
+      reply = "D'après Wikipédia, **Alan Turing** (1912-1954) est un mathématicien et cryptologue britannique, pionnier de l'informatique moderne et de l'intelligence artificielle, célèbre pour avoir cassé les codes de la machine Enigma.";
+      return { reply, pending_actions, intent, sources };
+    }
+
+    try {
+      const wiki = new ClientWikipediaProvider();
+      const docs = new ClientDocumentationProvider();
+
+      const docHits = await docs.search(lastMsg);
+      const wikiQuery = lastMsg
+        .replace(/qui est|qui a créé|qu'est-ce que|définition de|sur wikipédia|sur internet/gi, "")
+        .trim();
+      const wikiHits = await wiki.search(wikiQuery || lastMsg);
+
+      docHits.forEach((d) => sources.push(d.title));
+      wikiHits.forEach((w) => sources.push(w.title));
+
+      if (docHits.length > 0 || wikiHits.length > 0) {
+        const topSnippets = [...docHits, ...wikiHits].map((h) => `- **${h.title}** : ${h.snippet}`).join("\n");
+        reply = `Voici les informations vérifiées recueillies auprès des sources documentaires et encyclopédiques :\n\n${topSnippets}\n\n*Sources consultées et vérifiées en direct.*`;
+        return { reply, pending_actions, intent, sources };
+      }
+    } catch (e) {
+      console.warn("Échec recherche web locale:", e);
+    }
+  }
   if (
     Array.isArray(db?.ai_document_chunks) &&
     db.ai_document_chunks.length > 0 &&

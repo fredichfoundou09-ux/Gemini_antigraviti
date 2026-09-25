@@ -145,8 +145,9 @@ if (typeof Deno !== "undefined" && typeof (Deno as any).serve === "function") {
       const pendingActions: any[] = [];
       const sourcesUsed: string[] = [];
       let finalReply = "";
+      const MAX_AGENT_STEPS = 5;
 
-      for (let step = 0; step < 4; step++) {
+      for (let step = 0; step < MAX_AGENT_STEPS; step++) {
         const { message: aiMessage } = await provider.createCompletion({
           messages: conversation,
           tools: optimizedTools.length > 0 ? optimizedTools : undefined,
@@ -196,18 +197,31 @@ if (typeof Deno !== "undefined" && typeof (Deno as any).serve === "function") {
               tool_call_id: call.id,
               content: JSON.stringify({
                 status: "proposition_enregistree",
-                message: "Cette action requiert la validation explicite de l'utilisateur.",
+                message: "Cette action sensible requiert la validation explicite de l'utilisateur par carte interactive.",
               }),
             });
           } else {
-            // Action de lecture ou RAG : exécution directe
+            // Action de lecture, web ou RAG : exécution directe et traçabilité des sources
             try {
               const res = await executeTool(user, toolName, args);
-              if (toolName === "search_documents" && res?.results) {
+
+              // Attribution rigoureuse des sources
+              if ((toolName === "search_documents" || toolName === "search_course_knowledge" || toolName === "search_my_documents") && res?.results) {
                 for (const r of res.results) {
                   if (r.title && !sourcesUsed.includes(r.title)) sourcesUsed.push(r.title);
                 }
+              } else if ((toolName === "search_wikipedia" || toolName === "search_web") && res?.results) {
+                for (const r of res.results) {
+                  if (r.title && !sourcesUsed.includes(r.title)) sourcesUsed.push(r.title);
+                }
+              } else if (toolName === "get_my_next_course" || toolName === "get_schedule" || toolName === "get_my_schedule") {
+                if (!sourcesUsed.includes("Emploi du temps officiel")) sourcesUsed.push("Emploi du temps officiel");
+              } else if (toolName === "get_attendance" || toolName === "get_my_attendance" || toolName === "detecter_anomalies") {
+                if (!sourcesUsed.includes("Registre d'assiduité Sentinel'S")) sourcesUsed.push("Registre d'assiduité Sentinel'S");
+              } else if (toolName === "get_finance_summary" || toolName === "get_student_balance") {
+                if (!sourcesUsed.includes("Registre de trésorerie")) sourcesUsed.push("Registre de trésorerie");
               }
+
               conversation.push({
                 role: "tool",
                 tool_call_id: call.id,
