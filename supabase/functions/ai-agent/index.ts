@@ -111,6 +111,7 @@ if (typeof Deno !== "undefined" && typeof (Deno as any).serve === "function") {
       // =========================================================================
       // BRANCHE 3 : Conversation intelligente avec Context Engine & Mémoire
       // =========================================================================
+      const startTime = performance.now();
       const incomingMessages = body.messages || [];
       const lastUserMsg = incomingMessages.filter((m: any) => m.role === "user").pop()?.content || "";
 
@@ -238,8 +239,26 @@ if (typeof Deno !== "undefined" && typeof (Deno as any).serve === "function") {
         }
       }
 
-      if (!finalReply) {
-        finalReply = "J'ai traité votre demande selon les informations disponibles.";
+      const latencyMs = Math.round(performance.now() - startTime);
+      const estPromptTokens = Math.round(incomingMessages.reduce((acc: number, m: any) => acc + (m.content?.length || 0), 0) / 4);
+      const estCompletionTokens = Math.round(finalReply.length / 4);
+      const estTotalTokens = estPromptTokens + estCompletionTokens;
+
+      try {
+        await user.sbUser.from("ai_audit_logs").insert({
+          user_id: user.userId,
+          role: user.role,
+          intent,
+          tool_name: pendingActions[0]?.tool_name || (sourcesUsed.length > 0 ? "rag_sources" : null),
+          prompt_tokens: estPromptTokens,
+          completion_tokens: estCompletionTokens,
+          total_tokens: estTotalTokens,
+          latency_ms: latencyMs,
+          sources: sourcesUsed,
+          status: "success",
+        });
+      } catch (auditErr) {
+        console.warn("Échec log télémétrie ai_audit_logs:", auditErr);
       }
 
       return new Response(
@@ -249,6 +268,12 @@ if (typeof Deno !== "undefined" && typeof (Deno as any).serve === "function") {
           intent,
           sources: sourcesUsed,
           memories_count: memories.length,
+          usage: {
+            prompt_tokens: estPromptTokens,
+            completion_tokens: estCompletionTokens,
+            total_tokens: estTotalTokens,
+          },
+          latency_ms: latencyMs,
         }),
         { headers: { ...corsHeaders, "Content-Type": "application/json" } }
       );

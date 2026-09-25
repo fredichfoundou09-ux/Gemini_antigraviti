@@ -5,7 +5,7 @@ import {
   TestTube2, PenLine, Wallet, Award, BadgeDollarSign, MessagesSquare, Bell, Settings,
   PenSquare, LogOut, ShieldCheck, Menu, X, UserCircle, NotebookPen, FolderOpen, BookMarked,
   ScrollText, Database, Activity, Medal, Handshake, Megaphone, RotateCcw, Clock, Eye,
-  Search, ArrowRight, Home, Calendar, Palette, Bot,
+  Search, ArrowRight, Home, Calendar, Palette, Bot, Brain,
 } from "lucide-react";
 import { cn } from "@/utils/cn";
 import { useStore } from "@/lib/store";
@@ -80,6 +80,7 @@ const MENU: MenuItem[] = [
   { to: "/app/bourses", label: "Bourses", icon: <BadgeDollarSign size={18} />, roles: ["superadmin", "admin"] },
   { to: "/app/enia", label: "ENIA 2.0", icon: <GraduationCap size={18} />, roles: ["superadmin", "admin", "partner_admin", "partner", "teacher", "student"] },
   { to: "/app/enia-admin", label: "Admin ENIA 2.0", icon: <PenSquare size={18} />, roles: ["superadmin", "admin"] },
+  { to: "/app/sentinel-ai-admin", label: "Sentinel AI & Savoirs", icon: <Brain size={18} />, roles: ["superadmin", "admin"] },
   { to: "/app/messages", label: "Messagerie", icon: <MessagesSquare size={18} />, roles: ["superadmin", "admin", "teacher", "student"] },
   { to: "/app/notifications", label: "Notifications", icon: <Bell size={18} />, roles: ["superadmin", "admin", "teacher", "student"] },
   { to: "/app/utilisateurs", label: "Utilisateurs", icon: <ShieldCheck size={18} />, roles: ["superadmin"] },

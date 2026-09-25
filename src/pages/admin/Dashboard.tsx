@@ -4,7 +4,7 @@ import {
   Users, GraduationCap, BookOpen, Wallet, ClipboardCheck, UserX, Timer,
   TestTube2, Award, BadgeDollarSign, TrendingUp, Activity, AlertTriangle, PlusCircle, RotateCcw,
   CalendarDays, DollarSign, Download, FileSpreadsheet, FileJson, Archive, Radio, ShieldCheck,
-  CheckCircle2, XCircle, Search, Clock, Printer, Palette, Flame, Moon, Shield, Sparkles
+  CheckCircle2, XCircle, Search, Clock, Printer, Palette, Flame, Moon, Shield, Sparkles, Brain
 } from "lucide-react";
 import { useStore } from "@/lib/store";
 import { Card, Stat, PageHead, Badge, Btn, Field, Input, Modal, today, money, Empty, formationLabel, printHTML } from "@/lib/ui";
@@ -914,6 +914,7 @@ export function AdminDashboard() {
             { to: "/app/bourses", l: "Bourses", i: <BadgeDollarSign size={14} /> },
             { to: "/app/enia", l: "ENIA 2.0", i: <GraduationCap size={14} /> },
             { to: "/app/enia-admin", l: "Admin ENIA", i: <BookOpen size={14} /> },
+            { to: "/app/sentinel-ai-admin", l: "Sentinel AI", i: <Brain size={14} /> },
             { to: "/app/contenu", l: "Contenu site", i: <CalendarDays size={14} /> },
           ].map((a, i) => (
             <Link

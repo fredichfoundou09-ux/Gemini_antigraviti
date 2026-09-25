@@ -18,6 +18,7 @@ import { InitializationPage } from "@/pages/admin/Initialization";
 import { TeacherHoursPage } from "@/pages/admin/TeacherHours";
 import { TeacherSubmissions, StudentSubmission } from "@/pages/shared/Submissions";
 import { EniaPage, EniaAdminPage } from "@/pages/shared/Enia";
+import { SentinelAiAdminPage } from "@/pages/admin/SentinelAiAdminPage";
 import { UnifiedProfilePage } from "@/pages/shared/UserProfile";
 import { TeacherDashboard, TeacherClasses, TeacherStudents, TeacherProfile } from "@/pages/teacher/TeacherPages";
 import { PartnerPortal } from "@/pages/partner/PartnerPortal";
@@ -167,6 +168,7 @@ export default function App() {
             <Route path="bourses" element={<Gate roles={["superadmin", "admin", "partner_admin"]}><ScholarshipsPage /></Gate>} />
             <Route path="enia" element={<Gate roles={["superadmin", "admin", "partner_admin", "partner", "teacher", "student"]}><EniaPage /></Gate>} />
             <Route path="enia-admin" element={<Gate roles={["superadmin", "admin"]}><EniaAdminPage /></Gate>} />
+            <Route path="sentinel-ai-admin" element={<Gate roles={["superadmin", "admin"]}><SentinelAiAdminPage /></Gate>} />
             <Route path="messages" element={<MessageCenter />} />
             <Route path="notifications" element={<NotificationsPage />} />
             <Route path="utilisateurs" element={<Gate roles={["superadmin"]}><UsersPage /></Gate>} />
