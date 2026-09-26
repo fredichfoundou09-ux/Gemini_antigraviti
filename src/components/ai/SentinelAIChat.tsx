@@ -27,11 +27,14 @@ import {
   VolumeX,
   Download,
   FileCode,
+  MessageSquare,
+  Plus,
 } from "lucide-react";
 import { useSentinelAi } from "@/hooks/useSentinelAi";
 import { toolLabel, AiPendingAction } from "@/lib/ai/types";
 import { toastMsg } from "@/lib/toast";
 import { ingestDocumentForRag } from "@/lib/ai/documentIngestion";
+import { ConversationHistoryDrawer } from "./ConversationHistoryDrawer";
 import {
   startVoiceRecognition,
   isVoiceRecognitionSupported,
@@ -380,6 +383,8 @@ function ActionConfirmationCard({
 export function SentinelAIChat({ open, onClose, userRole, userName }: SentinelAIChatProps) {
   const {
     messages,
+    conversations,
+    activeConversationId,
     pendingActions,
     loading,
     error,
@@ -389,8 +394,13 @@ export function SentinelAIChat({ open, onClose, userRole, userName }: SentinelAI
     feedback,
     clear,
     regenerate,
+    selectConversation,
+    deleteConversation,
+    startNewConversation,
+    exportToMarkdown,
   } = useSentinelAi();
 
+  const [historyOpen, setHistoryOpen] = useState(false);
   const [input, setInput] = useState("");
   const [copiedIdx, setCopiedIdx] = useState<number | null>(null);
   const [isListening, setIsListening] = useState(false);
@@ -572,6 +582,17 @@ export function SentinelAIChat({ open, onClose, userRole, userName }: SentinelAI
           </div>
         )}
 
+        {/* Tiroir d'historique des discussions */}
+        <ConversationHistoryDrawer
+          open={historyOpen}
+          onClose={() => setHistoryOpen(false)}
+          conversations={conversations}
+          activeId={activeConversationId}
+          onSelect={selectConversation}
+          onNew={startNewConversation}
+          onDelete={deleteConversation}
+        />
+
         {/* Header HUD */}
         <div className="flex items-center justify-between border-b border-cyan-400/20 bg-[#04070c]/90 px-4 py-3.5 backdrop-blur-md">
           <div className="flex items-center gap-3">
@@ -615,11 +636,34 @@ export function SentinelAIChat({ open, onClose, userRole, userName }: SentinelAI
               </span>
             )}
             <button
-              onClick={clear}
-              className="rounded-lg p-2 text-slate-400 hover:bg-white/5 hover:text-white transition cursor-pointer"
-              title="Nouvelle conversation"
+              onClick={() => setHistoryOpen((prev) => !prev)}
+              className={`relative rounded-lg p-2 transition cursor-pointer ${
+                historyOpen
+                  ? "bg-cyan-500/20 text-cyan-300 border border-cyan-400/40"
+                  : "text-slate-400 hover:bg-white/5 hover:text-white"
+              }`}
+              title="Historique des discussions"
             >
-              <Trash2 size={16} />
+              <MessageSquare size={16} />
+              {conversations.length > 0 && (
+                <span className="absolute -top-1 -right-1 flex h-4 w-4 items-center justify-center rounded-full bg-cyan-500 text-[9px] font-bold text-black">
+                  {conversations.length}
+                </span>
+              )}
+            </button>
+            <button
+              onClick={exportToMarkdown}
+              className="rounded-lg p-2 text-slate-400 hover:bg-white/5 hover:text-white transition cursor-pointer"
+              title="Exporter la discussion en Markdown (.md)"
+            >
+              <Download size={16} />
+            </button>
+            <button
+              onClick={startNewConversation}
+              className="rounded-lg p-2 text-slate-400 hover:bg-white/5 hover:text-white transition cursor-pointer"
+              title="Nouvelle discussion"
+            >
+              <Plus size={16} />
             </button>
             <button
               onClick={onClose}

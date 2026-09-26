@@ -13,6 +13,7 @@ import { toastMsg } from "@/lib/toast";
 import { usePresence, isUserActiveOnline } from "@/hooks/usePresence";
 import { cn } from "@/utils/cn";
 import { getUiTheme, setUiTheme, UiTheme } from "@/lib/uiTheme";
+import { SentinelAiBriefingCard } from "@/components/ai/SentinelAiBriefingCard";
 
 /* ---------- helpers ---------- */
 function Bar({ label, value, max, color }: { label: string; value: number; max: number; color: string }) {
@@ -112,6 +113,9 @@ export function AdminDashboard() {
 
   return (
     <div className="space-y-4">
+      {/* ================= BRIEFING PROACTIF SENTINEL AI ================= */}
+      <SentinelAiBriefingCard userRole={user?.role} userName={user?.name || "Administrateur"} />
+
       {/* ================= SECTION SUPÉRIEURE : 2 COLONNES ASYMÉTRIQUES ================= */}
       <div className="grid grid-cols-1 gap-3.5 lg:grid-cols-12">
         {/* COLONNE GAUCHE (5 cols) : ÉVOLUTION DES INDICATEURS + PRÉSENCES 7 JOURS */}

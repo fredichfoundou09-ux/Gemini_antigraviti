@@ -58,6 +58,13 @@ export interface AiAgentReply {
   latency_ms?: number;
 }
 
+export interface AiConversationMeta {
+  id: string;
+  title: string;
+  created_at: string;
+  updated_at: string;
+}
+
 export interface AiFeedbackPayload {
   message_id: string;
   rating: "positive" | "negative";

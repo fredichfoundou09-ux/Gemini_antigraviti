@@ -1,13 +1,30 @@
 import { useState, useCallback, useEffect } from "react";
-import { AiChatMessage, AiPendingAction } from "@/lib/ai/types";
+import { AiChatMessage, AiPendingAction, AiConversationMeta } from "@/lib/ai/types";
 import {
   askSentinelAiStream,
   confirmSentinelAiAction,
   sendSentinelAiFeedback,
 } from "@/lib/ai/sentinelAiService";
+import { supabase } from "@/lib/supabase/client";
 import { toastMsg } from "@/lib/toast";
 
 const STORAGE_KEY = "sentinel_ai_chat_session";
+const CONVERSATIONS_STORAGE_KEY = "sn_ai_conversations_v1";
+
+function getLocalConversations(): AiConversationMeta[] {
+  try {
+    const raw = localStorage.getItem(CONVERSATIONS_STORAGE_KEY);
+    return raw ? JSON.parse(raw) : [];
+  } catch {
+    return [];
+  }
+}
+
+function saveLocalConversations(list: AiConversationMeta[]) {
+  try {
+    localStorage.setItem(CONVERSATIONS_STORAGE_KEY, JSON.stringify(list));
+  } catch {}
+}
 
 export function useSentinelAi() {
   const [messages, setMessages] = useState<AiChatMessage[]>(() => {
@@ -19,11 +36,13 @@ export function useSentinelAi() {
     }
   });
 
+  const [conversations, setConversations] = useState<AiConversationMeta[]>(() => getLocalConversations());
+  const [activeConversationId, setActiveConversationId] = useState<string | null>(null);
   const [pendingActions, setPendingActions] = useState<AiPendingAction[]>([]);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
-  // Sauvegarde automatique de la conversation active
+  // Sauvegarde automatique de la conversation active dans la session courante
   useEffect(() => {
     try {
       sessionStorage.setItem(STORAGE_KEY, JSON.stringify(messages));
@@ -31,6 +50,135 @@ export function useSentinelAi() {
       console.warn("Erreur sauvegarde session IA :", e);
     }
   }, [messages]);
+
+  // Chargement des conversations sauvegardées (Supabase ou Local)
+  const loadConversations = useCallback(async () => {
+    try {
+      const { data: { session } } = await supabase.auth.getSession();
+      if (session?.user?.id) {
+        const { data, error: dbErr } = await supabase
+          .from("ai_conversations")
+          .select("id, title, created_at, updated_at")
+          .order("updated_at", { ascending: false });
+
+        if (!dbErr && data) {
+          setConversations(data);
+          saveLocalConversations(data);
+          return;
+        }
+      }
+    } catch (err) {
+      console.warn("Erreur chargement distant des conversations :", err);
+    }
+    // Fallback local
+    setConversations(getLocalConversations());
+  }, []);
+
+  useEffect(() => {
+    loadConversations();
+  }, [loadConversations]);
+
+  // Sélectionner et charger une discussion passée
+  const selectConversation = useCallback(async (convId: string) => {
+    setActiveConversationId(convId);
+    setLoading(true);
+    setError(null);
+    try {
+      const { data: dbMessages, error: mErr } = await supabase
+        .from("ai_messages")
+        .select("id, role, content, created_at")
+        .eq("conversation_id", convId)
+        .order("created_at", { ascending: true });
+
+      if (!mErr && dbMessages && dbMessages.length > 0) {
+        const mapped: AiChatMessage[] = dbMessages.map((m: any) => ({
+          id: m.id,
+          role: m.role,
+          content: m.content,
+          createdAt: m.created_at,
+        }));
+        setMessages(mapped);
+        return;
+      }
+    } catch (err) {
+      console.warn("Erreur chargement messages conversation :", err);
+    }
+
+    // Fallback local
+    const savedLocal = localStorage.getItem(`sn_conv_msg_${convId}`);
+    if (savedLocal) {
+      try {
+        setMessages(JSON.parse(savedLocal));
+      } catch {}
+    }
+    setLoading(false);
+  }, []);
+
+  // Supprimer une conversation
+  const deleteConversation = useCallback(async (convId: string, e?: React.MouseEvent) => {
+    if (e) e.stopPropagation();
+    try {
+      await supabase.from("ai_conversations").delete().eq("id", convId);
+    } catch {}
+
+    const updated = conversations.filter((c) => c.id !== convId);
+    setConversations(updated);
+    saveLocalConversations(updated);
+    localStorage.removeItem(`sn_conv_msg_${convId}`);
+
+    if (activeConversationId === convId) {
+      setActiveConversationId(null);
+      setMessages([]);
+      sessionStorage.removeItem(STORAGE_KEY);
+    }
+    toastMsg.info("Discussion supprimée");
+  }, [conversations, activeConversationId]);
+
+  // Démarrer une nouvelle discussion vierge
+  const startNewConversation = useCallback(() => {
+    setActiveConversationId(null);
+    setMessages([]);
+    setPendingActions([]);
+    setError(null);
+    try {
+      sessionStorage.removeItem(STORAGE_KEY);
+    } catch {}
+  }, []);
+
+  // Exporter la discussion en fichier Markdown (.md)
+  const exportToMarkdown = useCallback(() => {
+    if (messages.length === 0) {
+      toastMsg.warning("Aucun message à exporter.");
+      return;
+    }
+
+    const title = conversations.find((c) => c.id === activeConversationId)?.title || "Discussion Sentinel AI";
+    const dateStr = new Date().toISOString().slice(0, 10);
+
+    let md = `# ${title}\n\n`;
+    md += `*Exporté le : ${new Date().toLocaleString("fr-FR")}*\n\n---\n\n`;
+
+    messages.forEach((m) => {
+      const sender = m.role === "user" ? "Human" : m.role === "system" ? "System" : "Sentinel AI";
+      const time = m.createdAt ? new Date(m.createdAt).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" }) : "";
+      md += `### ${sender} ${time ? `(${time})` : ""}\n\n${m.content}\n\n`;
+
+      if (m.sources && m.sources.length > 0) {
+        md += `> **Sources** : ${m.sources.join(" • ")}\n\n`;
+      }
+    });
+
+    const blob = new Blob([md], { type: "text/markdown;charset=utf-8" });
+    const url = URL.createObjectURL(blob);
+    const link = document.createElement("a");
+    link.href = url;
+    link.download = `sentinel_ai_${dateStr}.md`;
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
+    URL.revokeObjectURL(url);
+    toastMsg.success("Discussion exportée au format Markdown (.md)");
+  }, [messages, conversations, activeConversationId]);
 
   const send = useCallback(
     async (text: string) => {
@@ -56,6 +204,36 @@ export function useSentinelAi() {
       setMessages([...updatedMessages, assistantPlaceholder]);
       setLoading(true);
       setError(null);
+
+      // Création automatique de la conversation si première question
+      let convId = activeConversationId;
+      if (!convId) {
+        const generatedTitle = query.slice(0, 42).replace(/[\r\n]+/g, " ");
+        convId = "conv-" + Date.now();
+        setActiveConversationId(convId);
+
+        const newConv: AiConversationMeta = {
+          id: convId,
+          title: generatedTitle,
+          created_at: new Date().toISOString(),
+          updated_at: new Date().toISOString(),
+        };
+
+        setConversations((prev) => [newConv, ...prev]);
+        saveLocalConversations([newConv, ...conversations]);
+
+        // Sauvegarde Supabase en arrière-plan
+        supabase.auth.getSession().then(({ data: { session } }) => {
+          if (session?.user?.id) {
+            supabase
+              .from("ai_conversations")
+              .insert({ id: convId, user_id: session.user.id, title: generatedTitle })
+              .then(({ error: cErr }) => {
+                if (cErr) console.warn("Erreur sauvegarde ai_conversations:", cErr);
+              });
+          }
+        });
+      }
 
       try {
         await askSentinelAiStream(updatedMessages, {
@@ -100,6 +278,14 @@ export function useSentinelAi() {
                 return [...prev, ...filtered];
               });
             }
+
+            // Persistance locale de la discussion
+            if (convId) {
+              localStorage.setItem(
+                `sn_conv_msg_${convId}`,
+                JSON.stringify([...updatedMessages, { ...assistantPlaceholder, content: res.reply }])
+              );
+            }
           },
           onError: (err) => {
             const errorMsg =
@@ -137,7 +323,7 @@ export function useSentinelAi() {
         setLoading(false);
       }
     },
-    [messages, loading]
+    [messages, loading, activeConversationId, conversations]
   );
 
   const confirm = useCallback(async (action: AiPendingAction) => {
@@ -176,15 +362,8 @@ export function useSentinelAi() {
   }, []);
 
   const clear = useCallback(() => {
-    setMessages([]);
-    setPendingActions([]);
-    setError(null);
-    try {
-      sessionStorage.removeItem(STORAGE_KEY);
-    } catch {
-      // ignore
-    }
-  }, []);
+    startNewConversation();
+  }, [startNewConversation]);
 
   const regenerate = useCallback(() => {
     if (messages.length === 0 || loading) return;
@@ -199,6 +378,8 @@ export function useSentinelAi() {
 
   return {
     messages,
+    conversations,
+    activeConversationId,
     pendingActions,
     loading,
     error,
@@ -208,5 +389,10 @@ export function useSentinelAi() {
     feedback: handleFeedback,
     clear,
     regenerate,
+    selectConversation,
+    deleteConversation,
+    startNewConversation,
+    exportToMarkdown,
+    loadConversations,
   };
 }

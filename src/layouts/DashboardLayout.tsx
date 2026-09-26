@@ -125,6 +125,12 @@ export default function DashboardLayout() {
   const { unreadCount } = useBackgroundSync();
   useScheduleAlerts();
 
+  useEffect(() => {
+    const handleOpenAi = () => setAiAgentOpen(true);
+    window.addEventListener("open-sentinel-ai", handleOpenAi);
+    return () => window.removeEventListener("open-sentinel-ai", handleOpenAi);
+  }, []);
+
   const user = storeUser || (profile ? {
     id: profile.id,
     username: profile.username,
