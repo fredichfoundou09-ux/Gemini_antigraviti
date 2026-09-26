@@ -141,7 +141,24 @@ export default defineConfig({
       output: {
         manualChunks(id) {
           if (id.includes("node_modules")) {
-            if (id.includes("react") || id.includes("react-dom") || id.includes("react-router-dom")) {
+            // Ne pas forcer les bibliothèques lourdes de documents et d'exports dans vendor-core
+            if (
+              id.includes("jspdf") ||
+              id.includes("docx") ||
+              id.includes("exceljs") ||
+              id.includes("xlsx") ||
+              id.includes("fflate") ||
+              id.includes("canvg") ||
+              id.includes("html2canvas")
+            ) {
+              return;
+            }
+            if (
+              id.includes("react") ||
+              id.includes("react-dom") ||
+              id.includes("react-router") ||
+              id.includes("scheduler")
+            ) {
               return "vendor-react";
             }
             if (id.includes("@supabase")) {
