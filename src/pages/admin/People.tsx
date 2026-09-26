@@ -3,8 +3,8 @@ import { Link, useNavigate, useSearchParams } from "react-router-dom";
 import { QRCodeSVG } from "qrcode.react";
 import {
   Users, Search, PlusCircle, Eye, EyeOff, Pencil, UserCircle2, Phone, Mail, MapPin, CalendarDays,
-  GraduationCap, ShieldCheck, Trash2, CheckCircle2, XCircle, KeyRound, Clock, Wallet, BadgeDollarSign, Timer, MessageCircle, Download,
-  Table2, LayoutGrid, Printer, CreditCard, ExternalLink, ArrowRight, Archive, FileSpreadsheet,
+  GraduationCap, Trash2, CheckCircle2, XCircle, KeyRound, Clock, Wallet, BadgeDollarSign, Timer, MessageCircle, Download,
+  Table2, LayoutGrid, Printer, CreditCard, Archive, FileSpreadsheet,
 } from "lucide-react";
 import { useStore } from "@/lib/store";
 import { cn } from "@/utils/cn";

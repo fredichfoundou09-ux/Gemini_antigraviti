@@ -1,7 +1,7 @@
 import { useState, useEffect } from "react";
 import {
   Clock, CheckCircle2, XCircle, Timer, BadgeDollarSign, Save, ReceiptText, Wallet,
-  CalendarDays, TrendingUp, FileText, PlusCircle, MinusCircle, Printer, ShieldCheck, Pencil, RotateCcw,
+  CalendarDays, TrendingUp, FileText, MinusCircle, Printer, Pencil, RotateCcw,
 } from "lucide-react";
 import { useStore } from "@/lib/store";
 import { cn } from "@/utils/cn";

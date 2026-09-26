@@ -1,9 +1,9 @@
 import { useState, useMemo } from "react";
 import { QRCodeSVG } from "qrcode.react";
 import {
-  PlusCircle, Trash2, Pencil, CalendarDays, Clock, MapPin, ClipboardCheck, FileText, TestTube2,
+  PlusCircle, Trash2, Pencil, CalendarDays, Clock, MapPin, ClipboardCheck, FileText,
   PenLine, Wallet, Award, BadgeDollarSign, Printer, CheckCircle2, XCircle, Timer, BookOpen,
-  GraduationCap, Eye, Save, ShieldCheck, ReceiptText, Upload, ImageOff, Users, Search, Download, Ban, AlertTriangle,
+  GraduationCap, Eye, Save, ShieldCheck, ReceiptText, Upload, ImageOff, Users, Search, Download, Ban,
   LayoutGrid, Table2,
 } from "lucide-react";
 import { useStore } from "@/lib/store";
@@ -439,7 +439,7 @@ export function SchedulePage() {
     if (form.cibleType === "groupe" && form.groupe) payload.groupe = form.groupe;
     if (form.cibleType === "apprenants" && form.studentIds.length) payload.studentIds = form.studentIds;
 
-    let slotId = uid("SCH");
+    const slotId = uid("SCH");
     const immediateSlot = { id: slotId, ...payload };
 
     // 1. Affichage et persistance immédiate garantie
@@ -656,7 +656,7 @@ export function SchedulePage() {
       setSavingEdit(true);
       (async () => {
         try {
-          let formationId = await resolveFormationId(editedSnapshot.formation);
+          const formationId = await resolveFormationId(editedSnapshot.formation);
           let realModuleId: string = editedSnapshot.moduleId;
           const isModuleUuid = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(editedSnapshot.moduleId);
           if (!isModuleUuid) {
@@ -1586,7 +1586,7 @@ export function CoursesPage() {
             if (uErr) throw uErr;
           } catch (uErr: any) {
             if (uErr?.message?.includes("files")) {
-              const { files, ...withoutFiles } = courseRecord;
+              const { files: _files, ...withoutFiles } = courseRecord;
               const { error: retryErr } = await supabase.from("courses").update(withoutFiles).eq("id", editing.id);
               if (retryErr) throw retryErr;
             } else {
@@ -1618,7 +1618,7 @@ export function CoursesPage() {
             newCourse = data;
           } catch (cErr: any) {
             if (cErr?.message?.includes("files")) {
-              const { files, ...withoutFiles } = courseRecord;
+              const { files: _files, ...withoutFiles } = courseRecord;
               const { data: retryData, error: retryErr } = await supabase.from("courses").insert(withoutFiles).select("id").single();
               if (retryErr) throw retryErr;
               newCourse = retryData;
@@ -1694,7 +1694,9 @@ export function CoursesPage() {
       try {
         await supabase.from("courses").update({ publie: newStatus }).eq("id", c.id);
         window.dispatchEvent(new Event("sentinelles:supabase-refresh"));
-      } catch {}
+      } catch (_err) {
+        // Fallback silencieux, la mise à jour locale prend le relais
+      }
     }
     update((d) => ({ ...d, courses: d.courses.map((x) => (x.id === c.id ? { ...x, publie: newStatus } : x)) }));
     log(`${newStatus ? "Publication" : "Dépublication"} : ${c.titre}`);
@@ -2051,10 +2053,6 @@ export function PaymentsPage() {
     return db.students.map((s) => financialSummary(db, s.id));
   }, [db]);
 
-  const globalDu = useMemo(() => {
-    return allStudentSummaries.reduce((a, s) => a + s.totalDu, 0);
-  }, [allStudentSummaries]);
-
   const globalSolde = useMemo(() => {
     return allStudentSummaries.reduce((a, s) => a + s.solde, 0);
   }, [allStudentSummaries]);
@@ -2133,7 +2131,7 @@ export function PaymentsPage() {
         await cancelPaymentWithAudit(p.id, cancelReason.trim());
         toastMsg.success("Paiement neutralisé et consigné dans l'audit ✓");
         window.dispatchEvent(new Event("sentinelles:supabase-refresh"));
-      } catch (err: any) {
+      } catch (_err: any) {
         // Fallback update direct
         try {
           await supabase.from("payments").update({ observation: obs }).eq("id", p.id);

@@ -37,7 +37,7 @@ export async function localAgentProcess(messages: AiChatMessage[]): Promise<AiAg
 
   const pending_actions: AiPendingAction[] = [];
   const sources: string[] = [];
-  let reply = "";
+  let reply: string;
   let intent = "GENERAL";
 
   // 0. Sécurité : Détection de prompt injection dans le dialogue

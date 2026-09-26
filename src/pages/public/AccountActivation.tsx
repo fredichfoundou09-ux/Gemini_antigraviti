@@ -45,7 +45,7 @@ export function AccountActivationPage() {
             setTokenValid(true);
             setInvitationData(data);
           }
-        } catch (err: any) {
+        } catch (_err: any) {
           setTokenValid(false);
           setError("Impossible de vérifier le lien d'invitation.");
         }

@@ -169,7 +169,7 @@ export function evaluateAnswersLocally(
     totalPoints += q.points || 1;
     const rawAnswer = answers[q.id];
     let isCorrect = false;
-    let answerText = "";
+    let answerText: string;
 
     if (rawAnswer === undefined || rawAnswer === null || String(rawAnswer).trim() === "") {
       nbNonRepondues++;

@@ -852,7 +852,7 @@ export function MySchedule() {
 
 /* ---------- cours + tests ---------- */
 export function MyCourses() {
-  const { db, user, update, log } = useStore();
+  const { db, user, update } = useStore();
   const student = db.students.find((s) => s.userId === user!.id)!;
 
   const [dismissedIds, setDismissedIds] = useState<string[]>(() => {
@@ -918,30 +918,9 @@ export function MyCourses() {
   };
 
   const [taking, setTaking] = useState<Test | null>(null);
-  const [answers, setAnswers] = useState<Record<string, string>>({});
-  const [result, setResult] = useState<{ note: number; pct: number } | null>(null);
   const [reviewing, setReviewing] = useState<{ test: Test; result: any } | null>(null);
 
   const modName = (id: string) => db.modules.find((m) => m.id === id)?.titre ?? "—";
-
-  const submitTest = () => {
-    if (!taking) return;
-    let pts = 0, total = 0;
-    taking.questions.forEach((q) => {
-      total += q.points;
-      const a = (answers[q.id] ?? "").trim().toLowerCase();
-      const good = (q.bonneReponse || "").trim().toLowerCase();
-      if (q.type === "qcm" || q.type === "vf") { if (a === good) pts += q.points; }
-      else if (a && (a === good || good.includes(a) || a.includes(good))) pts += q.points;
-    });
-    const bareme = taking.bareme ?? 20;
-    const note = Math.round((pts / Math.max(1, total)) * bareme * 10) / 10;
-    const pct = Math.round((pts / Math.max(1, total)) * 100);
-    const seuil = bareme / 2;
-    update((d) => ({ ...d, results: [{ id: uid("RES"), testId: taking.id, studentId: student.id, note, pourcentage: pct, date: today(), heure: new Date().toTimeString().slice(0, 5), reponses: { ...answers }, valide: !taking.validationRequise, statut: note >= seuil ? "reussi" : "echoue" }, ...d.results] }));
-    log(`Test passé par ${student.prenom} ${student.nom} : ${note}/${bareme}`);
-    setResult({ note, pct });
-  };
 
   return (
     <div>
@@ -1209,7 +1188,7 @@ export function MyCourses() {
                 <p className="mt-0.5 text-[11px] text-slate-600">Tentatives : {attempts.length}/{maxAtt}</p>
                 <div className="mt-4 flex gap-2">
                   <Btn className="flex-1" variant={canRetry ? "red" : "outline"} disabled={!canRetry}
-                    onClick={() => { setTaking(t); setAnswers({}); setResult(null); }}>
+                    onClick={() => setTaking(t)}>
                     <PlayCircle size={15} /> {attempts.length === 0 ? "Passer le test" : canRetry ? "Retenter" : "Terminé"}
                   </Btn>
                   {done && visible && t.afficherCorrections && (

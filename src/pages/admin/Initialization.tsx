@@ -20,6 +20,18 @@ export function InitializationPage() {
   const [confirmText, setConfirmText] = useState("");
   const [done, setDone] = useState(false);
 
+  // Statistiques de ce qui sera supprimé
+  const counts: Record<string, number> = useMemo(() => ({
+    modules: db.modules.length, students: db.students.length, teachers: db.teachers.length,
+    admins: db.users.filter((u) => u.role === "admin").length, partners: db.partners.length,
+    courses: db.courses.length, schedule: db.schedule.length, attendance: db.attendance.length,
+    tests: db.tests.length, grades: db.grades.length, payments: db.payments.length,
+    certificates: db.certificates.length, scholarships: db.scholarships.length,
+    notifications: db.notifications.length + db.messages.length,
+    content: db.advantages.length + db.announcements.length,
+    formations: db.settings.frais.informatique.length + db.settings.frais.industriel.length,
+  }), [db]);
+
   if (user?.role !== "superadmin") {
     return (
       <div className="flex min-h-[50vh] flex-col items-center justify-center text-center">
@@ -41,22 +53,14 @@ export function InitializationPage() {
         return next;
       }
       next.delete("demo");
-      next.has(k) ? next.delete(k) : next.add(k);
+      if (next.has(k)) {
+        next.delete(k);
+      } else {
+        next.add(k);
+      }
       return next;
     });
   };
-
-  // Statistiques de ce qui sera supprimé
-  const counts: Record<string, number> = useMemo(() => ({
-    modules: db.modules.length, students: db.students.length, teachers: db.teachers.length,
-    admins: db.users.filter((u) => u.role === "admin").length, partners: db.partners.length,
-    courses: db.courses.length, schedule: db.schedule.length, attendance: db.attendance.length,
-    tests: db.tests.length, grades: db.grades.length, payments: db.payments.length,
-    certificates: db.certificates.length, scholarships: db.scholarships.length,
-    notifications: db.notifications.length + db.messages.length,
-    content: db.advantages.length + db.announcements.length,
-    formations: db.settings.frais.informatique.length + db.settings.frais.industriel.length,
-  }), [db]);
 
   const execute = async () => {
     if (isSupabaseConfigured) {

@@ -49,7 +49,7 @@ export function TeacherAccessPage() {
             setTeacherData(data);
             setEmail(data.email || "");
           }
-        } catch (err: any) {
+        } catch (_err: any) {
           setTokenValid(false);
           setError("Impossible de valider le lien d'accès.");
         }

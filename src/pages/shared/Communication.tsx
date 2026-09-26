@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useState, useCallback } from "react";
 import { useSearchParams } from "react-router-dom";
 import { Send, Mail, Bell, CheckCheck, Users, UserCircle2, Inbox, ChevronRight, Reply, Trash2, Search, ShieldCheck } from "lucide-react";
 import { useStore } from "@/lib/store";
@@ -46,7 +46,7 @@ export function MessageCenter() {
   const [inboxSearch, setInboxSearch] = useState("");
 
   // Charger les profils Supabase réels (annuaire de messagerie)
-  const loadProfiles = async () => {
+  const loadProfiles = useCallback(async () => {
     if (!isSupabaseConfigured) return;
     try {
       const data = await fetchMessagingRecipients();
@@ -56,10 +56,10 @@ export function MessageCenter() {
     } catch (e) {
       console.warn("loadProfiles fallback:", e);
     }
-  };
+  }, []);
 
   // Charger les conversations Supabase
-  const loadConversations = async () => {
+  const loadConversations = useCallback(async () => {
     if (!isSupabaseConfigured || !user?.id) return;
     try {
       const convs = await fetchMyConversations();
@@ -72,7 +72,7 @@ export function MessageCenter() {
     } catch (err: any) {
       console.warn("Impossible de charger les conversations Supabase:", err.message);
     }
-  };
+  }, [user?.id]);
 
   useEffect(() => {
     loadConversations();
@@ -100,7 +100,7 @@ export function MessageCenter() {
     }
 
     return () => clearInterval(pollInterval);
-  }, [user?.id]);
+  }, [loadConversations, loadProfiles]);
 
   // Support du lien direct avec paramètre ?to=<userId>
   useEffect(() => {

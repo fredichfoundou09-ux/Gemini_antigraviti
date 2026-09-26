@@ -1,7 +1,7 @@
 import React, { useState } from "react";
 import { Modal, Btn, Badge } from "@/lib/ui";
 import { Assessment } from "../types";
-import { Clock, Eye, AlertCircle, CheckCircle2, ChevronRight, ChevronLeft } from "lucide-react";
+import { Clock, Eye, CheckCircle2, ChevronRight, ChevronLeft } from "lucide-react";
 
 interface Props {
   assessment: Assessment | null;
@@ -10,10 +10,10 @@ interface Props {
 }
 
 export function AssessmentPreviewModal({ assessment, open, onClose }: Props) {
-  if (!assessment) return null;
-
   const [currentIdx, setCurrentIdx] = useState(0);
   const [mockAnswers, setMockAnswers] = useState<Record<string, any>>({});
+
+  if (!assessment) return null;
 
   const q = assessment.questions[currentIdx];
 

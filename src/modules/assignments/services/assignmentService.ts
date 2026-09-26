@@ -90,8 +90,8 @@ export function getDeadlineInfo(assignment: Assignment, refDate = new Date()): D
 
   const isOverdue = diffMinutes < 0;
 
-  let formattedRemaining = "";
-  let badgeColor: "green" | "gold" | "red" | "cyan" = "green";
+  let formattedRemaining: string;
+  let badgeColor: "green" | "gold" | "red" | "cyan";
 
   if (isOverdue) {
     const absMin = Math.abs(diffMinutes);

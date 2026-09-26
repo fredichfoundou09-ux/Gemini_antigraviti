@@ -29,10 +29,10 @@ self.addEventListener('notificationclick', (event) => {
 
 // Écoute d'événements push du serveur
 self.addEventListener('push', (event) => {
-  let data = {};
+  let data;
   try {
     data = event.data ? event.data.json() : {};
-  } catch (e) {
+  } catch (_e) {
     data = { body: event.data ? event.data.text() : '' };
   }
 
