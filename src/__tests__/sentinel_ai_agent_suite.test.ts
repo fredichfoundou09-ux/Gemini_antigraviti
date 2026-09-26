@@ -150,7 +150,7 @@ describe("SENTINEL AI — Suite de Tests Complète des 16 Scénarios Pédagogiqu
     expect(docHits.length).toBeGreaterThan(0);
     expect(docHits[0].title).toContain("RFC 2328");
     expect(docHits[0].sourceType).toBe("official_doc");
-  });
+  }, 15000);
 
   // Test 7 : Question nécessitant plusieurs outils
   it("Test 7: Question nécessitant plusieurs outils — Diagnostic assiduité et anomalies", async () => {

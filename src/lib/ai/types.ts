@@ -55,6 +55,7 @@ export interface AiAgentReply {
     completion_tokens?: number;
     total_tokens?: number;
   };
+  latency_ms?: number;
 }
 
 export interface AiFeedbackPayload {

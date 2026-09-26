@@ -1,7 +1,7 @@
 import { useState, useCallback, useEffect } from "react";
 import { AiChatMessage, AiPendingAction } from "@/lib/ai/types";
 import {
-  askSentinelAi,
+  askSentinelAiStream,
   confirmSentinelAiAction,
   sendSentinelAiFeedback,
 } from "@/lib/ai/sentinelAiService";
@@ -43,40 +43,96 @@ export function useSentinelAi() {
         id: "msg-" + Date.now(),
         createdAt: new Date().toISOString(),
       };
+
+      const assistantId = "msg-" + (Date.now() + 1);
+      const assistantPlaceholder: AiChatMessage = {
+        role: "assistant",
+        content: "",
+        id: assistantId,
+        createdAt: new Date().toISOString(),
+      };
+
       const updatedMessages = [...messages, userMsg];
-      setMessages(updatedMessages);
+      setMessages([...updatedMessages, assistantPlaceholder]);
       setLoading(true);
       setError(null);
 
       try {
-        const res = await askSentinelAi(updatedMessages);
-        if (res.reply) {
-          const assistantMsg: AiChatMessage = {
-            role: "assistant",
-            content: res.reply,
-            id: "msg-" + (Date.now() + 1),
-            createdAt: new Date().toISOString(),
-            sources: res.sources,
-            intent: res.intent,
-          };
-          setMessages([...updatedMessages, assistantMsg]);
-        }
-
-        if (Array.isArray(res.pending_actions) && res.pending_actions.length > 0) {
-          setPendingActions((prev) => [...prev, ...res.pending_actions]);
-        }
+        await askSentinelAiStream(updatedMessages, {
+          onToken: (token) => {
+            setMessages((prev) =>
+              prev.map((m) =>
+                m.id === assistantId ? { ...m, content: (m.content || "") + token } : m
+              )
+            );
+          },
+          onActions: (acts) => {
+            setPendingActions((prev) => {
+              const existingIds = new Set(prev.map((p) => p.action_id));
+              const filtered = acts.filter((a) => !existingIds.has(a.action_id));
+              return [...prev, ...filtered];
+            });
+          },
+          onSources: (srcs) => {
+            setMessages((prev) =>
+              prev.map((m) =>
+                m.id === assistantId ? { ...m, sources: srcs } : m
+              )
+            );
+          },
+          onComplete: (res) => {
+            setMessages((prev) =>
+              prev.map((m) =>
+                m.id === assistantId
+                  ? {
+                      ...m,
+                      content: res.reply || m.content,
+                      sources: res.sources || m.sources,
+                      intent: res.intent,
+                    }
+                  : m
+              )
+            );
+            if (Array.isArray(res.pending_actions) && res.pending_actions.length > 0) {
+              setPendingActions((prev) => {
+                const existingIds = new Set(prev.map((p) => p.action_id));
+                const filtered = res.pending_actions.filter((a) => !existingIds.has(a.action_id));
+                return [...prev, ...filtered];
+              });
+            }
+          },
+          onError: (err) => {
+            const errorMsg =
+              err?.message || "Une erreur est survenue lors de la communication avec l'assistant.";
+            setError(errorMsg);
+            setMessages((prev) =>
+              prev.map((m) =>
+                m.id === assistantId
+                  ? {
+                      ...m,
+                      content: m.content
+                        ? `${m.content}\n\n*(Flux interrompu : ${errorMsg})*`
+                        : `Désolé, je rencontre une difficulté : ${errorMsg}`,
+                    }
+                  : m
+              )
+            );
+          },
+        });
       } catch (err: any) {
         const errorMsg =
           err?.message || "Une erreur est survenue lors de la communication avec l'assistant.";
         setError(errorMsg);
-        setMessages((prev) => [
-          ...prev,
-          {
-            role: "assistant",
-            content: `Désolé, je rencontre une difficulté : ${errorMsg}`,
-            id: "err-" + Date.now(),
-          },
-        ]);
+        setMessages((prev) =>
+          prev.map((m) =>
+            m.id === assistantId
+              ? {
+                  ...m,
+                  content: `Désolé, je rencontre une difficulté : ${errorMsg}`,
+                }
+              : m
+          )
+        );
       } finally {
         setLoading(false);
       }

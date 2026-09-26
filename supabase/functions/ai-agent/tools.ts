@@ -906,8 +906,11 @@ export async function executeTool(user: UserContext, name: string, args: Record<
           teacherId = tm[0].teacher_id;
         } else {
           const { data: t } = await sb.from("teachers").select("id").limit(1);
-          teacherId = t?.[0]?.id || "ENS-001";
+          teacherId = t?.[0]?.id;
         }
+      }
+      if (!teacherId) {
+        throw new Error("Identifiant formateur introuvable pour ce module. Veuillez vérifier l'attribution pédagogique.");
       }
 
       const rows = (args.student_ids as string[]).map((sid) => ({
@@ -929,7 +932,10 @@ export async function executeTool(user: UserContext, name: string, args: Record<
       let teacherId = user.teacherId;
       if (!teacherId) {
         const { data: tm } = await sb.from("teacher_modules").select("teacher_id").eq("module_id", args.module_id).limit(1);
-        teacherId = tm?.[0]?.teacher_id || "ENS-001";
+        teacherId = tm?.[0]?.teacher_id;
+      }
+      if (!teacherId) {
+        throw new Error("Identifiant formateur introuvable pour ce module. Action interrompue.");
       }
 
       const { data, error } = await sb
@@ -956,7 +962,10 @@ export async function executeTool(user: UserContext, name: string, args: Record<
       let teacherId = user.teacherId;
       if (!teacherId) {
         const { data: tm } = await sb.from("teacher_modules").select("teacher_id").eq("module_id", args.module_id).limit(1);
-        teacherId = tm?.[0]?.teacher_id || "ENS-001";
+        teacherId = tm?.[0]?.teacher_id;
+      }
+      if (!teacherId) {
+        throw new Error("Identifiant formateur introuvable pour ce module. Impossible de publier l'évaluation.");
       }
 
       const { data: test, error: tErr } = await sb
@@ -1016,14 +1025,19 @@ export async function executeTool(user: UserContext, name: string, args: Record<
     }
 
     case "send_message": {
+      const recipientIds = Array.isArray(args.recipient_ids) ? args.recipient_ids : (args.recipient_ids ? [args.recipient_ids] : []);
+      if (recipientIds.length === 0) {
+        throw new Error("Aucun destinataire spécifié pour l'envoi du message.");
+      }
+
       const { data: conv, error: cErr } = await sb
         .from("conversations")
-        .insert({ subject: args.subject })
+        .insert({ subject: args.subject || "Message via Sentinel'S AI" })
         .select()
         .single();
       if (cErr) throw cErr;
 
-      const members = [user.userId, ...(args.recipient_ids || [])].map((uid) => ({
+      const members = [user.userId, ...recipientIds].map((uid) => ({
         conversation_id: conv.id,
         user_id: uid,
       }));
@@ -1035,12 +1049,13 @@ export async function executeTool(user: UserContext, name: string, args: Record<
           conversation_id: conv.id,
           sender_id: user.userId,
           body: args.body,
+          sent_by_ai: true,
         })
         .select()
         .single();
       if (mErr) throw mErr;
 
-      return { conversation_id: conv.id, message_id: msg.id, statut: "envoye" };
+      return { conversation_id: conv.id, message_id: msg.id, statut: "envoye", sent_by_ai: true };
     }
 
     case "create_notification":

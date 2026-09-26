@@ -10,6 +10,7 @@ export interface CompletionOptions {
   tools?: any[];
   temperature?: number;
   max_tokens?: number;
+  stream?: boolean;
 }
 
 export interface AIProvider {
@@ -57,7 +58,6 @@ export class NvidiaNimProvider implements AIProvider {
       payload.tool_choice = "auto";
     }
 
-    // Gestion de la résilience : retries automatiques sur 429 ou 503
     let lastError: Error | null = null;
     const maxRetries = 2;
 
@@ -81,12 +81,9 @@ export class NvidiaNimProvider implements AIProvider {
         if (!res.ok) {
           const status = res.status;
           const errorBody = await res.text().catch(() => "");
-
-          // Nettoyage de sécurité : ne jamais laisser fuiter la clé API
           const sanitizedErr = errorBody.replace(/nvapi-[a-zA-Z0-9_-]+/g, "nvapi-[REDACTED]");
 
           if ((status === 429 || status === 503) && attempt < maxRetries) {
-            // Attente avec backoff exponentiel
             const waitTime = Math.pow(2, attempt) * 1000 + Math.random() * 500;
             await new Promise((r) => setTimeout(r, waitTime));
             continue;
@@ -116,5 +113,43 @@ export class NvidiaNimProvider implements AIProvider {
     }
 
     throw lastError || new Error("Échec de communication avec le fournisseur d'IA.");
+  }
+
+  /**
+   * Émet une requête de streaming de tokens vers NVIDIA NIM
+   */
+  async createStream(options: CompletionOptions): Promise<ReadableStream<Uint8Array>> {
+    if (!this.isConfigured()) {
+      throw new Error("Configuration NVIDIA NIM manquante : la variable NVIDIA_API_KEY doit être définie côté serveur.");
+    }
+
+    const endpoint = `${this.baseUrl.replace(/\/+$/, "")}/chat/completions`;
+    const payload: Record<string, any> = {
+      model: this.model,
+      messages: options.messages,
+      temperature: options.temperature ?? 0.2,
+      max_tokens: options.max_tokens ?? 1024,
+      stream: true,
+    };
+
+    const res = await fetch(endpoint, {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+        Authorization: `Bearer ${this.apiKey}`,
+      },
+      body: JSON.stringify(payload),
+    });
+
+    if (!res.ok) {
+      const err = await res.text().catch(() => "");
+      throw new Error(`Erreur stream NVIDIA NIM [HTTP ${res.status}] : ${err.slice(0, 300)}`);
+    }
+
+    if (!res.body) {
+      throw new Error("Flux de réponse vide reçu de NVIDIA NIM.");
+    }
+
+    return res.body;
   }
 }

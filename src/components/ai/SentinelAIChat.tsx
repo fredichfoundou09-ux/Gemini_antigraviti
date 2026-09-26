@@ -401,6 +401,16 @@ export function SentinelAIChat({ open, onClose, userRole, userName }: SentinelAI
   const fileInputRef = useRef<HTMLInputElement>(null);
   const endRef = useRef<HTMLDivElement>(null);
 
+  const voiceState: "idle" | "listening" | "processing" | "speaking" | "error" = isListening
+    ? "listening"
+    : speakingIdx !== null
+    ? "speaking"
+    : loading
+    ? "processing"
+    : error
+    ? "error"
+    : "idle";
+
   useEffect(() => {
     endRef.current?.scrollIntoView({ behavior: "smooth" });
   }, [messages, pendingActions, loading]);
@@ -587,6 +597,23 @@ export function SentinelAIChat({ open, onClose, userRole, userName }: SentinelAI
           </div>
 
           <div className="flex items-center gap-1.5">
+            {voiceState === "speaking" && (
+              <button
+                onClick={() => {
+                  stopSpeaking();
+                  setSpeakingIdx(null);
+                }}
+                className="flex items-center gap-1 rounded-lg bg-red-500/20 border border-red-500/40 px-2.5 py-1 text-[11px] font-bold text-red-300 hover:bg-red-500/30 transition cursor-pointer animate-pulse"
+                title="Interrompre la lecture vocale"
+              >
+                <VolumeX size={13} /> Stop Voix
+              </button>
+            )}
+            {voiceState === "listening" && (
+              <span className="flex items-center gap-1 rounded-lg bg-red-500/20 border border-red-500/40 px-2 py-0.5 text-[10px] font-bold text-red-300 animate-pulse">
+                <span className="h-1.5 w-1.5 rounded-full bg-red-400 animate-ping" /> Dictée...
+              </span>
+            )}
             <button
               onClick={clear}
               className="rounded-lg p-2 text-slate-400 hover:bg-white/5 hover:text-white transition cursor-pointer"
@@ -625,16 +652,45 @@ export function SentinelAIChat({ open, onClose, userRole, userName }: SentinelAI
             </div>
           )}
 
-          {messages.map((m, idx) => (
-            <div key={idx} className="group relative">
-              <div
-                className={
-                  m.role === "user"
-                    ? "ml-10 rounded-2xl bg-gradient-to-r from-cyan-500/20 to-cyan-600/10 border border-cyan-400/30 p-3.5 text-sm text-cyan-100 shadow-md"
-                    : "mr-10 rounded-2xl bg-white/[0.04] border border-white/10 p-3.5 text-sm text-slate-200 shadow-md leading-relaxed whitespace-pre-line"
-                }
-              >
-                {m.content}
+          {messages.map((m, idx) => {
+            const isLatestAssistant = m.role === "assistant" && idx === messages.length - 1;
+            const isStreamingThis = isLatestAssistant && loading;
+
+            return (
+              <div key={idx} className="group relative">
+                {/* En-tête Message History : Human / AI / System avec horodatage */}
+                <div
+                  className={`flex items-center gap-1.5 mb-1 px-1 text-[10px] font-mono ${
+                    m.role === "user"
+                      ? "justify-end text-cyan-400 font-semibold"
+                      : m.role === "system"
+                      ? "justify-start text-amber-400 font-semibold"
+                      : "justify-start text-slate-400 font-semibold"
+                  }`}
+                >
+                  <span className="uppercase tracking-wider">
+                    {m.role === "user" ? "Human" : m.role === "system" ? "System" : "AI • SENTINEL"}
+                  </span>
+                  <span>•</span>
+                  <span>
+                    {new Date(m.createdAt || Date.now()).toLocaleTimeString([], {
+                      hour: "2-digit",
+                      minute: "2-digit",
+                    })}
+                  </span>
+                </div>
+
+                <div
+                  className={
+                    m.role === "user"
+                      ? "ml-10 rounded-2xl bg-gradient-to-r from-cyan-500/20 to-cyan-600/10 border border-cyan-400/30 p-3.5 text-sm text-cyan-100 shadow-md"
+                      : "mr-10 rounded-2xl bg-white/[0.04] border border-white/10 p-3.5 text-sm text-slate-200 shadow-md leading-relaxed whitespace-pre-line"
+                  }
+                >
+                  {m.content}
+                  {isStreamingThis && (
+                    <span className="inline-block w-1.5 h-3.5 ml-1 bg-cyan-400 animate-pulse align-middle" />
+                  )}
 
                 {/* Sources utilisées (RAG, Web, Docs) */}
                 {m.sources && m.sources.length > 0 && (
@@ -742,7 +798,8 @@ export function SentinelAIChat({ open, onClose, userRole, userName }: SentinelAI
                 </div>
               )}
             </div>
-          ))}
+          );
+        })}
 
           {/* Cartes de confirmation d'action */}
           {pendingActions.map((a) => (

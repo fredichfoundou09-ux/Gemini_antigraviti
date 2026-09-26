@@ -113,6 +113,8 @@ if (typeof Deno !== "undefined" && typeof (Deno as any).serve === "function") {
       // =========================================================================
       const startTime = performance.now();
       const incomingMessages = body.messages || [];
+      const isStreaming = Boolean(body.stream);
+      const conversationId = body.conversation_id || null;
       const lastUserMsg = incomingMessages.filter((m: any) => m.role === "user").pop()?.content || "";
 
       // Vérification de sécurité anti-injection
@@ -164,19 +166,26 @@ if (typeof Deno !== "undefined" && typeof (Deno as any).serve === "function") {
           break;
         }
 
-        for (const call of calls) {
+        // Exécution PARALLÈLE de tous les outils appelés par le modèle
+        const toolExecutionPromises = calls.map(async (call: any) => {
           const toolName = call.function.name;
-          const args = JSON.parse(call.function.arguments || "{}");
+          let args: any = {};
+          try {
+            args = JSON.parse(call.function.arguments || "{}");
+          } catch {
+            args = {};
+          }
 
           // Vérification du scope d'accès aux arguments
           const scope = validateAccessScope(user, toolName, args);
           if (!scope.ok) {
-            conversation.push({
-              role: "tool",
+            return {
+              role: "tool" as const,
               tool_call_id: call.id,
               content: JSON.stringify({ error: scope.reason || "Accès restreint aux données spécifiées." }),
-            });
-            continue;
+              sources: [] as string[],
+              pendingAction: null,
+            };
           }
 
           if (WRITE_TOOLS.has(toolName)) {
@@ -187,54 +196,71 @@ if (typeof Deno !== "undefined" && typeof (Deno as any).serve === "function") {
               status: "proposed",
             });
 
-            pendingActions.push({
-              action_id: actionId,
-              tool_name: toolName,
-              arguments: args,
-            });
-
-            conversation.push({
-              role: "tool",
+            return {
+              role: "tool" as const,
               tool_call_id: call.id,
               content: JSON.stringify({
                 status: "proposition_enregistree",
                 message: "Cette action sensible requiert la validation explicite de l'utilisateur par carte interactive.",
               }),
-            });
-          } else {
-            // Action de lecture, web ou RAG : exécution directe et traçabilité des sources
-            try {
-              const res = await executeTool(user, toolName, args);
+              sources: [] as string[],
+              pendingAction: {
+                action_id: actionId,
+                tool_name: toolName,
+                arguments: args,
+              },
+            };
+          }
 
-              // Attribution rigoureuse des sources
-              if ((toolName === "search_documents" || toolName === "search_course_knowledge" || toolName === "search_my_documents") && res?.results) {
-                for (const r of res.results) {
-                  if (r.title && !sourcesUsed.includes(r.title)) sourcesUsed.push(r.title);
-                }
-              } else if ((toolName === "search_wikipedia" || toolName === "search_web") && res?.results) {
-                for (const r of res.results) {
-                  if (r.title && !sourcesUsed.includes(r.title)) sourcesUsed.push(r.title);
-                }
-              } else if (toolName === "get_my_next_course" || toolName === "get_schedule" || toolName === "get_my_schedule") {
-                if (!sourcesUsed.includes("Emploi du temps officiel")) sourcesUsed.push("Emploi du temps officiel");
-              } else if (toolName === "get_attendance" || toolName === "get_my_attendance" || toolName === "detecter_anomalies") {
-                if (!sourcesUsed.includes("Registre d'assiduité Sentinel'S")) sourcesUsed.push("Registre d'assiduité Sentinel'S");
-              } else if (toolName === "get_finance_summary" || toolName === "get_student_balance") {
-                if (!sourcesUsed.includes("Registre de trésorerie")) sourcesUsed.push("Registre de trésorerie");
+          // Action de lecture, web ou RAG : exécution directe et traçabilité des sources
+          try {
+            const res = await executeTool(user, toolName, args);
+            const discoveredSources: string[] = [];
+
+            if ((toolName === "search_documents" || toolName === "search_course_knowledge" || toolName === "search_my_documents") && res?.results) {
+              for (const r of res.results) {
+                if (r.title && !discoveredSources.includes(r.title)) discoveredSources.push(r.title);
               }
-
-              conversation.push({
-                role: "tool",
-                tool_call_id: call.id,
-                content: JSON.stringify(res),
-              });
-            } catch (err: any) {
-              conversation.push({
-                role: "tool",
-                tool_call_id: call.id,
-                content: JSON.stringify({ error: String(err.message || err) }),
-              });
+            } else if ((toolName === "search_wikipedia" || toolName === "search_web") && res?.results) {
+              for (const r of res.results) {
+                if (r.title && !discoveredSources.includes(r.title)) discoveredSources.push(r.title);
+              }
+            } else if (toolName === "get_my_next_course" || toolName === "get_schedule" || toolName === "get_my_schedule") {
+              discoveredSources.push("Emploi du temps officiel");
+            } else if (toolName === "get_attendance" || toolName === "get_my_attendance" || toolName === "detecter_anomalies") {
+              discoveredSources.push("Registre d'assiduité Sentinel'S");
+            } else if (toolName === "get_finance_summary" || toolName === "get_student_balance") {
+              discoveredSources.push("Registre de trésorerie");
             }
+
+            return {
+              role: "tool" as const,
+              tool_call_id: call.id,
+              content: JSON.stringify(res),
+              sources: discoveredSources,
+              pendingAction: null,
+            };
+          } catch (err: any) {
+            return {
+              role: "tool" as const,
+              tool_call_id: call.id,
+              content: JSON.stringify({ error: String(err.message || err) }),
+              sources: [] as string[],
+              pendingAction: null,
+            };
+          }
+        });
+
+        const resolvedResults = await Promise.all(toolExecutionPromises);
+        for (const item of resolvedResults) {
+          conversation.push({
+            role: "tool",
+            tool_call_id: item.tool_call_id,
+            content: item.content,
+          });
+          if (item.pendingAction) pendingActions.push(item.pendingAction);
+          for (const s of item.sources) {
+            if (!sourcesUsed.includes(s)) sourcesUsed.push(s);
           }
         }
       }
@@ -261,9 +287,62 @@ if (typeof Deno !== "undefined" && typeof (Deno as any).serve === "function") {
         console.warn("Échec log télémétrie ai_audit_logs:", auditErr);
       }
 
+      const sanitizedReply = sanitizeOutput(finalReply);
+
+      // Si l'utilisateur a demandé un flux SSE en streaming
+      if (isStreaming) {
+        const encoder = new TextEncoder();
+        const stream = new ReadableStream({
+          async start(controller) {
+            // 1. Envoi préalable des sources et propositions d'action
+            if (pendingActions.length > 0) {
+              controller.enqueue(encoder.encode(`event: actions\ndata: ${JSON.stringify(pendingActions)}\n\n`));
+            }
+            if (sourcesUsed.length > 0) {
+              controller.enqueue(encoder.encode(`event: sources\ndata: ${JSON.stringify(sourcesUsed)}\n\n`));
+            }
+
+            // 2. Découpage et streaming progressif des tokens
+            const words = sanitizedReply.split(/(\s+)/);
+            for (const chunk of words) {
+              controller.enqueue(encoder.encode(`event: token\ndata: ${JSON.stringify({ token: chunk })}\n\n`));
+              await new Promise((r) => setTimeout(r, 12));
+            }
+
+            // 3. Clôture avec métriques et intention
+            controller.enqueue(
+              encoder.encode(
+                `event: done\ndata: ${JSON.stringify({
+                  reply: sanitizedReply,
+                  pending_actions: pendingActions,
+                  intent,
+                  sources: sourcesUsed,
+                  latency_ms: latencyMs,
+                  usage: {
+                    prompt_tokens: estPromptTokens,
+                    completion_tokens: estCompletionTokens,
+                    total_tokens: estTotalTokens,
+                  },
+                })}\n\n`
+              )
+            );
+            controller.close();
+          },
+        });
+
+        return new Response(stream, {
+          headers: {
+            ...corsHeaders,
+            "Content-Type": "text/event-stream; charset=utf-8",
+            "Cache-Control": "no-cache",
+            Connection: "keep-alive",
+          },
+        });
+      }
+
       return new Response(
         JSON.stringify({
-          reply: sanitizeOutput(finalReply),
+          reply: sanitizedReply,
           pending_actions: pendingActions,
           intent,
           sources: sourcesUsed,

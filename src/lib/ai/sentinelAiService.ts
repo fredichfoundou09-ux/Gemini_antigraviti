@@ -350,7 +350,12 @@ export async function localAgentProcess(messages: AiChatMessage[]): Promise<AiAg
   ) {
     intent = "COMMUNICATION";
     const students = db?.students || [];
-    const targetStudent = students[0];
+    const targetStudent = students.find(
+      (s: any) =>
+        lastMsg.includes(s.nom?.toLowerCase() || "") ||
+        lastMsg.includes(s.prenom?.toLowerCase() || "") ||
+        lastMsg.includes(s.id?.toLowerCase() || "")
+    ) || students[0];
 
     if (lastMsg.includes("notif") || lastMsg.includes("annonc") || lastMsg.includes("diffus")) {
       const action_id = "prop-notif-" + Date.now();
@@ -368,9 +373,14 @@ export async function localAgentProcess(messages: AiChatMessage[]): Promise<AiAg
       return { reply, pending_actions, intent, sources };
     }
 
+    if (!targetStudent) {
+      reply = "Aucun apprenant n'est enregistré dans la base pour préparer ce message. Veuillez spécifier un destinataire.";
+      return { reply, pending_actions: [], intent, sources };
+    }
+
     const action_id = "prop-msg-" + Date.now();
-    const recipientId = targetStudent?.id || "SN-2026-001";
-    const recipientName = targetStudent ? `${targetStudent.prenom} ${targetStudent.nom}` : "l'apprenant";
+    const recipientId = targetStudent.id;
+    const recipientName = `${targetStudent.prenom} ${targetStudent.nom}`;
 
     pending_actions.push({
       action_id,
@@ -401,7 +411,11 @@ export async function localAgentProcess(messages: AiChatMessage[]): Promise<AiAg
 
     if (lastMsg.includes("émet") || lastMsg.includes("emet") || lastMsg.includes("crée") || lastMsg.includes("creer")) {
       const students = db?.students || [];
-      const sid = students[0]?.id || "SN-2026-001";
+      if (students.length === 0) {
+        reply = "Aucun apprenant enregistré dans le système pour émettre une facture.";
+        return { reply, pending_actions, intent, sources };
+      }
+      const sid = students[0].id;
       const action_id = "prop-inv-" + Date.now();
       pending_actions.push({
         action_id,
@@ -560,7 +574,10 @@ export async function localAgentExecute(action: AiPendingAction): Promise<{ ok: 
       db.messages = db.messages || [];
       const recipientIds = Array.isArray(args.recipient_ids)
         ? args.recipient_ids
-        : [args.recipient_ids || "SN-2026-001"];
+        : (args.recipient_ids ? [args.recipient_ids] : []);
+      if (recipientIds.length === 0) {
+        return { ok: false, result: { error: "Aucun destinataire spécifié." } };
+      }
       const newMessages = recipientIds.map((toId: string, idx: number) => ({
         id: "msg-" + Date.now() + "-" + idx,
         fromId: args.from_id || "admin",
@@ -570,6 +587,7 @@ export async function localAgentExecute(action: AiPendingAction): Promise<{ ok: 
         body: args.body || "",
         date: new Date().toISOString(),
         lu: false,
+        sent_by_ai: true,
       }));
       db.messages.push(...newMessages);
       saveLocalDB(db);
@@ -643,6 +661,141 @@ export async function askSentinelAi(messages: AiChatMessage[]): Promise<AiAgentR
   }
 
   return localAgentProcess(messages);
+}
+
+/**
+ * Envoie l'historique et consomme la réponse en temps réel sous forme de flux progressif (Streaming)
+ */
+export async function askSentinelAiStream(
+  messages: AiChatMessage[],
+  callbacks: {
+    onToken: (token: string) => void;
+    onActions?: (actions: AiPendingAction[]) => void;
+    onSources?: (sources: string[]) => void;
+    onComplete?: (reply: AiAgentReply) => void;
+    onError?: (err: Error) => void;
+  }
+): Promise<void> {
+  try {
+    const { data: { session } } = await supabase.auth.getSession();
+    const endpoint = `${import.meta.env.VITE_SUPABASE_URL}/functions/v1/ai-agent`;
+
+    if (session?.access_token && import.meta.env.VITE_SUPABASE_URL) {
+      const res = await fetch(endpoint, {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          Authorization: `Bearer ${session.access_token}`,
+        },
+        body: JSON.stringify({ messages, stream: true }),
+      });
+
+      if (res.ok && res.body) {
+        const reader = res.body.getReader();
+        const decoder = new TextDecoder();
+        let buffer = "";
+        let finalReply = "";
+        const pendingActions: AiPendingAction[] = [];
+        const sources: string[] = [];
+
+        while (true) {
+          const { done, value } = await reader.read();
+          if (done) break;
+
+          buffer += decoder.decode(value, { stream: true });
+          const blocks = buffer.split("\n\n");
+          buffer = blocks.pop() || "";
+
+          for (const block of blocks) {
+            const trimmed = block.trim();
+            if (!trimmed) continue;
+
+            if (trimmed.startsWith("event: token")) {
+              const dataMatch = trimmed.match(/data:\s*(.*)/);
+              if (dataMatch) {
+                try {
+                  const data = JSON.parse(dataMatch[1]);
+                  if (data.token) {
+                    finalReply += data.token;
+                    callbacks.onToken(data.token);
+                  }
+                } catch {}
+              }
+            } else if (trimmed.startsWith("event: actions")) {
+              const dataMatch = trimmed.match(/data:\s*(.*)/);
+              if (dataMatch) {
+                try {
+                  const acts = JSON.parse(dataMatch[1]);
+                  if (Array.isArray(acts)) {
+                    pendingActions.push(...acts);
+                    callbacks.onActions?.(acts);
+                  }
+                } catch {}
+              }
+            } else if (trimmed.startsWith("event: sources")) {
+              const dataMatch = trimmed.match(/data:\s*(.*)/);
+              if (dataMatch) {
+                try {
+                  const sList = JSON.parse(dataMatch[1]);
+                  if (Array.isArray(sList)) {
+                    sources.push(...sList);
+                    callbacks.onSources?.(sList);
+                  }
+                } catch {}
+              }
+            } else if (trimmed.startsWith("event: done")) {
+              const dataMatch = trimmed.match(/data:\s*(.*)/);
+              if (dataMatch) {
+                try {
+                  const doneData = JSON.parse(dataMatch[1]);
+                  callbacks.onComplete?.({
+                    reply: doneData.reply || finalReply,
+                    pending_actions: doneData.pending_actions || pendingActions,
+                    intent: doneData.intent || "GENERAL",
+                    sources: doneData.sources || sources,
+                    usage: doneData.usage,
+                    latency_ms: doneData.latency_ms,
+                  });
+                  return;
+                } catch {}
+              }
+            }
+          }
+        }
+
+        callbacks.onComplete?.({
+          reply: finalReply,
+          pending_actions: pendingActions,
+          intent: "GENERAL",
+          sources,
+        });
+        return;
+      }
+    }
+  } catch (err) {
+    console.warn("[SentinelAI] Streaming Edge Function non disponible, bascule sur streaming local.", err);
+  }
+
+  // Fallback local résilient avec distribution de tokens cadencée
+  try {
+    const localResult = await localAgentProcess(messages);
+    if (localResult.pending_actions && localResult.pending_actions.length > 0) {
+      callbacks.onActions?.(localResult.pending_actions);
+    }
+    if (localResult.sources && localResult.sources.length > 0) {
+      callbacks.onSources?.(localResult.sources);
+    }
+
+    const words = localResult.reply.split(/(\s+)/);
+    for (const w of words) {
+      callbacks.onToken(w);
+      await new Promise((r) => setTimeout(r, 10));
+    }
+
+    callbacks.onComplete?.(localResult);
+  } catch (err: any) {
+    callbacks.onError?.(err instanceof Error ? err : new Error(String(err)));
+  }
 }
 
 /**
