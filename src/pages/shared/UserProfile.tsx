@@ -29,22 +29,14 @@ import {
 export function UnifiedProfilePage() {
   const { db, user, update, log } = useStore();
 
-  if (!user) {
-    return (
-      <div className="p-6 text-center text-slate-400">
-        Veuillez vous connecter pour accéder à votre profil.
-      </div>
-    );
-  }
-
   // Fiche métier associée selon le rôle
-  const student = user.role === "student" ? db.students.find((s) => s.userId === user.id || s.id === user.id) : null;
-  const teacher = user.role === "teacher" ? db.teachers.find((t) => t.userId === user.id || t.id === user.id) : null;
+  const student = user?.role === "student" ? db.students.find((s) => s.userId === user.id || s.id === user.id) : null;
+  const teacher = user?.role === "teacher" ? db.teachers.find((t) => t.userId === user.id || t.id === user.id) : null;
 
   // États du formulaire profil
-  const [name, setName] = useState(user.name || "");
-  const [email, setEmail] = useState(user.email || "");
-  const [phone, setPhone] = useState(user.phone || student?.telephone || teacher?.phone || "");
+  const [name, setName] = useState(user?.name || "");
+  const [email, setEmail] = useState(user?.email || "");
+  const [phone, setPhone] = useState(user?.phone || student?.telephone || teacher?.phone || "");
   const [whatsapp, setWhatsapp] = useState(student?.whatsapp || teacher?.phone || "");
   const [adresse, setAdresse] = useState(student?.adresse || "");
   const [photo, setPhoto] = useState(student?.photo || teacher?.photo || "");
@@ -62,7 +54,7 @@ export function UnifiedProfilePage() {
   const [testingNotif, setTestingNotif] = useState(false);
 
   // États 2FA TOTP pour les comptes administrateurs
-  const isAdmin = user.role === "admin" || user.role === "superadmin";
+  const isAdmin = user?.role === "admin" || user?.role === "superadmin";
   const [is2faActive, setIs2faActive] = useState(false);
   const [setupStep, setSetupStep] = useState<"idle" | "configuring">("idle");
   const [totpSecret, setTotpSecret] = useState("");
@@ -73,11 +65,31 @@ export function UnifiedProfilePage() {
   const [saving2fa, setSaving2fa] = useState(false);
   const [confirmDisable2fa, setConfirmDisable2fa] = useState(false);
 
+  // Synchroniser les champs si l'utilisateur change ou se charge de façon asynchrone
+  useEffect(() => {
+    if (user) {
+      setName(user.name || "");
+      setEmail(user.email || "");
+      setPhone(user.phone || student?.telephone || teacher?.phone || "");
+      setWhatsapp(student?.whatsapp || teacher?.phone || "");
+      setAdresse(student?.adresse || "");
+      setPhoto(student?.photo || teacher?.photo || "");
+    }
+  }, [user, student, teacher]);
+
   useEffect(() => {
     if (user?.id && isAdmin) {
       isUser2faEnabled(user.id).then(setIs2faActive).catch(() => {});
     }
   }, [user?.id, isAdmin]);
+
+  if (!user) {
+    return (
+      <div className="p-6 text-center text-slate-400">
+        Veuillez vous connecter pour accéder à votre profil.
+      </div>
+    );
+  }
 
   const start2faSetup = () => {
     const sec = generateTotpSecret();

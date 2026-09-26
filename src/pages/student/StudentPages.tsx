@@ -119,29 +119,24 @@ function getStudent(db: any, user: any) {
 export function StudentDashboard() {
   const { db, user } = useStore();
   const student = getStudent(db, user);
-  if (!student) return <Empty icon={<UserCircle2 size={40} />} title="Profil apprenant introuvable. Contactez l'administration." />;
 
-  const myMods = db.modules.filter((m) => (student.modules || []).includes(m.id));
-  const att = db.attendance.filter((a) => a.studentId === student.id);
-  const grades = db.grades.filter((g) => g.studentId === student.id);
-  const avg = grades.length ? (grades.reduce((a, g) => a + g.note, 0) / grades.length).toFixed(1) : "—";
-  const present = att.filter((a) => a.statut === "present").length;
-  const absent = att.filter((a) => a.statut === "absent").length;
-  const progression = Math.min(100, Math.round(((grades.length + att.length) / Math.max(6, myMods.length * 3)) * 100));
-  const todaySessions = scheduleFor(db, user).filter((s) => s.jour === new Date().toLocaleDateString("fr-FR", { weekday: "long" }).replace(/^\w/, (c) => c.toUpperCase()));
-  const notifs = db.notifications.filter((n) => n.toId === user!.id || n.toId === "all").slice(0, 3);
+  const myTeachersList = useMemo(
+    () => (student ? teachersOfStudent(db, student.id) : []),
+    [db, student]
+  );
 
-  const summary = financialSummary(db, student.id);
-  const myTeachersList = useMemo(() => teachersOfStudent(db, student.id), [db, student.id]);
-  const inscriptionInv = summary.invoices.find((i) => i.type === "inscription" || i.libelle.toLowerCase().includes("inscription"));
-  const inscAmount = inscriptionInv?.montant || 5000;
-  const formationInvs = summary.invoices.filter((i) => i.type === "formation");
-  const formationTotal = formationInvs.reduce((a, b) => a + (b.montant || 0), 0);
-  const tranche1Amount = Math.round(formationTotal / 2);
-  const tranche2Amount = formationTotal - tranche1Amount;
-  const hasRemainingFees = summary.solde > 0 || summary.statut !== "paye";
+  const todaySessions = useMemo(
+    () => scheduleFor(db, user).filter((s) => s.jour === new Date().toLocaleDateString("fr-FR", { weekday: "long" }).replace(/^\w/, (c) => c.toUpperCase())),
+    [db, user]
+  );
+
+  const summary = useMemo(
+    () => (student ? financialSummary(db, student.id) : { totalPaye: 0, solde: 0, statut: "en_attente", invoices: [], payments: [], schedules: [] }),
+    [db, student]
+  );
 
   const todoItems = useMemo(() => {
+    if (!student) return [];
     const list: { id: string; title: string; desc: string; link: string; badge: string; color: "amber" | "cyan" | "red" | "green" }[] = [];
 
     // 1. Échéancier financier en retard ou à venir
@@ -185,6 +180,25 @@ export function StudentDashboard() {
 
     return list;
   }, [summary.schedules, student, todaySessions, db.modules]);
+
+  if (!student) return <Empty icon={<UserCircle2 size={40} />} title="Profil apprenant introuvable. Contactez l'administration." />;
+
+  const myMods = db.modules.filter((m) => (student.modules || []).includes(m.id));
+  const att = db.attendance.filter((a) => a.studentId === student.id);
+  const grades = db.grades.filter((g) => g.studentId === student.id);
+  const avg = grades.length ? (grades.reduce((a, g) => a + g.note, 0) / grades.length).toFixed(1) : "—";
+  const present = att.filter((a) => a.statut === "present").length;
+  const absent = att.filter((a) => a.statut === "absent").length;
+  const progression = Math.min(100, Math.round(((grades.length + att.length) / Math.max(6, myMods.length * 3)) * 100));
+  const notifs = db.notifications.filter((n) => n.toId === user!.id || n.toId === "all").slice(0, 3);
+
+  const inscriptionInv = summary.invoices.find((i) => i.type === "inscription" || i.libelle.toLowerCase().includes("inscription"));
+  const inscAmount = inscriptionInv?.montant || 5000;
+  const formationInvs = summary.invoices.filter((i) => i.type === "formation");
+  const formationTotal = formationInvs.reduce((a, b) => a + (b.montant || 0), 0);
+  const tranche1Amount = Math.round(formationTotal / 2);
+  const tranche2Amount = formationTotal - tranche1Amount;
+  const hasRemainingFees = summary.solde > 0 || summary.statut !== "paye";
 
   return (
     <div>
@@ -2039,11 +2053,12 @@ export function MyScholarship() {
 export function MyTeachers() {
   const { db, user } = useStore();
   const student = getStudent(db, user);
-  if (!student) return <Empty icon={<UserCircle2 size={40} />} title="Profil apprenant introuvable" />;
 
   const teacherLinks = useMemo(() => {
-    return teachersOfStudent(db, student.id);
-  }, [db, student.id]);
+    return student ? teachersOfStudent(db, student.id) : [];
+  }, [db, student]);
+
+  if (!student) return <Empty icon={<UserCircle2 size={40} />} title="Profil apprenant introuvable" />;
 
   return (
     <div className="space-y-5">

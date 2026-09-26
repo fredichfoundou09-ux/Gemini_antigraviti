@@ -1,4 +1,4 @@
-import { useState, useMemo } from "react";
+import { useState, useMemo, useEffect } from "react";
 import { Link } from "react-router-dom";
 import {
   GraduationCap, Users, CalendarDays, PenLine, BookOpen, ClipboardCheck, TestTube2, MessagesSquare,
@@ -25,18 +25,20 @@ function getTeacher(db: any, user: any) {
 export function TeacherDashboard() {
   const { db, user } = useStore();
   const teacher = getTeacher(db, user);
-  if (!teacher) return <Empty icon={<GraduationCap size={40} />} title="Profil enseignant introuvable" />;
 
   const teacherModuleIds = useMemo(
-    () => getTeacherModuleIds(teacher, db, { heuristic: true }),
-    [teacher, db.courses, db.schedule, teacher?.modules]
+    () => (teacher ? getTeacherModuleIds(teacher, db, { heuristic: true }) : []),
+    [teacher, db]
   );
   const myModules = useMemo(
-    () => db.modules.filter((m) => teacherModuleIds.includes(m.id)),
-    [db.modules, teacherModuleIds]
+    () => (teacher ? db.modules.filter((m) => teacherModuleIds.includes(m.id)) : []),
+    [db.modules, teacherModuleIds, teacher]
   );
-  const myStudents = useMemo(() => getStudentsOfTeacher(db, teacher.id), [db, teacher.id]);
+  const myStudents = useMemo(() => (teacher ? getStudentsOfTeacher(db, teacher.id) : []), [db, teacher]);
   const mySessions = useMemo(() => scheduleFor(db, user), [db, user]);
+
+  if (!teacher) return <Empty icon={<GraduationCap size={40} />} title="Profil enseignant introuvable" />;
+
   const todaySessions = mySessions.filter((s) => s.jour === new Date().toLocaleDateString("fr-FR", { weekday: "long" }).replace(/^\w/, (c) => c.toUpperCase()));
   const myCourses = db.courses.filter((c) => c.teacherId === teacher.id || teacherModuleIds.includes(c.moduleId));
   const myGrades = db.grades.filter((g) => teacherModuleIds.includes(g.moduleId));
@@ -150,16 +152,17 @@ export function TeacherDashboard() {
 export function TeacherClasses() {
   const { db, user } = useStore();
   const teacher = getTeacher(db, user);
-  if (!teacher) return <Empty icon={<GraduationCap size={40} />} title="Profil enseignant introuvable" />;
 
   const teacherModuleIds = useMemo(
-    () => getTeacherModuleIds(teacher, db, { heuristic: true }),
-    [teacher, db.courses, db.schedule, teacher?.modules]
+    () => (teacher ? getTeacherModuleIds(teacher, db, { heuristic: true }) : []),
+    [teacher, db]
   );
   const myModules = useMemo(
-    () => db.modules.filter((m) => teacherModuleIds.includes(m.id)),
-    [db.modules, teacherModuleIds]
+    () => (teacher ? db.modules.filter((m) => teacherModuleIds.includes(m.id)) : []),
+    [db.modules, teacherModuleIds, teacher]
   );
+
+  if (!teacher) return <Empty icon={<GraduationCap size={40} />} title="Profil enseignant introuvable" />;
 
   return (
     <div>
@@ -215,18 +218,16 @@ export function TeacherStudents() {
   const [filterModule, setFilterModule] = useState<string>("all");
   const [selectedStudent, setSelectedStudent] = useState<any | null>(null);
 
-  if (!teacher) return <Empty icon={<Users size={40} />} title="Profil enseignant introuvable" />;
-
   // Résolution unifiée et consolidée des modules enseignés
   const teacherModuleIds = useMemo(
-    () => getTeacherModuleIds(teacher, db, { heuristic: true }),
-    [teacher, db.courses, db.schedule, teacher?.modules]
+    () => (teacher ? getTeacherModuleIds(teacher, db, { heuristic: true }) : []),
+    [teacher, db]
   );
 
   // Règle automatique stricte via la fonction centralisée getStudentsOfTeacher
   const allMyStudents = useMemo(() => {
-    return getStudentsOfTeacher(db, teacher.id);
-  }, [db, teacher.id]);
+    return teacher ? getStudentsOfTeacher(db, teacher.id) : [];
+  }, [db, teacher]);
 
   const teacherModules = useMemo(() => {
     return db.modules.filter((m) => teacherModuleIds.includes(m.id));
@@ -249,6 +250,8 @@ export function TeacherStudents() {
       return matchQuery && matchModule;
     });
   }, [allMyStudents, searchTerm, filterModule]);
+
+  if (!teacher) return <Empty icon={<Users size={40} />} title="Profil enseignant introuvable" />;
 
   return (
     <div className="space-y-4">
@@ -500,21 +503,35 @@ export function TeacherStudents() {
 export function TeacherProfile() {
   const { db, user, update, log } = useStore();
   const teacher = getTeacher(db, user);
-  if (!teacher) return <Empty icon={<GraduationCap size={40} />} title="Profil enseignant introuvable" />;
 
-  const [phone, setPhone] = useState(teacher.phone || "");
-  const [whatsapp, setWhatsapp] = useState((teacher as any).whatsapp || teacher.phone || "");
-  const [emailPro, setEmailPro] = useState(teacher.email || user?.email || "");
-  const [bio, setBio] = useState((teacher as any).bio || teacher.specialite || "");
-  const [photo, setPhoto] = useState(teacher.photo || "");
+  const [phone, setPhone] = useState(teacher?.phone || "");
+  const [whatsapp, setWhatsapp] = useState((teacher as any)?.whatsapp || teacher?.phone || "");
+  const [emailPro, setEmailPro] = useState(teacher?.email || user?.email || "");
+  const [bio, setBio] = useState((teacher as any)?.bio || teacher?.specialite || "");
+  const [photo, setPhoto] = useState(teacher?.photo || "");
   const [saving, setSaving] = useState(false);
   const [uploading, setUploading] = useState(false);
 
+  useEffect(() => {
+    if (teacher) {
+      setPhone(teacher.phone || "");
+      setWhatsapp((teacher as any).whatsapp || teacher.phone || "");
+      setEmailPro(teacher.email || user?.email || "");
+      setBio((teacher as any).bio || teacher.specialite || "");
+      setPhoto(teacher.photo || "");
+    }
+  }, [teacher, user?.email]);
+
   const teacherModuleIds = useMemo(
-    () => getTeacherModuleIds(teacher, db, { heuristic: true }),
-    [teacher, db.courses, db.schedule, teacher?.modules]
+    () => (teacher ? getTeacherModuleIds(teacher, db, { heuristic: true }) : []),
+    [teacher, db]
   );
-  const myMods = db.modules.filter((m) => teacherModuleIds.includes(m.id));
+  const myMods = useMemo(
+    () => (teacher ? db.modules.filter((m) => teacherModuleIds.includes(m.id)) : []),
+    [db.modules, teacherModuleIds, teacher]
+  );
+
+  if (!teacher) return <Empty icon={<GraduationCap size={40} />} title="Profil enseignant introuvable" />;
 
   const onPhotoUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const f = e.target.files?.[0];
