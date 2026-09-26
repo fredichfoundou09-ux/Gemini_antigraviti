@@ -1,4 +1,4 @@
-import * as XLSX from "xlsx";
+import ExcelJS from "exceljs";
 import { AssessmentQuestion, QuestionType } from "../types";
 
 export interface ColumnMapping {
@@ -183,14 +183,14 @@ export function convertRowsToQuestions(rows: Record<string, any>[], mapping: Col
 
 export async function parseExcelAssessment(file: File): Promise<ParsedExcelResult> {
   const buffer = await file.arrayBuffer();
-  const workbook = XLSX.read(buffer, { type: "array" });
-  const sheetNames = workbook.SheetNames;
-  const selectedSheet = sheetNames[0] || "Feuille 1";
-  const worksheet = workbook.Sheets[selectedSheet];
+  const workbook = new ExcelJS.Workbook();
+  await workbook.xlsx.load(buffer);
 
-  // Extraction JSON avec en-têtes bruts
-  const jsonData = XLSX.utils.sheet_to_json<Record<string, any>>(worksheet, { defval: "" });
-  if (jsonData.length === 0) {
+  const sheetNames = workbook.worksheets.map((ws) => ws.name);
+  const selectedSheet = sheetNames[0] || "Feuille 1";
+  const worksheet = workbook.getWorksheet(selectedSheet) || workbook.worksheets[0];
+
+  if (!worksheet || worksheet.rowCount <= 1) {
     return {
       sheetNames,
       selectedSheet,
@@ -202,7 +202,58 @@ export async function parseExcelAssessment(file: File): Promise<ParsedExcelResul
     };
   }
 
-  const headers = Object.keys(jsonData[0]);
+  // Extraire les en-têtes depuis la première ligne
+  const headerRow = worksheet.getRow(1);
+  const headerMap: { colNumber: number; name: string }[] = [];
+  headerRow.eachCell({ includeEmpty: false }, (cell, colNumber) => {
+    const rawVal = cell.text ?? String(cell.value ?? "");
+    const headerName = rawVal.trim();
+    if (headerName) {
+      headerMap.push({ colNumber, name: headerName });
+    }
+  });
+
+  const headers = headerMap.map((h) => h.name);
+
+  // Extraire les données ligne par ligne
+  const jsonData: Record<string, any>[] = [];
+  worksheet.eachRow((row, rowNumber) => {
+    if (rowNumber === 1) return;
+    const rowObj: Record<string, any> = {};
+    let hasValue = false;
+    headerMap.forEach(({ colNumber, name }) => {
+      const cell = row.getCell(colNumber);
+      let val: any = cell.value;
+      if (val && typeof val === "object") {
+        if ("result" in val) {
+          val = val.result;
+        } else if ("richText" in val && Array.isArray(val.richText)) {
+          val = val.richText.map((t: any) => t.text).join("");
+        } else if ("text" in val) {
+          val = val.text;
+        }
+      }
+      const strVal = val !== undefined && val !== null ? String(val).trim() : "";
+      rowObj[name] = strVal;
+      if (strVal) hasValue = true;
+    });
+    if (hasValue) {
+      jsonData.push(rowObj);
+    }
+  });
+
+  if (jsonData.length === 0) {
+    return {
+      sheetNames,
+      selectedSheet,
+      headers,
+      rows: [],
+      detectedMapping: { questionCol: headers[0] || "", optionsCols: [] },
+      isAmbiguous: true,
+      questions: [],
+    };
+  }
+
   const { mapping, isAmbiguous } = detectColumnMapping(headers);
   const questions = convertRowsToQuestions(jsonData, mapping);
 
