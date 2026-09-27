@@ -1,18 +1,17 @@
 import { useState, useMemo } from "react";
 import { Link } from "react-router-dom";
 import {
-  Users, GraduationCap, BookOpen, Wallet, ClipboardCheck, UserX, Timer,
+  Users, GraduationCap, BookOpen, ClipboardCheck,
   TestTube2, Award, BadgeDollarSign, TrendingUp, Activity, AlertTriangle, PlusCircle, RotateCcw,
-  CalendarDays, DollarSign, Download, FileSpreadsheet, FileJson, Archive, Radio, ShieldCheck,
-  CheckCircle2, XCircle, Search, Clock, Printer, Palette, Flame, Moon, Shield, Sparkles, Brain
+  CalendarDays, FileSpreadsheet, FileJson, Archive, ShieldCheck,
+  Search, Clock, Printer, Brain
 } from "lucide-react";
 import { useStore } from "@/lib/store";
-import { Card, Stat, PageHead, Badge, Btn, Field, Input, Modal, today, money, Empty, formationLabel, printHTML } from "@/lib/ui";
-import { supabase, isSupabaseConfigured } from "@/lib/supabase/client";
+import { Card, PageHead, Badge, Btn, Modal, today, money, Empty, formationLabel, printHTML } from "@/lib/ui";
+import { isSupabaseConfigured } from "@/lib/supabase/client";
 import { toastMsg } from "@/lib/toast";
 import { usePresence, isUserActiveOnline } from "@/hooks/usePresence";
 import { cn } from "@/utils/cn";
-import { getUiTheme, setUiTheme, UiTheme } from "@/lib/uiTheme";
 import { SentinelAiBriefingCard } from "@/components/ai/SentinelAiBriefingCard";
 
 /* ---------- helpers ---------- */
@@ -84,10 +83,57 @@ export function AdminDashboard() {
     return result;
   }, [db.attendance, db.students]);
 
+  // Sélecteur de période dynamique pour l'évolution des indicateurs (Point 1)
+  const [indicatorPeriod, setIndicatorPeriod] = useState<"7j" | "30j" | "3m" | "annee">("7j");
+
+  // Sélecteur de période pour la répartition des présences (Point 1)
+  const [attPeriodFilter, setAttPeriodFilter] = useState<"global" | "today" | "week" | "month">("global");
+
+  // Calcul dynamique des indicateurs selon la période sélectionnée
+  const indicatorSeries = useMemo(() => {
+    const days = ["Lun", "Mar", "Mer", "Jeu", "Ven", "Sam", "Dim"];
+    const monthNames = ["Jan", "Fév", "Mar", "Avr", "Mai", "Juin", "Juil", "Aoû", "Sep", "Oct", "Nov", "Déc"];
+    const now = new Date();
+    const result = [];
+
+    const numPoints = 7;
+    let stepDays = 1;
+    if (indicatorPeriod === "30j") stepDays = 5;
+    else if (indicatorPeriod === "3m") stepDays = 13;
+    else if (indicatorPeriod === "annee") stepDays = 52;
+
+    for (let i = numPoints - 1; i >= 0; i--) {
+      const target = new Date(now.getTime() - i * stepDays * 24 * 60 * 60 * 1000);
+      const dateStr = target.toISOString().slice(0, 10);
+      const minDateStr = new Date(target.getTime() - stepDays * 24 * 60 * 60 * 1000).toISOString().slice(0, 10);
+
+      const dayName = indicatorPeriod === "7j" 
+        ? days[(target.getDay() + 6) % 7]
+        : indicatorPeriod === "30j" 
+        ? `${target.getDate()}/${target.getMonth() + 1}`
+        : monthNames[target.getMonth()];
+
+      const dayAtt = indicatorPeriod === "7j"
+        ? db.attendance.filter((a) => a.date === dateStr)
+        : db.attendance.filter((a) => a.date >= minDateStr && a.date <= dateStr);
+
+      const presents = dayAtt.filter((a) => a.statut === "present").length;
+      const absents = dayAtt.filter((a) => a.statut === "absent").length;
+      const retards = dayAtt.filter((a) => a.statut === "retard").length;
+      const dayStudents = indicatorPeriod === "7j"
+        ? db.students.filter((s) => s.dateInscription?.slice(0, 10) === dateStr).length
+        : db.students.filter((s) => (s.dateInscription?.slice(0, 10) || "") >= minDateStr && (s.dateInscription?.slice(0, 10) || "") <= dateStr).length;
+
+      const dateLabel = `${target.getDate().toString().padStart(2, "0")} ${monthNames[target.getMonth()]}`;
+      result.push({ date: dateStr, label: dayName, dateLabel, presents, absents, retards, newStudents: dayStudents, total: dayAtt.length });
+    }
+    return result;
+  }, [db.attendance, db.students, indicatorPeriod]);
+
   // Courbes dynamiques Card 1 : Évolution des indicateurs
   const maxVal1 = useMemo(() => {
-    return Math.max(10, ...last7Days.map((d) => Math.max(d.presents, d.absents, d.retards, d.newStudents)));
-  }, [last7Days]);
+    return Math.max(10, ...indicatorSeries.map((d) => Math.max(d.presents, d.absents, d.retards, d.newStudents)));
+  }, [indicatorSeries]);
 
   const card1Points = useMemo(() => {
     const stepX = 450 / 6;
@@ -95,10 +141,10 @@ export function AdminDashboard() {
       const ratio = Math.min(1, Math.max(0, val / maxVal1));
       return Math.round(145 - ratio * 115);
     };
-    const presentsPts = last7Days.map((d, i) => ({ x: 35 + i * stepX, y: getY(d.presents), val: d.presents }));
-    const newStudentsPts = last7Days.map((d, i) => ({ x: 35 + i * stepX, y: getY(d.newStudents), val: d.newStudents }));
-    const absentsPts = last7Days.map((d, i) => ({ x: 35 + i * stepX, y: getY(d.absents), val: d.absents }));
-    const retardsPts = last7Days.map((d, i) => ({ x: 35 + i * stepX, y: getY(d.retards), val: d.retards }));
+    const presentsPts = indicatorSeries.map((d, i) => ({ x: 35 + i * stepX, y: getY(d.presents), val: d.presents }));
+    const newStudentsPts = indicatorSeries.map((d, i) => ({ x: 35 + i * stepX, y: getY(d.newStudents), val: d.newStudents }));
+    const absentsPts = indicatorSeries.map((d, i) => ({ x: 35 + i * stepX, y: getY(d.absents), val: d.absents }));
+    const retardsPts = indicatorSeries.map((d, i) => ({ x: 35 + i * stepX, y: getY(d.retards), val: d.retards }));
 
     return {
       presentsPts,
@@ -110,9 +156,9 @@ export function AdminDashboard() {
       absentsPath: generateSmoothPath(absentsPts),
       retardsPath: generateSmoothPath(retardsPts),
     };
-  }, [last7Days, maxVal1]);
+  }, [indicatorSeries, maxVal1]);
 
-  // Courbe dynamique Card 2 : Présences 7 derniers jours
+  // Courbe dynamique Card 2 : Présences 7 derniers jours (100% réel)
   const maxVal2 = useMemo(() => {
     return Math.max(5, ...last7Days.map((d) => d.presents));
   }, [last7Days]);
@@ -129,14 +175,29 @@ export function AdminDashboard() {
     return { pts, linePath, areaPath };
   }, [last7Days, maxVal2]);
 
-  const maxAttCount = Math.max(1, ...last7Days.map((d) => Math.max(d.presents, d.absents + d.retards)));
+  // Répartition dynamique filtrable des présences (Point 1)
+  const filteredAttRecords = useMemo(() => {
+    const todayStr = today();
+    const now = Date.now();
+    if (attPeriodFilter === "today") {
+      return db.attendance.filter((a) => a.date === todayStr);
+    }
+    if (attPeriodFilter === "week") {
+      const minDate = new Date(now - 7 * 86400000).toISOString().slice(0, 10);
+      return db.attendance.filter((a) => a.date >= minDate);
+    }
+    if (attPeriodFilter === "month") {
+      const minDate = new Date(now - 30 * 86400000).toISOString().slice(0, 10);
+      return db.attendance.filter((a) => a.date >= minDate);
+    }
+    return db.attendance;
+  }, [db.attendance, attPeriodFilter]);
 
-  // Répartition globale des présences
-  const totalAttRecords = db.attendance.length || 1;
-  const totalPresents = db.attendance.filter((a) => a.statut === "present").length;
-  const totalAbsents = db.attendance.filter((a) => a.statut === "absent").length;
-  const totalRetards = db.attendance.filter((a) => a.statut === "retard").length;
-  const attendanceRate = Math.round((totalPresents / totalAttRecords) * 100);
+  const totalAttRecords = filteredAttRecords.length || 1;
+  const totalPresents = filteredAttRecords.filter((a) => a.statut === "present").length;
+  const totalAbsents = filteredAttRecords.filter((a) => a.statut === "absent").length;
+  const totalRetards = filteredAttRecords.filter((a) => a.statut === "retard").length;
+  const attendanceRate = filteredAttRecords.length > 0 ? Math.round((totalPresents / totalAttRecords) * 100) : 0;
 
   // Top modules actifs
   const topModules = useMemo(() => {
@@ -196,9 +257,23 @@ export function AdminDashboard() {
                   ÉVOLUTION DES INDICATEURS
                 </h3>
               </div>
-              <span className="rounded border border-[#006DFF]/50 bg-[#071A2B] px-2 py-0.5 text-[10px] font-semibold text-[#00E5FF]">
-                7 derniers jours ▾
-              </span>
+              <div className="flex items-center gap-1 rounded-lg border border-[#006DFF]/40 bg-[#071A2B] p-0.5 text-[9px]">
+                {(["7j", "30j", "3m", "annee"] as const).map((p) => (
+                  <button
+                    key={p}
+                    type="button"
+                    onClick={() => setIndicatorPeriod(p)}
+                    className={cn(
+                      "px-2 py-0.5 rounded font-bold uppercase transition cursor-pointer",
+                      indicatorPeriod === p
+                        ? "bg-[#00E5FF] text-[#040813] shadow-[0_0_8px_#00E5FF]"
+                        : "text-[#4C91B5] hover:text-[#00E5FF]"
+                    )}
+                  >
+                    {p === "7j" ? "7 Jours" : p === "30j" ? "30 Jours" : p === "3m" ? "3 Mois" : "Année"}
+                  </button>
+                ))}
+              </div>
             </div>
 
             {/* Légende multi-courbes */}
@@ -516,11 +591,30 @@ export function AdminDashboard() {
             {/* RÉPARTITION DES PRÉSENCES + TRÉSORERIE */}
             <div className="hud-panel rounded-lg border border-[#006DFF]/40 p-3.5 flex flex-col justify-between">
               <div>
-                <div className="border-b border-[#006DFF]/20 pb-1.5">
-                  <h3 className="font-display text-xs font-black text-[#B8F3FF] uppercase tracking-wider">
-                    RÉPARTITION DES PRÉSENCES
-                  </h3>
-                  <p className="text-[9px] text-[#4C91B5]">Statistiques cumulées d'assiduité</p>
+                <div className="flex flex-wrap items-center justify-between border-b border-[#006DFF]/20 pb-1.5 gap-2">
+                  <div>
+                    <h3 className="font-display text-xs font-black text-[#B8F3FF] uppercase tracking-wider">
+                      RÉPARTITION DES PRÉSENCES
+                    </h3>
+                    <p className="text-[9px] text-[#4C91B5]">Statistiques cumulées d'assiduité</p>
+                  </div>
+                  <div className="flex items-center gap-1 rounded bg-[#071A2B] border border-[#006DFF]/30 p-0.5 text-[9px]">
+                    {(["global", "today", "week", "month"] as const).map((f) => (
+                      <button
+                        key={f}
+                        type="button"
+                        onClick={() => setAttPeriodFilter(f)}
+                        className={cn(
+                          "px-1.5 py-0.5 rounded font-bold uppercase transition cursor-pointer",
+                          attPeriodFilter === f
+                            ? "bg-[#00E5FF] text-[#040813]"
+                            : "text-[#4C91B5] hover:text-[#00E5FF]"
+                        )}
+                      >
+                        {f === "global" ? "Global" : f === "today" ? "Jour" : f === "week" ? "Semaine" : "Mois"}
+                      </button>
+                    ))}
+                  </div>
                 </div>
 
                 <div className="my-2.5 flex items-center justify-center gap-3">
@@ -1335,239 +1429,6 @@ export function JournalPage() {
   );
 }
 
-/* ---------- Paramètres ---------- */
-export function ParametresPage() {
-  const { db, user, update, log } = useStore();
-  const s = db.settings;
-  const [email, setEmail] = useState(s.contact.email);
-  const [adresse, setAdresse] = useState(s.contact.adresse);
-  const [currentTheme, setCurrentTheme] = useState<UiTheme>(() => getUiTheme());
+/* ---------- Paramètres & Centre de pilotage ---------- */
+export { SettingsPage as ParametresPage } from "./SettingsPage";
 
-  const handleSelectTheme = (theme: UiTheme) => {
-    setUiTheme(theme);
-    setCurrentTheme(theme);
-    toastMsg.success(
-      theme === "orange-slate"
-        ? "Thème Orange Ardoise activé ✓"
-        : theme === "crimson"
-        ? "Thème Rouge Sentinelle activé ✓"
-        : theme === "modern"
-        ? "Thème Modernisé activé ✓"
-        : "Thème Classique rétabli ✓"
-    );
-  };
-
-  return (
-    <div>
-      <PageHead title="Paramètres" subtitle="Configuration générale & Apparence de la plateforme" />
-      
-      {/* Section Apparence Globale */}
-      <Card className="p-6 mb-6">
-        <div className="flex items-center justify-between mb-3 border-b border-white/10 pb-3">
-          <div className="flex items-center gap-2.5">
-            <div className="flex h-9 w-9 items-center justify-center rounded-lg bg-[#F03E00]/20 text-[#F03E00] border border-[#F03E00]/40">
-              <Palette size={18} />
-            </div>
-            <div>
-              <h3 className="font-display text-sm font-bold text-white">Apparence de l'interface</h3>
-              <p className="text-xs text-slate-400">
-                Personnalisez les couleurs de SENTINEL'S. Les changements s'appliquent instantanément à l'ensemble du logiciel.
-              </p>
-            </div>
-          </div>
-          <span className="font-mono text-[10px] text-cyan-300 bg-cyan-950/60 border border-cyan-400/30 px-2 py-0.5 rounded-full uppercase tracking-wider">
-            100% Réversible
-          </span>
-        </div>
-
-        <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4 mt-4">
-          {/* Thème 1: Classique */}
-          <button
-            type="button"
-            onClick={() => handleSelectTheme("classic")}
-            className={cn(
-              "text-left rounded-xl p-3.5 transition border flex flex-col justify-between group",
-              currentTheme === "classic"
-                ? "border-cyan-400/60 bg-cyan-500/15 shadow-[0_0_15px_rgba(0,229,255,0.25)]"
-                : "border-white/10 bg-white/[0.02] hover:bg-white/5 hover:border-white/20"
-            )}
-          >
-            <div>
-              <div className="flex items-center justify-between mb-2">
-                <div className="flex items-center gap-2">
-                  <Moon size={16} className="text-cyan-400" />
-                  <span className="text-xs font-bold text-white">Classique</span>
-                </div>
-                {currentTheme === "classic" && (
-                  <span className="rounded bg-cyan-400/20 px-1.5 py-0.2 text-[9px] font-bold text-cyan-300">Actif</span>
-                )}
-              </div>
-              <p className="text-[11px] text-slate-400 leading-snug mb-3">
-                Interface d'origine sombre et contrastée certifiée Sentinelles.
-              </p>
-            </div>
-            <div className="flex items-center gap-1.5 pt-2 border-t border-white/5">
-              <span className="h-3 w-3 rounded-full bg-[#080A0F] border border-white/20" />
-              <span className="h-3 w-3 rounded-full bg-[#00E5FF]" />
-              <span className="h-3 w-3 rounded-full bg-[#006DFF]" />
-              <span className="h-3 w-3 rounded-full bg-[#FF174F]" />
-            </div>
-          </button>
-
-          {/* Thème 2: Rouge Sentinelle */}
-          <button
-            type="button"
-            onClick={() => handleSelectTheme("crimson")}
-            className={cn(
-              "text-left rounded-xl p-3.5 transition border flex flex-col justify-between group",
-              currentTheme === "crimson"
-                ? "border-red-500/70 bg-red-500/20 shadow-[0_0_15px_rgba(255,23,79,0.3)]"
-                : "border-white/10 bg-white/[0.02] hover:bg-white/5 hover:border-white/20"
-            )}
-          >
-            <div>
-              <div className="flex items-center justify-between mb-2">
-                <div className="flex items-center gap-2">
-                  <Shield size={16} className="text-red-500" />
-                  <span className="text-xs font-bold text-red-300">Rouge Sentinelle</span>
-                </div>
-                {currentTheme === "crimson" && (
-                  <span className="rounded bg-red-500/30 px-1.5 py-0.2 text-[9px] font-bold text-red-200">Actif</span>
-                )}
-              </div>
-              <p className="text-[11px] text-slate-400 leading-snug mb-3">
-                Ambiance rubis écarlate et chrome métallique du blason 3D.
-              </p>
-            </div>
-            <div className="flex items-center gap-1.5 pt-2 border-t border-white/5">
-              <span className="h-3 w-3 rounded-full bg-[#FF174F]" />
-              <span className="h-3 w-3 rounded-full bg-[#9E002B]" />
-              <span className="h-3 w-3 rounded-full bg-[#0E0E14] border border-white/20" />
-            </div>
-          </button>
-
-          {/* Thème 3: Orange Ardoise (Style Infographique) */}
-          <button
-            type="button"
-            onClick={() => handleSelectTheme("orange-slate")}
-            className={cn(
-              "text-left rounded-xl p-3.5 transition border flex flex-col justify-between group",
-              currentTheme === "orange-slate"
-                ? "border-[#F03E00] bg-[#F03E00]/25 shadow-[0_0_18px_rgba(240,62,0,0.4)]"
-                : "border-orange-500/30 bg-orange-950/10 hover:bg-orange-950/20 hover:border-orange-500/50"
-            )}
-          >
-            <div>
-              <div className="flex items-center justify-between mb-2">
-                <div className="flex items-center gap-2">
-                  <Flame size={16} className="text-[#F03E00]" />
-                  <span className="text-xs font-bold text-orange-300">Orange Ardoise</span>
-                </div>
-                {currentTheme === "orange-slate" && (
-                  <span className="rounded bg-[#F03E00] px-1.5 py-0.2 text-[9px] font-bold text-white shadow-[0_0_6px_#F03E00]">Actif</span>
-                )}
-              </div>
-              <p className="text-[11px] text-slate-300 leading-snug mb-3">
-                50% Orange vif, 50% Bleu-Noir structuré avec textes 100% blancs lisibles.
-              </p>
-            </div>
-            <div className="flex items-center gap-1.5 pt-2 border-t border-white/5">
-              <span className="h-3 w-3 rounded-full bg-[#F03E00] ring-1 ring-white/30" title="#F03E00" />
-              <span className="h-3 w-3 rounded-full bg-[#B33107]" title="#B33107" />
-              <span className="h-3 w-3 rounded-full bg-[#1A2226] ring-1 ring-white/20" title="#1A2226" />
-              <span className="h-3 w-3 rounded-full bg-[#263136]" title="#263136" />
-              <span className="h-3 w-3 rounded-full bg-[#FFFFFF] ring-1 ring-black/30" title="#FFFFFF" />
-            </div>
-          </button>
-
-          {/* Thème 4: Modernisé (Midnight Violet & Indigo) */}
-          <button
-            type="button"
-            onClick={() => handleSelectTheme("modern")}
-            className={cn(
-              "text-left rounded-xl p-3.5 transition border flex flex-col justify-between group",
-              currentTheme === "modern"
-                ? "border-violet-500/70 bg-violet-500/20 shadow-[0_0_15px_rgba(139,92,246,0.3)]"
-                : "border-white/10 bg-white/[0.02] hover:bg-white/5 hover:border-white/20"
-            )}
-          >
-            <div>
-              <div className="flex items-center justify-between mb-2">
-                <div className="flex items-center gap-2">
-                  <Sparkles size={16} className="text-violet-400" />
-                  <span className="text-xs font-bold text-violet-300">Modernisé</span>
-                </div>
-                {currentTheme === "modern" && (
-                  <span className="rounded bg-violet-500/30 px-1.5 py-0.2 text-[9px] font-bold text-violet-200">Actif</span>
-                )}
-              </div>
-              <p className="text-[11px] text-slate-400 leading-snug mb-3">
-                Ambiance Midnight Indigo, Violet Électrique & reflets glassmorphism.
-              </p>
-            </div>
-            <div className="flex items-center gap-1.5 pt-2 border-t border-white/5">
-              <span className="h-3 w-3 rounded-full bg-[#8B5CF6]" />
-              <span className="h-3 w-3 rounded-full bg-[#6366F1]" />
-              <span className="h-3 w-3 rounded-full bg-[#1E1B4B] border border-white/20" />
-              <span className="h-3 w-3 rounded-full bg-[#080C16] border border-white/20" />
-            </div>
-          </button>
-        </div>
-      </Card>
-
-      <div className="grid gap-4 lg:grid-cols-2">
-        <Card className="p-6">
-          <h3 className="font-display mb-4 text-sm font-bold text-white">Coordonnées de contact</h3>
-          <div className="space-y-4">
-            <Field label="Email de contact"><Input value={email} onChange={(e) => setEmail(e.target.value)} /></Field>
-            <Field label="Adresse"><Input value={adresse} onChange={(e) => setAdresse(e.target.value)} /></Field>
-            <Btn
-              onClick={async () => {
-                const nextSettings = { ...db.settings, contact: { email, adresse } };
-                update((d) => ({ ...d, settings: nextSettings }));
-                if (isSupabaseConfigured) {
-                  try {
-                    await supabase.from("site_settings").upsert({
-                      id: "default",
-                      data: {
-                        settings: nextSettings,
-                        advantages: db.advantages,
-                        partners: db.partners,
-                        announcements: db.announcements,
-                      },
-                      updated_at: new Date().toISOString(),
-                    });
-                  } catch (err) {
-                    console.error("Erreur sauvegarde site_settings:", err);
-                  }
-                }
-                log("Paramètres de contact mis à jour");
-                toastMsg.success("Coordonnées enregistrées avec succès ✓");
-              }}
-              className="w-full"
-            >
-              Enregistrer les coordonnées
-            </Btn>
-          </div>
-        </Card>
-
-        <Card className="p-6" glow="red">
-          <h3 className="font-display mb-2 flex items-center gap-2 text-sm font-bold text-red-400"><AlertTriangle size={16} /> Initialisation du logiciel</h3>
-          <p className="text-sm text-slate-400">
-            Réinitialisez sélectivement les données de la plateforme (formations, apprenants, paiements, contenu…).
-            L'opération est irréversible et réservée à l'Administrateur Supérieur.
-          </p>
-          {user?.role === "superadmin" ? (
-            <Link to="/app/initialisation" className="mt-4 inline-block">
-              <Btn variant="red"><RotateCcw size={15} /> Ouvrir l'initialisation</Btn>
-            </Link>
-          ) : (
-            <p className="mt-4 rounded-lg border border-amber-400/30 bg-amber-400/5 p-3 text-xs text-amber-300">
-              Seul l'Administrateur Supérieur peut initialiser le logiciel.
-            </p>
-          )}
-        </Card>
-      </div>
-    </div>
-  );
-}

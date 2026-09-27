@@ -980,9 +980,42 @@ export function MessageCenter() {
   );
 }
 
+function getNotificationCategory(n: any): string {
+  const t = (n.type || "").toLowerCase();
+  const text = `${n.title || ""} ${n.body || ""}`.toLowerCase();
+
+  if (t === "presence" || text.includes("présence") || text.includes("absence") || text.includes("retard") || text.includes("émargement")) return "presence";
+  if (text.includes("planning") || text.includes("emploi du temps") || text.includes("séance") || text.includes("cours annulé")) return "emploi_du_temps";
+  if (t === "paiement" || t === "bourse" || text.includes("scolarité") || text.includes("solde") || text.includes("tranche") || text.includes("fcfa")) return "paiements";
+  if (t === "test" || text.includes("évaluation") || text.includes("devoir") || text.includes("note")) return "evaluations";
+  if (text.includes("examen") || text.includes("sécurisé") || text.includes("anti-triche")) return "examens";
+  if (text.includes("enseignant") || text.includes("formateur") || text.includes("heure validée")) return "enseignants";
+  if (text.includes("sentinel") || text.includes("ia") || text.includes("intelligence")) return "ia";
+  if (text.includes("message") || text.includes("discussion") || text.includes("conversation")) return "messagerie";
+  if (text.includes("admin") || text.includes("inscription") || text.includes("compte") || text.includes("utilisateur")) return "administration";
+  return "systeme";
+}
+
+function getNotificationPriority(n: any): "haute" | "normale" {
+  const text = `${n.title || ""} ${n.body || ""}`.toLowerCase();
+  if (
+    text.includes("urgent") ||
+    text.includes("sécurité") ||
+    text.includes("alerte") ||
+    text.includes("absence") ||
+    text.includes("impayé") ||
+    text.includes("fraude")
+  ) {
+    return "haute";
+  }
+  return "normale";
+}
+
 export function NotificationsPage() {
   const { db, user, update } = useStore();
-  const [filterType, setFilterType] = useState<"all" | "unread" | "info" | "paiement" | "presence">("all");
+  const [filterType, setFilterType] = useState<string>("all");
+  const [priorityFilter, setPriorityFilter] = useState<"all" | "haute" | "normale">("all");
+  const [searchTerm, setSearchTerm] = useState("");
   const [refreshTicker, setRefreshTicker] = useState(0);
 
   useEffect(() => {
@@ -1003,13 +1036,26 @@ export function NotificationsPage() {
   const filtered = useMemo(() => {
     return mine.filter((n) => {
       const read = Boolean(n.lu || readSet.has(n.id));
-      if (filterType === "unread") return !read;
-      if (filterType === "info") return n.type === "info" || n.type === "inscription";
-      if (filterType === "paiement") return n.type === "paiement" || n.type === "bourse";
-      if (filterType === "presence") return n.type === "presence" || n.type === "test";
+      if (filterType === "unread" && read) return false;
+      if (filterType !== "all" && filterType !== "unread") {
+        const cat = getNotificationCategory(n);
+        if (cat !== filterType) return false;
+      }
+
+      if (priorityFilter !== "all") {
+        const p = getNotificationPriority(n);
+        if (p !== priorityFilter) return false;
+      }
+
+      if (searchTerm.trim()) {
+        const q = searchTerm.toLowerCase();
+        const matches = (n.title || "").toLowerCase().includes(q) || (n.body || "").toLowerCase().includes(q);
+        if (!matches) return false;
+      }
+
       return true;
     });
-  }, [mine, filterType, readSet]);
+  }, [mine, filterType, priorityFilter, searchTerm, readSet]);
 
   const handleMarkOne = async (n: any) => {
     if (!user?.id) return;
@@ -1070,7 +1116,7 @@ export function NotificationsPage() {
     <div className="space-y-4">
       <PageHead
         title="Notifications & Alertes"
-        subtitle="Suivi en temps réel de votre dossier, alertes académiques et financières"
+        subtitle="Suivi en temps réel de votre dossier, alertes académiques, pédagogiques et administratives"
         actions={
           <div className="flex flex-wrap items-center gap-2">
             {unreadCount > 0 && (
@@ -1083,7 +1129,7 @@ export function NotificationsPage() {
                 type="button"
                 onClick={handleDeleteAll}
                 className={cn(
-                  "inline-flex items-center gap-1.5 rounded-md border px-3 py-2 text-xs font-bold transition",
+                  "inline-flex items-center gap-1.5 rounded-md border px-3 py-2 text-xs font-bold transition cursor-pointer",
                   confirmDeleteAll
                     ? "border-red-500 bg-red-600 text-white animate-pulse shadow-[0_0_12px_#FF174F]"
                     : "border-red-500/30 bg-red-500/10 text-red-300 hover:bg-red-500/20 hover:border-red-500/50"
@@ -1096,23 +1142,64 @@ export function NotificationsPage() {
         }
       />
 
-      {/* Filtres de catégorie : boutons rectangulaires aux coins légèrement arrondis */}
-      <div className="flex flex-wrap gap-2">
+      {/* Barre de recherche et filtres de priorité */}
+      <div className="flex flex-col gap-3 rounded-xl border border-white/10 bg-white/[0.02] p-3 sm:flex-row sm:items-center sm:justify-between">
+        <div className="relative flex-1">
+          <Search size={14} className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-slate-500" />
+          <Input
+            placeholder="Rechercher une notification par mot-clé..."
+            value={searchTerm}
+            onChange={(e) => setSearchTerm(e.target.value)}
+            className="pl-8 text-xs py-1.5"
+          />
+        </div>
+
+        <div className="flex items-center gap-1.5">
+          <span className="text-[11px] text-slate-400 font-medium mr-1">Priorité :</span>
+          {(["all", "haute", "normale"] as const).map((p) => (
+            <button
+              key={p}
+              type="button"
+              onClick={() => setPriorityFilter(p)}
+              className={cn(
+                "rounded-lg px-2.5 py-1 text-[11px] font-bold transition-all cursor-pointer border",
+                priorityFilter === p
+                  ? p === "haute"
+                    ? "border-red-500/50 bg-red-500/20 text-red-300"
+                    : "border-cyan-400/40 bg-cyan-500/20 text-cyan-300"
+                  : "border-white/5 text-slate-400 hover:bg-white/5"
+              )}
+            >
+              {p === "all" ? "Toutes" : p === "haute" ? "⚡ Urgentes" : "Standard"}
+            </button>
+          ))}
+        </div>
+      </div>
+
+      {/* 10 Catégories officielles (Point 24) */}
+      <div className="flex flex-wrap gap-1.5">
         {[
           { id: "all", label: `Toutes (${mine.length})` },
           { id: "unread", label: `Non lues (${unreadCount})` },
-          { id: "info", label: "📢 Annonces & Info" },
-          { id: "paiement", label: "💳 Finances" },
-          { id: "presence", label: "🛡️ Présences & Examens" },
+          { id: "systeme", label: "⚙️ Système" },
+          { id: "presence", label: "🛡️ Présence" },
+          { id: "emploi_du_temps", label: "📅 Emploi du temps" },
+          { id: "enseignants", label: "👨‍🏫 Enseignants" },
+          { id: "paiements", label: "💳 Paiements" },
+          { id: "evaluations", label: "📝 Évaluations" },
+          { id: "examens", label: "🔒 Examens" },
+          { id: "ia", label: "🤖 Sentinel AI" },
+          { id: "messagerie", label: "💬 Messagerie" },
+          { id: "administration", label: "🏛️ Administration" },
         ].map((f) => (
           <button
             key={f.id}
             type="button"
-            onClick={() => setFilterType(f.id as any)}
+            onClick={() => setFilterType(f.id)}
             className={cn(
-              "rounded-md border px-3.5 py-1.5 text-xs font-bold transition-all",
+              "rounded-lg border px-3 py-1.5 text-[11px] font-bold transition-all cursor-pointer",
               filterType === f.id
-                ? "border-cyan-400/50 bg-cyan-400/10 text-cyan-300 shadow-[0_0_12px_rgba(6,182,212,0.2)]"
+                ? "border-cyan-400/50 bg-cyan-400/15 text-cyan-300 shadow-[0_0_12px_rgba(6,182,212,0.2)]"
                 : "border-white/10 text-slate-400 hover:bg-white/5"
             )}
           >
@@ -1141,8 +1228,16 @@ export function NotificationsPage() {
                 </div>
                 <div className="min-w-0 flex-1">
                   <div className="flex items-center justify-between gap-2">
-                    <div className="flex items-center gap-2">
+                    <div className="flex items-center gap-2 flex-wrap">
                       <p className={cn("text-sm font-bold", isRead ? "text-slate-300" : "text-white")}>{n.title}</p>
+                      {getNotificationPriority(n) === "haute" && (
+                        <span className="rounded bg-red-500/25 px-1.5 py-0.5 text-[9px] font-bold text-red-300 border border-red-500/40">
+                          ⚡ Prioritaire
+                        </span>
+                      )}
+                      <span className="rounded bg-white/5 px-1.5 py-0.5 text-[9px] font-medium text-slate-400 border border-white/10 uppercase font-mono">
+                        {getNotificationCategory(n).replace("_", " ")}
+                      </span>
                       {!isRead && (
                         <span className="inline-block h-2 w-2 rounded-sm bg-red-500 shadow-[0_0_6px_#FF174F] animate-pulse" />
                       )}
