@@ -250,13 +250,13 @@ export function AdminDashboard() {
 
       events.push({
         id: `log-${l.id}`,
-        timestamp: l.timestamp ? new Date(l.timestamp).toLocaleTimeString("fr-FR", { hour: "2-digit", minute: "2-digit" }) : "Récemment",
+        timestamp: l.date ? new Date(l.date).toLocaleTimeString("fr-FR", { hour: "2-digit", minute: "2-digit" }) : "Récemment",
         type,
         title: l.action || "Action système",
-        detail: l.details || l.target || "",
+        detail: l.action || "",
         status,
-        actor: l.userName || "Système",
-        dateSort: l.timestamp ? new Date(l.timestamp).getTime() : 0,
+        actor: l.user || "Système",
+        dateSort: l.date ? new Date(l.date).getTime() : 0,
       });
     });
 
@@ -283,9 +283,9 @@ export function AdminDashboard() {
         id: `pay-${p.id}`,
         timestamp: p.date ? p.date.slice(5) : "Récemment",
         type: "finance",
-        title: `Paiement ${p.statut === "valide" ? "validé" : "en attente"}`,
+        title: `Paiement ${p.statut === "paye" ? "validé" : "en attente"}`,
         detail: `${p.montant} FCFA - ${student?.prenom || ""} ${student?.nom || ""}`,
-        status: p.statut === "valide" ? "success" : "warning",
+        status: p.statut === "paye" ? "success" : "warning",
         actor: student?.prenom ? `${student.prenom} ${student.nom}` : "Finances",
         dateSort: p.date ? new Date(p.date).getTime() : Date.now(),
       });
@@ -299,9 +299,9 @@ export function AdminDashboard() {
         id: `grd-${g.id}`,
         timestamp: g.date ? g.date.slice(5) : "Récemment",
         type: "grades",
-        title: `Note attribuée : ${g.valeur}/20`,
-        detail: `${student?.prenom || ""} ${student?.nom || ""} (${mod?.code || "Module"})`,
-        status: g.valeur >= 10 ? "success" : "alert",
+        title: `Note attribuée : ${g.note}/20`,
+        detail: `${student?.prenom || ""} ${student?.nom || ""} (${mod?.titre || "Module"})`,
+        status: g.note >= 10 ? "success" : "alert",
         actor: student?.prenom ? `${student.prenom} ${student.nom}` : "Évaluation",
         dateSort: g.date ? new Date(g.date).getTime() : Date.now(),
       });

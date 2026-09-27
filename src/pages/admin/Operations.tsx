@@ -1506,7 +1506,7 @@ export function CoursesPage() {
       const mod = db.modules.find((m) => m.id === c.moduleId);
       const matchForm = formationFilter === "all" || (mod && mod.formation === formationFilter);
       const matchMod = !filter || c.moduleId === filter;
-      const matchTeacher = teacherFilter === "all" || (c.teacherId === teacherFilter || (mod && (mod.teachers || []).includes(teacherFilter)));
+      const matchTeacher = teacherFilter === "all" || c.teacherId === teacherFilter;
       const matchSearch = !courseSearch.trim() || c.titre.toLowerCase().includes(courseSearch.toLowerCase()) || (c.description || "").toLowerCase().includes(courseSearch.toLowerCase());
       return matchForm && matchMod && matchTeacher && matchSearch;
     });

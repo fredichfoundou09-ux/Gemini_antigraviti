@@ -4,7 +4,7 @@ import { QRCodeSVG } from "qrcode.react";
 import {
   Users, Search, PlusCircle, Eye, EyeOff, Pencil, UserCircle2, Phone, Mail, MapPin, CalendarDays,
   GraduationCap, Trash2, CheckCircle2, XCircle, KeyRound, Clock, Wallet, BadgeDollarSign, Timer, MessageCircle, Download,
-  Table2, LayoutGrid, Printer, CreditCard, Archive, FileSpreadsheet,
+  Table2, LayoutGrid, Printer, CreditCard, Archive, FileSpreadsheet, ClipboardCheck,
 } from "lucide-react";
 import { useStore } from "@/lib/store";
 import { cn } from "@/utils/cn";

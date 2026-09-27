@@ -148,10 +148,37 @@ export function coursesFor(db: DB, user: User | null): Course[] {
 export function studentConcernedBySchedule(db: DB, studentId: string, s: ScheduleItem): boolean {
   const stu = db.students.find((x) => x.id === studentId);
   if (!stu) return false;
-  if (!stu.modules || !stu.modules.includes(s.moduleId)) return false;
 
+  // Si ciblé expressément par apprenants
   if (s.studentIds && s.studentIds.length > 0) return s.studentIds.includes(stu.id);
+  // Si ciblé par groupe
   if (s.groupe && (stu as any).groupe && (stu as any).groupe !== s.groupe) return false;
+
+  const stuMods = stu.modules || [];
+  // Correspondance directe du module
+  if (stuMods.length > 0 && stuMods.includes(s.moduleId)) {
+    return (!s.formation || stu.formation === s.formation);
+  }
+  // Fallback : si l'apprenant n'a pas de modules assignés, vérifier par formation
+  if (stuMods.length === 0 && s.moduleId) {
+    const mod = db.modules.find((m) => m.id === s.moduleId);
+    if (mod && mod.formation && stu.formation && mod.formation === stu.formation) {
+      return true;
+    }
+    // Ou si le créneau a une formation explicite
+    if (s.formation && stu.formation && s.formation === stu.formation) {
+      return true;
+    }
+    return false;
+  }
+  // Si le module du créneau n'est pas dans les modules de l'apprenant,
+  // vérifier par formation comme fallback souple
+  if (s.moduleId && !stuMods.includes(s.moduleId)) {
+    const mod = db.modules.find((m) => m.id === s.moduleId);
+    if (mod && mod.formation && stu.formation && mod.formation === stu.formation) {
+      return true;
+    }
+  }
   return (!s.formation || stu.formation === s.formation);
 }
 
@@ -355,6 +382,7 @@ export function assignmentsFor(db: DB, user: User | null, assignments: any[]): a
       (user.email && st.email && st.email.toLowerCase().trim() === user.email.toLowerCase().trim())
   );
   if (!s) return [];
+  const stuMods = s.modules || [];
   return assignments.filter((a) => {
     if (a.statut !== "publie" && a.statut !== "ouvert") return false;
     if (a.audience === "all") return true;
@@ -362,13 +390,25 @@ export function assignmentsFor(db: DB, user: User | null, assignments: any[]): a
       return a.formation === s.formation;
     }
     if (a.audience === "module" && a.moduleId) {
-      return (s.modules || []).includes(a.moduleId);
+      // Correspondance directe
+      if (stuMods.includes(a.moduleId)) return true;
+      // Fallback : si l'apprenant n'a pas de modules, vérifier par formation
+      if (stuMods.length === 0 && s.formation) {
+        const mod = db.modules.find((m) => m.id === a.moduleId);
+        if (mod && mod.formation && mod.formation === s.formation) return true;
+      }
+      return false;
     }
     if (a.audience === "groupe" && a.targetGroupe) {
       return (s as any).groupe === a.targetGroupe;
     }
     if (a.audience === "apprenants" && Array.isArray(a.targetStudentIds)) {
       return a.targetStudentIds.includes(s.id);
+    }
+    // Pas d'audience définie : fallback formation/module
+    if (!a.audience) {
+      if (a.formation && s.formation && a.formation === s.formation) return true;
+      if (a.moduleId && stuMods.includes(a.moduleId)) return true;
     }
     return false;
   });
@@ -400,6 +440,7 @@ export function assessmentsFor(db: DB, user: User | null, assessments: any[]): a
       (user.email && st.email && st.email.toLowerCase().trim() === user.email.toLowerCase().trim())
   );
   if (!s) return [];
+  const stuMods = s.modules || [];
   return assessments.filter((a) => {
     if (a.statut !== "publie" && a.statut !== "en_cours") return false;
     if (a.audience === "all") return true;
@@ -407,13 +448,25 @@ export function assessmentsFor(db: DB, user: User | null, assessments: any[]): a
       return a.formation === s.formation;
     }
     if (a.audience === "module" && a.moduleId) {
-      return (s.modules || []).includes(a.moduleId);
+      // Correspondance directe
+      if (stuMods.includes(a.moduleId)) return true;
+      // Fallback : si l'apprenant n'a pas de modules, vérifier par formation
+      if (stuMods.length === 0 && s.formation) {
+        const mod = db.modules.find((m) => m.id === a.moduleId);
+        if (mod && mod.formation && mod.formation === s.formation) return true;
+      }
+      return false;
     }
     if (a.audience === "groupe" && a.targetGroupe) {
       return (s as any).groupe === a.targetGroupe;
     }
     if (a.audience === "apprenants" && Array.isArray(a.targetStudentIds)) {
       return a.targetStudentIds.includes(s.id);
+    }
+    // Pas d'audience définie : fallback formation/module
+    if (!a.audience) {
+      if (a.formation && s.formation && a.formation === s.formation) return true;
+      if (a.moduleId && stuMods.includes(a.moduleId)) return true;
     }
     return false;
   });
