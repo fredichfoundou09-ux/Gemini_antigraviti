@@ -108,6 +108,7 @@ export function SentinelAiAdminPage() {
         const raw = localStorage.getItem("sn_db_v2");
         const db = raw ? JSON.parse(raw) : {};
         setMemories(db.ai_memories || []);
+        setKnowledgeDocs(db.ai_knowledge_docs || []);
       }
     } catch (err: any) {
       console.warn("Erreur chargement Sentinel AI Admin:", err);

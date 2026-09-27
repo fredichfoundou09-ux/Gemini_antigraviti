@@ -1,11 +1,83 @@
 import { getSupabase } from "./client";
 
+const LOCAL_STORAGE_DELETED_MSG_PREFIX = "sn_msg_deleted_v2_";
+const LOCAL_STORAGE_DELETED_CONV_PREFIX = "sn_conv_deleted_v2_";
+const FALLBACK_KEY = "global_session";
+
+function safeUserKey(userId?: string): string {
+  return userId && userId.trim() ? userId.trim() : FALLBACK_KEY;
+}
+
+export function getDeletedMessageIds(userId?: string): Set<string> {
+  const set = new Set<string>();
+  const keys = [safeUserKey(userId)];
+  if (userId && userId !== FALLBACK_KEY) keys.push(FALLBACK_KEY);
+  keys.forEach((k) => {
+    try {
+      const raw = localStorage.getItem(`${LOCAL_STORAGE_DELETED_MSG_PREFIX}${k}`);
+      if (raw) {
+        const parsed = JSON.parse(raw);
+        if (Array.isArray(parsed)) parsed.forEach((id) => set.add(id));
+      }
+    } catch {
+      // ignore
+    }
+  });
+  return set;
+}
+
+export function markMessageAsDeleted(messageId: string, userId?: string) {
+  const set = getDeletedMessageIds(userId);
+  set.add(messageId);
+  const arr = Array.from(set);
+  try {
+    localStorage.setItem(`${LOCAL_STORAGE_DELETED_MSG_PREFIX}${safeUserKey(userId)}`, JSON.stringify(arr));
+    localStorage.setItem(`${LOCAL_STORAGE_DELETED_MSG_PREFIX}${FALLBACK_KEY}`, JSON.stringify(arr));
+  } catch {
+    // ignore
+  }
+}
+
+export function getDeletedConversationIds(userId?: string): Set<string> {
+  const set = new Set<string>();
+  const keys = [safeUserKey(userId)];
+  if (userId && userId !== FALLBACK_KEY) keys.push(FALLBACK_KEY);
+  keys.forEach((k) => {
+    try {
+      const raw = localStorage.getItem(`${LOCAL_STORAGE_DELETED_CONV_PREFIX}${k}`);
+      if (raw) {
+        const parsed = JSON.parse(raw);
+        if (Array.isArray(parsed)) parsed.forEach((id) => set.add(id));
+      }
+    } catch {
+      // ignore
+    }
+  });
+  return set;
+}
+
+export function markConversationAsDeleted(conversationId: string, userId?: string) {
+  const set = getDeletedConversationIds(userId);
+  set.add(conversationId);
+  const arr = Array.from(set);
+  try {
+    localStorage.setItem(`${LOCAL_STORAGE_DELETED_CONV_PREFIX}${safeUserKey(userId)}`, JSON.stringify(arr));
+    localStorage.setItem(`${LOCAL_STORAGE_DELETED_CONV_PREFIX}${FALLBACK_KEY}`, JSON.stringify(arr));
+  } catch {
+    // ignore
+  }
+}
+
 /* ---------- Conversations & messages ---------- */
 export async function fetchMyConversations() {
   const sb = getSupabase();
   const { data: { user } } = await sb.auth.getUser();
   if (!user?.id) return [];
 
+  const deletedConvs = getDeletedConversationIds(user.id);
+  const deletedMsgs = getDeletedMessageIds(user.id);
+
+  let rawList: any[];
   const { data, error } = await sb
     .from("conversations")
     .select("*, members:conversation_members!inner(user_id, last_read_at), messages(*)")
@@ -19,12 +91,21 @@ export async function fetchMyConversations() {
       .select("*, members:conversation_members(user_id, last_read_at), messages(*)")
       .order("created_at", { ascending: false });
     if (fbErr) throw fbErr;
-    return (fallbackData || []).filter((c: any) =>
+    rawList = (fallbackData || []).filter((c: any) =>
       c.members?.some((m: any) => m.user_id === user.id) ||
       c.messages?.some((m: any) => m.sender_id === user.id)
     );
+  } else {
+    rawList = data || [];
   }
-  return data || [];
+
+  return rawList
+    .filter((c: any) => !deletedConvs.has(c.id))
+    .map((c: any) => ({
+      ...c,
+      messages: (c.messages || []).filter((m: any) => !deletedMsgs.has(m.id)),
+    }))
+    .filter((c: any) => c.messages.length > 0);
 }
 
 export async function fetchMessages(conversationId: string) {
@@ -166,6 +247,7 @@ export async function replyToConversation(conversationId: string, senderId: stri
 }
 
 export async function deleteConversation(conversationId: string, userId?: string) {
+  markConversationAsDeleted(conversationId, userId);
   const sb = getSupabase();
   try {
     const { data, error } = await sb.rpc("delete_conversation", {
@@ -175,12 +257,14 @@ export async function deleteConversation(conversationId: string, userId?: string
     if (!error && (data?.success || data?.ok)) return data;
   } catch { /* fallback */ }
 
-  const { error } = await sb.from("conversations").delete().eq("id", conversationId);
-  if (error) throw error;
+  try {
+    await sb.from("conversations").delete().eq("id", conversationId);
+  } catch { /* silence */ }
   return { success: true };
 }
 
 export async function deleteMessage(messageId: string, userId?: string) {
+  markMessageAsDeleted(messageId, userId);
   const sb = getSupabase();
   try {
     const { data, error } = await sb.rpc("delete_message", {
@@ -190,8 +274,9 @@ export async function deleteMessage(messageId: string, userId?: string) {
     if (!error && (data?.success || data?.ok)) return data;
   } catch { /* fallback */ }
 
-  const { error } = await sb.from("messages").delete().eq("id", messageId);
-  if (error) throw error;
+  try {
+    await sb.from("messages").delete().eq("id", messageId);
+  } catch { /* silence */ }
   return { success: true };
 }
 

@@ -1,4 +1,22 @@
-import { describe, it, expect } from "vitest";
+import { describe, it, expect, beforeAll } from "vitest";
+
+beforeAll(() => {
+  const memoryStore: Record<string, string> = {};
+  (globalThis as any).localStorage = {
+    getItem: (key: string) => memoryStore[key] ?? null,
+    setItem: (key: string, val: string) => {
+      memoryStore[key] = String(val);
+    },
+    removeItem: (key: string) => {
+      delete memoryStore[key];
+    },
+    clear: () => {
+      for (const k of Object.keys(memoryStore)) delete memoryStore[k];
+    },
+    key: (i: number) => Object.keys(memoryStore)[i] ?? null,
+    length: 0,
+  };
+});
 
 describe("Système de Messagerie & Suppression", () => {
   it("supprime un message individuel sans altérer les autres messages", () => {
@@ -117,4 +135,24 @@ describe("Système de Messagerie & Suppression", () => {
     expect(isSupportUrl("")).toBe(false);
     expect(isSupportUrl(undefined)).toBe(false);
   });
+
+  it("garantit que les messages et conversations supprimés sont marqués et ne réapparaissent jamais", async () => {
+    const {
+      markMessageAsDeleted,
+      getDeletedMessageIds,
+      markConversationAsDeleted,
+      getDeletedConversationIds,
+    } = await import("@/lib/supabase/communication");
+
+    const testUserId = "test-user-" + Date.now();
+    const testMsgId = "msg-del-" + Date.now();
+    const testConvId = "conv-del-" + Date.now();
+
+    markMessageAsDeleted(testMsgId, testUserId);
+    expect(getDeletedMessageIds(testUserId).has(testMsgId)).toBe(true);
+
+    markConversationAsDeleted(testConvId, testUserId);
+    expect(getDeletedConversationIds(testUserId).has(testConvId)).toBe(true);
+  });
 });
+

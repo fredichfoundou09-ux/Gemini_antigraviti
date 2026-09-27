@@ -456,6 +456,50 @@ describe("SENTINEL'S AI v2 - Suite Complète de Tests Avancés", () => {
       expect(typeof isSpeechSynthesisSupported()).toBe("boolean");
     });
   });
+
+  describe("10. Ingestion RAG Multi-formats (PDF, DOCX, TXT, Images)", () => {
+    it("extrait le texte d'un document texte (.txt / .md)", async () => {
+      const { extractTextFromFile, ingestDocumentForRag } = await import(
+        "@/lib/ai/documentIngestion"
+      );
+
+      const txtContent = "Règlement intérieur ENIA 2.0 : assiduité obligatoire et ponctualité stricte.";
+      const txtFile = new File([txtContent], "reglement.txt", { type: "text/plain" });
+
+      const extracted = await extractTextFromFile(txtFile);
+      expect(extracted).toContain("Règlement intérieur ENIA 2.0");
+
+      const res = await ingestDocumentForRag(txtFile);
+      expect(res.title).toBe("reglement.txt");
+      expect(res.chunksCount).toBeGreaterThanOrEqual(1);
+    });
+
+    it("extrait le texte ou le contexte d'un fichier PDF et image sans planter", async () => {
+      const { extractTextFromFile, ingestDocumentForRag } = await import(
+        "@/lib/ai/documentIngestion"
+      );
+
+      // Simule un flux PDF standard avec balises textuelles
+      const pdfBytes = new TextEncoder().encode(
+        "%PDF-1.4\n1 0 obj\n<< /Length 65 >>\nstream\nBT\n/F1 12 Tf\n(Cours Securite Reseau ENIA 2026) Tj\nET\nendstream\nendobj\nxref\ntrailer\n<< /Root 1 0 R >>\n%%EOF"
+      );
+      const pdfFile = new File([pdfBytes], "cours_securite.pdf", { type: "application/pdf" });
+
+      const extractedPdf = await extractTextFromFile(pdfFile);
+      expect(extractedPdf.length).toBeGreaterThan(10);
+
+      const resPdf = await ingestDocumentForRag(pdfFile);
+      expect(resPdf.title).toBe("cours_securite.pdf");
+
+      // Simule une image
+      const imgFile = new File([new Uint8Array([137, 80, 78, 71, 13, 10, 26, 10])], "schema_reseau.png", {
+        type: "image/png",
+      });
+      const extractedImg = await extractTextFromFile(imgFile);
+      expect(extractedImg).toContain("Document image indexé");
+    });
+  });
 });
+
 
 

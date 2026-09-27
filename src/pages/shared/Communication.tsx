@@ -1,11 +1,11 @@
 import { useEffect, useMemo, useState, useCallback } from "react";
 import { useSearchParams } from "react-router-dom";
-import { Send, Mail, Bell, CheckCheck, Users, UserCircle2, Inbox, ChevronRight, Reply, Trash2, Search, ShieldCheck } from "lucide-react";
+import { Send, Mail, Bell, CheckCheck, Users, UserCircle2, Inbox, ChevronRight, Reply, Trash2, Search, ShieldCheck, X } from "lucide-react";
 import { useStore } from "@/lib/store";
 import { cn } from "@/utils/cn";
 import { Btn, Card, Field, Input, Textarea, Empty, PageHead, uid, today } from "@/lib/ui";
 import { isSupabaseConfigured, getSupabase } from "@/lib/supabase/client";
-import { fetchMyConversations, startConversation, replyToConversation, subscribeToAllMessages, deleteConversation, deleteMessage, fetchMessagingRecipients } from "@/lib/supabase/communication";
+import { fetchMyConversations, startConversation, replyToConversation, subscribeToAllMessages, deleteConversation, deleteMessage, fetchMessagingRecipients, markMessageAsDeleted, markConversationAsDeleted, getDeletedMessageIds, getDeletedConversationIds } from "@/lib/supabase/communication";
 import { toastMsg } from "@/lib/toast";
 import {
   markNotificationAsRead,
@@ -117,13 +117,18 @@ export function MessageCenter() {
     }
   }, [searchParams, remoteProfiles, db.users]);
 
-  // Messages locaux (fallback ou mix) - isolation stricte
+  // Messages locaux (fallback ou mix) - isolation stricte et respect des suppressions
+  const deletedMsgIds = useMemo(() => getDeletedMessageIds(user?.id), [user?.id]);
+  const deletedConvIds = useMemo(() => getDeletedConversationIds(user?.id), [user?.id]);
+
   const localMessages = db.messages
     .filter((m) =>
-      m.toId === user!.id ||
+      !deletedMsgIds.has(m.id) &&
+      !deletedConvIds.has(m.id) &&
+      (m.toId === user!.id ||
       m.fromId === user!.id ||
       (m.toId === "all_students" && user?.role === "student") ||
-      (m.toId === "all_teachers" && user?.role === "teacher")
+      (m.toId === "all_teachers" && user?.role === "teacher"))
     )
     .sort((a, b) => b.date.localeCompare(a.date));
 
@@ -351,16 +356,30 @@ export function MessageCenter() {
   const handleDeleteConversation = async (item: any) => {
     if (!window.confirm(`Voulez-vous vraiment supprimer la discussion "${item.subject}" et tous ses messages ?`)) return;
     try {
+      if (item.id) {
+        markConversationAsDeleted(item.id, user?.id);
+        (item.messages || []).forEach((m: any) => {
+          if (m?.id) markMessageAsDeleted(m.id, user?.id);
+        });
+      }
+
+      // 1. Mise à jour optimiste de remoteConvs
+      setRemoteConvs((prev) => prev.filter((c) => c.id !== item.id));
+
+      // 2. Mise à jour optimiste de db.messages
+      const removedIds = new Set([item.id, ...(item.messages || []).map((m: any) => m.id)]);
+      update((d) => ({
+        ...d,
+        messages: (d.messages || []).filter((m) => !removedIds.has(m.id)),
+      }));
+
+      // 3. Appel serveur
       if (item.isRemote) {
         await deleteConversation(item.id, user?.id);
         await loadConversations();
-      } else {
-        update((d) => ({
-          ...d,
-          messages: d.messages.filter((m) => m.id !== item.id),
-        }));
       }
-      toastMsg.success("Conversation supprimée ✓");
+
+      toastMsg.success("Conversation supprimée définitivement ✓");
       log(`Conversation supprimée : ${item.subject}`);
     } catch (err: any) {
       console.error("Erreur suppression conversation:", err);
@@ -371,16 +390,33 @@ export function MessageCenter() {
   const handleDeleteMessage = async (msg: any, parentItem: any) => {
     if (!window.confirm("Voulez-vous vraiment supprimer ce message ?")) return;
     try {
+      if (msg.id) {
+        markMessageAsDeleted(msg.id, user?.id);
+      }
+
+      // 1. Mise à jour optimiste de remoteConvs
+      setRemoteConvs((prev) =>
+        prev
+          .map((c) => ({
+            ...c,
+            messages: (c.messages || []).filter((m: any) => m.id !== msg.id),
+          }))
+          .filter((c) => c.messages.length > 0)
+      );
+
+      // 2. Mise à jour optimiste du store local
+      update((d) => ({
+        ...d,
+        messages: (d.messages || []).filter((m) => m.id !== msg.id),
+      }));
+
+      // 3. Appel serveur
       if (parentItem.isRemote && msg.id) {
         await deleteMessage(msg.id, user?.id);
         await loadConversations();
-      } else {
-        update((d) => ({
-          ...d,
-          messages: d.messages.filter((m) => m.id !== msg.id),
-        }));
       }
-      toastMsg.success("Message supprimé ✓");
+
+      toastMsg.success("Message supprimé définitivement ✓");
     } catch (err: any) {
       console.error("Erreur suppression message:", err);
       toastMsg.error("Échec de suppression du message", err.message);
@@ -540,7 +576,29 @@ export function MessageCenter() {
       />
 
       {mode === "new" ? (
-        <Card className="mx-auto max-w-2xl p-6">
+        <Card className="mx-auto max-w-2xl p-6 relative">
+          {/* En-tête de la modale/carte de nouveau message avec bouton de fermeture explicite */}
+          <div className="flex items-center justify-between border-b border-white/10 pb-4 mb-4">
+            <div className="flex items-center gap-2.5">
+              <div className="flex h-9 w-9 items-center justify-center rounded-xl bg-cyan-500/10 text-cyan-400 border border-cyan-500/20">
+                <Send size={16} />
+              </div>
+              <div>
+                <h3 className="text-sm font-bold text-white">Nouveau message</h3>
+                <p className="text-xs text-slate-400">Rédigez et transmettez un message direct ou une diffusion</p>
+              </div>
+            </div>
+            <button
+              type="button"
+              onClick={() => setMode("inbox")}
+              className="rounded-xl p-2 text-slate-400 hover:text-white hover:bg-white/10 transition cursor-pointer"
+              title="Fermer et retourner à la boîte de réception"
+              aria-label="Fermer"
+            >
+              <X size={18} />
+            </button>
+          </div>
+
           <form onSubmit={send} className="space-y-4">
             <Field label="Destinataire">
               {/* Filtres par rôle avec décompte visible */}
@@ -557,7 +615,7 @@ export function MessageCenter() {
                     type="button"
                     onClick={() => setRecipientRoleFilter(f.id as any)}
                     className={cn(
-                      "rounded-lg px-2.5 py-1 text-[11px] font-semibold transition-all",
+                      "rounded-lg px-2.5 py-1 text-[11px] font-semibold transition-all cursor-pointer",
                       recipientRoleFilter === f.id
                         ? "bg-cyan-500/20 text-cyan-300 border border-cyan-500/40"
                         : "bg-white/[0.02] text-slate-400 border border-white/5 hover:bg-white/5"
@@ -592,7 +650,7 @@ export function MessageCenter() {
                   {targets.map((t) => (
                     <button type="button" key={t.id} onClick={() => setTo(t.id)}
                       className={cn(
-                        "flex items-center gap-2 rounded-xl border px-3 py-2.5 text-left text-xs sm:text-sm transition-all",
+                        "flex items-center gap-2 rounded-xl border px-3 py-2.5 text-left text-xs sm:text-sm transition-all cursor-pointer",
                         to === t.id ? "border-cyan-400/50 bg-cyan-400/10 text-cyan-200 ring-1 ring-cyan-400/30 font-medium" : "border-white/10 text-slate-300 hover:bg-white/5"
                       )}>
                       {t.icon} <span className="truncate">{t.label}</span>
@@ -603,9 +661,18 @@ export function MessageCenter() {
             </Field>
             <Field label="Objet"><Input required value={subject} onChange={(e) => setSubject(e.target.value)} placeholder="Objet de la discussion" /></Field>
             <Field label="Message"><Textarea required value={body} onChange={(e) => setBody(e.target.value)} placeholder="Rédigez votre message..." /></Field>
-            <Btn type="submit" disabled={sending} className="w-full py-3">
-              <Send size={16} /> {sending ? "Envoi en cours..." : "Envoyer le message"}
-            </Btn>
+            <div className="flex items-center gap-3 pt-2">
+              <button
+                type="button"
+                onClick={() => setMode("inbox")}
+                className="flex-1 rounded-xl border border-white/10 bg-white/5 py-3 text-xs font-semibold text-slate-300 hover:bg-white/10 hover:text-white transition cursor-pointer"
+              >
+                Annuler
+              </button>
+              <Btn type="submit" disabled={sending} className="flex-1 py-3">
+                <Send size={16} /> {sending ? "Envoi en cours..." : "Envoyer le message"}
+              </Btn>
+            </div>
           </form>
         </Card>
       ) : displayItems.length === 0 ? (

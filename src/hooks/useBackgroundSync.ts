@@ -1,6 +1,7 @@
 import { useEffect, useRef, useState, useCallback } from "react";
 import { useStore } from "@/lib/store";
 import { isSupabaseConfigured, getSupabase } from "@/lib/supabase/client";
+import { getDeletedMessageIds } from "@/lib/supabase/communication";
 import { toastMsg } from "@/lib/toast";
 import { sendNativeNotification } from "@/lib/pushNotifications";
 
@@ -170,9 +171,14 @@ export function useBackgroundSync() {
           };
         });
 
-        // Fusionne les messages sans doublon
-        const existingIds = new Set(mappedRemote.map((r: any) => r.id));
-        const filteredLocals = (prev.messages || []).filter((l: any) => !existingIds.has(l.id));
+        const deletedMsgs = getDeletedMessageIds(user?.id);
+        const validMappedRemote = mappedRemote.filter((r: any) => !deletedMsgs.has(r.id));
+
+        // Fusionne les messages sans doublon et sans messages supprimés
+        const existingIds = new Set(validMappedRemote.map((r: any) => r.id));
+        const filteredLocals = (prev.messages || []).filter(
+          (l: any) => !existingIds.has(l.id) && !deletedMsgs.has(l.id)
+        );
 
         // Fusionne les notifications sans doublon
         const notifIds = new Set((prev.notifications || []).map((n: any) => n.id));
@@ -180,7 +186,7 @@ export function useBackgroundSync() {
 
         return {
           ...prev,
-          messages: [...mappedRemote, ...filteredLocals],
+          messages: [...validMappedRemote, ...filteredLocals],
           notifications: [...addedNotifs, ...(prev.notifications || [])],
         };
       });

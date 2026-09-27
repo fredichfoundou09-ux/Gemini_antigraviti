@@ -153,6 +153,11 @@ export async function localAgentProcess(messages: AiChatMessage[]): Promise<AiAg
   if (
     Array.isArray(db?.ai_document_chunks) &&
     db.ai_document_chunks.length > 0 &&
+    !lastMsg.includes("combien d'apprenants") &&
+    !lastMsg.includes("devoir") &&
+    !lastMsg.includes("examen") &&
+    !lastMsg.includes("quiz") &&
+    !lastMsg.includes("qcm") &&
     (lastMsg.includes("indexé") ||
       lastMsg.includes("document") ||
       lastMsg.includes("résume") ||
@@ -164,15 +169,22 @@ export async function localAgentProcess(messages: AiChatMessage[]): Promise<AiAg
   ) {
     intent = "DOCUMENT_RAG";
     const chunks: any[] = db.ai_document_chunks;
-    const docTitles = Array.from(new Set(chunks.map((c) => c.document_title)));
+    const docTitles = Array.from(new Set(chunks.map((c) => c.document_title || "Document")));
     docTitles.forEach((t) => sources.push(`Document indexé — ${t}`));
 
-    const sampleContent = chunks
-      .slice(0, 3)
-      .map((c) => c.content)
-      .join("\n\n");
+    // Extraction et synthèse des idées clés reformulées
+    const ideas = chunks.slice(0, 4).map((c: any) => {
+      const raw = String(c.content || "").replace(/\s+/g, " ").trim();
+      const firstSentence = raw.split(/[.!?]\s+/)[0] || raw.slice(0, 160);
+      return firstSentence.length > 180 ? firstSentence.slice(0, 180) + "..." : firstSentence;
+    });
 
-    reply = `J'ai analysé les documents déposés (${docTitles.join(", ")} — ${chunks.length} fragments indexés).\n\nVoici les points clés extraits de vos documents :\n- **Contenu indexé** : ${sampleContent.slice(0, 350)}...\n- **Recherche disponible** : Vous pouvez me poser des questions précises sur le contenu de ce document ou me demander de créer un quiz basé dessus.`;
+    const synthesisPoints = Array.from(new Set(ideas))
+      .slice(0, 3)
+      .map((idea) => `- ${idea}`)
+      .join("\n");
+
+    reply = `En m'appuyant sur l'analyse de vos documents officiels (*${docTitles.join(", ")}*), voici la synthèse reformulée des informations clés :\n\n${synthesisPoints}\n\n*Je reste à votre disposition pour détailler un point particulier ou générer une évaluation pédagogique ciblée.*`;
     return { reply, pending_actions, intent, sources };
   }
 
