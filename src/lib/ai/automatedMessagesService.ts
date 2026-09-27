@@ -119,7 +119,7 @@ export function saveAutomatedRule(rule: Partial<AutomatedRule> & { name: string;
   const existingIdx = rules.findIndex((r) => r.id === rule.id);
 
   const updatedRule: AutomatedRule = {
-    id: rule.id || "rule-" + uid(),
+    id: rule.id || uid("rule"),
     name: rule.name,
     description: rule.description || "",
     trigger: rule.trigger,
@@ -203,7 +203,7 @@ export function generateDraftsForRule(
       .replace(/{{formation_name}}/g, recipient.formation_name || "votre formation");
 
     const draft: AutomatedMessageDraft = {
-      id: "draft-" + uid(),
+      id: uid("draft"),
       rule_id: rule.id,
       rule_name: rule.name,
       recipient_id: recipient.id,
@@ -250,7 +250,7 @@ export function approveDraft(draftId: string, adminUserId: string): { ok: boolea
     const db = raw ? JSON.parse(raw) : { messages: [] };
     if (!Array.isArray(db.messages)) db.messages = [];
     db.messages.push({
-      id: "msg-" + uid(),
+      id: uid("msg"),
       conversation_id: "conv-auto-" + draft.id,
       sender_id: adminUserId || "system-ai",
       sender_name: "Sentinel AI (Contrôlé par Direction)",

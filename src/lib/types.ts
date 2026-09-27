@@ -24,6 +24,9 @@ export interface Module {
   supports?: string;
   infosSupp?: string;
   image?: string;
+  actif?: boolean;
+  active?: boolean;
+  volumeHoraire?: number;
 }
 
 export interface User {
@@ -45,9 +48,12 @@ export type AcademicYearStatus = "active" | "cloturee" | "archivee";
 export interface AcademicYear {
   id: string;
   label: string; // Ex: "2024-2025", "2025-2026", "2026-2027"
+  nom?: string; // alias pour label
+  libelle?: string; // alias pour label
   dateDebut: string;
   dateFin: string;
   statut: AcademicYearStatus;
+  estActive?: boolean; // alias pour isDefault ou statut === 'active'
   isDefault?: boolean;
   description?: string;
   createdAt?: string;
@@ -58,9 +64,13 @@ export interface ModuleRestriction {
   moduleKey: string; // "ia" | "finances" | "messages" | "evaluations" | "cours" | "presences"
   moduleLabel: string;
   bloque: boolean;
+  blocked?: boolean; // alias pour bloque
+  name?: string; // alias pour moduleLabel
   roles: Role[];
   userIds?: string[];
   raison: string;
+  reason?: string; // alias pour raison
+  description?: string;
   dateDebut?: string;
   dateFin?: string;
   updatedAt: string;
@@ -98,6 +108,10 @@ export interface Student {
   userId?: string;
   academicYearId?: string;
   anneeScolaire?: string;
+  classe?: string;
+  tuition_fee?: number;
+  first_name?: string;
+  last_name?: string;
 }
 
 export interface Teacher {
@@ -222,6 +236,7 @@ export interface AttendanceRecord {
   teacherId: string;
   academicYearId?: string;
   anneeScolaire?: string;
+  seanceId?: string;
 }
 
 export interface Invoice {
@@ -255,6 +270,9 @@ export interface Payment {
   anneeScolaire?: string;
   // rétro-compat (jamais utilisé comme source de vérité)
   statut?: "paye" | "partiel" | "impaye";
+  status?: string;
+  amount?: number;
+  student_id?: string;
   reste?: number;
 }
 
@@ -350,8 +368,12 @@ export interface TestResult {
 export interface Grade {
   id: string;
   studentId: string;
+  student_id?: string;
   moduleId: string;
+  evaluation_id?: string;
   note: number;
+  score?: number;
+  max_score?: number;
   appreciation: string;
   date: string;
   academicYearId?: string;
@@ -415,6 +437,7 @@ export interface Scholarship {
 export interface LogEntry {
   id: string;
   date: string;
+  heure?: string;
   user: string;
   action: string;
 }
@@ -436,10 +459,12 @@ export interface TeacherHour {
   heureFin: string;
   heures: number;
   tarifApplique: number;
+  tauxHoraire?: number;
   montant: number;
   valide: boolean;
   validePar?: string;
   dateValidation?: string;
+  statut?: string;
 }
 
 export interface TeacherPayment {
@@ -535,6 +560,7 @@ export interface DB {
   courses: Course[];
   schedule: ScheduleItem[];
   attendance: AttendanceRecord[];
+  attendances?: AttendanceRecord[];
   invoices: Invoice[];
   payments: Payment[];
   paymentSchedules: PaymentSchedule[];
@@ -543,6 +569,7 @@ export interface DB {
   submissions: Submission[];
   fileActivities: FileActivity[];
   tests: Test[];
+  evaluations?: any[];
   results: TestResult[];
   grades: Grade[];
   messages: Message[];
@@ -555,9 +582,13 @@ export interface DB {
   announcements: Announcement[];
   enia: EniaContent;
   log: LogEntry[];
+  logs?: LogEntry[];
   archivedLogs?: LogEntry[];
   academicYears?: AcademicYear[];
   activeAcademicYearId?: string;
   moduleRestrictions?: ModuleRestriction[];
   appearanceSettings?: SpatialAppearanceSettings;
 }
+
+export type AppDB = DB;
+

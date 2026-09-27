@@ -5,7 +5,7 @@ import {
   PlusCircle, Trash2, Pencil, CalendarDays, Clock, MapPin, ClipboardCheck, FileText,
   PenLine, Wallet, Award, BadgeDollarSign, Printer, CheckCircle2, XCircle, Timer, BookOpen,
   GraduationCap, Eye, Save, ShieldCheck, ReceiptText, Upload, ImageOff, Users, Search, Download, Ban,
-  LayoutGrid, Table2, TrendingUp, RotateCcw,
+  LayoutGrid, Table2, TrendingUp, RotateCcw, Archive,
 } from "lucide-react";
 import { useStore } from "@/lib/store";
 import { toastMsg } from "@/lib/toast";
@@ -2733,8 +2733,8 @@ export function GradesPage() {
                   className="text-xs"
                 >
                   <option value="">Toutes les années</option>
-                  {(db.academicYears && db.academicYears.length > 0 ? db.academicYears : [{ id: "2025-2026", libelle: "2025-2026" }, { id: "2026-2027", libelle: "2026-2027" }]).map((y) => (
-                    <option key={y.id} value={y.id}>{y.libelle}</option>
+                  {(db.academicYears && db.academicYears.length > 0 ? db.academicYears : [{ id: "2025-2026", label: "2025-2026" }, { id: "2026-2027", label: "2026-2027" }]).map((y) => (
+                    <option key={y.id} value={y.id}>{(y as any).label || (y as any).libelle || y.id}</option>
                   ))}
                 </Select>
               </div>
@@ -4447,8 +4447,8 @@ export function CertificatesPage() {
               className="text-xs"
             >
               <option value="">Toutes les années</option>
-              {(db.academicYears && db.academicYears.length > 0 ? db.academicYears : [{ id: "2025-2026", libelle: "2025-2026" }, { id: "2026-2027", libelle: "2026-2027" }]).map((y) => (
-                <option key={y.id} value={y.id}>{y.libelle}</option>
+              {(db.academicYears && db.academicYears.length > 0 ? db.academicYears : [{ id: "2025-2026", label: "2025-2026" }, { id: "2026-2027", label: "2026-2027" }]).map((y) => (
+                <option key={y.id} value={y.id}>{(y as any).label || (y as any).libelle || y.id}</option>
               ))}
             </Select>
           </div>
@@ -4675,7 +4675,7 @@ export function ScholarshipsPage() {
   }, [db.students, db.scholarships, qSearch, filterYear, filterStatut, filterFormation]);
 
   // Statistiques des bourses
-  const totalBoursiers = db.scholarships.filter((b) => b.statut === "trois_ans" || b.statut === "deux_ans" || b.statut === "un_an").length;
+  const totalBoursiers = db.scholarships.filter((b) => (b.statut as string) === "trois_ans" || (b.statut as string) === "deux_ans" || (b.statut as string) === "un_an" || b.statut === "bourse_attribuee").length;
   const enAttente = db.scholarships.filter((b) => b.statut === "en_attente").length;
 
   return (
@@ -4767,8 +4767,8 @@ export function ScholarshipsPage() {
               className="text-xs"
             >
               <option value="">Toutes les années</option>
-              {(db.academicYears && db.academicYears.length > 0 ? db.academicYears : [{ id: "2025-2026", libelle: "2025-2026" }, { id: "2026-2027", libelle: "2026-2027" }]).map((y) => (
-                <option key={y.id} value={y.id}>{y.libelle}</option>
+              {(db.academicYears && db.academicYears.length > 0 ? db.academicYears : [{ id: "2025-2026", label: "2025-2026" }, { id: "2026-2027", label: "2026-2027" }]).map((y) => (
+                <option key={y.id} value={y.id}>{(y as any).label || (y as any).libelle || y.id}</option>
               ))}
             </Select>
           </div>

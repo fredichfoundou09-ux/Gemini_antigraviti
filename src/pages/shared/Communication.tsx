@@ -81,8 +81,8 @@ export function MessageCenter() {
     const res = approveDraft(id, user?.id || "admin");
     if (res.ok) {
       loadAutomatedData();
-      log("APPROVE_AI_MESSAGE", "communication", { draftId: id });
-      toastMsg.success("Message approuvé et transmis ✓", "Le destinataire peut désormais le consulter.");
+      log(`APPROVE_AI_MESSAGE: ${id}`);
+      toastMsg.success("Message approuvé et transmis ✓");
     }
   };
 
@@ -90,8 +90,8 @@ export function MessageCenter() {
     const reason = prompt("Précisez le motif du rejet (optionnel) :") || "Non pertinent";
     rejectDraft(id, reason);
     loadAutomatedData();
-    log("REJECT_AI_MESSAGE", "communication", { draftId: id, reason });
-    toastMsg.info("Brouillon rejeté", "Ce message ne sera pas envoyé.");
+    log(`REJECT_AI_MESSAGE: ${id} - ${reason}`);
+    toastMsg.info("Brouillon rejeté");
   };
 
   const handleBatchApprove = () => {
@@ -99,7 +99,7 @@ export function MessageCenter() {
     if (pendingIds.length === 0) return;
     const count = batchApproveDrafts(pendingIds, user?.id || "admin");
     loadAutomatedData();
-    log("BATCH_APPROVE_AI_MESSAGES", "communication", { count });
+    log(`BATCH_APPROVE_AI_MESSAGES: ${count}`);
     toastMsg.success(`${count} message(s) approuvé(s) et transmis avec succès ✓`);
   };
 
@@ -111,14 +111,14 @@ export function MessageCenter() {
 
       for (const rule of rules) {
         if (rule.trigger === "absence_unjustified") {
-          const unjustAbsences = (db.attendances || []).filter((a) => a.status === "absent" && !a.justified);
-          const studentIds = Array.from(new Set(unjustAbsences.map((a) => a.student_id)));
+          const unjustAbsences = (db.attendance || []).filter((a) => a.statut === "absent");
+          const studentIds = Array.from(new Set(unjustAbsences.map((a) => a.studentId)));
           const candidates = studentIds.map((sid) => {
             const stu = db.students.find((s) => s.id === sid);
             const userAcc = db.users.find((u) => u.id === sid || u.email === stu?.email);
             return {
-              id: userAcc?.id || sid,
-              name: stu ? `${stu.first_name} ${stu.last_name}` : "Apprenant",
+              id: String(userAcc?.id || sid),
+              name: stu ? `${stu.prenom} ${stu.nom}` : "Apprenant",
               course_name: "Assiduité générale",
             };
           }).filter((c) => c.name !== "Apprenant");
@@ -128,16 +128,16 @@ export function MessageCenter() {
             totalDraftsCreated += drafts.length;
           }
         } else if (rule.trigger === "grade_excellence") {
-          const excellentGrades = (db.grades || []).filter((g) => (g.score / (g.max_score || 20)) * 20 >= 16);
+          const excellentGrades = (db.grades || []).filter((g) => g.note >= 16);
           const candidates = excellentGrades.map((g) => {
-            const stu = db.students.find((s) => s.id === g.student_id);
-            const userAcc = db.users.find((u) => u.id === g.student_id || u.email === stu?.email);
-            const evalObj = db.evaluations?.find((e) => e.id === g.evaluation_id);
+            const stu = db.students.find((s) => s.id === g.studentId);
+            const userAcc = db.users.find((u) => u.id === g.studentId || u.email === stu?.email);
+            const mod = db.modules.find((m) => m.id === g.moduleId);
             return {
-              id: userAcc?.id || g.student_id,
-              name: stu ? `${stu.first_name} ${stu.last_name}` : "Apprenant",
-              course_name: evalObj?.title || "Évaluation",
-              grade: Math.round((g.score / (g.max_score || 20)) * 20),
+              id: String(userAcc?.id || g.studentId),
+              name: stu ? `${stu.prenom} ${stu.nom}` : "Apprenant",
+              course_name: mod?.titre || "Module",
+              grade: Math.round(g.note),
             };
           }).filter((c) => c.name !== "Apprenant");
 
@@ -147,16 +147,16 @@ export function MessageCenter() {
           }
         } else if (rule.trigger === "payment_due") {
           const studentsWithBalance = (db.students || []).filter((stu) => {
-            const paid = (db.payments || []).filter((p) => p.student_id === stu.id && p.status === "completed").reduce((sum, p) => sum + (p.amount || 0), 0);
-            return (stu.tuition_fee || 0) - paid > 0;
+            const paid = (db.payments || []).filter((p) => p.studentId === stu.id && p.statut === "paye").reduce((sum, p) => sum + (p.montant || 0), 0);
+            return 50000 - paid > 0;
           });
           const candidates = studentsWithBalance.map((stu) => {
             const userAcc = db.users.find((u) => u.id === stu.id || u.email === stu.email);
-            const paid = (db.payments || []).filter((p) => p.student_id === stu.id && p.status === "completed").reduce((sum, p) => sum + (p.amount || 0), 0);
+            const paid = (db.payments || []).filter((p) => p.studentId === stu.id && p.statut === "paye").reduce((sum, p) => sum + (p.montant || 0), 0);
             return {
-              id: userAcc?.id || stu.id,
-              name: `${stu.first_name} ${stu.last_name}`,
-              balance: (stu.tuition_fee || 0) - paid,
+              id: String(userAcc?.id || stu.id),
+              name: `${stu.prenom} ${stu.nom}`,
+              balance: 50000 - paid,
             };
           });
 

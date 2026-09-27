@@ -763,7 +763,7 @@ export function StudentsPage() {
             >
               <option value="all">Toutes sessions</option>
               {(db.academicYears || []).map((ay) => (
-                <option key={ay.id} value={ay.id}>{ay.nom} {ay.estActive ? "★" : ""}</option>
+                <option key={ay.id} value={ay.id}>{ay.label || ay.nom} {ay.statut === "active" || ay.isDefault ? "★" : ""}</option>
               ))}
             </select>
 
@@ -1624,7 +1624,7 @@ export function StudentsPage() {
 
               {(() => {
                 const qSearch = `${historyStudent.nom} ${historyStudent.prenom} ${historyStudent.id}`.toLowerCase();
-                const matchedLogs = (db.logs || []).filter((l) =>
+                const matchedLogs = (db.log || []).filter((l: any) =>
                   (l.action || "").toLowerCase().includes(historyStudent.id.toLowerCase()) ||
                   (l.action || "").toLowerCase().includes(historyStudent.nom.toLowerCase()) ||
                   (l.user || "").toLowerCase().includes(historyStudent.id.toLowerCase())
@@ -1915,6 +1915,7 @@ function StudentView({ s }: { s: Student }) {
 
 /* ================= TEACHERS ================= */
 export function TeachersPage() {
+  const navigate = useNavigate();
   const { db, user, update, log } = useStore();
   const [searchParams] = useSearchParams();
   const [editing, setEditing] = useState<any>(null);
@@ -3191,7 +3192,7 @@ export function UsersPage() {
               </div>
 
               {(() => {
-                const logs = (db.logs || []).filter((l) =>
+                const logs = (db.log || []).filter((l: any) =>
                   (l.user || "").toLowerCase().includes(activityUser.username.toLowerCase()) ||
                   (l.user || "").toLowerCase().includes(activityUser.name.toLowerCase()) ||
                   (l.action || "").toLowerCase().includes(activityUser.username.toLowerCase())

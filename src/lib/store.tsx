@@ -1,5 +1,7 @@
 import React, { createContext, useContext, useEffect, useMemo, useState } from "react";
 import { DB, User, Notification, Formation, Role, AcademicYear, ModuleRestriction } from "./types";
+export type { DB, AcademicYear, ModuleRestriction };
+export type AppDB = DB;
 import { emptyDB, defaultEniaContent, defaultAcademicYears, defaultModuleRestrictions } from "./seed";
 import {
   hashPassword, verifyPassword, passwordStrong,
@@ -78,8 +80,9 @@ function migrateDB(parsed: DB): DB {
   if (!parsed.academicYears || parsed.academicYears.length === 0) {
     parsed.academicYears = defaultAcademicYears();
   }
+  const years: AcademicYear[] = ((parsed.academicYears as AcademicYear[] | undefined) || defaultAcademicYears()) as AcademicYear[];
   if (!parsed.activeAcademicYearId) {
-    const active = parsed.academicYears.find((y) => y.statut === "active" && y.isDefault) || parsed.academicYears[0];
+    const active = years.find((y) => y.statut === "active" && y.isDefault) || years[0];
     parsed.activeAcademicYearId = active?.id || "ay-2025-2026";
   }
   if (!parsed.moduleRestrictions || parsed.moduleRestrictions.length === 0) {
@@ -276,7 +279,7 @@ export function StoreProvider({ children }: { children: React.ReactNode }) {
             }));
           }
 
-          const loadedAcademicYears: AcademicYear[] = (academicYearsRes.data && academicYearsRes.data.length > 0)
+          const loadedAcademicYears: AcademicYear[] = ((academicYearsRes.data && academicYearsRes.data.length > 0)
             ? academicYearsRes.data.map((y: any) => ({
                 id: y.id,
                 label: y.label,
@@ -287,11 +290,11 @@ export function StoreProvider({ children }: { children: React.ReactNode }) {
                 description: y.description || "",
                 createdAt: y.created_at,
               }))
-            : (prev.academicYears && prev.academicYears.length > 0 ? prev.academicYears : defaultAcademicYears());
+            : ((prev.academicYears && prev.academicYears.length > 0 ? prev.academicYears : null) || defaultAcademicYears())) as AcademicYear[];
 
           const activeYear = loadedAcademicYears.find((y) => y.statut === "active" && y.isDefault) || loadedAcademicYears[0];
 
-          const loadedRestrictions: ModuleRestriction[] = (moduleRestrictionsRes.data && moduleRestrictionsRes.data.length > 0)
+          const loadedRestrictions: ModuleRestriction[] = ((moduleRestrictionsRes.data && moduleRestrictionsRes.data.length > 0)
             ? moduleRestrictionsRes.data.map((r: any) => ({
                 id: r.id,
                 moduleKey: r.module_key,
@@ -305,7 +308,7 @@ export function StoreProvider({ children }: { children: React.ReactNode }) {
                 updatedAt: r.updated_at,
                 updatedBy: r.updated_by,
               }))
-            : (prev.moduleRestrictions && prev.moduleRestrictions.length > 0 ? prev.moduleRestrictions : defaultModuleRestrictions());
+            : ((prev.moduleRestrictions && prev.moduleRestrictions.length > 0 ? prev.moduleRestrictions : null) || defaultModuleRestrictions())) as ModuleRestriction[];
 
           return {
             ...prev,

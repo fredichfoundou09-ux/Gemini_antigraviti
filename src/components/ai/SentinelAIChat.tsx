@@ -32,7 +32,6 @@ import {
 } from "lucide-react";
 import { useSentinelAi } from "@/hooks/useSentinelAi";
 import { canUserAccessAi } from "@/lib/ai/aiAccessControl";
-import { ShieldAlert } from "lucide-react";
 import { toolLabel, AiPendingAction } from "@/lib/ai/types";
 import { toastMsg } from "@/lib/toast";
 import { ingestDocumentForRag } from "@/lib/ai/documentIngestion";

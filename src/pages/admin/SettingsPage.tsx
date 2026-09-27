@@ -3,7 +3,7 @@ import { Link } from "react-router-dom";
 import {
   Settings, Activity, Shield, Play, CheckCircle2, AlertTriangle, RotateCcw,
   Palette, Moon, Flame, Sparkles, Wallet, School, Compass, Volume2,
-  Calendar, Lock, Plus, Check, Eye
+  Calendar, Lock, Plus, Check, Eye, RefreshCw
 } from "lucide-react";
 import { useStore } from "@/lib/store";
 import { Btn, Card, PageHead, Field, Input, today } from "@/lib/ui";
@@ -320,7 +320,7 @@ export function SettingsPage() {
           <Lock size={15} className="text-amber-400" />
           <span>Contrôle & Blocages</span>
           <span className="rounded-full bg-amber-400/20 px-2 py-0.5 text-[10px] text-amber-300 font-mono">
-            {(db.moduleRestrictions || []).filter(r => r.blocked).length}
+            {(db.moduleRestrictions || []).filter(r => r.bloque || r.blocked).length}
           </span>
         </button>
 
@@ -935,7 +935,7 @@ export function SettingsPage() {
               <div className="flex items-center gap-2">
                 <span className="text-xs text-slate-400">Session courante active :</span>
                 <span className="font-mono text-xs font-bold text-cyan-300 bg-cyan-950/60 border border-cyan-400/40 px-2.5 py-1 rounded-lg">
-                  {activeAcademicYear?.nom || "Aucune session active"}
+                  {activeAcademicYear?.label || activeAcademicYear?.nom || "Aucune session active"}
                 </span>
               </div>
             </div>
@@ -983,6 +983,7 @@ export function SettingsPage() {
                         return;
                       }
                       createAcademicYear({
+                        label: newYearName.trim(),
                         nom: newYearName.trim(),
                         dateDebut: newYearStart,
                         dateFin: newYearEnd,
@@ -1016,14 +1017,14 @@ export function SettingsPage() {
                   {(db.academicYears || []).map((ay) => {
                     const isCurrent = ay.id === activeAcademicYear?.id;
                     const studentsCount = (db.students || []).filter(
-                      (st) => st.academicYearId === ay.id || st.anneeScolaire === ay.nom
+                      (st) => st.academicYearId === ay.id || st.anneeScolaire === (ay.label || ay.nom)
                     ).length;
 
                     return (
                       <tr key={ay.id} className="hover:bg-white/[0.02]">
                         <td className="p-3 font-bold text-white flex items-center gap-2">
                           <Calendar size={14} className="text-cyan-400" />
-                          <span>{ay.nom}</span>
+                          <span>{ay.label || ay.nom}</span>
                           {isCurrent && (
                             <span className="rounded bg-cyan-400/20 text-cyan-300 border border-cyan-400/40 px-1.5 py-0.2 text-[9px] font-bold">
                               Session active
@@ -1039,12 +1040,12 @@ export function SettingsPage() {
                               "inline-block rounded-full px-2.5 py-0.5 text-[10px] font-bold border",
                               ay.statut === "active"
                                 ? "bg-emerald-500/20 border-emerald-500/40 text-emerald-300"
-                                : ay.statut === "closed"
+                                : (ay.statut as string) === "cloturee" || (ay.statut as string) === "closed"
                                 ? "bg-amber-500/20 border-amber-500/40 text-amber-300"
                                 : "bg-slate-700/50 border-white/10 text-slate-400"
                             )}
                           >
-                            {ay.statut === "active" ? "Active" : ay.statut === "closed" ? "Clôturée (Consultable)" : "Archivée"}
+                            {ay.statut === "active" ? "Active" : (ay.statut as string) === "cloturee" || (ay.statut as string) === "closed" ? "Clôturée (Consultable)" : "Archivée"}
                           </span>
                         </td>
                         <td className="p-3 text-slate-400 text-[11px]">
@@ -1056,7 +1057,7 @@ export function SettingsPage() {
                               type="button"
                               onClick={() => {
                                 setActiveAcademicYear(ay.id);
-                                toastMsg.success(`Année active basculée sur « ${ay.nom} » ✓`);
+                                toastMsg.success(`Année active basculée sur « ${ay.label || ay.nom} » ✓`);
                               }}
                               className="px-2.5 py-1 rounded bg-cyan-500/20 hover:bg-cyan-500/30 text-cyan-200 border border-cyan-400/40 font-semibold text-[11px] cursor-pointer"
                             >
@@ -1068,19 +1069,19 @@ export function SettingsPage() {
                               type="button"
                               onClick={() => {
                                 closeAcademicYear(ay.id);
-                                toastMsg.info(`Année « ${ay.nom} » clôturée (données préservées).`);
+                                toastMsg.info(`Année « ${ay.label || ay.nom} » clôturée (données préservées).`);
                               }}
                               className="px-2 py-1 rounded bg-amber-500/20 hover:bg-amber-500/30 text-amber-300 border border-amber-400/40 text-[11px] cursor-pointer"
                             >
                               Clôturer
                             </button>
                           )}
-                          {ay.statut !== "archived" && (
+                          {(ay.statut as string) !== "archivee" && (ay.statut as string) !== "archived" && (
                             <button
                               type="button"
                               onClick={() => {
                                 archiveAcademicYear(ay.id);
-                                toastMsg.info(`Année « ${ay.nom} » archivée.`);
+                                toastMsg.info(`Année « ${ay.label || ay.nom} » archivée.`);
                               }}
                               className="px-2 py-1 rounded bg-slate-800 hover:bg-slate-700 text-slate-400 border border-white/10 text-[11px] cursor-pointer"
                             >
@@ -1116,68 +1117,76 @@ export function SettingsPage() {
           </div>
 
           <div className="space-y-3">
-            {(db.moduleRestrictions || []).map((res) => (
-              <div
-                key={res.id}
-                className={cn(
-                  "p-4 rounded-xl border transition",
-                  res.blocked
-                    ? "border-amber-500/50 bg-amber-950/20"
-                    : "border-white/10 bg-white/[0.02]"
-                )}
-              >
-                <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2">
-                  <div>
-                    <div className="flex items-center gap-2">
-                      <span className="font-bold text-white text-xs">{res.name}</span>
-                      <span className="font-mono text-[10px] text-slate-400 bg-white/5 px-2 py-0.5 rounded">
-                        Clé: {res.moduleKey}
-                      </span>
-                      {res.blocked && (
-                        <span className="rounded-full bg-red-500/20 border border-red-500/40 px-2 py-0.5 text-[10px] font-bold text-red-300">
-                          Bloqué
-                        </span>
-                      )}
-                    </div>
-                    <p className="text-[11px] text-slate-400 mt-1">{res.description}</p>
-                  </div>
-                  <div className="flex items-center gap-2">
-                    <button
-                      type="button"
-                      onClick={() => {
-                        const nextBlocked = !res.blocked;
-                        updateModuleRestriction(res.id, {
-                          blocked: nextBlocked,
-                          reason: nextBlocked ? (res.reason || "Blocage administratif préventif") : undefined,
-                        });
-                        toastMsg.info(`Module « ${res.name} » : ${nextBlocked ? "BLOQUÉ" : "DÉBLOQUÉ"}`);
-                      }}
-                      className={cn(
-                        "px-3 py-1.5 rounded-lg text-xs font-bold border transition cursor-pointer",
-                        res.blocked
-                          ? "bg-red-500/20 border-red-500/50 text-red-200 hover:bg-red-500/30"
-                          : "bg-emerald-500/20 border-emerald-500/50 text-emerald-200 hover:bg-emerald-500/30"
-                      )}
-                    >
-                      {res.blocked ? "Débloquer le module" : "Bloquer l'accès"}
-                    </button>
-                  </div>
-                </div>
+            {(db.moduleRestrictions || []).map((res) => {
+              const isBlocked = res.bloque || res.blocked;
+              const label = res.moduleLabel || res.name || res.moduleKey;
+              const currentReason = res.raison || res.reason || "";
 
-                {res.blocked && (
-                  <div className="mt-3 pt-3 border-t border-white/10 flex flex-col sm:flex-row sm:items-center gap-2">
-                    <span className="text-[11px] text-amber-300 font-semibold shrink-0">Motif du blocage affiché aux usagers :</span>
-                    <input
-                      type="text"
-                      value={res.reason || ""}
-                      onChange={(e) => updateModuleRestriction(res.id, { reason: e.target.value })}
-                      placeholder="Indiquez la raison (ex: Clôture comptable, session d'examen...)"
-                      className="flex-1 rounded-lg border border-amber-500/30 bg-black/40 px-2.5 py-1 text-xs text-amber-100"
-                    />
+              return (
+                <div
+                  key={res.id}
+                  className={cn(
+                    "p-4 rounded-xl border transition",
+                    isBlocked
+                      ? "border-amber-500/50 bg-amber-950/20"
+                      : "border-white/10 bg-white/[0.02]"
+                  )}
+                >
+                  <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2">
+                    <div>
+                      <div className="flex items-center gap-2">
+                        <span className="font-bold text-white text-xs">{label}</span>
+                        <span className="font-mono text-[10px] text-slate-400 bg-white/5 px-2 py-0.5 rounded">
+                          Clé: {res.moduleKey}
+                        </span>
+                        {isBlocked && (
+                          <span className="rounded-full bg-red-500/20 border border-red-500/40 px-2 py-0.5 text-[10px] font-bold text-red-300">
+                            Bloqué
+                          </span>
+                        )}
+                      </div>
+                      <p className="text-[11px] text-slate-400 mt-1">{res.description || `Module ${label}`}</p>
+                    </div>
+                    <div className="flex items-center gap-2">
+                      <button
+                        type="button"
+                        onClick={() => {
+                          const nextBlocked = !isBlocked;
+                          updateModuleRestriction(res.id, {
+                            bloque: nextBlocked,
+                            blocked: nextBlocked,
+                            raison: nextBlocked ? (currentReason || "Blocage administratif préventif") : "",
+                            reason: nextBlocked ? (currentReason || "Blocage administratif préventif") : "",
+                          });
+                          toastMsg.info(`Module « ${label} » : ${nextBlocked ? "BLOQUÉ" : "DÉBLOQUÉ"}`);
+                        }}
+                        className={cn(
+                          "px-3 py-1.5 rounded-lg text-xs font-bold border transition cursor-pointer",
+                          isBlocked
+                            ? "bg-red-500/20 border-red-500/50 text-red-200 hover:bg-red-500/30"
+                            : "bg-emerald-500/20 border-emerald-500/50 text-emerald-200 hover:bg-emerald-500/30"
+                        )}
+                      >
+                        {isBlocked ? "Débloquer le module" : "Bloquer l'accès"}
+                      </button>
+                    </div>
                   </div>
-                )}
-              </div>
-            ))}
+
+                  {isBlocked && (
+                    <div className="mt-3 pt-3 border-t border-white/10 flex flex-col sm:flex-row sm:items-center gap-2">
+                      <span className="text-[11px] text-amber-300 font-semibold shrink-0">Motif du blocage affiché aux usagers :</span>
+                      <input
+                        type="text"
+                        value={currentReason}
+                        onChange={(e) => updateModuleRestriction(res.id, { raison: e.target.value, reason: e.target.value })}
+                        placeholder="Indiquez la raison (ex: Clôture comptable, session d'examen...)"
+                        className="flex-1 rounded-lg border border-amber-500/30 bg-black/40 px-2.5 py-1 text-xs text-amber-100"
+                      />
+                    </div>
+                  )}
+                </div>
+              );
+            })}
           </div>
         </Card>
       )}

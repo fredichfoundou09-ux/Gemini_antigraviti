@@ -254,8 +254,8 @@ export function sortedPayments(payments: Payment[]): Payment[] {
  * Revenus encaissés du module - Coûts des formateurs = Marge nette
  */
 export function calculateModuleProfitability(
-  moduleTitle: string,
-  studentCount: number,
+  arg1: string | DB,
+  arg2: number | string = 0,
   unitRevenue: number = 3500,
   validatedSessionsCount: number = 4,
   sessionRate: number = TEACHER_SESSION_RATE
@@ -265,9 +265,25 @@ export function calculateModuleProfitability(
   teacherCost: number;
   margin: number;
   marginPercent: number;
+  margeNette: number;
 } {
-  const revenue = studentCount * unitRevenue;
-  const teacherCost = validatedSessionsCount * sessionRate;
+  let studentCount = 0;
+  let revenue = 0;
+  let teacherCost = 0;
+
+  if (typeof arg1 === "object" && arg1 !== null && "students" in arg1) {
+    const db = arg1 as DB;
+    const moduleId = String(arg2);
+    studentCount = db.students.filter((s) => (s.modules || []).includes(moduleId)).length;
+    revenue = studentCount * unitRevenue;
+    const hours = (db.teacherHours || []).filter((h) => h.moduleId === moduleId && h.valide);
+    teacherCost = hours.reduce((acc, h) => acc + (h.montant || h.heures * 2500), 0);
+  } else {
+    studentCount = typeof arg2 === "number" ? arg2 : 0;
+    revenue = studentCount * unitRevenue;
+    teacherCost = validatedSessionsCount * sessionRate;
+  }
+
   const margin = revenue - teacherCost;
   const marginPercent = revenue > 0 ? Math.round((margin / revenue) * 100) : 0;
 
@@ -277,5 +293,6 @@ export function calculateModuleProfitability(
     teacherCost,
     margin,
     marginPercent,
+    margeNette: margin,
   };
 }

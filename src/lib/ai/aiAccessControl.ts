@@ -1,5 +1,4 @@
-import { Role } from "../types";
-import type { AppDB } from "../store";
+import { Role, DB, ModuleRestriction } from "../types";
 
 export interface AiAccessPolicy {
   systemEnabled: boolean;
@@ -62,7 +61,7 @@ export function saveAiPolicy(policy: Partial<AiAccessPolicy>): AiAccessPolicy {
  */
 export function canUserAccessAi(
   user: { id?: string; role?: Role } | null,
-  context?: { inExam?: boolean; moduleKey?: string; db?: AppDB }
+  context?: { inExam?: boolean; moduleKey?: string; db?: DB }
 ): { allowed: boolean; reason?: string } {
   const policy = getAiPolicy();
 
@@ -76,7 +75,7 @@ export function canUserAccessAi(
 
   // 1.b Système : Blocage global du module 'ia' dans les restrictions administratives
   if (context?.db?.moduleRestrictions) {
-    const r = context.db.moduleRestrictions.find((item) => item.moduleKey === "ia");
+    const r = context.db.moduleRestrictions.find((item: ModuleRestriction) => item.moduleKey === "ia");
     if (r && r.bloque) {
       const roleRestricted = r.roles && user?.role && r.roles.includes(user.role);
       const userRestricted = r.userIds && user?.id && r.userIds.includes(user.id);
