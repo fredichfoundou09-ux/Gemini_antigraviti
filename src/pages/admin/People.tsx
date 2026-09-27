@@ -69,7 +69,7 @@ export function StudentsPage() {
   const [tab, setTab] = useState<"tous" | Formation>("tous");
   const [fPay, setFPay] = useState("");
   const [fActif, setFActif] = useState("");
-  const [viewMode, setViewMode] = useState<"table" | "cards">("table");
+  const [viewMode, setViewMode] = useState<"table" | "cards">("cards");
   const [editing, setEditing] = useState<Student | null>(null);
   const [creating, setCreating] = useState(false);
   const [viewing, setViewing] = useState<Student | null>(null);
@@ -2370,6 +2370,7 @@ export function UsersPage() {
 
   const [userTab, setUserTab] = useState<"all" | "admin" | "teacher" | "student" | "partner" | "disabled">("all");
   const [userSearch, setUserSearch] = useState("");
+  const [viewMode, setViewMode] = useState<"cards" | "table">("cards");
 
   const roleColor = (r: string) => r === "superadmin" ? "red" : r === "admin" ? "gold" : r === "teacher" ? "cyan" : "green";
   const roleLabel = (r: string) => r === "superadmin" ? "Super Admin" : r === "admin" ? "Administration" : r === "partner_admin" ? "Admin partenaire" : r === "teacher" ? "Enseignant" : r === "partner" ? "Partenaire" : "Apprenant";
@@ -2427,60 +2428,124 @@ export function UsersPage() {
         ))}
       </div>
 
-      {/* Barre de recherche */}
+      {/* Barre de recherche et sélecteur de vue */}
       <Card className="p-3">
-        <div className="relative">
-          <Search size={15} className="absolute left-3.5 top-1/2 -translate-y-1/2 text-slate-500" />
-          <input
-            type="text"
-            value={userSearch}
-            onChange={(e) => setUserSearch(e.target.value)}
-            placeholder="Rechercher un utilisateur par nom, identifiant ou email..."
-            className="w-full rounded-xl border border-white/10 bg-white/[0.03] pl-10 pr-4 py-2 text-xs text-white placeholder-slate-500 outline-none focus:border-cyan-400/50"
-          />
+        <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+          <div className="relative flex-1">
+            <Search size={15} className="absolute left-3.5 top-1/2 -translate-y-1/2 text-slate-500" />
+            <input
+              type="text"
+              value={userSearch}
+              onChange={(e) => setUserSearch(e.target.value)}
+              placeholder="Rechercher un utilisateur par nom, identifiant ou email..."
+              className="w-full rounded-xl border border-white/10 bg-white/[0.03] pl-10 pr-4 py-2 text-xs text-white placeholder-slate-500 outline-none focus:border-cyan-400/50"
+            />
+          </div>
+          <div className="flex items-center gap-1.5 self-end sm:self-auto rounded-xl border border-white/10 bg-white/[0.02] p-1">
+            <button
+              onClick={() => setViewMode("cards")}
+              className={cn(
+                "flex items-center gap-1.5 rounded-lg px-3 py-1.5 text-xs font-bold transition-all",
+                viewMode === "cards"
+                  ? "bg-cyan-400/20 text-cyan-300 shadow-[0_0_10px_rgba(6,182,212,0.3)]"
+                  : "text-slate-400 hover:text-white"
+              )}
+            >
+              <LayoutGrid size={14} />
+              <span>Cartes</span>
+            </button>
+            <button
+              onClick={() => setViewMode("table")}
+              className={cn(
+                "flex items-center gap-1.5 rounded-lg px-3 py-1.5 text-xs font-bold transition-all",
+                viewMode === "table"
+                  ? "bg-cyan-400/20 text-cyan-300 shadow-[0_0_10px_rgba(6,182,212,0.3)]"
+                  : "text-slate-400 hover:text-white"
+              )}
+            >
+              <Table2 size={14} />
+              <span>Tableau</span>
+            </button>
+          </div>
         </div>
       </Card>
 
-      <Card className="overflow-x-auto">
-        <table className="w-full min-w-[750px] text-left">
-          <thead>
-            <tr className="border-b border-white/5 text-[10px] uppercase tracking-[0.2em] text-slate-500">
-              <th className="px-4 py-3">Utilisateur</th>
-              <th className="px-4 py-3">Identifiant</th>
-              <th className="px-4 py-3">Rôle</th>
-              <th className="px-4 py-3">Email & Contact</th>
-              <th className="px-4 py-3">Statut</th>
-              <th className="px-4 py-3 text-right">Actions</th>
-            </tr>
-          </thead>
-          <tbody>
-            {filteredUsers.length === 0 ? (
-              <tr>
-                <td colSpan={6} className="px-4 py-8 text-center text-xs text-slate-500">
-                  Aucun compte trouvé dans cette section.
-                </td>
-              </tr>
-            ) : (
-              filteredUsers.map((u) => (
-                <tr key={u.id} className="border-b border-white/5 last:border-0 hover:bg-white/[0.02]">
-                  <td className="px-4 py-3">
-                    <p className="text-sm font-bold text-white">{u.name}</p>
-                    <p className="text-[11px] text-slate-500">{u.linkedId ? `Lié à ${u.linkedId}` : "—"}</p>
-                  </td>
-                  <td className="px-4 py-3 font-mono text-xs text-cyan-300 font-semibold">{u.username}</td>
-                  <td className="px-4 py-3">
-                    <Badge color={roleColor(u.role) as any}>{roleLabel(u.role)}</Badge>
-                  </td>
-                  <td className="px-4 py-3 text-xs text-slate-400">{u.email || "—"}</td>
-                  <td className="px-4 py-3">
-                    {u.actif === false ? (
-                      <Badge color="red">Désactivé</Badge>
-                    ) : (
-                      <Badge color="green">Actif</Badge>
-                    )}
-                  </td>
-                  <td className="px-4 py-3">
-                    <div className="flex justify-end gap-1.5">
+      {/* Rendu Cartes Spatiales */}
+      {viewMode === "cards" ? (
+        filteredUsers.length === 0 ? (
+          <Card className="p-8 text-center text-xs text-slate-500">
+            Aucun compte trouvé dans cette section.
+          </Card>
+        ) : (
+          <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3">
+            {filteredUsers.map((u) => {
+              const initials = u.name
+                .split(" ")
+                .filter(Boolean)
+                .slice(0, 2)
+                .map((n) => n[0]?.toUpperCase())
+                .join("");
+              return (
+                <div
+                  key={u.id}
+                  className={cn(
+                    "group relative flex flex-col justify-between rounded-2xl border p-4.5 transition-all duration-200 hover:-translate-y-0.5",
+                    u.actif === false
+                      ? "border-red-500/20 bg-red-950/[0.08]"
+                      : "border-white/10 bg-[#0B1522]/90 hover:border-cyan-400/40 hover:shadow-[0_4px_24px_rgba(0,229,255,0.08)]"
+                  )}
+                >
+                  <div className="space-y-3">
+                    {/* Entête de carte avec avatar, nom, badges */}
+                    <div className="flex items-start justify-between gap-3">
+                      <div className="flex items-center gap-3">
+                        <div className="flex h-11 w-11 shrink-0 items-center justify-center rounded-xl border border-cyan-400/30 bg-cyan-950/40 font-display text-sm font-black text-cyan-300 shadow-[0_0_10px_rgba(6,182,212,0.2)]">
+                          {initials || "U"}
+                        </div>
+                        <div className="min-w-0">
+                          <h4 className="truncate text-sm font-bold text-white group-hover:text-cyan-200 transition-colors">
+                            {u.name}
+                          </h4>
+                          <span className="font-mono text-xs text-cyan-400">@{u.username}</span>
+                        </div>
+                      </div>
+                      <Badge color={roleColor(u.role) as any}>{roleLabel(u.role)}</Badge>
+                    </div>
+
+                    {/* Données & contacts */}
+                    <div className="space-y-1.5 rounded-xl border border-white/5 bg-black/20 p-2.5 text-xs">
+                      <div className="flex items-center justify-between text-slate-400">
+                        <span className="text-[10px] uppercase tracking-wider text-slate-500">Statut</span>
+                        {u.actif === false ? (
+                          <Badge color="red">Désactivé</Badge>
+                        ) : (
+                          <Badge color="green">Actif</Badge>
+                        )}
+                      </div>
+                      {u.email && (
+                        <div className="flex items-center gap-1.5 truncate text-slate-300">
+                          <Mail size={12} className="shrink-0 text-slate-500" />
+                          <span className="truncate">{u.email}</span>
+                        </div>
+                      )}
+                      {u.phone && (
+                        <div className="flex items-center gap-1.5 truncate text-slate-300">
+                          <Phone size={12} className="shrink-0 text-slate-500" />
+                          <span className="truncate">{u.phone}</span>
+                        </div>
+                      )}
+                      {u.linkedId && (
+                        <div className="text-[11px] text-slate-400">
+                          ID Lié : <span className="font-mono text-cyan-300">{u.linkedId}</span>
+                        </div>
+                      )}
+                    </div>
+                  </div>
+
+                  {/* Actions rapides visibles directement sur la carte */}
+                  <div className="mt-4 flex items-center justify-between border-t border-white/5 pt-3">
+                    <span className="text-[10px] text-slate-500 uppercase tracking-wider font-semibold">Actions</span>
+                    <div className="flex items-center gap-1.5">
                       {u.role !== "superadmin" && (
                         <button
                           title={u.actif === false ? "Activer le compte" : "Désactiver le compte"}
@@ -2493,19 +2558,20 @@ export function UsersPage() {
                             toastMsg.info(`Compte ${u.actif === false ? "activé" : "désactivé"} : ${u.username}`);
                           }}
                           className={cn(
-                            "rounded-lg border p-2",
+                            "flex items-center gap-1 rounded-lg border px-2.5 py-1.5 text-xs font-semibold transition-all",
                             u.actif === false
-                              ? "border-emerald-400/40 text-emerald-300 hover:bg-emerald-400/10"
-                              : "border-white/10 text-slate-300 hover:border-amber-400/40 hover:text-amber-300"
+                              ? "border-emerald-400/40 bg-emerald-400/10 text-emerald-300 hover:bg-emerald-400/20"
+                              : "border-white/10 bg-white/[0.03] text-slate-300 hover:border-amber-400/40 hover:text-amber-300"
                           )}
                         >
-                          {u.actif === false ? <Eye size={14} /> : <EyeOff size={14} />}
+                          {u.actif === false ? <Eye size={13} /> : <EyeOff size={13} />}
+                          <span>{u.actif === false ? "Activer" : "Désactiver"}</span>
                         </button>
                       )}
                       <button
                         title="Réinitialiser le mot de passe"
                         onClick={() => { setResetTarget({ id: u.id, username: u.username }); setNewPw(""); setNewPwErr(""); }}
-                        className="rounded-lg border border-white/10 p-2 text-slate-300 hover:border-cyan-400/40 hover:text-cyan-300"
+                        className="rounded-lg border border-white/10 bg-white/[0.03] p-1.5 text-slate-300 hover:border-cyan-400/40 hover:text-cyan-300 transition-colors"
                       >
                         <KeyRound size={14} />
                       </button>
@@ -2513,19 +2579,105 @@ export function UsersPage() {
                         <button
                           title="Supprimer cet utilisateur"
                           onClick={() => setDeleteTarget(u)}
-                          className="rounded-lg border border-white/10 p-2 text-slate-300 hover:border-red-500/40 hover:text-red-400"
+                          className="rounded-lg border border-white/10 bg-white/[0.03] p-1.5 text-slate-300 hover:border-red-500/40 hover:text-red-400 transition-colors"
                         >
                           <Trash2 size={14} />
                         </button>
                       )}
                     </div>
+                  </div>
+                </div>
+              );
+            })}
+          </div>
+        )
+      ) : (
+        <Card className="overflow-x-auto">
+          <table className="w-full min-w-[750px] text-left">
+            <thead>
+              <tr className="border-b border-white/5 text-[10px] uppercase tracking-[0.2em] text-slate-500">
+                <th className="px-4 py-3">Utilisateur</th>
+                <th className="px-4 py-3">Identifiant</th>
+                <th className="px-4 py-3">Rôle</th>
+                <th className="px-4 py-3">Email & Contact</th>
+                <th className="px-4 py-3">Statut</th>
+                <th className="px-4 py-3 text-right">Actions</th>
+              </tr>
+            </thead>
+            <tbody>
+              {filteredUsers.length === 0 ? (
+                <tr>
+                  <td colSpan={6} className="px-4 py-8 text-center text-xs text-slate-500">
+                    Aucun compte trouvé dans cette section.
                   </td>
                 </tr>
-              ))
-            )}
-          </tbody>
-        </table>
-      </Card>
+              ) : (
+                filteredUsers.map((u) => (
+                  <tr key={u.id} className="border-b border-white/5 last:border-0 hover:bg-white/[0.02]">
+                    <td className="px-4 py-3">
+                      <p className="text-sm font-bold text-white">{u.name}</p>
+                      <p className="text-[11px] text-slate-500">{u.linkedId ? `Lié à ${u.linkedId}` : "—"}</p>
+                    </td>
+                    <td className="px-4 py-3 font-mono text-xs text-cyan-300 font-semibold">{u.username}</td>
+                    <td className="px-4 py-3">
+                      <Badge color={roleColor(u.role) as any}>{roleLabel(u.role)}</Badge>
+                    </td>
+                    <td className="px-4 py-3 text-xs text-slate-400">{u.email || "—"}</td>
+                    <td className="px-4 py-3">
+                      {u.actif === false ? (
+                        <Badge color="red">Désactivé</Badge>
+                      ) : (
+                        <Badge color="green">Actif</Badge>
+                      )}
+                    </td>
+                    <td className="px-4 py-3">
+                      <div className="flex justify-end gap-1.5">
+                        {u.role !== "superadmin" && (
+                          <button
+                            title={u.actif === false ? "Activer le compte" : "Désactiver le compte"}
+                            onClick={() => {
+                              update((d) => ({
+                                ...d,
+                                users: d.users.map((x) => x.id === u.id ? { ...x, actif: x.actif === false } : x),
+                              }));
+                              log(`Compte ${u.actif === false ? "activé" : "désactivé"} : ${u.username}`);
+                              toastMsg.info(`Compte ${u.actif === false ? "activé" : "désactivé"} : ${u.username}`);
+                            }}
+                            className={cn(
+                              "rounded-lg border p-2",
+                              u.actif === false
+                                ? "border-emerald-400/40 text-emerald-300 hover:bg-emerald-400/10"
+                                : "border-white/10 text-slate-300 hover:border-amber-400/40 hover:text-amber-300"
+                            )}
+                          >
+                            {u.actif === false ? <Eye size={14} /> : <EyeOff size={14} />}
+                          </button>
+                        )}
+                        <button
+                          title="Réinitialiser le mot de passe"
+                          onClick={() => { setResetTarget({ id: u.id, username: u.username }); setNewPw(""); setNewPwErr(""); }}
+                          className="rounded-lg border border-white/10 p-2 text-slate-300 hover:border-cyan-400/40 hover:text-cyan-300"
+                        >
+                          <KeyRound size={14} />
+                        </button>
+                        {user?.id !== u.id && (
+                          <button
+                            title="Supprimer cet utilisateur"
+                            onClick={() => setDeleteTarget(u)}
+                            className="rounded-lg border border-white/10 p-2 text-slate-300 hover:border-red-500/40 hover:text-red-400"
+                          >
+                            <Trash2 size={14} />
+                          </button>
+                        )}
+                      </div>
+                    </td>
+                  </tr>
+                ))
+              )}
+            </tbody>
+          </table>
+        </Card>
+      )}
 
       {/* Modal réinitialisation mot de passe */}
       <Modal open={!!resetTarget} onClose={() => setResetTarget(null)} title={`Réinitialiser le mot de passe — ${resetTarget?.username}`}>

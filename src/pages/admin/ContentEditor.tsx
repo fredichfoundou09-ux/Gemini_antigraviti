@@ -6,7 +6,7 @@ import {
 } from "lucide-react";
 import { useStore } from "@/lib/store";
 import { cn } from "@/utils/cn";
-import { Btn, Badge, Card, Field, Input, Textarea, Modal, PageHead, readImage, uid, today } from "@/lib/ui";
+import { Btn, Badge, Card, Field, Input, Textarea, Modal, PageHead, readImage, uid, today, money } from "@/lib/ui";
 import { supabase, isSupabaseConfigured } from "@/lib/supabase/client";
 import { toastMsg } from "@/lib/toast";
 import { sanitizeJsonPayload } from "@/lib/validation/jsonPayload";
@@ -585,20 +585,70 @@ export function ContentEditor() {
           </Card>
 
           {([["informatique", "GÉNIE INFORMATIQUE", "red"], ["industriel", "GÉNIE INDUSTRIEL", "cyan"]] as const).map(([key, label, color]) => (
-            <Card key={key} className="p-6">
-              <h3 className={cn("font-display mb-4 text-sm font-bold", color === "red" ? "text-red-400" : "text-cyan-300")}>{label}</h3>
-              <div className="space-y-2">
+            <Card key={key} className="p-6" glow={color === "red" ? "red" : "cyan"}>
+              <div className="flex items-center justify-between border-b border-white/10 pb-3 mb-4">
+                <h3 className={cn("font-display text-base font-black tracking-wide", color === "red" ? "text-red-400" : "text-cyan-300")}>{label}</h3>
+                <span className="text-xs text-slate-400 font-mono">{frais[key].length} formule(s) tarifaire(s)</span>
+              </div>
+
+              {/* En-têtes claires des colonnes */}
+              <div className="hidden sm:grid grid-cols-[1.5fr_1fr_1.5fr_auto] gap-3 px-3 py-1.5 text-[10px] uppercase font-bold tracking-wider text-slate-400 border-b border-white/5 mb-2">
+                <span>Libellé de la formule</span>
+                <span className="text-center">Nb de modules</span>
+                <span>Tarif applicable</span>
+                <span className="w-8 text-center">Retirer</span>
+              </div>
+
+              <div className="space-y-3">
                 {frais[key].map((f, i) => (
-                  <div key={f.id || i} className="grid gap-2 sm:grid-cols-[1fr_1fr_1fr_auto]">
-                    <Input placeholder="Libellé (ex: 2 modules)" value={f.label} onChange={(e) => setFrais({ ...frais, [key]: frais[key].map((x, j) => (j === i ? { ...x, label: e.target.value } : x)) })} />
-                    <Input type="number" placeholder="Nb modules" value={f.modules} onChange={(e) => setFrais({ ...frais, [key]: frais[key].map((x, j) => (j === i ? { ...x, modules: +e.target.value } : x)) })} />
-                    <Input type="number" placeholder="Montant FCFA" value={f.montant} onChange={(e) => setFrais({ ...frais, [key]: frais[key].map((x, j) => (j === i ? { ...x, montant: +e.target.value } : x)) })} />
-                    <Btn variant="ghost" onClick={() => setFrais({ ...frais, [key]: frais[key].filter((_, j) => j !== i) })}><Trash2 size={15} /></Btn>
+                  <div key={f.id || i} className="rounded-xl border border-white/10 bg-white/[0.02] p-3 transition-colors hover:border-white/20">
+                    <div className="grid gap-3 sm:grid-cols-[1.5fr_1fr_1.5fr_auto] sm:items-center">
+                      <div>
+                        <Input
+                          placeholder="ex: Pack 2 modules"
+                          value={f.label}
+                          onChange={(e) => setFrais({ ...frais, [key]: frais[key].map((x, j) => (j === i ? { ...x, label: e.target.value } : x)) })}
+                        />
+                      </div>
+                      <div>
+                        <Input
+                          type="number"
+                          min={1}
+                          max={20}
+                          placeholder="Nb modules"
+                          className="text-center font-mono font-bold"
+                          value={f.modules}
+                          onChange={(e) => setFrais({ ...frais, [key]: frais[key].map((x, j) => (j === i ? { ...x, modules: +e.target.value } : x)) })}
+                        />
+                      </div>
+                      <div className="flex items-center gap-2">
+                        <Input
+                          type="number"
+                          step={5000}
+                          min={0}
+                          placeholder="Montant FCFA"
+                          className="font-mono font-bold"
+                          value={f.montant}
+                          onChange={(e) => setFrais({ ...frais, [key]: frais[key].map((x, j) => (j === i ? { ...x, montant: +e.target.value } : x)) })}
+                        />
+                        <span className="shrink-0 rounded-lg border border-emerald-400/30 bg-emerald-950/40 px-2.5 py-1.5 text-xs font-mono font-bold text-emerald-300">
+                          {money(f.montant)}
+                        </span>
+                      </div>
+                      <div className="flex justify-end">
+                        <Btn variant="ghost" className="text-slate-400 hover:text-red-400" onClick={() => setFrais({ ...frais, [key]: frais[key].filter((_, j) => j !== i) })}>
+                          <Trash2 size={16} />
+                        </Btn>
+                      </div>
+                    </div>
                   </div>
                 ))}
-                <Btn variant="outline" onClick={() => setFrais({ ...frais, [key]: [...frais[key], { id: uid("FR"), label: "", modules: 0, montant: 0 }] })}>
-                  <PlusCircle size={14} /> Ajouter une formule
-                </Btn>
+
+                <div className="pt-2">
+                  <Btn variant="outline" onClick={() => setFrais({ ...frais, [key]: [...frais[key], { id: uid("FR"), label: `Pack ${frais[key].length + 1} modules`, modules: frais[key].length + 1, montant: 50000 }] })}>
+                    <PlusCircle size={15} /> Ajouter une formule tarifaire
+                  </Btn>
+                </div>
               </div>
             </Card>
           ))}

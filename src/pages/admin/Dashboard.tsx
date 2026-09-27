@@ -28,6 +28,26 @@ function Bar({ label, value, max, color }: { label: string; value: number; max: 
   );
 }
 
+function generateSmoothPath(points: { x: number; y: number }[]): string {
+  if (points.length === 0) return "";
+  if (points.length === 1) return `M ${points[0].x} ${points[0].y}`;
+  let d = `M ${points[0].x} ${points[0].y}`;
+  for (let i = 0; i < points.length - 1; i++) {
+    const p0 = points[i === 0 ? 0 : i - 1];
+    const p1 = points[i];
+    const p2 = points[i + 1];
+    const p3 = points[i + 2] || p2;
+
+    const cp1x = p1.x + (p2.x - p0.x) / 6;
+    const cp1y = p1.y + (p2.y - p0.y) / 6;
+    const cp2x = p2.x - (p3.x - p1.x) / 6;
+    const cp2y = p2.y - (p3.y - p1.y) / 6;
+
+    d += ` C ${Math.round(cp1x)} ${Math.round(cp1y)}, ${Math.round(cp2x)} ${Math.round(cp2y)}, ${Math.round(p2.x)} ${Math.round(p2.y)}`;
+  }
+  return d;
+}
+
 export function AdminDashboard() {
   const { db, user } = useStore();
   const { presences } = usePresence();
@@ -45,6 +65,7 @@ export function AdminDashboard() {
   // Calcul des présences sur les 7 derniers jours (Lundi à Dimanche)
   const last7Days = useMemo(() => {
     const days = ["Lun", "Mar", "Mer", "Jeu", "Ven", "Sam", "Dim"];
+    const monthNames = ["Jan", "Fév", "Mar", "Avr", "Mai", "Juin", "Juil", "Aoû", "Sep", "Oct", "Nov", "Déc"];
     const now = new Date();
     const result = [];
     for (let i = 6; i >= 0; i--) {
@@ -57,10 +78,56 @@ export function AdminDashboard() {
       const absents = dayAtt.filter((a) => a.statut === "absent").length;
       const retards = dayAtt.filter((a) => a.statut === "retard").length;
       const dayStudents = db.students.filter((s) => s.dateInscription?.slice(0, 10) === dateStr).length;
-      result.push({ date: dateStr, label: dayName, presents, absents, retards, newStudents: dayStudents, total: dayAtt.length });
+      const dateLabel = `${target.getDate().toString().padStart(2, "0")} ${monthNames[target.getMonth()]}`;
+      result.push({ date: dateStr, label: dayName, dateLabel, presents, absents, retards, newStudents: dayStudents, total: dayAtt.length });
     }
     return result;
   }, [db.attendance, db.students]);
+
+  // Courbes dynamiques Card 1 : Évolution des indicateurs
+  const maxVal1 = useMemo(() => {
+    return Math.max(10, ...last7Days.map((d) => Math.max(d.presents, d.absents, d.retards, d.newStudents)));
+  }, [last7Days]);
+
+  const card1Points = useMemo(() => {
+    const stepX = 450 / 6;
+    const getY = (val: number) => {
+      const ratio = Math.min(1, Math.max(0, val / maxVal1));
+      return Math.round(145 - ratio * 115);
+    };
+    const presentsPts = last7Days.map((d, i) => ({ x: 35 + i * stepX, y: getY(d.presents), val: d.presents }));
+    const newStudentsPts = last7Days.map((d, i) => ({ x: 35 + i * stepX, y: getY(d.newStudents), val: d.newStudents }));
+    const absentsPts = last7Days.map((d, i) => ({ x: 35 + i * stepX, y: getY(d.absents), val: d.absents }));
+    const retardsPts = last7Days.map((d, i) => ({ x: 35 + i * stepX, y: getY(d.retards), val: d.retards }));
+
+    return {
+      presentsPts,
+      newStudentsPts,
+      absentsPts,
+      retardsPts,
+      presentsPath: generateSmoothPath(presentsPts),
+      newStudentsPath: generateSmoothPath(newStudentsPts),
+      absentsPath: generateSmoothPath(absentsPts),
+      retardsPath: generateSmoothPath(retardsPts),
+    };
+  }, [last7Days, maxVal1]);
+
+  // Courbe dynamique Card 2 : Présences 7 derniers jours
+  const maxVal2 = useMemo(() => {
+    return Math.max(5, ...last7Days.map((d) => d.presents));
+  }, [last7Days]);
+
+  const card2Points = useMemo(() => {
+    const stepX = 410 / 6;
+    const pts = last7Days.map((d, i) => {
+      const ratio = Math.min(1, Math.max(0, d.presents / maxVal2));
+      const y = Math.round(90 - ratio * 65);
+      return { x: 30 + i * stepX, y, val: d.presents };
+    });
+    const linePath = generateSmoothPath(pts);
+    const areaPath = pts.length > 0 ? `${linePath} L ${pts[pts.length - 1].x} 90 L ${pts[0].x} 90 Z` : "";
+    return { pts, linePath, areaPath };
+  }, [last7Days, maxVal2]);
 
   const maxAttCount = Math.max(1, ...last7Days.map((d) => Math.max(d.presents, d.absents + d.retards)));
 
@@ -173,77 +240,80 @@ export function AdminDashboard() {
                 <line x1="25" y1="105" x2="490" y2="105" stroke="#006DFF" strokeOpacity="0.15" strokeDasharray="3 3" />
                 <line x1="25" y1="145" x2="490" y2="145" stroke="#006DFF" strokeOpacity="0.25" />
 
-                {/* Échelle Y */}
-                <text x="5" y="28" fill="#4C91B5" fontSize="8" fontFamily="monospace">1000</text>
-                <text x="5" y="68" fill="#4C91B5" fontSize="8" fontFamily="monospace">750</text>
-                <text x="5" y="108" fill="#4C91B5" fontSize="8" fontFamily="monospace">500</text>
-                <text x="5" y="145" fill="#4C91B5" fontSize="8" fontFamily="monospace">250</text>
+                {/* Échelle Y dynamique */}
+                <text x="5" y="28" fill="#4C91B5" fontSize="8" fontFamily="monospace">{Math.round(maxVal1)}</text>
+                <text x="5" y="68" fill="#4C91B5" fontSize="8" fontFamily="monospace">{Math.round(maxVal1 * 0.75)}</text>
+                <text x="5" y="108" fill="#4C91B5" fontSize="8" fontFamily="monospace">{Math.round(maxVal1 * 0.5)}</text>
+                <text x="5" y="145" fill="#4C91B5" fontSize="8" fontFamily="monospace">{Math.round(maxVal1 * 0.25)}</text>
 
-                {/* Courbe Présences (Cyan vibrant) */}
+                {/* Courbe Présences (Cyan vibrant dynamique) */}
                 <path
-                  d="M 35 125 Q 110 40, 185 95 T 335 45 T 485 55"
+                  d={card1Points.presentsPath}
                   fill="none"
                   stroke="#00E5FF"
                   strokeWidth="2.5"
                   className="drop-shadow-[0_0_10px_#00E5FF]"
                 />
-                {/* Courbe Nouv. Inscrits (Rouge néon) */}
+                {/* Courbe Nouv. Inscrits (Rouge néon dynamique) */}
                 <path
-                  d="M 35 138 Q 115 110, 195 130 T 345 80 T 485 70"
+                  d={card1Points.newStudentsPath}
                   fill="none"
                   stroke="#FF174F"
                   strokeWidth="2"
                   className="drop-shadow-[0_0_8px_#FF174F]"
                 />
-                {/* Courbe Absences (Rouge néon intense) */}
+                {/* Courbe Absences (Rouge pointillé dynamique) */}
                 <path
-                  d="M 35 145 Q 105 135, 175 120 T 325 135 T 485 130"
+                  d={card1Points.absentsPath}
                   fill="none"
                   stroke="#FF174F"
                   strokeWidth="2"
                   strokeDasharray="4 2"
                   className="drop-shadow-[0_0_10px_#FF174F]"
                 />
-                {/* Courbe Retards (Jaune) */}
+                {/* Courbe Retards (Jaune dynamique) */}
                 <path
-                  d="M 35 150 Q 130 142, 225 148 T 375 140 T 485 144"
+                  d={card1Points.retardsPath}
                   fill="none"
                   stroke="#FFB300"
                   strokeWidth="1.5"
                 />
 
-                {/* Nœuds dynamiques */}
-                <circle cx="185" cy="95" r="3.5" fill="#00E5FF" className="animate-pulse" />
-                <circle cx="335" cy="45" r="4" fill="#00E5FF" className="animate-ping" />
-                <circle cx="335" cy="45" r="3" fill="#00E5FF" />
-                <circle cx="485" cy="55" r="3.5" fill="#00E5FF" />
-                <circle cx="345" cy="80" r="3" fill="#FF174F" />
-                <circle cx="175" cy="120" r="3" fill="#FF174F" />
-
-                {/* Barres verticales sous le graphe (comme sur la maquette) */}
-                {[55, 90, 125, 160, 195, 230, 265, 300, 335, 370, 405, 440, 475].map((x, i) => (
-                  <rect
-                    key={x}
-                    x={x}
-                    y={145 - (i % 3 === 0 ? 18 : i % 2 === 0 ? 12 : 7)}
-                    width="4"
-                    height={i % 3 === 0 ? 18 : i % 2 === 0 ? 12 : 7}
-                    fill={i % 4 === 0 ? "#00E5FF" : i % 3 === 0 ? "#FF174F" : i % 2 === 0 ? "#006DFF" : "#FF174F"}
-                    opacity="0.7"
-                  />
+                {/* Nœuds dynamiques calculés */}
+                {card1Points.presentsPts.map((pt, i) => (
+                  <circle key={`p-${i}`} cx={pt.x} cy={pt.y} r="3.5" fill="#00E5FF" className="animate-pulse" />
                 ))}
+                {card1Points.newStudentsPts.map((pt, i) => (
+                  <circle key={`n-${i}`} cx={pt.x} cy={pt.y} r="3" fill="#FF174F" />
+                ))}
+                {card1Points.absentsPts.map((pt, i) => (
+                  <circle key={`a-${i}`} cx={pt.x} cy={pt.y} r="2.5" fill="#FF174F" />
+                ))}
+
+                {/* Barres d'activité sous le graphe */}
+                {last7Days.map((d, i) => {
+                  const x = 35 + i * (450 / 6);
+                  const h = Math.min(30, Math.max(6, (d.total || 1) * 3));
+                  return (
+                    <rect
+                      key={d.date}
+                      x={x - 2}
+                      y={145 - h}
+                      width="4"
+                      height={h}
+                      fill={i % 2 === 0 ? "#00E5FF" : "#006DFF"}
+                      opacity="0.65"
+                    />
+                  );
+                })}
               </svg>
             </div>
 
-            {/* Dates X */}
+            {/* Dates X réelles et dynamiques */}
             <div className="mt-1 flex items-center justify-between px-4 text-[9px] font-mono text-[#4C91B5]">
-              <span>01 Mai</span>
-              <span>02 Mai</span>
-              <span>03 Mai</span>
-              <span>04 Mai</span>
-              <span>05 Mai</span>
-              <span>06 Mai</span>
-              <span>07 Mai</span>
+              {last7Days.map((d) => (
+                <span key={d.date} className="truncate">{d.dateLabel}</span>
+              ))}
             </div>
           </div>
 
@@ -260,7 +330,7 @@ export function AdminDashboard() {
               </div>
             </div>
 
-            {/* Spline curve luminescente */}
+            {/* Spline curve luminescente dynamique */}
             <div className="relative my-2 h-32 w-full">
               <svg viewBox="0 0 450 110" className="h-full w-full overflow-visible">
                 <defs>
@@ -273,47 +343,47 @@ export function AdminDashboard() {
                 <line x1="20" y1="55" x2="440" y2="55" stroke="#006DFF" strokeOpacity="0.12" strokeDasharray="2 2" />
                 <line x1="20" y1="90" x2="440" y2="90" stroke="#006DFF" strokeOpacity="0.2" />
 
-                <text x="5" y="23" fill="#4C91B5" fontSize="8" fontFamily="monospace">100</text>
-                <text x="5" y="58" fill="#4C91B5" fontSize="8" fontFamily="monospace">50</text>
+                <text x="5" y="23" fill="#4C91B5" fontSize="8" fontFamily="monospace">{Math.round(maxVal2)}</text>
+                <text x="5" y="58" fill="#4C91B5" fontSize="8" fontFamily="monospace">{Math.round(maxVal2 / 2)}</text>
                 <text x="5" y="92" fill="#4C91B5" fontSize="8" fontFamily="monospace">0</text>
 
-                {/* Surface et ligne */}
-                <path
-                  d="M 30 75 Q 90 40, 150 65 T 270 30 T 390 55 T 440 40 L 440 90 L 30 90 Z"
-                  fill="url(#splineCyan)"
-                />
-                <path
-                  d="M 30 75 Q 90 40, 150 65 T 270 30 T 390 55 T 440 40"
-                  fill="none"
-                  stroke="#00E5FF"
-                  strokeWidth="2.5"
-                  className="drop-shadow-[0_0_12px_#00E5FF]"
-                />
+                {/* Surface et ligne dynamiques */}
+                {card2Points.areaPath && (
+                  <path
+                    d={card2Points.areaPath}
+                    fill="url(#splineCyan)"
+                  />
+                )}
+                {card2Points.linePath && (
+                  <path
+                    d={card2Points.linePath}
+                    fill="none"
+                    stroke="#00E5FF"
+                    strokeWidth="2.5"
+                    className="drop-shadow-[0_0_12px_#00E5FF]"
+                  />
+                )}
 
-                {/* Points lumineux avec pulsation */}
-                {[
-                  { x: 30, y: 75 },
-                  { x: 95, y: 48 },
-                  { x: 155, y: 65 },
-                  { x: 215, y: 50 },
-                  { x: 275, y: 30 },
-                  { x: 335, y: 45 },
-                  { x: 395, y: 55 },
-                  { x: 440, y: 40 },
-                ].map((pt, i) => (
-                  <circle key={i} cx={pt.x} cy={pt.y} r="3.5" fill="#B8F3FF" stroke="#006DFF" strokeWidth="1.5" className={i % 2 === 0 ? "animate-pulse" : ""} />
+                {/* Points lumineux avec pulsation dynamique */}
+                {card2Points.pts.map((pt, i) => (
+                  <circle
+                    key={i}
+                    cx={pt.x}
+                    cy={pt.y}
+                    r="3.5"
+                    fill="#B8F3FF"
+                    stroke="#006DFF"
+                    strokeWidth="1.5"
+                    className={i % 2 === 0 ? "animate-pulse" : ""}
+                  />
                 ))}
               </svg>
             </div>
 
             <div className="flex items-center justify-between px-4 text-[10px] font-mono text-[#4C91B5]">
-              <span>Sam</span>
-              <span>Dim</span>
-              <span>Lun</span>
-              <span>Mar</span>
-              <span>Mer</span>
-              <span>Jeu</span>
-              <span>Ven</span>
+              {last7Days.map((d) => (
+                <span key={d.date}>{d.label}</span>
+              ))}
             </div>
 
             <div className="mt-2 flex items-center justify-between border-t border-[#006DFF]/20 pt-2 text-xs">
@@ -480,18 +550,24 @@ export function AdminDashboard() {
                     </div>
                   </div>
 
-                  <div className="space-y-1 text-[10px]">
-                    <div className="flex items-center gap-1.5">
-                      <span className="h-2 w-2 rounded-full bg-[#00E5FF]" />
-                      <span className="text-[#4C91B5]">Présents : <strong className="text-white font-mono">{attendanceRate}%</strong></span>
+                  <div className="space-y-1.5 text-[10px]">
+                    <div className="flex items-center justify-between gap-2">
+                      <span className="flex items-center gap-1.5 text-slate-300">
+                        <span className="h-2 w-2 rounded-full bg-[#00E5FF] shadow-[0_0_6px_#00E5FF]" /> Présents
+                      </span>
+                      <strong className="text-white font-mono">{attendanceRate}% ({totalPresents})</strong>
                     </div>
-                    <div className="flex items-center gap-1.5">
-                      <span className="h-2 w-2 rounded-full bg-[#FF174F]" />
-                      <span className="text-[#4C91B5]">Absents : <strong className="text-[#FF174F] font-mono">{(100 - attendanceRate)}%</strong></span>
+                    <div className="flex items-center justify-between gap-2">
+                      <span className="flex items-center gap-1.5 text-slate-300">
+                        <span className="h-2 w-2 rounded-full bg-[#FF174F] shadow-[0_0_6px_#FF174F]" /> Absents
+                      </span>
+                      <strong className="text-[#FF174F] font-mono">{Math.round((totalAbsents / totalAttRecords) * 100)}% ({totalAbsents})</strong>
                     </div>
-                    <div className="flex items-center gap-1.5">
-                      <span className="h-2 w-2 rounded-full bg-[#FFB300]" />
-                      <span className="text-[#4C91B5]">Retards : <strong className="text-[#FFB300] font-mono">{totalRetards}%</strong></span>
+                    <div className="flex items-center justify-between gap-2">
+                      <span className="flex items-center gap-1.5 text-slate-300">
+                        <span className="h-2 w-2 rounded-full bg-[#FFB300] shadow-[0_0_6px_#FFB300]" /> Retards
+                      </span>
+                      <strong className="text-[#FFB300] font-mono">{Math.round((totalRetards / totalAttRecords) * 100)}% ({totalRetards})</strong>
                     </div>
                   </div>
                 </div>

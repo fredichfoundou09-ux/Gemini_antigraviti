@@ -864,9 +864,12 @@ export function MyCourses() {
   });
   const [showDismissed, setShowDismissed] = useState(false);
   const [readingCourse, setReadingCourse] = useState<any>(null);
+  const [selectedModule, setSelectedModule] = useState<string>("all");
 
+  const myModules = db.modules.filter((m) => (student?.modules || []).includes(m.id));
   const allCourses = db.courses.filter((c) => studentCanSeeCourse(db, student.id, c));
-  const courses = allCourses.filter((c) => (showDismissed ? true : !dismissedIds.includes(c.id)));
+  const activeCourses = allCourses.filter((c) => (showDismissed ? true : !dismissedIds.includes(c.id)));
+  const courses = activeCourses.filter((c) => selectedModule === "all" || c.moduleId === selectedModule);
   const tests = db.tests.filter((t) => student.modules.includes(t.moduleId));
 
   const track = (course: any, _f: any, action: "ouvert" | "telecharge") => {
@@ -926,7 +929,7 @@ export function MyCourses() {
     <div>
       <PageHead title="Mes cours & tests" subtitle="Supports pédagogiques et évaluations" />
 
-      <div className="mb-3 flex flex-wrap items-center justify-between gap-2">
+      <div className="mb-4 flex flex-wrap items-center justify-between gap-3">
         <h3 className="font-display text-lg font-bold text-white">📚 Cours et supports</h3>
         {dismissedIds.length > 0 && (
           <button
@@ -938,6 +941,40 @@ export function MyCourses() {
             {showDismissed ? "Masquer les cours archivés" : `Afficher les cours masqués (${dismissedIds.length})`}
           </button>
         )}
+      </div>
+
+      {/* Filtre par module ergonomique et spatial */}
+      <div className="mb-5 flex flex-wrap items-center gap-2">
+        <button
+          type="button"
+          onClick={() => setSelectedModule("all")}
+          className={cn(
+            "rounded-xl border px-3.5 py-2 text-xs font-bold transition-all",
+            selectedModule === "all"
+              ? "border-cyan-400/50 bg-cyan-400/15 text-cyan-200 shadow-[0_0_12px_rgba(6,182,212,0.25)]"
+              : "border-white/10 text-slate-400 hover:bg-white/5 hover:text-white"
+          )}
+        >
+          Tous les modules ({activeCourses.length})
+        </button>
+        {myModules.map((m) => {
+          const modCoursesCount = activeCourses.filter((c) => c.moduleId === m.id).length;
+          return (
+            <button
+              key={m.id}
+              type="button"
+              onClick={() => setSelectedModule(m.id)}
+              className={cn(
+                "rounded-xl border px-3.5 py-2 text-xs font-bold transition-all truncate max-w-xs",
+                selectedModule === m.id
+                  ? "border-cyan-400/50 bg-cyan-400/15 text-cyan-200 shadow-[0_0_12px_rgba(6,182,212,0.25)]"
+                  : "border-white/10 text-slate-400 hover:bg-white/5 hover:text-white"
+              )}
+            >
+              {m.numero}. {m.titre} ({modCoursesCount})
+            </button>
+          );
+        })}
       </div>
 
       {courses.length === 0 ? (

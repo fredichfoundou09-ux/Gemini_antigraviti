@@ -1,4 +1,5 @@
 import { useState, useMemo } from "react";
+import { Link } from "react-router-dom";
 import { QRCodeSVG } from "qrcode.react";
 import {
   PlusCircle, Trash2, Pencil, CalendarDays, Clock, MapPin, ClipboardCheck, FileText,
@@ -194,36 +195,83 @@ export function ModulesPage() {
         ))}
       </div>
 
-      <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-3">
-        {list.map((m) => (
-          <Card key={m.id} className="overflow-hidden" glow={tab === "informatique" ? "red" : "cyan"}>
-            {m.image && <img src={m.image} alt="" className="h-28 w-full object-cover" />}
-            <div className="p-5">
-              <div className="flex items-start justify-between">
-                <div className="flex items-center gap-3">
-                  <div className={cn("rounded-xl border p-2.5", tab === "informatique" ? "border-red-500/30 bg-red-500/10 text-red-400" : "border-cyan-400/30 bg-cyan-400/10 text-cyan-300")}>
-                    {moduleIcon(m.icon, "h-5 w-5")}
+      <div className="grid gap-5 md:grid-cols-2 xl:grid-cols-3">
+        {list.map((m) => {
+          const studentCount = db.students.filter((s) => (s.modules || []).includes(m.id)).length;
+          const courseCount = db.courses.filter((c) => c.moduleId === m.id).length;
+          const scheduleCount = db.schedule.filter((s) => s.moduleId === m.id).length;
+          return (
+            <Card key={m.id} className="overflow-hidden flex flex-col justify-between" glow={tab === "informatique" ? "red" : "cyan"}>
+              <div>
+                {m.image ? (
+                  <div className="relative h-32 w-full overflow-hidden border-b border-white/5">
+                    <img src={m.image} alt="" className="h-full w-full object-cover transition-transform duration-300 hover:scale-105" />
+                    <div className="absolute inset-0 bg-gradient-to-t from-[#081022] via-transparent to-transparent" />
                   </div>
-                  <div>
-                    <p className="font-mono text-[10px] font-bold tracking-[0.25em] text-slate-500">MODULE {String(m.numero).padStart(2, "0")}</p>
-                    <h4 className="font-display text-sm font-bold text-white">{m.titre}</h4>
+                ) : (
+                  <div className={cn("h-16 w-full border-b border-white/5 flex items-center px-5", tab === "informatique" ? "bg-red-950/20" : "bg-cyan-950/20")}>
+                    <span className="font-mono text-xs font-bold text-slate-400">FILIÈRE {formationLabel(m.formation).toUpperCase()}</span>
+                  </div>
+                )}
+                <div className="p-5">
+                  <div className="flex items-start justify-between gap-3">
+                    <div className="flex items-center gap-3">
+                      <div className={cn("rounded-2xl border p-3 shadow-md", tab === "informatique" ? "border-red-500/40 bg-red-500/15 text-red-400 shadow-[0_0_12px_rgba(239,68,68,0.25)]" : "border-cyan-400/40 bg-cyan-400/15 text-cyan-300 shadow-[0_0_12px_rgba(6,182,212,0.25)]")}>
+                        {moduleIcon(m.icon, "h-6 w-6")}
+                      </div>
+                      <div>
+                        <p className="font-mono text-[10px] font-bold tracking-[0.25em] text-slate-500 uppercase">MODULE {String(m.numero).padStart(2, "0")}</p>
+                        <h4 className="font-display text-base font-black text-white leading-tight">{m.titre}</h4>
+                      </div>
+                    </div>
+                    <div className="flex gap-1.5">
+                      <button onClick={() => setViewing(m)} className="rounded-lg border border-white/10 p-2 text-slate-300 hover:border-cyan-400/40 hover:text-cyan-300 transition-colors" title="Fiche détaillée"><Eye size={14} /></button>
+                      <button onClick={() => openEdit(m)} className="rounded-lg border border-white/10 p-2 text-slate-300 hover:border-amber-400/40 hover:text-amber-300 transition-colors" title="Modifier le module"><Pencil size={14} /></button>
+                      {!isTeacher && <button onClick={() => deleteModule(m)}
+                        className="rounded-lg border border-white/10 p-2 text-slate-300 hover:border-red-500/40 hover:text-red-400 transition-colors" title="Supprimer le module"><Trash2 size={14} /></button>}
+                    </div>
+                  </div>
+
+                  {m.description && <p className="mt-3.5 line-clamp-2 text-xs leading-relaxed text-slate-400">{m.description}</p>}
+
+                  {/* Badges éditoriaux */}
+                  <div className="mt-4 flex flex-wrap gap-1.5">
+                    {m.chapitres && m.chapitres.length > 0 && <Badge color="gray">{m.chapitres.length} chapitre(s)</Badge>}
+                    {m.duree && <Badge color="cyan">{m.duree}</Badge>}
+                    <span className="rounded-md border border-white/10 bg-white/[0.02] px-2 py-0.5 text-[10px] text-slate-300">
+                      👥 {studentCount} apprenant(s)
+                    </span>
                   </div>
                 </div>
-                <div className="flex gap-1.5">
-                  <button onClick={() => setViewing(m)} className="rounded-lg border border-white/10 p-2 text-slate-300 hover:border-cyan-400/40 hover:text-cyan-300"><Eye size={14} /></button>
-                  <button onClick={() => openEdit(m)} className="rounded-lg border border-white/10 p-2 text-slate-300 hover:border-amber-400/40 hover:text-amber-300"><Pencil size={14} /></button>
-                  {!isTeacher && <button onClick={() => deleteModule(m)}
-                    className="rounded-lg border border-white/10 p-2 text-slate-300 hover:border-red-500/40 hover:text-red-400"><Trash2 size={14} /></button>}
-                </div>
               </div>
-              {m.description && <p className="mt-3 line-clamp-2 text-xs text-slate-400">{m.description}</p>}
-              <div className="mt-3 flex flex-wrap gap-1.5">
-                {m.chapitres && m.chapitres.length > 0 && <Badge color="gray">{m.chapitres.length} chapitre(s)</Badge>}
-                {m.duree && <Badge color="cyan">{m.duree}</Badge>}
+
+              {/* Barre d'action rapide spatiale */}
+              <div className="border-t border-white/5 bg-black/20 p-3 px-5 flex items-center justify-between text-xs">
+                <Link
+                  to="/app/cours"
+                  className="font-bold text-cyan-400 hover:text-cyan-200 transition-colors flex items-center gap-1 text-[11px]"
+                >
+                  <BookOpen size={12} />
+                  <span>Supports ({courseCount})</span>
+                </Link>
+                <Link
+                  to="/app/planning"
+                  className="font-bold text-slate-300 hover:text-white transition-colors flex items-center gap-1 text-[11px]"
+                >
+                  <CalendarDays size={12} />
+                  <span>Séances ({scheduleCount})</span>
+                </Link>
+                <button
+                  type="button"
+                  onClick={() => setViewing(m)}
+                  className="rounded-md border border-white/10 px-2.5 py-1 text-[11px] font-semibold text-white hover:bg-white/10 transition-colors"
+                >
+                  Fiche
+                </button>
               </div>
-            </div>
-          </Card>
-        ))}
+            </Card>
+          );
+        })}
       </div>
 
       {/* view fiche */}
@@ -1708,13 +1756,43 @@ export function CoursesPage() {
       <PageHead title="Cours & Supports" subtitle="Bibliothèque pédagogique avec téléversement de fichiers et ciblage précis"
         actions={<Btn onClick={() => { setForm(blankForm()); setEditing(null); setCreating(true); }}><PlusCircle size={16} /> Publier un cours</Btn>} />
 
-      <div className="mb-5 flex flex-wrap gap-2">
-        <button onClick={() => setFilter("")} className={cn("rounded-xl border px-4 py-2 text-xs font-bold", !filter ? "border-cyan-400/50 bg-cyan-400/10 text-cyan-300" : "border-white/10 text-slate-400")}>Tous</button>
-        {allowedModules.map((m) => (
-          <button key={m.id} onClick={() => setFilter(m.id)} className={cn("rounded-xl border px-4 py-2 text-xs font-bold", filter === m.id ? "border-cyan-400/50 bg-cyan-400/10 text-cyan-300" : "border-white/10 text-slate-400")}>
-            {m.numero}. {m.titre}
-          </button>
-        ))}
+      <div className="mb-6 rounded-2xl border border-white/10 bg-[#0A1329]/80 p-4 backdrop-blur-md">
+        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+          <div className="flex items-center gap-2">
+            <BookOpen size={16} className="text-cyan-400" />
+            <span className="text-xs font-bold uppercase tracking-wider text-slate-300">Filtrer par module :</span>
+          </div>
+          <div className="flex flex-wrap items-center gap-2">
+            <button
+              onClick={() => setFilter("")}
+              className={cn(
+                "rounded-xl border px-3.5 py-1.5 text-xs font-bold transition-all",
+                !filter
+                  ? "border-cyan-400/60 bg-cyan-400/15 text-cyan-200 shadow-[0_0_12px_rgba(6,182,212,0.25)]"
+                  : "border-white/10 text-slate-400 hover:bg-white/5 hover:text-white"
+              )}
+            >
+              Tous les modules ({db.courses.length})
+            </button>
+            {allowedModules.map((m) => {
+              const cCount = db.courses.filter((c) => c.moduleId === m.id).length;
+              return (
+                <button
+                  key={m.id}
+                  onClick={() => setFilter(m.id)}
+                  className={cn(
+                    "rounded-xl border px-3.5 py-1.5 text-xs font-bold transition-all truncate max-w-xs",
+                    filter === m.id
+                      ? "border-cyan-400/60 bg-cyan-400/15 text-cyan-200 shadow-[0_0_12px_rgba(6,182,212,0.25)]"
+                      : "border-white/10 text-slate-400 hover:bg-white/5 hover:text-white"
+                  )}
+                >
+                  {m.numero}. {m.titre} ({cCount})
+                </button>
+              );
+            })}
+          </div>
+        </div>
       </div>
 
       {courses.length === 0 ? (
