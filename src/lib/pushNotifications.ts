@@ -40,10 +40,43 @@ export async function requestNotificationPermission(): Promise<NotificationPermi
   }
 }
 
-/** Carillon sonore doux généré dynamiquement via Web Audio API */
-export function playNotificationChime(): void {
+export type NotificationSoundId = "sentinel" | "spatial_bip" | "radar" | "harmonic" | "subtle" | "none";
+
+export interface NotificationSoundPreferences {
+  enabled: boolean;
+  soundId: NotificationSoundId;
+}
+
+const NOTIFICATION_SOUND_KEY = "sentinels_notification_sound_prefs";
+
+export function getNotificationSoundPreferences(): NotificationSoundPreferences {
+  try {
+    const raw = localStorage.getItem(NOTIFICATION_SOUND_KEY);
+    if (raw) {
+      const parsed = JSON.parse(raw);
+      if (typeof parsed.enabled === "boolean" && parsed.soundId) {
+        return parsed;
+      }
+    }
+  } catch {}
+  return { enabled: true, soundId: "sentinel" };
+}
+
+export function setNotificationSoundPreferences(prefs: NotificationSoundPreferences): void {
+  try {
+    localStorage.setItem(NOTIFICATION_SOUND_KEY, JSON.stringify(prefs));
+  } catch {}
+}
+
+/** Synthétiseur de sons de notifications via Web Audio API sans fichier externe */
+export function playNotificationSound(soundId?: NotificationSoundId): void {
   try {
     if (typeof window === "undefined") return;
+    const prefs = getNotificationSoundPreferences();
+    const effectiveSound = soundId || prefs.soundId;
+    if (!prefs.enabled && !soundId) return; // Si désactivé et non forcé par prévisualisation
+    if (effectiveSound === "none") return;
+
     const AudioContextClass = window.AudioContext || (window as any).webkitAudioContext;
     if (!AudioContextClass) return;
 
@@ -54,7 +87,72 @@ export function playNotificationChime(): void {
 
     const now = ctx.currentTime;
 
-    // Note 1: 587.33 Hz (D5)
+    if (effectiveSound === "spatial_bip") {
+      // Bip spatial HUD double impulsion (1100Hz -> 1760Hz)
+      const osc = ctx.createOscillator();
+      const gain = ctx.createGain();
+      osc.type = "triangle";
+      osc.frequency.setValueAtTime(1100, now);
+      osc.frequency.setValueAtTime(1760, now + 0.08);
+      gain.gain.setValueAtTime(0.12, now);
+      gain.gain.exponentialRampToValueAtTime(0.001, now + 0.28);
+      osc.connect(gain);
+      gain.connect(ctx.destination);
+      osc.start(now);
+      osc.stop(now + 0.28);
+      return;
+    }
+
+    if (effectiveSound === "radar") {
+      // Impulsion radar / sonar spatiale
+      const osc = ctx.createOscillator();
+      const gain = ctx.createGain();
+      osc.type = "sine";
+      osc.frequency.setValueAtTime(900, now);
+      osc.frequency.exponentialRampToValueAtTime(450, now + 0.4);
+      gain.gain.setValueAtTime(0.15, now);
+      gain.gain.exponentialRampToValueAtTime(0.001, now + 0.45);
+      osc.connect(gain);
+      gain.connect(ctx.destination);
+      osc.start(now);
+      osc.stop(now + 0.45);
+      return;
+    }
+
+    if (effectiveSound === "harmonic") {
+      // Accord doux 3 notes (Do - Mi - Sol)
+      const freqs = [523.25, 659.25, 783.99];
+      freqs.forEach((freq, idx) => {
+        const osc = ctx.createOscillator();
+        const gain = ctx.createGain();
+        osc.type = "sine";
+        osc.frequency.setValueAtTime(freq, now + idx * 0.05);
+        gain.gain.setValueAtTime(0.08, now + idx * 0.05);
+        gain.gain.exponentialRampToValueAtTime(0.001, now + idx * 0.05 + 0.4);
+        osc.connect(gain);
+        gain.connect(ctx.destination);
+        osc.start(now + idx * 0.05);
+        osc.stop(now + idx * 0.05 + 0.4);
+      });
+      return;
+    }
+
+    if (effectiveSound === "subtle") {
+      // Clic discret haute fréquence
+      const osc = ctx.createOscillator();
+      const gain = ctx.createGain();
+      osc.type = "sine";
+      osc.frequency.setValueAtTime(1400, now);
+      gain.gain.setValueAtTime(0.06, now);
+      gain.gain.exponentialRampToValueAtTime(0.001, now + 0.08);
+      osc.connect(gain);
+      gain.connect(ctx.destination);
+      osc.start(now);
+      osc.stop(now + 0.08);
+      return;
+    }
+
+    // Default: "sentinel" (D5 587.33Hz -> A5 880Hz)
     const osc1 = ctx.createOscillator();
     const gain1 = ctx.createGain();
     osc1.type = "sine";
@@ -66,7 +164,6 @@ export function playNotificationChime(): void {
     osc1.start(now);
     osc1.stop(now + 0.35);
 
-    // Note 2: 880 Hz (A5)
     const osc2 = ctx.createOscillator();
     const gain2 = ctx.createGain();
     osc2.type = "sine";
@@ -80,6 +177,11 @@ export function playNotificationChime(): void {
   } catch {
     // Silence si AudioContext non disponible ou bloqué
   }
+}
+
+/** Carillon sonore doux historique (compatible avec l'existant) */
+export function playNotificationChime(): void {
+  playNotificationSound();
 }
 
 /**

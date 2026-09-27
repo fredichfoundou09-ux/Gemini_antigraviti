@@ -274,19 +274,58 @@ async function extractTextFromPdf(buffer: ArrayBuffer): Promise<string> {
 export async function extractTextFromFile(file: File): Promise<string> {
   const name = file.name.toLowerCase();
 
-  // 1. Fichiers texte direct
+  // 1. Fichiers texte direct et formats structurés (TXT, MD, CSV, JSON, XML, HTML)
   if (
     name.endsWith(".txt") ||
     name.endsWith(".md") ||
     name.endsWith(".csv") ||
     name.endsWith(".json") ||
+    name.endsWith(".xml") ||
+    name.endsWith(".html") ||
+    name.endsWith(".htm") ||
     file.type.startsWith("text/")
   ) {
-    const content = await file.text();
+    let content = await file.text();
+    if (name.endsWith(".html") || name.endsWith(".htm")) {
+      content = content
+        .replace(/<script\b[^<]*(?:(?!<\/script>)<[^<]*)*<\/script>/gi, "")
+        .replace(/<style\b[^<]*(?:(?!<\/style>)<[^<]*)*<\/style>/gi, "")
+        .replace(/<[^>]+>/g, " ")
+        .replace(/\s+/g, " ")
+        .trim();
+    } else if (name.endsWith(".xml")) {
+      content = content.replace(/<[^>]+>/g, " ").replace(/\s+/g, " ").trim();
+    }
     if (content.trim()) return content;
   }
 
   const buffer = await file.arrayBuffer();
+
+  // 1.b Tableurs Excel (.xlsx, .xls)
+  if (name.endsWith(".xlsx") || name.endsWith(".xls") || file.type.includes("spreadsheetml")) {
+    try {
+      const ExcelJS = (await import("exceljs")).default;
+      const workbook = new ExcelJS.Workbook();
+      await workbook.xlsx.load(buffer);
+      const textLines: string[] = [];
+
+      workbook.eachSheet((worksheet) => {
+        textLines.push(`--- Feuille : ${worksheet.name} ---`);
+        worksheet.eachRow((row) => {
+          const rowValues = (row.values as any[])
+            .filter((val) => val !== undefined && val !== null)
+            .map((val) => (typeof val === "object" ? (val.result || val.text || JSON.stringify(val)) : String(val)))
+            .join(" | ");
+          if (rowValues.trim()) textLines.push(rowValues);
+        });
+      });
+
+      const extractedExcel = textLines.join("\n").trim();
+      if (extractedExcel.length >= 20) return extractedExcel;
+    } catch (e) {
+      console.warn("Échec parsing structuré ExcelJS, bascule fallback:", e);
+    }
+  }
 
   // 2. Fichiers Word (.docx)
   if (name.endsWith(".docx") || file.type.includes("wordprocessingml")) {

@@ -1073,6 +1073,196 @@ a:active:not(.disabled) {
   color: #FFFFFF !important;
 }
 
+/* ============================================================
+   NOUVEAU DESIGN : MODE SPATIAL (Centre de contrôle spatial pro)
+   Palette officielle :
+   - Fond profond : #04070D
+   - Surface : #08162B
+   - Panneau secondaire : #0E2E4A
+   - Cyan opérationnel : #00E5FF
+   - Cyan secondaire : #4FD0FF
+   - Texte HUD : #7FD4E8
+   - Alerte : #FFB300
+   - Critique : #EF4444
+   - Succès : #4ADE80
+   ============================================================ */
+
+[data-theme="spatial"],
+.theme-spatial {
+  --background: #04070D;
+  background-color: #04070D !important;
+  color: #7FD4E8 !important;
+}
+
+[data-theme="spatial"] body,
+.theme-spatial body {
+  background-color: #04070D !important;
+  color: #7FD4E8 !important;
+  background-image: 
+    radial-gradient(ellipse 90% 60% at 50% -15%, rgba(0, 229, 255, 0.08), transparent 70%),
+    radial-gradient(ellipse 70% 50% at 85% 100%, rgba(14, 46, 74, 0.4), transparent 60%),
+    linear-gradient(to right, rgba(0, 229, 255, 0.015) 1px, transparent 1px),
+    linear-gradient(to bottom, rgba(0, 229, 255, 0.015) 1px, transparent 1px) !important;
+  background-size: 100% 100%, 100% 100%, 32px 32px, 32px 32px !important;
+}
+
+/* Header & Sidebar spatiale */
+[data-theme="spatial"] header,
+[data-theme="spatial"] aside,
+[data-theme="spatial"] .bg-\[\#080A0F\],
+[data-theme="spatial"] .bg-\[\#0B111A\]\/50 {
+  background-color: #08162B !important;
+  border-color: rgba(0, 229, 255, 0.2) !important;
+}
+
+[data-theme="spatial"] header {
+  backdrop-filter: blur(12px) !important;
+  background-color: rgba(8, 22, 43, 0.88) !important;
+  border-bottom: 1px solid rgba(0, 229, 255, 0.22) !important;
+  box-shadow: 0 4px 24px -2px rgba(4, 7, 13, 0.8) !important;
+}
+
+/* Cartes, panneaux et conteneurs spatiaux */
+[data-theme="spatial"] .hud-panel,
+[data-theme="spatial"] div[class*="rounded-"][class*="border-white\/10"],
+[data-theme="spatial"] div[class*="rounded-"][class*="border-cyan-"] {
+  background-color: #08162B !important;
+  border-color: rgba(0, 229, 255, 0.25) !important;
+  box-shadow: 0 4px 20px -2px rgba(4, 7, 13, 0.9), inset 0 0 16px rgba(0, 229, 255, 0.02) !important;
+}
+
+[data-theme="spatial"][data-spatial-transparency="true"] .hud-panel,
+[data-theme="spatial"][data-spatial-transparency="true"] div[class*="rounded-2xl"][class*="border"] {
+  background-color: rgba(8, 22, 43, 0.82) !important;
+  backdrop-filter: blur(12px) !important;
+}
+
+/* Panneaux secondaires */
+[data-theme="spatial"] .bg-\[\#092033\],
+[data-theme="spatial"] .bg-\[\#071A2B\] {
+  background-color: #0E2E4A !important;
+  border-color: rgba(0, 229, 255, 0.28) !important;
+}
+
+/* Typographie et textes HUD */
+[data-theme="spatial"] h1,
+[data-theme="spatial"] h2,
+[data-theme="spatial"] h3,
+[data-theme="spatial"] h4,
+[data-theme="spatial"] .text-white {
+  color: #FFFFFF !important;
+}
+
+[data-theme="spatial"] p,
+[data-theme="spatial"] span[class*="text-slate-"] {
+  color: #7FD4E8 !important;
+}
+
+[data-theme="spatial"] .text-\[\#B8F3FF\],
+[data-theme="spatial"] .text-\[\#4C91B5\] {
+  color: #4FD0FF !important;
+}
+
+/* Accents Cyan opérationnel */
+[data-theme="spatial"] .text-cyan-400,
+[data-theme="spatial"] .text-cyan-300,
+[data-theme="spatial"] .text-\[\#00E5FF\] {
+  color: #00E5FF !important;
+}
+
+[data-theme="spatial"] .border-cyan-400,
+[data-theme="spatial"] .border-cyan-500 {
+  border-color: rgba(0, 229, 255, 0.5) !important;
+}
+
+/* Alertes & États critiques */
+[data-theme="spatial"] .text-amber-400,
+[data-theme="spatial"] .text-amber-300 {
+  color: #FFB300 !important;
+}
+[data-theme="spatial"] .border-amber-400,
+[data-theme="spatial"] .border-amber-500 {
+  border-color: rgba(255, 179, 0, 0.5) !important;
+}
+[data-theme="spatial"] .bg-amber-500\/10 {
+  background-color: rgba(255, 179, 0, 0.12) !important;
+}
+
+[data-theme="spatial"] .text-red-400,
+[data-theme="spatial"] .text-red-500 {
+  color: #EF4444 !important;
+}
+[data-theme="spatial"] .border-red-400,
+[data-theme="spatial"] .border-red-500 {
+  border-color: rgba(239, 68, 68, 0.5) !important;
+}
+
+[data-theme="spatial"] .text-emerald-400,
+[data-theme="spatial"] .text-green-400 {
+  color: #4ADE80 !important;
+}
+
+/* Intensité du Glow réglable */
+[data-theme="spatial"][data-spatial-glow="subtle"] [class*="shadow-\[0_0_"] {
+  box-shadow: 0 0 8px rgba(0, 229, 255, 0.15) !important;
+}
+
+[data-theme="spatial"][data-spatial-glow="high"] [class*="shadow-\[0_0_"],
+[data-theme="spatial"][data-spatial-glow="high"] button:hover {
+  box-shadow: 0 0 24px rgba(0, 229, 255, 0.45) !important;
+}
+
+/* Inputs & Formulaires spatiaux */
+[data-theme="spatial"] input,
+[data-theme="spatial"] select,
+[data-theme="spatial"] textarea {
+  background-color: #04070D !important;
+  border-color: rgba(0, 229, 255, 0.28) !important;
+  color: #FFFFFF !important;
+}
+
+[data-theme="spatial"] input:focus,
+[data-theme="spatial"] select:focus,
+[data-theme="spatial"] textarea:focus {
+  border-color: #00E5FF !important;
+  box-shadow: 0 0 14px rgba(0, 229, 255, 0.3) !important;
+}
+
+/* Boutons spatiaux */
+[data-theme="spatial"] button[class*="bg-cyan-"],
+[data-theme="spatial"] .btn-primary {
+  background: linear-gradient(135deg, rgba(0, 229, 255, 0.25) 0%, rgba(14, 46, 74, 0.6) 100%) !important;
+  border: 1px solid rgba(0, 229, 255, 0.45) !important;
+  color: #00E5FF !important;
+}
+
+[data-theme="spatial"] button[class*="bg-cyan-"]:hover,
+[data-theme="spatial"] .btn-primary:hover {
+  background: linear-gradient(135deg, rgba(0, 229, 255, 0.35) 0%, rgba(14, 46, 74, 0.8) 100%) !important;
+  border-color: #00E5FF !important;
+  box-shadow: 0 0 16px rgba(0, 229, 255, 0.3) !important;
+}
+
+/* Respect de la réduction de mouvement (prefers-reduced-motion) */
+@media (prefers-reduced-motion: reduce) {
+  *, ::before, ::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+    scroll-behavior: auto !important;
+  }
+}
+
+.spatial-reduced-motion,
+.spatial-reduced-motion *,
+.spatial-reduced-motion *::before,
+.spatial-reduced-motion *::after {
+  animation-duration: 0.01ms !important;
+  animation-iteration-count: 1 !important;
+  transition-duration: 0.01ms !important;
+}
+
+
 
 
 

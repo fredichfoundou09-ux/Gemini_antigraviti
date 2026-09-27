@@ -9,9 +9,14 @@
 import type { DB } from "./types";
 import { printHTML } from "./ui";
 
-export function generateBulletin(db: DB, studentId: string, periode?: string) {
+export function generateBulletin(db: DB, studentId: string, periode?: string, academicYearLabel?: string) {
   const student = db.students.find((s) => s.id === studentId);
   if (!student) return;
+
+  const currentYear = academicYearLabel ||
+    (student.academicYearId ? db.academicYears?.find((y) => y.id === student.academicYearId)?.label : undefined) ||
+    db.academicYears?.find((y) => y.isDefault)?.label ||
+    "2025-2026";
 
   const grades = db.grades.filter((g) => g.studentId === studentId);
   const modules = db.modules.filter((m) => student.modules.includes(m.id));
@@ -101,6 +106,7 @@ export function generateBulletin(db: DB, studentId: string, periode?: string) {
           </td>
           <td style="vertical-align:top;text-align:right;border:none;padding:0">
             <div style="font-size:13px;font-weight:900;letter-spacing:0.5px;text-transform:uppercase">BULLETIN OFFICIEL DE NOTES</div>
+            <div style="font-size:10.5px;font-weight:700;color:#000000;margin-top:2px">ANNÉE ACADÉMIQUE ${currentYear}</div>
             ${periodeMention}
           </td>
         </tr>

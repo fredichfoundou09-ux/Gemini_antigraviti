@@ -40,6 +40,42 @@ export interface User {
   permissions?: string[];
 }
 
+export type AcademicYearStatus = "active" | "cloturee" | "archivee";
+
+export interface AcademicYear {
+  id: string;
+  label: string; // Ex: "2024-2025", "2025-2026", "2026-2027"
+  dateDebut: string;
+  dateFin: string;
+  statut: AcademicYearStatus;
+  isDefault?: boolean;
+  description?: string;
+  createdAt?: string;
+}
+
+export interface ModuleRestriction {
+  id: string;
+  moduleKey: string; // "ia" | "finances" | "messages" | "evaluations" | "cours" | "presences"
+  moduleLabel: string;
+  bloque: boolean;
+  roles: Role[];
+  userIds?: string[];
+  raison: string;
+  dateDebut?: string;
+  dateFin?: string;
+  updatedAt: string;
+  updatedBy?: string;
+}
+
+export interface SpatialAppearanceSettings {
+  mode: "classic" | "spatial" | "crimson" | "orange-slate" | "modern";
+  glowIntensity: "subtle" | "medium" | "high";
+  transparency: boolean;
+  reducedMotion: boolean;
+  notificationSound: "sentinel" | "spatial_bip" | "radar" | "harmonic" | "subtle" | "none";
+  soundVolume: number;
+}
+
 export interface Student {
   id: string;
   nom: string;
@@ -60,6 +96,8 @@ export interface Student {
   statut: "actif" | "inactif";
   actif?: boolean;
   userId?: string;
+  academicYearId?: string;
+  anneeScolaire?: string;
 }
 
 export interface Teacher {
@@ -182,6 +220,8 @@ export interface AttendanceRecord {
   heure: string;
   salle: string;
   teacherId: string;
+  academicYearId?: string;
+  anneeScolaire?: string;
 }
 
 export interface Invoice {
@@ -193,6 +233,8 @@ export interface Invoice {
   date: string;
   dueDate?: string;
   createdBy?: string;
+  academicYearId?: string;
+  anneeScolaire?: string;
 }
 
 export interface Payment {
@@ -209,6 +251,8 @@ export interface Payment {
   observation?: string;
   createdBy?: string;
   createdByName?: string;
+  academicYearId?: string;
+  anneeScolaire?: string;
   // rétro-compat (jamais utilisé comme source de vérité)
   statut?: "paye" | "partiel" | "impaye";
   reste?: number;
@@ -310,6 +354,8 @@ export interface Grade {
   note: number;
   appreciation: string;
   date: string;
+  academicYearId?: string;
+  anneeScolaire?: string;
 }
 
 export interface Message {
@@ -349,6 +395,8 @@ export interface Certificate {
   note: number;
   date: string;
   modules?: string[];
+  academicYearId?: string;
+  anneeScolaire?: string;
 }
 
 export type ScholarshipStatus =
@@ -360,6 +408,8 @@ export interface Scholarship {
   studentId: string;
   statut: ScholarshipStatus;
   date: string;
+  academicYearId?: string;
+  anneeScolaire?: string;
 }
 
 export interface LogEntry {
@@ -506,4 +556,8 @@ export interface DB {
   enia: EniaContent;
   log: LogEntry[];
   archivedLogs?: LogEntry[];
+  academicYears?: AcademicYear[];
+  activeAcademicYearId?: string;
+  moduleRestrictions?: ModuleRestriction[];
+  appearanceSettings?: SpatialAppearanceSettings;
 }

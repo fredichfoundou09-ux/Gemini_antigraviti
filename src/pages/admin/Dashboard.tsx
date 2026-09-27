@@ -83,62 +83,117 @@ export function AdminDashboard() {
     return result;
   }, [db.attendance, db.students]);
 
-  // Sélecteur de période dynamique pour l'évolution des indicateurs (Point 1)
-  const [indicatorPeriod, setIndicatorPeriod] = useState<"7j" | "30j" | "3m" | "annee">("7j");
+  // Sélecteur de période dynamique pour l'évolution des indicateurs (Section 6)
+  const [indicatorPeriod, setIndicatorPeriod] = useState<"7j" | "30j" | "3m" | "annee" | "custom">("7j");
+  const [customStart, setCustomStart] = useState(() => {
+    const d = new Date();
+    d.setDate(d.getDate() - 14);
+    return d.toISOString().slice(0, 10);
+  });
+  const [customEnd, setCustomEnd] = useState(() => today());
 
-  // Sélecteur de période pour la répartition des présences (Point 1)
-  const [attPeriodFilter, setAttPeriodFilter] = useState<"global" | "today" | "week" | "month">("global");
+  // Sélecteur et filtres de répartition des présences par groupe et formation (Section 6)
+  const [attPeriodFilter, setAttPeriodFilter] = useState<"global" | "today" | "week" | "month" | "year">("global");
+  const [attFormationFilter, setAttFormationFilter] = useState<"all" | "informatique" | "industriel">("all");
+  const [attGroupFilter, setAttGroupFilter] = useState<string>("all");
 
-  // Activité en temps réel télémétrie interactive (Point 1)
+  // Activité en temps réel télémétrie interactive (Section 6)
   const [activityFilter, setActivityFilter] = useState<"all" | "presence" | "security" | "grades" | "finance">("all");
   const [activitySearch, setActivitySearch] = useState("");
   const [activityPage, setActivityPage] = useState(1);
-  const ACTIVITY_PAGE_SIZE = 4;
+  const [isRefreshing, setIsRefreshing] = useState(false);
+  const ACTIVITY_PAGE_SIZE = 5;
 
-  // Calcul dynamique des indicateurs selon la période sélectionnée
+  // Calcul dynamique des indicateurs selon la période sélectionnée (100% réel, 0 fausse donnée)
   const indicatorSeries = useMemo(() => {
     const days = ["Lun", "Mar", "Mer", "Jeu", "Ven", "Sam", "Dim"];
     const monthNames = ["Jan", "Fév", "Mar", "Avr", "Mai", "Juin", "Juil", "Aoû", "Sep", "Oct", "Nov", "Déc"];
     const now = new Date();
     const result = [];
-
     const numPoints = 7;
-    let stepDays = 1;
-    if (indicatorPeriod === "30j") stepDays = 5;
-    else if (indicatorPeriod === "3m") stepDays = 13;
-    else if (indicatorPeriod === "annee") stepDays = 52;
 
-    for (let i = numPoints - 1; i >= 0; i--) {
-      const target = new Date(now.getTime() - i * stepDays * 24 * 60 * 60 * 1000);
-      const dateStr = target.toISOString().slice(0, 10);
-      const minDateStr = new Date(target.getTime() - stepDays * 24 * 60 * 60 * 1000).toISOString().slice(0, 10);
+    let timePoints: { dateStr: string; minDateStr: string; label: string; dateLabel: string }[] = [];
 
-      const dayName = indicatorPeriod === "7j" 
-        ? days[(target.getDay() + 6) % 7]
-        : indicatorPeriod === "30j" 
-        ? `${target.getDate()}/${target.getMonth() + 1}`
-        : monthNames[target.getMonth()];
+    if (indicatorPeriod === "custom") {
+      const startMs = new Date(customStart).getTime() || (now.getTime() - 14 * 86400000);
+      const endMs = new Date(customEnd).getTime() || now.getTime();
+      const step = Math.max(86400000, (endMs - startMs) / (numPoints - 1));
 
-      const dayAtt = indicatorPeriod === "7j"
-        ? db.attendance.filter((a) => a.date === dateStr)
-        : db.attendance.filter((a) => a.date >= minDateStr && a.date <= dateStr);
+      for (let i = 0; i < numPoints; i++) {
+        const ptTime = new Date(startMs + i * step);
+        const dateStr = ptTime.toISOString().slice(0, 10);
+        const minDateStr = new Date(ptTime.getTime() - step).toISOString().slice(0, 10);
+        const dateLabel = `${ptTime.getDate().toString().padStart(2, "0")} ${monthNames[ptTime.getMonth()]}`;
+        timePoints.push({
+          dateStr,
+          minDateStr,
+          label: `${ptTime.getDate()}/${ptTime.getMonth() + 1}`,
+          dateLabel,
+        });
+      }
+    } else {
+      let stepDays = 1;
+      if (indicatorPeriod === "30j") stepDays = 5;
+      else if (indicatorPeriod === "3m") stepDays = 13;
+      else if (indicatorPeriod === "annee") stepDays = 52;
+
+      for (let i = numPoints - 1; i >= 0; i--) {
+        const target = new Date(now.getTime() - i * stepDays * 24 * 60 * 60 * 1000);
+        const dateStr = target.toISOString().slice(0, 10);
+        const minDateStr = new Date(target.getTime() - stepDays * 24 * 60 * 60 * 1000).toISOString().slice(0, 10);
+
+        const dayName = indicatorPeriod === "7j"
+          ? days[(target.getDay() + 6) % 7]
+          : indicatorPeriod === "30j"
+          ? `${target.getDate()}/${target.getMonth() + 1}`
+          : monthNames[target.getMonth()];
+
+        const dateLabel = `${target.getDate().toString().padStart(2, "0")} ${monthNames[target.getMonth()]}`;
+        timePoints.push({ dateStr, minDateStr, label: dayName, dateLabel });
+      }
+    }
+
+    for (const tp of timePoints) {
+      const isSingleDay = indicatorPeriod === "7j";
+      const dayAtt = isSingleDay
+        ? db.attendance.filter((a) => a.date === tp.dateStr)
+        : db.attendance.filter((a) => a.date >= tp.minDateStr && a.date <= tp.dateStr);
 
       const presents = dayAtt.filter((a) => a.statut === "present").length;
       const absents = dayAtt.filter((a) => a.statut === "absent").length;
       const retards = dayAtt.filter((a) => a.statut === "retard").length;
-      const dayStudents = indicatorPeriod === "7j"
-        ? db.students.filter((s) => s.dateInscription?.slice(0, 10) === dateStr).length
-        : db.students.filter((s) => (s.dateInscription?.slice(0, 10) || "") >= minDateStr && (s.dateInscription?.slice(0, 10) || "") <= dateStr).length;
 
-      const dateLabel = `${target.getDate().toString().padStart(2, "0")} ${monthNames[target.getMonth()]}`;
-      result.push({ date: dateStr, label: dayName, dateLabel, presents, absents, retards, newStudents: dayStudents, total: dayAtt.length });
+      const dayStudents = isSingleDay
+        ? db.students.filter((s) => s.dateInscription?.slice(0, 10) === tp.dateStr).length
+        : db.students.filter((s) => (s.dateInscription?.slice(0, 10) || "") >= tp.minDateStr && (s.dateInscription?.slice(0, 10) || "") <= tp.dateStr).length;
+
+      const dayGrades = isSingleDay
+        ? db.grades.filter((g) => g.date?.slice(0, 10) === tp.dateStr).length
+        : db.grades.filter((g) => (g.date?.slice(0, 10) || "") >= tp.minDateStr && (g.date?.slice(0, 10) || "") <= tp.dateStr).length;
+
+      const dayPayments = isSingleDay
+        ? db.payments.filter((p) => p.date?.slice(0, 10) === tp.dateStr && p.statut === "paye").length
+        : db.payments.filter((p) => (p.date?.slice(0, 10) || "") >= tp.minDateStr && (p.date?.slice(0, 10) || "") <= tp.dateStr && p.statut === "paye").length;
+
+      result.push({
+        date: tp.dateStr,
+        label: tp.label,
+        dateLabel: tp.dateLabel,
+        presents,
+        absents,
+        retards,
+        newStudents: dayStudents,
+        gradesCount: dayGrades,
+        paymentsCount: dayPayments,
+        total: dayAtt.length,
+      });
     }
     return result;
-  }, [db.attendance, db.students, indicatorPeriod]);
+  }, [db.attendance, db.students, db.grades, db.payments, indicatorPeriod, customStart, customEnd]);
 
   // Courbes dynamiques Card 1 : Évolution des indicateurs
   const maxVal1 = useMemo(() => {
-    return Math.max(10, ...indicatorSeries.map((d) => Math.max(d.presents, d.absents, d.retards, d.newStudents)));
+    return Math.max(10, ...indicatorSeries.map((d) => Math.max(d.presents, d.absents, d.retards, d.newStudents, d.gradesCount, d.paymentsCount)));
   }, [indicatorSeries]);
 
   const card1Points = useMemo(() => {
@@ -151,53 +206,123 @@ export function AdminDashboard() {
     const newStudentsPts = indicatorSeries.map((d, i) => ({ x: 35 + i * stepX, y: getY(d.newStudents), val: d.newStudents }));
     const absentsPts = indicatorSeries.map((d, i) => ({ x: 35 + i * stepX, y: getY(d.absents), val: d.absents }));
     const retardsPts = indicatorSeries.map((d, i) => ({ x: 35 + i * stepX, y: getY(d.retards), val: d.retards }));
+    const gradesPts = indicatorSeries.map((d, i) => ({ x: 35 + i * stepX, y: getY(d.gradesCount), val: d.gradesCount }));
 
     return {
       presentsPts,
       newStudentsPts,
       absentsPts,
       retardsPts,
+      gradesPts,
       presentsPath: generateSmoothPath(presentsPts),
       newStudentsPath: generateSmoothPath(newStudentsPts),
       absentsPath: generateSmoothPath(absentsPts),
       retardsPath: generateSmoothPath(retardsPts),
+      gradesPath: generateSmoothPath(gradesPts),
     };
   }, [indicatorSeries, maxVal1]);
 
-  // Courbe dynamique Card 2 : Présences 7 derniers jours (100% réel)
-  const maxVal2 = useMemo(() => {
-    return Math.max(5, ...last7Days.map((d) => d.presents));
-  }, [last7Days]);
-
-  const card2Points = useMemo(() => {
-    const stepX = 410 / 6;
-    const pts = last7Days.map((d, i) => {
-      const ratio = Math.min(1, Math.max(0, d.presents / maxVal2));
-      const y = Math.round(90 - ratio * 65);
-      return { x: 30 + i * stepX, y, val: d.presents };
+  // Liste des groupes disponibles dédupliqués
+  const availableGroups = useMemo(() => {
+    const set = new Set<string>();
+    db.students.forEach((st) => {
+      if (st.groupe?.trim()) set.add(st.groupe.trim());
     });
-    const linePath = generateSmoothPath(pts);
-    const areaPath = pts.length > 0 ? `${linePath} L ${pts[pts.length - 1].x} 90 L ${pts[0].x} 90 Z` : "";
-    return { pts, linePath, areaPath };
-  }, [last7Days, maxVal2]);
+    return Array.from(set).sort();
+  }, [db.students]);
 
-  // Répartition dynamique filtrable des présences (Point 1)
+  // Répartition dynamique filtrable des présences par groupe et formation
   const filteredAttRecords = useMemo(() => {
     const todayStr = today();
     const now = Date.now();
-    if (attPeriodFilter === "today") {
-      return db.attendance.filter((a) => a.date === todayStr);
-    }
-    if (attPeriodFilter === "week") {
-      const minDate = new Date(now - 7 * 86400000).toISOString().slice(0, 10);
-      return db.attendance.filter((a) => a.date >= minDate);
-    }
-    if (attPeriodFilter === "month") {
-      const minDate = new Date(now - 30 * 86400000).toISOString().slice(0, 10);
-      return db.attendance.filter((a) => a.date >= minDate);
-    }
-    return db.attendance;
-  }, [db.attendance, attPeriodFilter]);
+    return db.attendance.filter((a) => {
+      if (attPeriodFilter === "today" && a.date !== todayStr) return false;
+      if (attPeriodFilter === "week") {
+        const minDate = new Date(now - 7 * 86400000).toISOString().slice(0, 10);
+        if (a.date < minDate) return false;
+      }
+      if (attPeriodFilter === "month") {
+        const minDate = new Date(now - 30 * 86400000).toISOString().slice(0, 10);
+        if (a.date < minDate) return false;
+      }
+      if (attPeriodFilter === "year") {
+        const minDate = new Date(now - 365 * 86400000).toISOString().slice(0, 10);
+        if (a.date < minDate) return false;
+      }
+
+      const student = db.students.find((s) => s.id === a.studentId);
+      if (attFormationFilter !== "all" && student?.formation !== attFormationFilter) return false;
+      if (attGroupFilter !== "all" && (student?.groupe || "Sans groupe") !== attGroupFilter) return false;
+
+      return true;
+    });
+  }, [db.attendance, db.students, attPeriodFilter, attFormationFilter, attGroupFilter]);
+
+  // Table détaillée de présence par groupe & formation (Section 6)
+  const groupPresenceBreakdown = useMemo(() => {
+    const groupsMap = new Map<string, {
+      groupe: string;
+      formation: string;
+      totalStudents: number;
+      presents: number;
+      absents: number;
+      retards: number;
+      totalPoints: number;
+    }>();
+
+    // 1. Initialiser avec les groupes/formations des étudiants existants
+    db.students.forEach((st) => {
+      if (attFormationFilter !== "all" && st.formation !== attFormationFilter) return;
+      const grp = st.groupe?.trim() || "Groupe Standard";
+      if (attGroupFilter !== "all" && grp !== attGroupFilter) return;
+
+      const key = `${grp}__${st.formation}`;
+      if (!groupsMap.has(key)) {
+        groupsMap.set(key, {
+          groupe: grp,
+          formation: st.formation,
+          totalStudents: 0,
+          presents: 0,
+          absents: 0,
+          retards: 0,
+          totalPoints: 0,
+        });
+      }
+      groupsMap.get(key)!.totalStudents++;
+    });
+
+    // 2. Agréger les pointages filtrés
+    filteredAttRecords.forEach((att) => {
+      const student = db.students.find((s) => s.id === att.studentId);
+      const grp = student?.groupe?.trim() || "Groupe Standard";
+      const form = student?.formation || "informatique";
+      const key = `${grp}__${form}`;
+
+      let row = groupsMap.get(key);
+      if (!row) {
+        row = {
+          groupe: grp,
+          formation: form,
+          totalStudents: 1,
+          presents: 0,
+          absents: 0,
+          retards: 0,
+          totalPoints: 0,
+        };
+        groupsMap.set(key, row);
+      }
+
+      row.totalPoints++;
+      if (att.statut === "present") row.presents++;
+      else if (att.statut === "absent") row.absents++;
+      else if (att.statut === "retard") row.retards++;
+    });
+
+    return Array.from(groupsMap.values()).map((item) => {
+      const rate = item.totalPoints > 0 ? Math.round((item.presents / item.totalPoints) * 100) : 100;
+      return { ...item, rate };
+    }).sort((a, b) => b.rate - a.rate);
+  }, [db.students, filteredAttRecords, attFormationFilter, attGroupFilter]);
 
   const totalAttRecords = filteredAttRecords.length || 1;
   const totalPresents = filteredAttRecords.filter((a) => a.statut === "present").length;
@@ -370,8 +495,8 @@ export function AdminDashboard() {
                   ÉVOLUTION DES INDICATEURS
                 </h3>
               </div>
-              <div className="flex items-center gap-1 rounded-lg border border-[#006DFF]/40 bg-[#071A2B] p-0.5 text-[9px]">
-                {(["7j", "30j", "3m", "annee"] as const).map((p) => (
+              <div className="flex flex-wrap items-center gap-1 rounded-lg border border-[#006DFF]/40 bg-[#071A2B] p-0.5 text-[9px]">
+                {(["7j", "30j", "3m", "annee", "custom"] as const).map((p) => (
                   <button
                     key={p}
                     type="button"
@@ -383,11 +508,31 @@ export function AdminDashboard() {
                         : "text-[#4C91B5] hover:text-[#00E5FF]"
                     )}
                   >
-                    {p === "7j" ? "7 Jours" : p === "30j" ? "30 Jours" : p === "3m" ? "3 Mois" : "Année"}
+                    {p === "7j" ? "7 Jours" : p === "30j" ? "30 Jours" : p === "3m" ? "3 Mois" : p === "annee" ? "Année" : "Personnalisée"}
                   </button>
                 ))}
               </div>
             </div>
+
+            {/* Inputs période personnalisée */}
+            {indicatorPeriod === "custom" && (
+              <div className="flex items-center gap-2 mt-2 p-1.5 rounded bg-black/40 border border-cyan-500/30 text-[10px]">
+                <span className="text-cyan-300 font-bold">Du</span>
+                <input
+                  type="date"
+                  value={customStart}
+                  onChange={(e) => setCustomStart(e.target.value)}
+                  className="rounded border border-white/20 bg-slate-900 px-1.5 py-0.5 text-[10px] text-white"
+                />
+                <span className="text-cyan-300 font-bold">au</span>
+                <input
+                  type="date"
+                  value={customEnd}
+                  onChange={(e) => setCustomEnd(e.target.value)}
+                  className="rounded border border-white/20 bg-slate-900 px-1.5 py-0.5 text-[10px] text-white"
+                />
+              </div>
+            )}
 
             {/* Légende multi-courbes */}
             <div className="mt-2 flex flex-wrap items-center gap-3 text-[10px] font-bold">
@@ -401,7 +546,10 @@ export function AdminDashboard() {
                 <span className="h-2 w-2 rounded-full bg-[#FFB300] shadow-[0_0_6px_#FFB300]" /> Retards
               </span>
               <span className="flex items-center gap-1.5 text-[#B8F3FF]">
-                <span className="h-2 w-2 rounded-full bg-[#FF174F] shadow-[0_0_6px_#FF174F]" /> Nouv. inscrits
+                <span className="h-2 w-2 rounded-full bg-violet-400 shadow-[0_0_6px_#a78bfa]" /> Évaluations
+              </span>
+              <span className="flex items-center gap-1.5 text-[#B8F3FF]">
+                <span className="h-2 w-2 rounded-full bg-emerald-400 shadow-[0_0_6px_#34d399]" /> Nouv. inscrits
               </span>
             </div>
 
@@ -442,13 +590,21 @@ export function AdminDashboard() {
                   strokeWidth="2.5"
                   className="drop-shadow-[0_0_10px_#00E5FF]"
                 />
-                {/* Courbe Nouv. Inscrits (Rouge néon dynamique) */}
+                {/* Courbe Évaluations (Violet dynamique) */}
+                <path
+                  d={card1Points.gradesPath}
+                  fill="none"
+                  stroke="#a78bfa"
+                  strokeWidth="2"
+                  className="drop-shadow-[0_0_8px_#a78bfa]"
+                />
+                {/* Courbe Nouv. Inscrits (Vert émeraude dynamique) */}
                 <path
                   d={card1Points.newStudentsPath}
                   fill="none"
-                  stroke="#FF174F"
+                  stroke="#34d399"
                   strokeWidth="2"
-                  className="drop-shadow-[0_0_8px_#FF174F]"
+                  className="drop-shadow-[0_0_8px_#34d399]"
                 />
                 {/* Courbe Absences (Rouge pointillé dynamique) */}
                 <path
@@ -471,8 +627,11 @@ export function AdminDashboard() {
                 {card1Points.presentsPts.map((pt, i) => (
                   <circle key={`p-${i}`} cx={pt.x} cy={pt.y} r="3.5" fill="#00E5FF" className="animate-pulse" />
                 ))}
+                {card1Points.gradesPts.map((pt, i) => (
+                  <circle key={`g-${i}`} cx={pt.x} cy={pt.y} r="2.5" fill="#a78bfa" />
+                ))}
                 {card1Points.newStudentsPts.map((pt, i) => (
-                  <circle key={`n-${i}`} cx={pt.x} cy={pt.y} r="3" fill="#FF174F" />
+                  <circle key={`n-${i}`} cx={pt.x} cy={pt.y} r="3" fill="#34d399" />
                 ))}
                 {card1Points.absentsPts.map((pt, i) => (
                   <circle key={`a-${i}`} cx={pt.x} cy={pt.y} r="2.5" fill="#FF174F" />
@@ -699,9 +858,9 @@ export function AdminDashboard() {
             </div>
           </div>
 
-          {/* LIGNE 3 : RÉPARTITION DES PRÉSENCES & ACTIVITÉ EN TEMPS RÉEL CÔTE À CÔTE */}
+          {/* LIGNE 3 : RÉPARTITION DES PRÉSENCES DYNAMIQUE & ACTIVITÉ EN TEMPS RÉEL */}
           <div className="grid grid-cols-1 gap-3.5 md:grid-cols-2 flex-1">
-            {/* RÉPARTITION DES PRÉSENCES + TRÉSORERIE */}
+            {/* RÉPARTITION DYNAMIQUE DES PRÉSENCES (Table par groupe & formation — Section 6) */}
             <div className="hud-panel rounded-lg border border-[#006DFF]/40 p-3.5 flex flex-col justify-between">
               <div>
                 <div className="flex flex-wrap items-center justify-between border-b border-[#006DFF]/20 pb-1.5 gap-2">
@@ -709,30 +868,58 @@ export function AdminDashboard() {
                     <h3 className="font-display text-xs font-black text-[#B8F3FF] uppercase tracking-wider">
                       RÉPARTITION DES PRÉSENCES
                     </h3>
-                    <p className="text-[9px] text-[#4C91B5]">Statistiques cumulées d'assiduité</p>
+                    <p className="text-[9px] text-[#4C91B5]">Table dynamique par groupe et filière</p>
                   </div>
-                  <div className="flex items-center gap-1 rounded bg-[#071A2B] border border-[#006DFF]/30 p-0.5 text-[9px]">
-                    {(["global", "today", "week", "month"] as const).map((f) => (
+                  <div className="flex flex-wrap items-center gap-1 rounded bg-[#071A2B] border border-[#006DFF]/30 p-0.5 text-[9px]">
+                    {(["global", "today", "week", "month", "year"] as const).map((f) => (
                       <button
                         key={f}
                         type="button"
                         onClick={() => setAttPeriodFilter(f)}
                         className={cn(
-                          "px-1.5 py-0.5 rounded font-bold uppercase transition cursor-pointer",
+                          "px-1.5 py-0.5 rounded font-bold uppercase transition cursor-pointer text-[8.5px]",
                           attPeriodFilter === f
                             ? "bg-[#00E5FF] text-[#040813]"
                             : "text-[#4C91B5] hover:text-[#00E5FF]"
                         )}
                       >
-                        {f === "global" ? "Global" : f === "today" ? "Jour" : f === "week" ? "Semaine" : "Mois"}
+                        {f === "global" ? "Global" : f === "today" ? "Auj." : f === "week" ? "Semaine" : f === "month" ? "Mois" : "Année"}
                       </button>
                     ))}
                   </div>
                 </div>
 
-                <div className="my-2.5 flex items-center justify-center gap-3">
-                  {/* Donut circulaire néon cyan et rouge */}
-                  <div className="relative h-24 w-24 shrink-0">
+                {/* Filtres secondaires : Formation et Groupe */}
+                <div className="flex flex-wrap items-center gap-2 my-2 text-[10px]">
+                  <select
+                    value={attFormationFilter}
+                    onChange={(e) => setAttFormationFilter(e.target.value as any)}
+                    className="rounded bg-[#071322] border border-[#006DFF]/30 px-2 py-0.5 text-[9.5px] text-[#B8F3FF] focus:border-[#00E5FF] focus:outline-none"
+                  >
+                    <option value="all">Toutes filières</option>
+                    <option value="informatique">Informatique</option>
+                    <option value="industriel">Industriel</option>
+                  </select>
+
+                  <select
+                    value={attGroupFilter}
+                    onChange={(e) => setAttGroupFilter(e.target.value)}
+                    className="rounded bg-[#071322] border border-[#006DFF]/30 px-2 py-0.5 text-[9.5px] text-[#B8F3FF] focus:border-[#00E5FF] focus:outline-none"
+                  >
+                    <option value="all">Tous les groupes</option>
+                    {availableGroups.map((grp) => (
+                      <option key={grp} value={grp}>{grp}</option>
+                    ))}
+                  </select>
+
+                  <span className="text-[9px] text-[#4C91B5] ml-auto font-mono">
+                    {filteredAttRecords.length} pointage(s)
+                  </span>
+                </div>
+
+                {/* Donut circulaire + stats de synthèse */}
+                <div className="my-2 flex items-center justify-center gap-4">
+                  <div className="relative h-20 w-20 shrink-0">
                     <svg viewBox="0 0 36 36" className="h-full w-full -rotate-90">
                       <path
                         d="M18 2.0845 a 15.9155 15.9155 0 0 1 0 31.831 a 15.9155 15.9155 0 0 1 0 -31.831"
@@ -752,25 +939,25 @@ export function AdminDashboard() {
                       />
                     </svg>
                     <div className="absolute inset-0 flex flex-col items-center justify-center text-center">
-                      <span className="font-display text-base font-black text-white leading-none">{attendanceRate}%</span>
-                      <span className="text-[8px] font-bold text-[#00E5FF] uppercase tracking-wider mt-0.5">PRÉSENTS</span>
+                      <span className="font-display text-sm font-black text-white leading-none">{attendanceRate}%</span>
+                      <span className="text-[7.5px] font-bold text-[#00E5FF] uppercase tracking-wider mt-0.5">PRÉSENTS</span>
                     </div>
                   </div>
 
-                  <div className="space-y-1.5 text-[10px]">
-                    <div className="flex items-center justify-between gap-2">
+                  <div className="space-y-1 text-[9.5px]">
+                    <div className="flex items-center justify-between gap-3">
                       <span className="flex items-center gap-1.5 text-slate-300">
                         <span className="h-2 w-2 rounded-full bg-[#00E5FF] shadow-[0_0_6px_#00E5FF]" /> Présents
                       </span>
                       <strong className="text-white font-mono">{attendanceRate}% ({totalPresents})</strong>
                     </div>
-                    <div className="flex items-center justify-between gap-2">
+                    <div className="flex items-center justify-between gap-3">
                       <span className="flex items-center gap-1.5 text-slate-300">
                         <span className="h-2 w-2 rounded-full bg-[#FF174F] shadow-[0_0_6px_#FF174F]" /> Absents
                       </span>
                       <strong className="text-[#FF174F] font-mono">{Math.round((totalAbsents / totalAttRecords) * 100)}% ({totalAbsents})</strong>
                     </div>
-                    <div className="flex items-center justify-between gap-2">
+                    <div className="flex items-center justify-between gap-3">
                       <span className="flex items-center gap-1.5 text-slate-300">
                         <span className="h-2 w-2 rounded-full bg-[#FFB300] shadow-[0_0_6px_#FFB300]" /> Retards
                       </span>
@@ -778,10 +965,69 @@ export function AdminDashboard() {
                     </div>
                   </div>
                 </div>
+
+                {/* TABLE DYNAMIQUE DE RÉPARTITION (Section 6 du Prompt Maître) */}
+                <div className="mt-2 overflow-x-auto rounded border border-[#006DFF]/20 bg-[#071322]/80">
+                  <table className="w-full text-left text-[9.5px]">
+                    <thead className="border-b border-[#006DFF]/20 bg-white/[0.02] font-bold text-[#4C91B5] uppercase">
+                      <tr>
+                        <th className="p-1.5">Groupe</th>
+                        <th className="p-1.5">Filière</th>
+                        <th className="p-1.5 text-center">Présents</th>
+                        <th className="p-1.5 text-center">Absents</th>
+                        <th className="p-1.5 text-center">Retards</th>
+                        <th className="p-1.5 text-right">Taux</th>
+                      </tr>
+                    </thead>
+                    <tbody className="divide-y divide-[#006DFF]/10 font-mono">
+                      {groupPresenceBreakdown.length === 0 ? (
+                        <tr>
+                          <td colSpan={6} className="p-3 text-center text-[#4C91B5] italic">
+                            Aucun enregistrement pour cette sélection
+                          </td>
+                        </tr>
+                      ) : (
+                        groupPresenceBreakdown.map((row, idx) => (
+                          <tr key={idx} className="hover:bg-white/[0.02] transition">
+                            <td className="p-1.5 font-bold text-white font-sans truncate max-w-[90px]">
+                              {row.groupe}
+                            </td>
+                            <td className="p-1.5 text-[#4C91B5] font-sans truncate max-w-[80px]">
+                              {row.formation === "informatique" ? "Info" : "Ind."}
+                            </td>
+                            <td className="p-1.5 text-center text-[#00E5FF]">
+                              {row.presents}
+                            </td>
+                            <td className="p-1.5 text-center text-[#FF174F]">
+                              {row.absents}
+                            </td>
+                            <td className="p-1.5 text-center text-[#FFB300]">
+                              {row.retards}
+                            </td>
+                            <td className="p-1.5 text-right font-bold">
+                              <span
+                                className={cn(
+                                  "rounded px-1.5 py-0.2 text-[8.5px]",
+                                  row.rate >= 85
+                                    ? "bg-emerald-500/20 text-emerald-300"
+                                    : row.rate >= 70
+                                    ? "bg-amber-500/20 text-amber-300"
+                                    : "bg-red-500/20 text-red-300"
+                                )}
+                              >
+                                {row.rate}%
+                              </span>
+                            </td>
+                          </tr>
+                        ))
+                      )}
+                    </tbody>
+                  </table>
+                </div>
               </div>
 
               {/* Bourses & Trésorerie */}
-              <div className="rounded border border-[#006DFF]/30 bg-[#0B111A]/90 p-2 text-xs">
+              <div className="mt-2.5 rounded border border-[#006DFF]/30 bg-[#0B111A]/90 p-2 text-xs">
                 <p className="font-black text-[#B8F3FF] text-[9px] uppercase tracking-wider">BOURSES & TRÉSORERIE</p>
                 <div className="mt-1 flex items-center justify-between text-[#4C91B5] text-[10px]">
                   <span>Bourses attribuées :</span>
@@ -807,6 +1053,18 @@ export function AdminDashboard() {
                   </h3>
                 </div>
                 <div className="flex items-center gap-1.5">
+                  <button
+                    type="button"
+                    title="Actualiser le flux"
+                    onClick={() => {
+                      setIsRefreshing(true);
+                      setTimeout(() => setIsRefreshing(false), 400);
+                      toastMsg.info("Flux télémétrique actualisé ✓");
+                    }}
+                    className="p-1 rounded bg-[#071A2B] hover:bg-[#0E2E4A] text-[#00E5FF] border border-[#006DFF]/30 transition cursor-pointer"
+                  >
+                    <RotateCcw size={11} className={isRefreshing ? "animate-spin" : ""} />
+                  </button>
                   <span className="rounded border border-[#FF174F]/50 bg-[#2A0815] px-1.5 py-0.5 text-[9px] font-bold text-[#FF174F]">
                     SOC LIVE
                   </span>

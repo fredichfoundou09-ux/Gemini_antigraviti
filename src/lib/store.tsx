@@ -1,6 +1,6 @@
 import React, { createContext, useContext, useEffect, useMemo, useState } from "react";
-import { DB, User, Notification, Formation, Role } from "./types";
-import { emptyDB, defaultEniaContent } from "./seed";
+import { DB, User, Notification, Formation, Role, AcademicYear, ModuleRestriction } from "./types";
+import { emptyDB, defaultEniaContent, defaultAcademicYears, defaultModuleRestrictions } from "./seed";
 import {
   hashPassword, verifyPassword, passwordStrong,
   getLockState, registerFailure, clearFailures, formatDuration,
@@ -73,6 +73,17 @@ function migrateDB(parsed: DB): DB {
   }
   if (!parsed.settings.contact) {
     parsed.settings.contact = { email: "", adresse: "" };
+  }
+  // Années académiques & restrictions modulaires
+  if (!parsed.academicYears || parsed.academicYears.length === 0) {
+    parsed.academicYears = defaultAcademicYears();
+  }
+  if (!parsed.activeAcademicYearId) {
+    const active = parsed.academicYears.find((y) => y.statut === "active" && y.isDefault) || parsed.academicYears[0];
+    parsed.activeAcademicYearId = active?.id || "ay-2025-2026";
+  }
+  if (!parsed.moduleRestrictions || parsed.moduleRestrictions.length === 0) {
+    parsed.moduleRestrictions = defaultModuleRestrictions();
   }
   // Normalise les utilisateurs sans champ actif
   parsed.users = (parsed.users || []).map((u: any) => ({ ...u, actif: u.actif !== false }));
@@ -149,6 +160,14 @@ interface StoreCtxType {
   userName: (id: string) => string;
   studentOf: (userId: string) => DB["students"][number] | undefined;
   teacherOf: (userId: string) => DB["teachers"][number] | undefined;
+  activeAcademicYear: AcademicYear | undefined;
+  createAcademicYear: (data: Omit<AcademicYear, "id">) => AcademicYear;
+  updateAcademicYear: (id: string, updates: Partial<AcademicYear>) => void;
+  setActiveAcademicYear: (id: string) => void;
+  closeAcademicYear: (id: string) => void;
+  archiveAcademicYear: (id: string) => void;
+  updateModuleRestriction: (moduleKey: string, updates: Partial<ModuleRestriction>) => void;
+  isModuleBlockedForUser: (moduleKey: string, targetUser?: User | null) => { blocked: boolean; reason: string };
 }
 
 const StoreCtx = createContext<StoreCtxType>(null!);
@@ -191,11 +210,13 @@ export function StoreProvider({ children }: { children: React.ReactNode }) {
     // 1. Données publiques : toujours chargées pour les visiteurs du site
     const syncPublicData = async () => {
       try {
-        const [formationsRes, modulesRes, chaptersRes, siteSettingsRes] = await Promise.all([
+        const [formationsRes, modulesRes, chaptersRes, siteSettingsRes, academicYearsRes, moduleRestrictionsRes] = await Promise.all([
           supabase.from("formations").select("*"),
           supabase.from("modules").select("*").order("numero", { ascending: true }),
           supabase.from("chapters").select("*").order("ordre", { ascending: true }),
           supabase.from("site_settings").select("data").eq("id", "default").maybeSingle(),
+          supabase.from("academic_years").select("*").order("date_debut", { ascending: false }),
+          supabase.from("module_restrictions").select("*"),
         ]);
 
         const formationById = new Map((formationsRes.data || []).map((f: any) => [f.id, f.code]));
@@ -255,6 +276,37 @@ export function StoreProvider({ children }: { children: React.ReactNode }) {
             }));
           }
 
+          const loadedAcademicYears: AcademicYear[] = (academicYearsRes.data && academicYearsRes.data.length > 0)
+            ? academicYearsRes.data.map((y: any) => ({
+                id: y.id,
+                label: y.label,
+                dateDebut: y.date_debut,
+                dateFin: y.date_fin,
+                statut: y.statut,
+                isDefault: y.is_default,
+                description: y.description || "",
+                createdAt: y.created_at,
+              }))
+            : (prev.academicYears && prev.academicYears.length > 0 ? prev.academicYears : defaultAcademicYears());
+
+          const activeYear = loadedAcademicYears.find((y) => y.statut === "active" && y.isDefault) || loadedAcademicYears[0];
+
+          const loadedRestrictions: ModuleRestriction[] = (moduleRestrictionsRes.data && moduleRestrictionsRes.data.length > 0)
+            ? moduleRestrictionsRes.data.map((r: any) => ({
+                id: r.id,
+                moduleKey: r.module_key,
+                moduleLabel: r.module_label,
+                bloque: r.bloque,
+                roles: r.roles || [],
+                userIds: r.user_ids || [],
+                raison: r.raison || "",
+                dateDebut: r.date_debut,
+                dateFin: r.date_fin,
+                updatedAt: r.updated_at,
+                updatedBy: r.updated_by,
+              }))
+            : (prev.moduleRestrictions && prev.moduleRestrictions.length > 0 ? prev.moduleRestrictions : defaultModuleRestrictions());
+
           return {
             ...prev,
             settings: remoteSettings?.settings ? { ...prev.settings, ...remoteSettings.settings } : prev.settings,
@@ -263,6 +315,9 @@ export function StoreProvider({ children }: { children: React.ReactNode }) {
             announcements: remoteSettings?.announcements || prev.announcements,
             enia: remoteSettings?.enia || prev.enia,
             modules: loadedModules,
+            academicYears: loadedAcademicYears,
+            activeAcademicYearId: prev.activeAcademicYearId || activeYear?.id,
+            moduleRestrictions: loadedRestrictions,
           };
         });
       } catch (err) {
@@ -1381,14 +1436,125 @@ export function StoreProvider({ children }: { children: React.ReactNode }) {
     (user?.id === userId && ((user.linkedId && t.id === user.linkedId) || (user.email && t.email && t.email.toLowerCase().trim() === user.email.toLowerCase().trim())))
   );
 
+  const activeAcademicYear = useMemo(() => {
+    const list = db.academicYears || [];
+    return list.find((y) => y.id === db.activeAcademicYearId) || list.find((y) => y.statut === "active" && y.isDefault) || list[0];
+  }, [db.academicYears, db.activeAcademicYearId]);
+
+  const createAcademicYear = (data: Omit<AcademicYear, "id">) => {
+    const newYear: AcademicYear = {
+      ...data,
+      id: `ay-${data.label.replace(/\s+/g, "-").toLowerCase()}-${Date.now().toString(36)}`,
+      createdAt: new Date().toISOString(),
+    };
+    update((d) => ({
+      ...d,
+      academicYears: [...(d.academicYears || []), newYear],
+      activeAcademicYearId: newYear.isDefault ? newYear.id : (d.activeAcademicYearId || newYear.id),
+      log: [
+        { id: `LOG-${Date.now()}`, date: new Date().toISOString().slice(0, 10), user: user?.name ?? "Système", action: `Création de l'année académique : ${newYear.label}` },
+        ...(d.log || []),
+      ],
+    }));
+    return newYear;
+  };
+
+  const updateAcademicYear = (id: string, updates: Partial<AcademicYear>) => {
+    update((d) => ({
+      ...d,
+      academicYears: (d.academicYears || []).map((y) => (y.id === id ? { ...y, ...updates } : updates.isDefault && y.id !== id ? { ...y, isDefault: false } : y)),
+      activeAcademicYearId: updates.isDefault ? id : d.activeAcademicYearId,
+      log: [
+        { id: `LOG-${Date.now()}`, date: new Date().toISOString().slice(0, 10), user: user?.name ?? "Système", action: `Mise à jour de l'année académique ${id}` },
+        ...(d.log || []),
+      ],
+    }));
+  };
+
+  const setActiveAcademicYear = (id: string) => {
+    update((d) => ({
+      ...d,
+      activeAcademicYearId: id,
+    }));
+  };
+
+  const closeAcademicYear = (id: string) => {
+    updateAcademicYear(id, { statut: "cloturee", isDefault: false });
+  };
+
+  const archiveAcademicYear = (id: string) => {
+    updateAcademicYear(id, { statut: "archivee", isDefault: false });
+  };
+
+  const updateModuleRestriction = (moduleKey: string, updates: Partial<ModuleRestriction>) => {
+    update((d) => {
+      const existing = (d.moduleRestrictions || []).find((r) => r.moduleKey === moduleKey);
+      let nextRestrictions: ModuleRestriction[];
+      if (existing) {
+        nextRestrictions = (d.moduleRestrictions || []).map((r) =>
+          r.moduleKey === moduleKey
+            ? { ...r, ...updates, updatedAt: new Date().toISOString(), updatedBy: user?.id }
+            : r
+        );
+      } else {
+        const newR: ModuleRestriction = {
+          id: `mr-${moduleKey}-${Date.now().toString(36)}`,
+          moduleKey,
+          moduleLabel: updates.moduleLabel || moduleKey,
+          bloque: updates.bloque ?? true,
+          roles: updates.roles || [],
+          userIds: updates.userIds || [],
+          raison: updates.raison || "",
+          updatedAt: new Date().toISOString(),
+          updatedBy: user?.id,
+        };
+        nextRestrictions = [...(d.moduleRestrictions || []), newR];
+      }
+      return {
+        ...d,
+        moduleRestrictions: nextRestrictions,
+        log: [
+          { id: `LOG-${Date.now()}`, date: new Date().toISOString().slice(0, 10), user: user?.name ?? "Système", action: `Modification restriction module : ${moduleKey}` },
+          ...(d.log || []),
+        ],
+      };
+    });
+  };
+
+  const isModuleBlockedForUser = (moduleKey: string, targetUser = user): { blocked: boolean; reason: string } => {
+    if (!targetUser) return { blocked: false, reason: "" };
+    if (targetUser.role === "superadmin") return { blocked: false, reason: "" };
+
+    const restriction = (db.moduleRestrictions || []).find((r) => r.moduleKey === moduleKey);
+    if (!restriction || !restriction.bloque) return { blocked: false, reason: "" };
+
+    if (restriction.roles && restriction.roles.length > 0 && restriction.roles.includes(targetUser.role)) {
+      return { blocked: true, reason: restriction.raison || "Ce module a été temporairement restreint par l'administration." };
+    }
+
+    if (restriction.userIds && restriction.userIds.length > 0 && restriction.userIds.includes(targetUser.id)) {
+      return { blocked: true, reason: restriction.raison || "Votre accès à ce module est temporairement restreint." };
+    }
+
+    if ((!restriction.roles || restriction.roles.length === 0) && (!restriction.userIds || restriction.userIds.length === 0)) {
+      if (targetUser.role !== "admin") {
+        return { blocked: true, reason: restriction.raison || "Ce module est temporairement suspendu." };
+      }
+    }
+
+    return { blocked: false, reason: "" };
+  };
+
   const value = useMemo(
     () => ({
       db, user, hasSuperAdmin,
       login, logout, createFirstAdmin, changePassword,
       update, nextStudentId, nextCertNumber, notify, log,
       modulesOf, computeAmount, calculatePricingBreakdown, userName, studentOf, teacherOf,
+      activeAcademicYear, createAcademicYear, updateAcademicYear, setActiveAcademicYear,
+      closeAcademicYear, archiveAcademicYear, updateModuleRestriction, isModuleBlockedForUser,
     }),
-    [db, user, hasSuperAdmin]
+    [db, user, hasSuperAdmin, activeAcademicYear]
   );
 
   return <StoreCtx.Provider value={value}>{children}</StoreCtx.Provider>;

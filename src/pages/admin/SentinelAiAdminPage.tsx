@@ -16,6 +16,9 @@ import {
   FolderOpen,
   Check,
   Trash2,
+  Eye,
+  Edit,
+  Copy,
 } from "lucide-react";
 import { supabase, isSupabaseConfigured } from "@/lib/supabase/client";
 import { toastMsg } from "@/lib/toast";
@@ -72,6 +75,11 @@ export function SentinelAiAdminPage() {
   const [newTitle, setNewTitle] = useState("");
   const [newCategory, setNewCategory] = useState("rules");
   const [newContent, setNewContent] = useState("");
+
+  // Modale Consultation / Édition Connaissance
+  const [viewingDoc, setViewingDoc] = useState<KnowledgeDoc | null>(null);
+  const [editingDoc, setEditingDoc] = useState<KnowledgeDoc | null>(null);
+  const [searchDocQuery, setSearchDocQuery] = useState("");
 
   // Upload RAG
   const [uploadingDoc, setUploadingDoc] = useState(false);
@@ -216,7 +224,65 @@ export function SentinelAiAdminPage() {
     }
   };
 
-  // Upload de fichier RAG
+  // Suppression d'un document de connaissance
+  const handleDeleteKnowledgeDoc = async (id: string) => {
+    if (!confirm("Confirmer la suppression définitive de ce document de connaissance ?")) return;
+    try {
+      if (isSupabaseConfigured) {
+        const { error } = await supabase.from("ai_knowledge_docs").delete().eq("id", id);
+        if (error) throw error;
+      }
+      setKnowledgeDocs((prev) => prev.filter((d) => d.id !== id));
+      toastMsg.success("Document supprimé", "Le document a été retiré de la base de connaissances.");
+    } catch (err: any) {
+      toastMsg.error("Erreur suppression : " + (err.message || "Erreur"));
+    }
+  };
+
+  // Mise à jour / Remplacement d'un document
+  const handleUpdateKnowledgeDoc = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!editingDoc) return;
+    try {
+      if (isSupabaseConfigured) {
+        const { error } = await supabase.from("ai_knowledge_docs").update({
+          title: editingDoc.title.trim(),
+          category: editingDoc.category,
+          content: editingDoc.content.trim(),
+        }).eq("id", editingDoc.id);
+        if (error) throw error;
+      }
+      setKnowledgeDocs((prev) => prev.map((d) => d.id === editingDoc.id ? editingDoc : d));
+      toastMsg.success("Connaissance mise à jour !", "Les modifications sont immédiatement actives pour l'agent.");
+      setEditingDoc(null);
+    } catch (err: any) {
+      toastMsg.error("Erreur mise à jour : " + (err.message || "Erreur"));
+    }
+  };
+
+  // Déduplication du corpus de connaissances
+  const handleDeduplicateDocs = () => {
+    const seenTitles = new Set<string>();
+    const deduplicated: KnowledgeDoc[] = [];
+    let removedCount = 0;
+
+    knowledgeDocs.forEach((doc) => {
+      const normTitle = doc.title.toLowerCase().trim();
+      if (!seenTitles.has(normTitle)) {
+        seenTitles.add(normTitle);
+        deduplicated.push(doc);
+      } else {
+        removedCount++;
+      }
+    });
+
+    if (removedCount > 0) {
+      setKnowledgeDocs(deduplicated);
+      toastMsg.success("Déduplication terminée", `${removedCount} doublon(s) identifié(s) et retiré(s) du corpus actif.`);
+    } else {
+      toastMsg.info("Corpus intègre", "Aucun document en double détecté dans la base.");
+    }
+  };
   const handleFileUpload = async (file: File) => {
     setUploadingDoc(true);
     try {
@@ -266,6 +332,19 @@ export function SentinelAiAdminPage() {
       return matchFilter && matchSearch;
     });
   }, [memories, memoryFilter, searchQuery]);
+
+  // Filtrage des documents RAG
+  const filteredKnowledgeDocs = useMemo(() => {
+    if (!searchDocQuery.trim()) return knowledgeDocs;
+    const q = searchDocQuery.toLowerCase().trim();
+    return knowledgeDocs.filter(
+      (d) =>
+        d.title.toLowerCase().includes(q) ||
+        d.category.toLowerCase().includes(q) ||
+        d.content.toLowerCase().includes(q)
+    );
+  }, [knowledgeDocs, searchDocQuery]);
+
 
   return (
     <div className="space-y-6 pb-12">
@@ -500,36 +579,104 @@ export function SentinelAiAdminPage() {
             </div>
           </div>
 
+          {/* Barre d'outils et Recherche RAG */}
+          <div className="flex flex-col sm:flex-row items-stretch sm:items-center justify-between gap-3 bg-white/[0.02] p-4 rounded-xl border border-white/10">
+            <div className="relative flex-1">
+              <Search size={16} className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" />
+              <input
+                type="text"
+                placeholder="Rechercher un document par titre, matière, contenu..."
+                value={searchDocQuery}
+                onChange={(e) => setSearchDocQuery(e.target.value)}
+                className="w-full rounded-xl bg-black/40 pl-9 pr-4 py-2 text-xs text-white border border-white/10 placeholder-slate-500 focus:border-cyan-400/50 focus:outline-none"
+              />
+            </div>
+            <div className="flex items-center gap-2">
+              <button
+                onClick={handleDeduplicateDocs}
+                className="flex items-center gap-1.5 rounded-xl border border-purple-500/40 bg-purple-500/10 px-3 py-2 text-xs font-semibold text-purple-300 hover:bg-purple-500/20 transition cursor-pointer"
+                title="Détecter et supprimer les doublons stricts"
+              >
+                <Layers size={14} /> Dédupliquer
+              </button>
+              <button
+                onClick={() => setNewDocModal(true)}
+                className="flex items-center gap-1.5 rounded-xl border border-cyan-400/40 bg-cyan-500/20 px-3 py-2 text-xs font-bold text-cyan-200 hover:bg-cyan-500/30 transition cursor-pointer"
+              >
+                <PlusCircle size={14} /> Ajouter manuellement
+              </button>
+            </div>
+          </div>
+
           {/* Liste des documents de la base */}
           <div className="space-y-3">
-            <h3 className="text-xs font-bold uppercase tracking-wider text-slate-400 flex items-center gap-2">
-              <FileText size={14} className="text-cyan-400" /> Documents Officiels de Sentinelles Numériques ({knowledgeDocs.length})
-            </h3>
-            <div className="grid md:grid-cols-2 gap-3">
-              {knowledgeDocs.map((doc) => (
-                <div
-                  key={doc.id}
-                  className="rounded-xl border border-white/10 bg-black/40 p-4 hover:border-cyan-400/30 transition flex flex-col justify-between"
-                >
-                  <div className="space-y-2">
-                    <div className="flex items-center justify-between">
-                      <span className="rounded bg-cyan-950/80 px-2 py-0.5 text-[10px] font-bold text-cyan-300 border border-cyan-400/30 uppercase tracking-wider">
-                        {doc.category}
-                      </span>
-                      <span className="text-[10px] text-emerald-400 flex items-center gap-1 font-semibold">
-                        <CheckCircle size={11} /> Document Officiel
-                      </span>
-                    </div>
-                    <h4 className="text-sm font-bold text-white">{doc.title}</h4>
-                    <p className="text-xs text-slate-300 leading-relaxed line-clamp-3">{doc.content}</p>
-                  </div>
-                  <div className="mt-3 pt-2 border-t border-white/5 flex items-center justify-between text-[10px] text-slate-500 font-mono">
-                    <span>Niveau 3 • Priorité Active</span>
-                    <span>{new Date(doc.created_at).toLocaleDateString("fr-FR")}</span>
-                  </div>
-                </div>
-              ))}
+            <div className="flex items-center justify-between">
+              <h3 className="text-xs font-bold uppercase tracking-wider text-slate-400 flex items-center gap-2">
+                <FileText size={14} className="text-cyan-400" /> Documents Officiels de Sentinelles Numériques ({filteredKnowledgeDocs.length})
+              </h3>
+              {searchDocQuery && (
+                <span className="text-[11px] text-cyan-400">
+                  Filtre actif : « {searchDocQuery} »
+                </span>
+              )}
             </div>
+
+            {filteredKnowledgeDocs.length === 0 ? (
+              <div className="rounded-xl border border-white/10 bg-black/20 p-8 text-center text-slate-400 text-xs">
+                Aucun document ne correspond à vos critères de recherche.
+              </div>
+            ) : (
+              <div className="grid md:grid-cols-2 gap-3">
+                {filteredKnowledgeDocs.map((doc) => (
+                  <div
+                    key={doc.id}
+                    className="rounded-xl border border-white/10 bg-black/40 p-4 hover:border-cyan-400/30 transition flex flex-col justify-between group"
+                  >
+                    <div className="space-y-2">
+                      <div className="flex items-center justify-between">
+                        <span className="rounded bg-cyan-950/80 px-2 py-0.5 text-[10px] font-bold text-cyan-300 border border-cyan-400/30 uppercase tracking-wider">
+                          {doc.category}
+                        </span>
+                        <span className="text-[10px] text-emerald-400 flex items-center gap-1 font-semibold">
+                          <CheckCircle size={11} /> Document Officiel
+                        </span>
+                      </div>
+                      <h4 className="text-sm font-bold text-white group-hover:text-cyan-200 transition">{doc.title}</h4>
+                      <p className="text-xs text-slate-300 leading-relaxed line-clamp-3">{doc.content}</p>
+                    </div>
+
+                    <div className="mt-4 pt-3 border-t border-white/5 flex items-center justify-between">
+                      <div className="text-[10px] text-slate-500 font-mono">
+                        <span>Niveau 3 • {new Date(doc.created_at).toLocaleDateString("fr-FR")}</span>
+                      </div>
+                      <div className="flex items-center gap-1.5">
+                        <button
+                          onClick={() => setViewingDoc(doc)}
+                          className="flex items-center gap-1 px-2.5 py-1 rounded-lg border border-cyan-400/30 bg-cyan-500/10 text-cyan-300 text-[11px] font-semibold hover:bg-cyan-500/20 transition cursor-pointer"
+                          title="Consulter le document intégral"
+                        >
+                          <Eye size={12} /> Consulter
+                        </button>
+                        <button
+                          onClick={() => setEditingDoc({ ...doc })}
+                          className="flex items-center gap-1 px-2.5 py-1 rounded-lg border border-white/10 bg-white/5 text-slate-300 text-[11px] font-semibold hover:bg-white/10 transition cursor-pointer"
+                          title="Modifier le document"
+                        >
+                          <Edit size={12} /> Modifier
+                        </button>
+                        <button
+                          onClick={() => handleDeleteKnowledgeDoc(doc.id)}
+                          className="flex items-center gap-1 px-2 py-1 rounded-lg border border-red-500/30 bg-red-950/20 text-red-300 text-[11px] font-semibold hover:bg-red-950/40 transition cursor-pointer"
+                          title="Supprimer définitivement"
+                        >
+                          <Trash2 size={12} />
+                        </button>
+                      </div>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            )}
           </div>
         </div>
       )}
@@ -711,6 +858,131 @@ export function SentinelAiAdminPage() {
                   className="flex-1 rounded-xl border border-cyan-400/50 bg-cyan-500/20 px-3 py-2 text-xs font-bold text-cyan-300 hover:bg-cyan-500/30 transition shadow-lg cursor-pointer"
                 >
                   Enregistrer dans le RAG
+                </button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
+
+      {/* MODALE CONSULTATION INTEGRALE DU DOCUMENT */}
+      {viewingDoc && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/80 backdrop-blur-sm p-4">
+          <div className="w-full max-w-2xl max-h-[85vh] flex flex-col rounded-2xl border border-cyan-400/30 bg-[#060b13] p-6 shadow-2xl space-y-4">
+            <div className="flex items-center justify-between border-b border-white/10 pb-3">
+              <div className="space-y-1">
+                <span className="rounded bg-cyan-950/80 px-2 py-0.5 text-[10px] font-bold text-cyan-300 border border-cyan-400/30 uppercase tracking-wider">
+                  {viewingDoc.category}
+                </span>
+                <h3 className="text-base font-bold text-white flex items-center gap-2">
+                  <FileText size={16} className="text-cyan-400" /> {viewingDoc.title}
+                </h3>
+              </div>
+              <button
+                onClick={() => setViewingDoc(null)}
+                className="text-slate-400 hover:text-white transition p-1"
+              >
+                ✕
+              </button>
+            </div>
+
+            <div className="flex-1 overflow-y-auto pr-2 space-y-3">
+              <div className="text-[11px] text-slate-500 font-mono flex items-center justify-between bg-black/40 p-2 rounded-lg border border-white/5">
+                <span>Créé le {new Date(viewingDoc.created_at).toLocaleString("fr-FR")}</span>
+                <span>Document officiel RAG actif</span>
+              </div>
+              <div className="p-4 rounded-xl bg-black/50 border border-white/10 text-xs text-slate-200 whitespace-pre-wrap leading-relaxed">
+                {viewingDoc.content}
+              </div>
+            </div>
+
+            <div className="flex justify-between items-center pt-2 border-t border-white/10">
+              <button
+                onClick={() => {
+                  navigator.clipboard.writeText(viewingDoc.content);
+                  toastMsg.success("Contenu copié dans le presse-papier");
+                }}
+                className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg border border-white/10 text-xs text-slate-300 hover:bg-white/5 transition"
+              >
+                <Copy size={13} /> Copier le contenu
+              </button>
+              <button
+                onClick={() => setViewingDoc(null)}
+                className="rounded-xl border border-cyan-400/40 bg-cyan-500/20 px-4 py-2 text-xs font-bold text-cyan-300 hover:bg-cyan-500/30 transition"
+              >
+                Fermer
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* MODALE MODIFICATION DU DOCUMENT */}
+      {editingDoc && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/80 backdrop-blur-sm p-4">
+          <div className="w-full max-w-lg rounded-2xl border border-cyan-400/30 bg-[#060b13] p-6 shadow-2xl space-y-4">
+            <div className="flex items-center justify-between border-b border-white/10 pb-3">
+              <h3 className="text-sm font-bold text-white flex items-center gap-2">
+                <Edit size={16} className="text-cyan-400" /> Modifier le Document de Connaissance
+              </h3>
+              <button
+                onClick={() => setEditingDoc(null)}
+                className="text-slate-400 hover:text-white transition"
+              >
+                ✕
+              </button>
+            </div>
+
+            <form onSubmit={handleUpdateKnowledgeDoc} className="space-y-3">
+              <div>
+                <label className="text-xs font-semibold text-slate-300">Titre du document</label>
+                <input
+                  type="text"
+                  required
+                  value={editingDoc.title}
+                  onChange={(e) => setEditingDoc({ ...editingDoc, title: e.target.value })}
+                  className="mt-1 w-full rounded-lg bg-black/60 px-3 py-2 text-xs text-white border border-white/10 focus:border-cyan-400/50 focus:outline-none"
+                />
+              </div>
+
+              <div>
+                <label className="text-xs font-semibold text-slate-300">Catégorie</label>
+                <select
+                  value={editingDoc.category}
+                  onChange={(e) => setEditingDoc({ ...editingDoc, category: e.target.value })}
+                  className="mt-1 w-full rounded-lg bg-black/60 px-3 py-2 text-xs text-white border border-white/10 focus:border-cyan-400/50 focus:outline-none"
+                >
+                  <option value="rules">Règlement & Procédures</option>
+                  <option value="course">Support de Cours & Syllabus</option>
+                  <option value="general">Général & Institutionnel</option>
+                  <option value="faq">Questions Fréquentes (FAQ)</option>
+                </select>
+              </div>
+
+              <div>
+                <label className="text-xs font-semibold text-slate-300">Contenu</label>
+                <textarea
+                  required
+                  rows={6}
+                  value={editingDoc.content}
+                  onChange={(e) => setEditingDoc({ ...editingDoc, content: e.target.value })}
+                  className="mt-1 w-full rounded-lg bg-black/60 p-3 text-xs text-white border border-white/10 focus:border-cyan-400/50 focus:outline-none leading-relaxed"
+                />
+              </div>
+
+              <div className="flex gap-2 pt-2">
+                <button
+                  type="button"
+                  onClick={() => setEditingDoc(null)}
+                  className="flex-1 rounded-xl border border-white/10 px-3 py-2 text-xs text-slate-400 hover:bg-white/5 transition cursor-pointer"
+                >
+                  Annuler
+                </button>
+                <button
+                  type="submit"
+                  className="flex-1 rounded-xl border border-cyan-400/50 bg-cyan-500/20 px-3 py-2 text-xs font-bold text-cyan-300 hover:bg-cyan-500/30 transition shadow-lg cursor-pointer"
+                >
+                  Sauvegarder les modifications
                 </button>
               </div>
             </form>

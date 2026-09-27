@@ -25,6 +25,7 @@ import {
   isNotificationSupported,
 } from "@/lib/pushNotifications";
 import { AiAgentPanel } from "@/components/AiAgentPanel";
+import { AcademicYearSelector } from "@/components/AcademicYearSelector";
 
 const roleLabel: Record<string, string> = {
   superadmin: "SUPER ADMIN",
@@ -41,6 +42,7 @@ interface MenuItem {
   icon: React.ReactNode;
   roles: string[];
   end?: boolean;
+  moduleKey?: string;
 }
 
 const MENU: MenuItem[] = [
@@ -52,14 +54,14 @@ const MENU: MenuItem[] = [
   { to: "/app/partner/formations", label: "Formations", icon: <BookOpen size={18} />, roles: ["partner_admin", "partner"] },
   { to: "/app/partner/modules", label: "Modules", icon: <BookOpen size={18} />, roles: ["partner_admin", "partner"] },
   { to: "/app/partner/emploi-du-temps", label: "Emploi du temps", icon: <CalendarDays size={18} />, roles: ["partner_admin", "partner"] },
-  { to: "/app/partner/presences", label: "Présences", icon: <ClipboardCheck size={18} />, roles: ["partner_admin", "partner"] },
-  { to: "/app/partner/cours", label: "Cours", icon: <FileText size={18} />, roles: ["partner_admin", "partner"] },
-  { to: "/app/partner/tests", label: "Tests", icon: <TestTube2 size={18} />, roles: ["partner_admin", "partner"] },
-  { to: "/app/partner/notes", label: "Notes", icon: <PenLine size={18} />, roles: ["partner_admin", "partner"] },
+  { to: "/app/partner/presences", label: "Présences", icon: <ClipboardCheck size={18} />, roles: ["partner_admin", "partner"], moduleKey: "presences" },
+  { to: "/app/partner/cours", label: "Cours", icon: <FileText size={18} />, roles: ["partner_admin", "partner"], moduleKey: "cours" },
+  { to: "/app/partner/tests", label: "Tests", icon: <TestTube2 size={18} />, roles: ["partner_admin", "partner"], moduleKey: "evaluations" },
+  { to: "/app/partner/notes", label: "Notes", icon: <PenLine size={18} />, roles: ["partner_admin", "partner"], moduleKey: "evaluations" },
   { to: "/app/partner/certificats", label: "Certificats", icon: <Award size={18} />, roles: ["partner_admin", "partner"] },
   { to: "/app/partner/bourses", label: "Bourses", icon: <BadgeDollarSign size={18} />, roles: ["partner_admin", "partner"] },
   { to: "/app/partner/rapports", label: "Rapports", icon: <Activity size={18} />, roles: ["partner_admin", "partner"] },
-  { to: "/app/partner/enya", label: "Enya", icon: <GraduationCap size={18} />, roles: ["partner_admin", "partner"] },
+  { to: "/app/partner/enya", label: "Enya", icon: <GraduationCap size={18} />, roles: ["partner_admin", "partner"], moduleKey: "ia" },
   { to: "/app/partner/profil", label: "Profil", icon: <UserCircle size={18} />, roles: ["partner_admin", "partner"] },
   // Admin
   { to: "/app/etudiants", label: "Apprenants", icon: <Users size={18} />, roles: ["superadmin", "admin"] },
@@ -67,21 +69,21 @@ const MENU: MenuItem[] = [
   { to: "/app/enseignants-heures", label: "Heures enseignants", icon: <Clock size={18} />, roles: ["superadmin", "admin"] },
   { to: "/app/modules", label: "Formations & Modules", icon: <BookOpen size={18} />, roles: ["superadmin", "admin"] },
   { to: "/app/emploi-du-temps", label: "Emploi du temps", icon: <CalendarDays size={18} />, roles: ["superadmin", "admin", "teacher", "student"] },
-  { to: "/app/presences", label: "Présences", icon: <ClipboardCheck size={18} />, roles: ["superadmin", "admin", "teacher"] },
+  { to: "/app/presences", label: "Présences", icon: <ClipboardCheck size={18} />, roles: ["superadmin", "admin", "teacher"], moduleKey: "presences" },
   { to: "/app/calendrier", label: "Calendrier visuel", icon: <CalendarDays size={18} />, roles: ["superadmin", "admin", "teacher", "student"] },
   { to: "/app/bulletins", label: "Bulletins de notes", icon: <FileText size={18} />, roles: ["superadmin", "admin"] },
   { to: "/app/import", label: "Import CSV", icon: <Users size={18} />, roles: ["superadmin", "admin"] },
-  { to: "/app/qr-scanner", label: "Scanner QR Présence", icon: <ShieldCheck size={18} />, roles: ["superadmin", "admin", "teacher"] },
-  { to: "/app/cours", label: "Cours & Supports", icon: <FileText size={18} />, roles: ["superadmin", "admin", "teacher"] },
-  { to: "/app/evaluations-devoirs", label: "Évaluations & Devoirs", icon: <ClipboardCheck size={18} />, roles: ["superadmin", "admin", "teacher"] },
-  { to: "/app/notes", label: "Notes", icon: <PenLine size={18} />, roles: ["superadmin", "admin", "teacher"] },
-  { to: "/app/paiements", label: "Paiements", icon: <Wallet size={18} />, roles: ["superadmin", "admin"] },
+  { to: "/app/qr-scanner", label: "Scanner QR Présence", icon: <ShieldCheck size={18} />, roles: ["superadmin", "admin", "teacher"], moduleKey: "presences" },
+  { to: "/app/cours", label: "Cours & Supports", icon: <FileText size={18} />, roles: ["superadmin", "admin", "teacher"], moduleKey: "cours" },
+  { to: "/app/evaluations-devoirs", label: "Évaluations & Devoirs", icon: <ClipboardCheck size={18} />, roles: ["superadmin", "admin", "teacher"], moduleKey: "evaluations" },
+  { to: "/app/notes", label: "Notes", icon: <PenLine size={18} />, roles: ["superadmin", "admin", "teacher"], moduleKey: "evaluations" },
+  { to: "/app/paiements", label: "Paiements", icon: <Wallet size={18} />, roles: ["superadmin", "admin"], moduleKey: "finances" },
   { to: "/app/certificats", label: "Certificats", icon: <Award size={18} />, roles: ["superadmin", "admin"] },
   { to: "/app/bourses", label: "Bourses", icon: <BadgeDollarSign size={18} />, roles: ["superadmin", "admin"] },
-  { to: "/app/enia", label: "ENIA 2.0", icon: <GraduationCap size={18} />, roles: ["superadmin", "admin", "partner_admin", "partner", "teacher", "student"] },
-  { to: "/app/enia-admin", label: "Admin ENIA 2.0", icon: <PenSquare size={18} />, roles: ["superadmin", "admin"] },
-  { to: "/app/sentinel-ai-admin", label: "Sentinel AI & Savoirs", icon: <Brain size={18} />, roles: ["superadmin", "admin"] },
-  { to: "/app/messages", label: "Messagerie", icon: <MessagesSquare size={18} />, roles: ["superadmin", "admin", "teacher", "student"] },
+  { to: "/app/enia", label: "ENIA 2.0", icon: <GraduationCap size={18} />, roles: ["superadmin", "admin", "partner_admin", "partner", "teacher", "student"], moduleKey: "ia" },
+  { to: "/app/enia-admin", label: "Admin ENIA 2.0", icon: <PenSquare size={18} />, roles: ["superadmin", "admin"], moduleKey: "ia" },
+  { to: "/app/sentinel-ai-admin", label: "Sentinel AI & Savoirs", icon: <Brain size={18} />, roles: ["superadmin", "admin"], moduleKey: "ia" },
+  { to: "/app/messages", label: "Messagerie", icon: <MessagesSquare size={18} />, roles: ["superadmin", "admin", "teacher", "student"], moduleKey: "messages" },
   { to: "/app/notifications", label: "Notifications", icon: <Bell size={18} />, roles: ["superadmin", "admin", "teacher", "student"] },
   { to: "/app/utilisateurs", label: "Utilisateurs", icon: <ShieldCheck size={18} />, roles: ["superadmin"] },
   { to: "/app/contenu", label: "Contenu du site", icon: <PenSquare size={18} />, roles: ["superadmin", "admin"] },
@@ -94,25 +96,24 @@ const MENU: MenuItem[] = [
   { to: "/app/mon-profil-formateur", label: "Mon profil", icon: <UserCircle size={18} />, roles: ["teacher"] },
   { to: "/app/mes-classes", label: "Mes classes", icon: <Database size={18} />, roles: ["teacher"] },
   { to: "/app/mes-apprenants", label: "Mes apprenants", icon: <Users size={18} />, roles: ["teacher"] },
-  { to: "/app/mes-cours", label: "Publier un cours", icon: <NotebookPen size={18} />, roles: ["teacher"] },
+  { to: "/app/mes-cours", label: "Publier un cours", icon: <NotebookPen size={18} />, roles: ["teacher"], moduleKey: "cours" },
   // Student
   { to: "/app/mon-profil", label: "Mon profil", icon: <UserCircle size={18} />, roles: ["student"] },
   { to: "/app/ma-formation", label: "Ma formation", icon: <BookMarked size={18} />, roles: ["student"] },
   { to: "/app/mes-modules", label: "Mes modules", icon: <BookOpen size={18} />, roles: ["student"] },
   { to: "/app/mes-formateurs", label: "Mes formateurs", icon: <GraduationCap size={18} />, roles: ["student"] },
-  { to: "/app/mes-cours", label: "Mes cours", icon: <FolderOpen size={18} />, roles: ["student"] },
-  { to: "/app/mes-evaluations-devoirs", label: "Devoirs & Évaluations", icon: <ClipboardCheck size={18} />, roles: ["student"] },
-
+  { to: "/app/mes-cours", label: "Mes cours", icon: <FolderOpen size={18} />, roles: ["student"], moduleKey: "cours" },
+  { to: "/app/mes-evaluations-devoirs", label: "Devoirs & Évaluations", icon: <ClipboardCheck size={18} />, roles: ["student"], moduleKey: "evaluations" },
   { to: "/app/mes-documents", label: "Mes documents", icon: <ScrollText size={18} />, roles: ["student"] },
-  { to: "/app/mes-presences", label: "Mes présences", icon: <ClipboardCheck size={18} />, roles: ["student"] },
-  { to: "/app/mes-notes", label: "Mes notes", icon: <PenLine size={18} />, roles: ["student"] },
-  { to: "/app/mes-paiements", label: "Mes paiements", icon: <Wallet size={18} />, roles: ["student"] },
+  { to: "/app/mes-presences", label: "Mes présences", icon: <ClipboardCheck size={18} />, roles: ["student"], moduleKey: "presences" },
+  { to: "/app/mes-notes", label: "Mes notes", icon: <PenLine size={18} />, roles: ["student"], moduleKey: "evaluations" },
+  { to: "/app/mes-paiements", label: "Mes paiements", icon: <Wallet size={18} />, roles: ["student"], moduleKey: "finances" },
   { to: "/app/mon-certificat", label: "Mon certificat", icon: <Award size={18} />, roles: ["student"] },
   { to: "/app/ma-bourse", label: "Ma bourse", icon: <BadgeDollarSign size={18} />, roles: ["student"] },
 ];
 
 export default function DashboardLayout() {
-  const { db, user: storeUser, logout: storeLogout } = useStore();
+  const { db, user: storeUser, logout: storeLogout, isModuleBlockedForUser } = useStore();
   const { profile, logout: authLogout } = useAuth();
   const navigate = useNavigate();
   const [open, setOpen] = useState(false);
@@ -314,7 +315,17 @@ export default function DashboardLayout() {
 
   if (!user) return null;
 
-  const items = MENU.filter((m) => m.roles.includes(user.role));
+  const items = MENU.filter((m) => {
+    if (!m.roles.includes(user.role)) return false;
+    if (m.moduleKey && isModuleBlockedForUser) {
+      const check = isModuleBlockedForUser(m.moduleKey, user);
+      if (check.blocked) return false;
+    }
+    return true;
+  });
+
+  const isAiBlocked = isModuleBlockedForUser ? isModuleBlockedForUser("ia", user).blocked : false;
+
   const unreadNotifications = getUnreadNotificationCount(db.notifications, user.id);
   const unreadMessages = Math.max(
     unreadCount,
@@ -345,27 +356,29 @@ export default function DashboardLayout() {
       </div>
 
       {/* Assistant IA dans la barre latérale */}
-      <div className="px-3 pt-3 pb-1">
-        <button
-          type="button"
-          onClick={() => {
-            setOpen(false);
-            setAiAgentOpen(true);
-          }}
-          className="w-full flex items-center justify-between rounded-xl border border-cyan-400/40 bg-gradient-to-r from-cyan-950/60 to-[#0B111A] p-2.5 text-left text-xs text-cyan-300 hover:border-cyan-300 hover:shadow-[0_0_15px_rgba(0,229,255,0.25)] transition group cursor-pointer"
-        >
-          <div className="flex items-center gap-2.5">
-            <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-cyan-400/20 text-cyan-300 border border-cyan-400/40 group-hover:scale-105 transition-transform">
-              <Bot size={18} />
+      {!isAiBlocked && (
+        <div className="px-3 pt-3 pb-1">
+          <button
+            type="button"
+            onClick={() => {
+              setOpen(false);
+              setAiAgentOpen(true);
+            }}
+            className="w-full flex items-center justify-between rounded-xl border border-cyan-400/40 bg-gradient-to-r from-cyan-950/60 to-[#0B111A] p-2.5 text-left text-xs text-cyan-300 hover:border-cyan-300 hover:shadow-[0_0_15px_rgba(0,229,255,0.25)] transition group cursor-pointer"
+          >
+            <div className="flex items-center gap-2.5">
+              <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-cyan-400/20 text-cyan-300 border border-cyan-400/40 group-hover:scale-105 transition-transform">
+                <Bot size={18} />
+              </div>
+              <div>
+                <p className="font-bold text-white group-hover:text-cyan-200">Assistant IA</p>
+                <p className="text-[10px] text-cyan-400/80">Agent autonome</p>
+              </div>
             </div>
-            <div>
-              <p className="font-bold text-white group-hover:text-cyan-200">Assistant IA</p>
-              <p className="text-[10px] text-cyan-400/80">Agent autonome</p>
-            </div>
-          </div>
-          <span className="flex h-2 w-2 rounded-full bg-emerald-400 animate-pulse" title="Prêt" />
-        </button>
-      </div>
+            <span className="flex h-2 w-2 rounded-full bg-emerald-400 animate-pulse" title="Prêt" />
+          </button>
+        </div>
+      )}
 
       {/* Navigation Links */}
       <nav className="flex-1 space-y-1 overflow-y-auto px-3 py-3">
@@ -871,25 +884,30 @@ export default function DashboardLayout() {
             )}
           </div>
 
-          {/* Actions Header : Messages, Notifications, Site public, Déconnexion */}
+          {/* Actions Header : Année Académique, Messages, Notifications, Site public, Déconnexion */}
           <div className="flex items-center gap-1.5 sm:gap-2.5">
-            {/* Bouton Assistant IA ultra-visible dans le Header */}
-            <button
-              type="button"
-              onClick={() => setAiAgentOpen(true)}
-              className="relative flex items-center gap-2 rounded-xl border border-cyan-400/60 bg-gradient-to-r from-cyan-950/80 to-[#0B111A] px-3 py-1.5 text-cyan-300 transition hover:border-cyan-300 hover:shadow-[0_0_18px_rgba(0,229,255,0.4)] shrink-0 cursor-pointer"
-              title="Ouvrir l'Assistant IA"
-              aria-label="Assistant IA Agent"
-            >
-              <div className="relative">
-                <Bot size={18} className="text-cyan-400" />
-                <span className="absolute -top-0.5 -right-0.5 flex h-2 w-2">
-                  <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-cyan-400 opacity-75"></span>
-                  <span className="relative inline-flex rounded-full h-2 w-2 bg-emerald-400"></span>
-                </span>
-              </div>
-              <span className="hidden sm:inline text-xs font-bold text-cyan-200">Assistant IA</span>
-            </button>
+            {/* Sélecteur d'Année Académique officiel */}
+            <AcademicYearSelector />
+
+            {/* Bouton Assistant IA visible dans le Header uniquement si non restreint */}
+            {!isAiBlocked && (
+              <button
+                type="button"
+                onClick={() => setAiAgentOpen(true)}
+                className="relative flex items-center gap-2 rounded-xl border border-cyan-400/60 bg-gradient-to-r from-cyan-950/80 to-[#0B111A] px-3 py-1.5 text-cyan-300 transition hover:border-cyan-300 hover:shadow-[0_0_18px_rgba(0,229,255,0.4)] shrink-0 cursor-pointer"
+                title="Ouvrir l'Assistant IA"
+                aria-label="Assistant IA Agent"
+              >
+                <div className="relative">
+                  <Bot size={18} className="text-cyan-400" />
+                  <span className="absolute -top-0.5 -right-0.5 flex h-2 w-2">
+                    <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-cyan-400 opacity-75"></span>
+                    <span className="relative inline-flex rounded-full h-2 w-2 bg-emerald-400"></span>
+                  </span>
+                </div>
+                <span className="hidden sm:inline text-xs font-bold text-cyan-200">Assistant IA</span>
+              </button>
+            )}
 
             <NavLink
               to="/app/messages"

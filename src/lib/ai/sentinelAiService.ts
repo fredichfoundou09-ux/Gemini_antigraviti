@@ -7,6 +7,7 @@ import {
   EvaluationQuestion,
 } from "./types";
 import { ClientWikipediaProvider, ClientDocumentationProvider } from "./webSearch";
+import { canUserAccessAi } from "./aiAccessControl";
 export * from "./types";
 
 function getLocalDB(): any {
@@ -650,8 +651,23 @@ export async function localAgentExecute(action: AiPendingAction): Promise<{ ok: 
  * Envoie l'historique de conversation à SENTINEL'S AI (Edge Function ou Fallback Local)
  */
 export async function askSentinelAi(messages: AiChatMessage[]): Promise<AiAgentReply> {
+  const { data: { session } } = await supabase.auth.getSession();
+  const localUserRaw = typeof localStorage !== "undefined" ? localStorage.getItem("sn_user") : null;
+  let currentRole: any = "admin";
+  let currentUserId: any = session?.user?.id;
+  if (localUserRaw) {
+    try {
+      const u = JSON.parse(localUserRaw);
+      if (u.role) currentRole = u.role;
+      if (u.id) currentUserId = u.id;
+    } catch {}
+  }
+  const check = canUserAccessAi({ id: currentUserId, role: currentRole });
+  if (!check.allowed) {
+    throw new Error(`[Accès IA Refusé] ${check.reason}`);
+  }
+
   try {
-    const { data: { session } } = await supabase.auth.getSession();
     const endpoint = `${import.meta.env.VITE_SUPABASE_URL}/functions/v1/ai-agent`;
 
     if (session?.access_token && import.meta.env.VITE_SUPABASE_URL) {
@@ -688,8 +704,25 @@ export async function askSentinelAiStream(
     onError?: (err: Error) => void;
   }
 ): Promise<void> {
+  const { data: { session } } = await supabase.auth.getSession();
+  const localUserRaw = typeof localStorage !== "undefined" ? localStorage.getItem("sn_user") : null;
+  let currentRole: any = "admin";
+  let currentUserId: any = session?.user?.id;
+  if (localUserRaw) {
+    try {
+      const u = JSON.parse(localUserRaw);
+      if (u.role) currentRole = u.role;
+      if (u.id) currentUserId = u.id;
+    } catch {}
+  }
+  const check = canUserAccessAi({ id: currentUserId, role: currentRole });
+  if (!check.allowed) {
+    const err = new Error(`[Accès IA Refusé] ${check.reason}`);
+    callbacks.onError?.(err);
+    throw err;
+  }
+
   try {
-    const { data: { session } } = await supabase.auth.getSession();
     const endpoint = `${import.meta.env.VITE_SUPABASE_URL}/functions/v1/ai-agent`;
 
     if (session?.access_token && import.meta.env.VITE_SUPABASE_URL) {

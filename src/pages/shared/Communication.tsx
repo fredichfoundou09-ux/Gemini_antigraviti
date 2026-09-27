@@ -1,12 +1,23 @@
 import { useEffect, useMemo, useState, useCallback } from "react";
 import { useSearchParams } from "react-router-dom";
-import { Send, Mail, Bell, CheckCheck, Users, UserCircle2, Inbox, ChevronRight, Reply, Trash2, Search, ShieldCheck, X, Sparkles } from "lucide-react";
+import { Send, Mail, Bell, CheckCheck, Users, UserCircle2, Inbox, ChevronRight, Reply, Trash2, Search, ShieldCheck, X, Sparkles, Bot, Play, Check, CheckCircle, AlertTriangle, RefreshCw } from "lucide-react";
 import { useStore } from "@/lib/store";
 import { cn } from "@/utils/cn";
 import { Btn, Card, Field, Input, Textarea, Empty, PageHead, uid, today } from "@/lib/ui";
 import { isSupabaseConfigured, getSupabase } from "@/lib/supabase/client";
 import { fetchMyConversations, startConversation, replyToConversation, subscribeToAllMessages, deleteConversation, deleteMessage, fetchMessagingRecipients, markMessageAsDeleted, markConversationAsDeleted, getDeletedMessageIds, getDeletedConversationIds } from "@/lib/supabase/communication";
 import { toastMsg } from "@/lib/toast";
+import {
+  getAutomatedRules,
+  toggleAutomatedRule,
+  getAutomatedDrafts,
+  approveDraft,
+  rejectDraft,
+  batchApproveDrafts,
+  generateDraftsForRule,
+  AutomatedRule,
+  AutomatedMessageDraft,
+} from "@/lib/ai/automatedMessagesService";
 import {
   markNotificationAsRead,
   markAllNotificationsAsRead,
@@ -28,7 +39,7 @@ const notifColor: Record<string, string> = {
 export function MessageCenter() {
   const { db, user, update, userName, log } = useStore();
   const [searchParams] = useSearchParams();
-  const [mode, setMode] = useState<"inbox" | "new">("inbox");
+  const [mode, setMode] = useState<"inbox" | "new" | "ai_automations">("inbox");
   const [to, setTo] = useState(user?.role === "student" ? "" : "all_students");
   const [subject, setSubject] = useState("");
   const [body, setBody] = useState("");
@@ -44,6 +55,130 @@ export function MessageCenter() {
 
   const [inboxFilter, setInboxFilter] = useState<"all" | "unread">("all");
   const [inboxSearch, setInboxSearch] = useState("");
+
+  // Automatisations IA & Validation humaine (Section 35)
+  const [automatedRules, setAutomatedRules] = useState<AutomatedRule[]>([]);
+  const [automatedDrafts, setAutomatedDrafts] = useState<AutomatedMessageDraft[]>([]);
+  const [analyzingRules, setAnalyzingRules] = useState(false);
+  const [draftFilter, setDraftFilter] = useState<"pending" | "sent" | "rejected" | "all">("pending");
+
+  const loadAutomatedData = useCallback(() => {
+    setAutomatedRules(getAutomatedRules());
+    setAutomatedDrafts(getAutomatedDrafts());
+  }, []);
+
+  useEffect(() => {
+    loadAutomatedData();
+  }, [loadAutomatedData]);
+
+  const handleToggleRule = (id: string, active: boolean) => {
+    toggleAutomatedRule(id, active);
+    loadAutomatedData();
+    toastMsg.info(`Règle ${active ? "activée" : "désactivée"}`);
+  };
+
+  const handleApproveDraft = (id: string) => {
+    const res = approveDraft(id, user?.id || "admin");
+    if (res.ok) {
+      loadAutomatedData();
+      log("APPROVE_AI_MESSAGE", "communication", { draftId: id });
+      toastMsg.success("Message approuvé et transmis ✓", "Le destinataire peut désormais le consulter.");
+    }
+  };
+
+  const handleRejectDraft = (id: string) => {
+    const reason = prompt("Précisez le motif du rejet (optionnel) :") || "Non pertinent";
+    rejectDraft(id, reason);
+    loadAutomatedData();
+    log("REJECT_AI_MESSAGE", "communication", { draftId: id, reason });
+    toastMsg.info("Brouillon rejeté", "Ce message ne sera pas envoyé.");
+  };
+
+  const handleBatchApprove = () => {
+    const pendingIds = automatedDrafts.filter((d) => d.status === "pending_approval").map((d) => d.id);
+    if (pendingIds.length === 0) return;
+    const count = batchApproveDrafts(pendingIds, user?.id || "admin");
+    loadAutomatedData();
+    log("BATCH_APPROVE_AI_MESSAGES", "communication", { count });
+    toastMsg.success(`${count} message(s) approuvé(s) et transmis avec succès ✓`);
+  };
+
+  const handleTriggerAiAnalysis = () => {
+    setAnalyzingRules(true);
+    try {
+      const rules = getAutomatedRules().filter((r) => r.is_active);
+      let totalDraftsCreated = 0;
+
+      for (const rule of rules) {
+        if (rule.trigger === "absence_unjustified") {
+          const unjustAbsences = (db.attendances || []).filter((a) => a.status === "absent" && !a.justified);
+          const studentIds = Array.from(new Set(unjustAbsences.map((a) => a.student_id)));
+          const candidates = studentIds.map((sid) => {
+            const stu = db.students.find((s) => s.id === sid);
+            const userAcc = db.users.find((u) => u.id === sid || u.email === stu?.email);
+            return {
+              id: userAcc?.id || sid,
+              name: stu ? `${stu.first_name} ${stu.last_name}` : "Apprenant",
+              course_name: "Assiduité générale",
+            };
+          }).filter((c) => c.name !== "Apprenant");
+
+          if (candidates.length > 0) {
+            const drafts = generateDraftsForRule(rule, candidates.slice(0, 5));
+            totalDraftsCreated += drafts.length;
+          }
+        } else if (rule.trigger === "grade_excellence") {
+          const excellentGrades = (db.grades || []).filter((g) => (g.score / (g.max_score || 20)) * 20 >= 16);
+          const candidates = excellentGrades.map((g) => {
+            const stu = db.students.find((s) => s.id === g.student_id);
+            const userAcc = db.users.find((u) => u.id === g.student_id || u.email === stu?.email);
+            const evalObj = db.evaluations?.find((e) => e.id === g.evaluation_id);
+            return {
+              id: userAcc?.id || g.student_id,
+              name: stu ? `${stu.first_name} ${stu.last_name}` : "Apprenant",
+              course_name: evalObj?.title || "Évaluation",
+              grade: Math.round((g.score / (g.max_score || 20)) * 20),
+            };
+          }).filter((c) => c.name !== "Apprenant");
+
+          if (candidates.length > 0) {
+            const drafts = generateDraftsForRule(rule, candidates.slice(0, 5));
+            totalDraftsCreated += drafts.length;
+          }
+        } else if (rule.trigger === "payment_due") {
+          const studentsWithBalance = (db.students || []).filter((stu) => {
+            const paid = (db.payments || []).filter((p) => p.student_id === stu.id && p.status === "completed").reduce((sum, p) => sum + (p.amount || 0), 0);
+            return (stu.tuition_fee || 0) - paid > 0;
+          });
+          const candidates = studentsWithBalance.map((stu) => {
+            const userAcc = db.users.find((u) => u.id === stu.id || u.email === stu.email);
+            const paid = (db.payments || []).filter((p) => p.student_id === stu.id && p.status === "completed").reduce((sum, p) => sum + (p.amount || 0), 0);
+            return {
+              id: userAcc?.id || stu.id,
+              name: `${stu.first_name} ${stu.last_name}`,
+              balance: (stu.tuition_fee || 0) - paid,
+            };
+          });
+
+          if (candidates.length > 0) {
+            const drafts = generateDraftsForRule(rule, candidates.slice(0, 5));
+            totalDraftsCreated += drafts.length;
+          }
+        }
+      }
+
+      loadAutomatedData();
+      if (totalDraftsCreated > 0) {
+        toastMsg.success("Analyse terminée", `${totalDraftsCreated} nouveau(x) brouillon(s) généré(s) en attente de votre approbation.`);
+      } else {
+        toastMsg.info("Analyse terminée", "Aucune nouvelle situation nécessitant un message n'a été détectée.");
+      }
+    } catch (e: any) {
+      toastMsg.error("Erreur lors de l'analyse automatique: " + (e.message || "Erreur"));
+    } finally {
+      setAnalyzingRules(false);
+    }
+  };
 
   // Charger les profils Supabase réels (annuaire de messagerie)
   const loadProfiles = useCallback(async () => {
@@ -567,15 +702,274 @@ export function MessageCenter() {
     <div>
       <PageHead
         title="Messagerie interne"
-        subtitle="Conversations instantanées et annonces multi-espaces"
+        subtitle="Conversations instantanées, annonces et messages automatisés par IA"
         actions={
-          <Btn onClick={() => setMode(mode === "inbox" ? "new" : "inbox")}>
-            {mode === "inbox" ? <><Send size={16} /> Nouveau message</> : <><Inbox size={16} /> Boîte de réception</>}
-          </Btn>
+          <div className="flex flex-wrap items-center gap-2">
+            {user?.role !== "student" && (
+              <button
+                type="button"
+                onClick={() => setMode(mode === "ai_automations" ? "inbox" : "ai_automations")}
+                className={cn(
+                  "flex items-center gap-1.5 px-3 py-2 rounded-xl text-xs font-semibold border transition cursor-pointer",
+                  mode === "ai_automations"
+                    ? "bg-purple-500/20 text-purple-300 border-purple-400/50 shadow-[0_0_15px_rgba(168,85,247,0.25)]"
+                    : "bg-white/[0.03] text-slate-300 border-white/10 hover:bg-white/10"
+                )}
+              >
+                <Bot size={14} className="text-purple-400" />
+                <span>Automatisations IA</span>
+                {automatedDrafts.filter((d) => d.status === "pending_approval").length > 0 && (
+                  <span className="rounded-full bg-amber-500 px-1.5 py-0.2 text-[10px] font-bold text-black animate-pulse">
+                    {automatedDrafts.filter((d) => d.status === "pending_approval").length}
+                  </span>
+                )}
+              </button>
+            )}
+            <Btn onClick={() => setMode(mode === "inbox" ? "new" : "inbox")}>
+              {mode === "inbox" ? <><Send size={16} /> Nouveau message</> : <><Inbox size={16} /> Boîte de réception</>}
+            </Btn>
+          </div>
         }
       />
 
-      {mode === "new" ? (
+      {mode === "ai_automations" ? (
+        <div className="space-y-6">
+          {/* En-tête du panneau automatisations */}
+          <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 rounded-2xl border border-purple-500/20 bg-gradient-to-r from-purple-950/20 via-slate-900/60 to-purple-950/20 p-5 shadow-xl">
+            <div className="flex items-center gap-3">
+              <div className="flex h-11 w-11 items-center justify-center rounded-2xl bg-purple-500/10 text-purple-300 border border-purple-400/30">
+                <Bot size={22} />
+              </div>
+              <div>
+                <h3 className="text-sm font-bold text-white flex items-center gap-2">
+                  Pilotage des Messages Automatiques par IA
+                  <span className="rounded bg-purple-950/80 px-2 py-0.5 text-[10px] font-bold text-purple-300 border border-purple-400/30 uppercase">
+                    Section 35
+                  </span>
+                </h3>
+                <p className="text-xs text-slate-400">
+                  Détection des situations réelles (absences, notes, soldes) • Validation humaine obligatoire avant envoi
+                </p>
+              </div>
+            </div>
+
+            <div className="flex items-center gap-2">
+              <button
+                type="button"
+                onClick={handleTriggerAiAnalysis}
+                disabled={analyzingRules}
+                className="flex items-center gap-1.5 rounded-xl border border-cyan-400/40 bg-cyan-500/20 px-4 py-2 text-xs font-bold text-cyan-200 hover:bg-cyan-500/30 transition cursor-pointer disabled:opacity-50"
+              >
+                {analyzingRules ? <RefreshCw size={14} className="animate-spin" /> : <Play size={14} />}
+                {analyzingRules ? "Analyse en cours..." : "Scanner & Détecter"}
+              </button>
+              <button
+                type="button"
+                onClick={() => setMode("inbox")}
+                className="rounded-xl border border-white/10 bg-white/5 p-2 text-slate-400 hover:text-white transition cursor-pointer"
+                title="Retour à la boîte de réception"
+              >
+                <X size={16} />
+              </button>
+            </div>
+          </div>
+
+          {/* Grille des règles configurables */}
+          <div className="space-y-3">
+            <h4 className="text-xs font-bold uppercase tracking-wider text-slate-400 flex items-center gap-2">
+              <Sparkles size={14} className="text-purple-400" />
+              Règles d'Automatisation Configurables ({automatedRules.length})
+            </h4>
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+              {automatedRules.map((rule) => (
+                <div
+                  key={rule.id}
+                  className={cn(
+                    "rounded-xl border p-4 transition flex flex-col justify-between space-y-3",
+                    rule.is_active
+                      ? "border-purple-500/30 bg-purple-950/10 hover:border-purple-400/50"
+                      : "border-white/5 bg-white/[0.01] opacity-60"
+                  )}
+                >
+                  <div className="space-y-1.5">
+                    <div className="flex items-center justify-between">
+                      <span className="text-[10px] font-bold uppercase tracking-wider px-2 py-0.5 rounded bg-black/40 border border-white/10 text-cyan-300">
+                        {rule.trigger}
+                      </span>
+                      <button
+                        type="button"
+                        onClick={() => handleToggleRule(rule.id, !rule.is_active)}
+                        className={cn(
+                          "px-2.5 py-0.5 rounded text-[11px] font-bold border transition cursor-pointer",
+                          rule.is_active
+                            ? "bg-emerald-500/20 text-emerald-300 border-emerald-400/40"
+                            : "bg-slate-800 text-slate-400 border-slate-700"
+                        )}
+                      >
+                        {rule.is_active ? "Active" : "Désactivée"}
+                      </button>
+                    </div>
+                    <h5 className="text-sm font-bold text-white">{rule.name}</h5>
+                    <p className="text-xs text-slate-300 leading-relaxed">{rule.description}</p>
+                  </div>
+
+                  <div className="pt-2 border-t border-white/5 flex items-center justify-between text-[11px] text-slate-400">
+                    <span className="flex items-center gap-1 text-amber-300">
+                      <ShieldCheck size={13} /> Validation humaine requise
+                    </span>
+                    {rule.last_run_at && (
+                      <span className="font-mono text-[10px] text-slate-500">
+                        Dernier scan : {new Date(rule.last_run_at).toLocaleDateString("fr-FR")}
+                      </span>
+                    )}
+                  </div>
+                </div>
+              ))}
+            </div>
+          </div>
+
+          {/* File d'attente des brouillons générés */}
+          <div className="space-y-3">
+            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+              <div className="flex items-center gap-2">
+                <h4 className="text-xs font-bold uppercase tracking-wider text-slate-400 flex items-center gap-2">
+                  <Mail size={14} className="text-cyan-400" />
+                  Brouillons Générés par IA ({automatedDrafts.length})
+                </h4>
+                {automatedDrafts.filter((d) => d.status === "pending_approval").length > 0 && (
+                  <span className="rounded bg-amber-500/20 text-amber-300 border border-amber-400/40 px-2 py-0.5 text-[10px] font-bold">
+                    {automatedDrafts.filter((d) => d.status === "pending_approval").length} en attente d'approbation
+                  </span>
+                )}
+              </div>
+
+              <div className="flex items-center gap-2">
+                {/* Filtres de statut */}
+                <div className="flex rounded-lg bg-black/40 border border-white/10 p-0.5 text-[11px]">
+                  {(["pending", "sent", "rejected", "all"] as const).map((st) => (
+                    <button
+                      key={st}
+                      type="button"
+                      onClick={() => setDraftFilter(st)}
+                      className={cn(
+                        "px-2.5 py-1 rounded transition cursor-pointer capitalize font-semibold",
+                        draftFilter === st
+                          ? "bg-cyan-500/20 text-cyan-300"
+                          : "text-slate-400 hover:text-white"
+                      )}
+                    >
+                      {st === "pending" ? "En attente" : st === "sent" ? "Transmis" : st === "rejected" ? "Rejetés" : "Tous"}
+                    </button>
+                  ))}
+                </div>
+
+                {automatedDrafts.some((d) => d.status === "pending_approval") && (
+                  <button
+                    type="button"
+                    onClick={handleBatchApprove}
+                    className="flex items-center gap-1.5 rounded-xl border border-emerald-400/40 bg-emerald-500/20 px-3 py-1.5 text-xs font-bold text-emerald-300 hover:bg-emerald-500/30 transition cursor-pointer"
+                  >
+                    <CheckCheck size={14} /> Tout approuver
+                  </button>
+                )}
+              </div>
+            </div>
+
+            {automatedDrafts.filter((d) => draftFilter === "all" || (draftFilter === "pending" && d.status === "pending_approval") || (draftFilter === "sent" && d.status === "sent") || (draftFilter === "rejected" && d.status === "rejected")).length === 0 ? (
+              <div className="rounded-2xl border border-white/10 bg-white/[0.01] p-8 text-center text-xs text-slate-400 space-y-2">
+                <p>Aucun brouillon de message dans cette catégorie.</p>
+                <p className="text-[11px] text-slate-500">
+                  Cliquez sur « Scanner & Détecter » ci-dessus pour rechercher de nouvelles situations à traiter.
+                </p>
+              </div>
+            ) : (
+              <div className="space-y-3">
+                {automatedDrafts
+                  .filter((d) => draftFilter === "all" || (draftFilter === "pending" && d.status === "pending_approval") || (draftFilter === "sent" && d.status === "sent") || (draftFilter === "rejected" && d.status === "rejected"))
+                  .map((draft) => {
+                    const isPending = draft.status === "pending_approval";
+                    const isSent = draft.status === "sent";
+                    const isRejected = draft.status === "rejected";
+
+                    return (
+                      <div
+                        key={draft.id}
+                        className={cn(
+                          "rounded-2xl border p-4 transition space-y-3",
+                          isPending
+                            ? "border-amber-500/30 bg-amber-950/10"
+                            : isSent
+                            ? "border-emerald-500/30 bg-emerald-950/10"
+                            : "border-red-500/20 bg-red-950/10 opacity-70"
+                        )}
+                      >
+                        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 border-b border-white/5 pb-2">
+                          <div className="flex items-center gap-2">
+                            <span className="text-xs font-bold text-white">{draft.recipient_name}</span>
+                            <span className="rounded bg-black/40 px-2 py-0.5 text-[10px] font-mono text-cyan-300 border border-white/10">
+                              {draft.recipient_role}
+                            </span>
+                            <span className="text-[11px] text-slate-400">• Règle : « {draft.rule_name} »</span>
+                          </div>
+
+                          <div className="flex items-center gap-2">
+                            <span
+                              className={cn(
+                                "rounded px-2 py-0.5 text-[10px] font-bold uppercase tracking-wider border",
+                                isPending
+                                  ? "bg-amber-950/60 text-amber-300 border-amber-400/30"
+                                  : isSent
+                                  ? "bg-emerald-950/60 text-emerald-300 border-emerald-400/30"
+                                  : "bg-red-950/60 text-red-300 border-red-500/30"
+                              )}
+                            >
+                              {isPending ? "Attente validation" : isSent ? "Transmis ✓" : "Rejeté"}
+                            </span>
+                            <span className="text-[10px] font-mono text-slate-500">
+                              {new Date(draft.generated_at).toLocaleString("fr-FR")}
+                            </span>
+                          </div>
+                        </div>
+
+                        <div className="space-y-1">
+                          <h6 className="text-xs font-bold text-cyan-200">{draft.subject}</h6>
+                          <p className="text-xs text-slate-300 whitespace-pre-wrap leading-relaxed bg-black/40 p-3 rounded-xl border border-white/5">
+                            {draft.body}
+                          </p>
+                        </div>
+
+                        {isPending && (
+                          <div className="flex items-center justify-end gap-2 pt-1">
+                            <button
+                              type="button"
+                              onClick={() => handleRejectDraft(draft.id)}
+                              className="flex items-center gap-1 rounded-xl border border-red-500/30 bg-red-950/20 px-3 py-1.5 text-xs font-semibold text-red-300 hover:bg-red-950/40 transition cursor-pointer"
+                            >
+                              <X size={13} /> Rejeter
+                            </button>
+                            <button
+                              type="button"
+                              onClick={() => handleApproveDraft(draft.id)}
+                              className="flex items-center gap-1.5 rounded-xl border border-emerald-400/50 bg-emerald-500/20 px-4 py-1.5 text-xs font-bold text-emerald-300 hover:bg-emerald-500/30 transition shadow-lg cursor-pointer"
+                            >
+                              <Check size={14} /> Approuver & Envoyer
+                            </button>
+                          </div>
+                        )}
+
+                        {isRejected && draft.rejection_reason && (
+                          <div className="text-[11px] text-red-300/80 bg-red-950/30 p-2 rounded-lg border border-red-500/20">
+                            Motif du rejet : {draft.rejection_reason}
+                          </div>
+                        )}
+                      </div>
+                    );
+                  })}
+              </div>
+            )}
+          </div>
+        </div>
+      ) : mode === "new" ? (
         <Card className="mx-auto max-w-2xl p-6 relative">
           {/* En-tête de la modale/carte de nouveau message avec bouton de fermeture explicite */}
           <div className="flex items-center justify-between border-b border-white/10 pb-4 mb-4">

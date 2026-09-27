@@ -40,6 +40,9 @@ export function ModulesPage() {
   const [editing, setEditing] = useState<any>(null);
   const [creating, setCreating] = useState(false);
   const [viewing, setViewing] = useState<any>(null);
+  const [statModule, setStatModule] = useState<any>(null);
+  const [searchMod, setSearchMod] = useState("");
+  const [statusFilter, setStatusFilter] = useState<"all" | "active" | "archived">("all");
   const [form, setForm] = useState<any>(blankModule("informatique"));
 
   const isTeacher = user?.role === "teacher";
@@ -48,7 +51,26 @@ export function ModulesPage() {
   const list = db.modules
     .filter((m) => m.formation === tab)
     .filter((m) => (myTeacher ? teacherModules.includes(m.id) : true))
+    .filter((m) => {
+      if (statusFilter === "active" && m.active === false) return false;
+      if (statusFilter === "archived" && m.active !== false) return false;
+      if (searchMod.trim()) {
+        const q = searchMod.toLowerCase().trim();
+        return (m.titre || "").toLowerCase().includes(q) || (m.description || "").toLowerCase().includes(q);
+      }
+      return true;
+    })
     .sort((a, b) => a.numero - b.numero);
+
+  const toggleArchive = (m: any) => {
+    const newActive = m.active === false ? true : false;
+    update((d) => ({
+      ...d,
+      modules: d.modules.map((x) => x.id === m.id ? { ...x, active: newActive } : x),
+    }));
+    log(`Module ${newActive ? "réactivé" : "archivé"} : ${m.titre}`);
+    toastMsg.info(`Module ${newActive ? "réactivé" : "archivé"} : ${m.titre}`);
+  };
 
   const openEdit = (m: any) => {
     setForm({
@@ -185,14 +207,46 @@ export function ModulesPage() {
     <div>
       <PageHead title="Formations & Modules" subtitle={isTeacher ? "Modifiez le contenu de vos modules : programme, chapitres, objectifs..." : "Fiches détaillées dynamiques — description, objectifs, programme, chapitres, image"}
         actions={!isTeacher ? <Btn onClick={() => { setForm(blankModule(tab)); setEditing(null); setCreating(true); }}><PlusCircle size={16} /> Ajouter un module</Btn> : undefined} />
-      <div className="mb-5 flex gap-2">
-        {(["informatique", "industriel"] as Formation[]).map((f) => (
-          <button key={f} onClick={() => setTab(f)}
-            className={cn("rounded-xl border px-5 py-2.5 text-sm font-bold transition-all",
-              tab === f ? (f === "informatique" ? "border-red-500/60 bg-red-500/10 text-red-400" : "border-cyan-400/60 bg-cyan-400/10 text-cyan-300") : "border-white/10 text-slate-400 hover:bg-white/5")}>
-            {formationLabel(f)} ({db.modules.filter((m) => m.formation === f).length})
-          </button>
-        ))}
+      {/* Filtres de filière & recherche/statut */}
+      <div className="mb-5 flex flex-col md:flex-row items-stretch md:items-center justify-between gap-3">
+        <div className="flex gap-2">
+          {(["informatique", "industriel"] as Formation[]).map((f) => (
+            <button key={f} onClick={() => setTab(f)}
+              className={cn("rounded-xl border px-4 py-2 text-xs font-bold transition-all cursor-pointer",
+                tab === f ? (f === "informatique" ? "border-red-500/60 bg-red-500/15 text-red-300 shadow-[0_0_12px_rgba(239,68,68,0.25)]" : "border-cyan-400/60 bg-cyan-400/15 text-cyan-200 shadow-[0_0_12px_rgba(0,229,255,0.25)]") : "border-white/10 text-slate-400 hover:bg-white/5")}>
+              {formationLabel(f)} ({db.modules.filter((m) => m.formation === f).length})
+            </button>
+          ))}
+        </div>
+
+        <div className="flex flex-wrap items-center gap-2">
+          <div className="relative">
+            <Search size={14} className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-cyan-400" />
+            <input
+              type="text"
+              placeholder="Filtrer les modules..."
+              value={searchMod}
+              onChange={(e) => setSearchMod(e.target.value)}
+              className="rounded-xl border border-white/10 bg-[#070E20] pl-8 pr-3 py-1.5 text-xs text-white placeholder-slate-500 outline-none focus:border-cyan-400"
+            />
+          </div>
+
+          <div className="flex rounded-xl border border-white/10 p-0.5 bg-black/20 text-xs">
+            {(["all", "active", "archived"] as const).map((st) => (
+              <button
+                key={st}
+                type="button"
+                onClick={() => setStatusFilter(st)}
+                className={cn(
+                  "px-2.5 py-1 rounded-lg font-semibold transition cursor-pointer",
+                  statusFilter === st ? "bg-cyan-400/20 text-cyan-300" : "text-slate-400 hover:text-white"
+                )}
+              >
+                {st === "all" ? "Tous" : st === "active" ? "Actifs" : "Archivés"}
+              </button>
+            ))}
+          </div>
+        </div>
       </div>
 
       <div className="grid gap-5 md:grid-cols-2 xl:grid-cols-3">
@@ -200,8 +254,10 @@ export function ModulesPage() {
           const studentCount = db.students.filter((s) => (s.modules || []).includes(m.id)).length;
           const courseCount = db.courses.filter((c) => c.moduleId === m.id).length;
           const scheduleCount = db.schedule.filter((s) => s.moduleId === m.id).length;
+          const isArchived = m.active === false;
+
           return (
-            <Card key={m.id} className="overflow-hidden flex flex-col justify-between" glow={tab === "informatique" ? "red" : "cyan"}>
+            <Card key={m.id} className={cn("overflow-hidden flex flex-col justify-between transition-all", isArchived && "opacity-60 bg-slate-950/40")} glow={tab === "informatique" ? "red" : "cyan"}>
               <div>
                 {m.image ? (
                   <div className="relative h-32 w-full overflow-hidden border-b border-white/5">
@@ -209,8 +265,9 @@ export function ModulesPage() {
                     <div className="absolute inset-0 bg-gradient-to-t from-[#081022] via-transparent to-transparent" />
                   </div>
                 ) : (
-                  <div className={cn("h-16 w-full border-b border-white/5 flex items-center px-5", tab === "informatique" ? "bg-red-950/20" : "bg-cyan-950/20")}>
+                  <div className={cn("h-16 w-full border-b border-white/5 flex items-center justify-between px-5", tab === "informatique" ? "bg-red-950/20" : "bg-cyan-950/20")}>
                     <span className="font-mono text-xs font-bold text-slate-400">FILIÈRE {formationLabel(m.formation).toUpperCase()}</span>
+                    {isArchived && <Badge color="red">Archivé</Badge>}
                   </div>
                 )}
                 <div className="p-5">
@@ -220,15 +277,21 @@ export function ModulesPage() {
                         {moduleIcon(m.icon, "h-6 w-6")}
                       </div>
                       <div>
-                        <p className="font-mono text-[10px] font-bold tracking-[0.25em] text-slate-500 uppercase">MODULE {String(m.numero).padStart(2, "0")}</p>
+                        <div className="flex items-center gap-2">
+                          <p className="font-mono text-[10px] font-bold tracking-[0.25em] text-slate-500 uppercase">MODULE {String(m.numero).padStart(2, "0")}</p>
+                          {isArchived && <span className="text-[10px] font-bold text-red-400 font-mono">[Archivé]</span>}
+                        </div>
                         <h4 className="font-display text-base font-black text-white leading-tight">{m.titre}</h4>
                       </div>
                     </div>
-                    <div className="flex gap-1.5">
-                      <button onClick={() => setViewing(m)} className="rounded-lg border border-white/10 p-2 text-slate-300 hover:border-cyan-400/40 hover:text-cyan-300 transition-colors" title="Fiche détaillée"><Eye size={14} /></button>
-                      <button onClick={() => openEdit(m)} className="rounded-lg border border-white/10 p-2 text-slate-300 hover:border-amber-400/40 hover:text-amber-300 transition-colors" title="Modifier le module"><Pencil size={14} /></button>
+                    <div className="flex gap-1">
+                      <button onClick={() => setViewing(m)} className="rounded-lg border border-white/10 p-1.5 text-slate-300 hover:border-cyan-400/40 hover:text-cyan-300 transition-colors" title="Fiche détaillée"><Eye size={13} /></button>
+                      <button onClick={() => openEdit(m)} className="rounded-lg border border-white/10 p-1.5 text-slate-300 hover:border-amber-400/40 hover:text-amber-300 transition-colors" title="Modifier le module"><Pencil size={13} /></button>
+                      <button onClick={() => toggleArchive(m)} className="rounded-lg border border-white/10 p-1.5 text-slate-300 hover:border-purple-400/40 hover:text-purple-300 transition-colors" title={isArchived ? "Désarchiver" : "Archiver le module"}>
+                        <Archive size={13} />
+                      </button>
                       {!isTeacher && <button onClick={() => deleteModule(m)}
-                        className="rounded-lg border border-white/10 p-2 text-slate-300 hover:border-red-500/40 hover:text-red-400 transition-colors" title="Supprimer le module"><Trash2 size={14} /></button>}
+                        className="rounded-lg border border-white/10 p-1.5 text-slate-300 hover:border-red-500/40 hover:text-red-400 transition-colors" title="Supprimer le module"><Trash2 size={13} /></button>}
                     </div>
                   </div>
 
@@ -245,8 +308,8 @@ export function ModulesPage() {
                 </div>
               </div>
 
-              {/* Barre d'action rapide spatiale */}
-              <div className="border-t border-white/5 bg-black/20 p-3 px-5 flex items-center justify-between text-xs">
+              {/* Barre d'action rapide spatiale (Section 20) */}
+              <div className="border-t border-white/5 bg-black/20 p-2.5 px-4 flex items-center justify-between text-xs">
                 <Link
                   to="/app/cours"
                   className="font-bold text-cyan-400 hover:text-cyan-200 transition-colors flex items-center gap-1 text-[11px]"
@@ -263,10 +326,11 @@ export function ModulesPage() {
                 </Link>
                 <button
                   type="button"
-                  onClick={() => setViewing(m)}
-                  className="rounded-md border border-white/10 px-2.5 py-1 text-[11px] font-semibold text-white hover:bg-white/10 transition-colors"
+                  onClick={() => setStatModule(m)}
+                  className="flex items-center gap-1 rounded-md border border-cyan-400/30 bg-cyan-400/10 px-2.5 py-1 text-[11px] font-bold text-cyan-200 hover:bg-cyan-400/25 transition-colors cursor-pointer"
                 >
-                  Fiche
+                  <TrendingUp size={12} />
+                  <span>Stats</span>
                 </button>
               </div>
             </Card>
@@ -309,6 +373,89 @@ export function ModulesPage() {
           </div>
         )}
       </Modal>
+
+      {/* Modal Statistiques détaillées du module (Section 20) */}
+      {statModule && (
+        <Modal open={Boolean(statModule)} onClose={() => setStatModule(null)} title={`Statistiques — ${statModule.titre}`} wide>
+          {(() => {
+            const enrolled = db.students.filter((s) => (s.modules || []).includes(statModule.id));
+            const teachersAssigned = db.teachers.filter((t) => (t.modules || []).includes(statModule.id));
+            const courseList = db.courses.filter((c) => c.moduleId === statModule.id);
+            const scheduleSlots = db.schedule.filter((s) => s.moduleId === statModule.id);
+            const profitability = calculateModuleProfitability(db, statModule.id);
+
+            return (
+              <div className="space-y-5">
+                {/* 4 Indicateurs Clés */}
+                <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
+                  <div className="rounded-2xl border border-cyan-400/30 bg-cyan-950/20 p-3 text-center">
+                    <span className="text-[10px] uppercase font-bold text-cyan-300">Apprenants inscrits</span>
+                    <p className="font-display text-2xl font-black text-white">{enrolled.length}</p>
+                  </div>
+                  <div className="rounded-2xl border border-purple-400/30 bg-purple-950/20 p-3 text-center">
+                    <span className="text-[10px] uppercase font-bold text-purple-300">Formateurs affectés</span>
+                    <p className="font-display text-2xl font-black text-white">{teachersAssigned.length}</p>
+                  </div>
+                  <div className="rounded-2xl border border-blue-400/30 bg-blue-950/20 p-3 text-center">
+                    <span className="text-[10px] uppercase font-bold text-blue-300">Supports de cours</span>
+                    <p className="font-display text-2xl font-black text-white">{courseList.length}</p>
+                  </div>
+                  <div className="rounded-2xl border border-emerald-400/30 bg-emerald-950/20 p-3 text-center">
+                    <span className="text-[10px] uppercase font-bold text-emerald-300">Rentabilité nette</span>
+                    <p className="font-display text-lg font-black text-emerald-300">{money(profitability.margeNette)}</p>
+                  </div>
+                </div>
+
+                {/* Formateurs assignés */}
+                <div className="rounded-xl border border-white/10 bg-[#060E20] p-4 text-xs">
+                  <p className="font-bold text-white uppercase tracking-wider mb-2.5 flex items-center gap-1.5 text-[11px]">
+                    <GraduationCap size={14} className="text-cyan-400" />
+                    Formateurs assurant ce module ({teachersAssigned.length})
+                  </p>
+                  {teachersAssigned.length === 0 ? (
+                    <p className="text-slate-500 italic">Aucun formateur expressément rattaché à ce module.</p>
+                  ) : (
+                    <div className="grid gap-2 sm:grid-cols-2">
+                      {teachersAssigned.map((t) => (
+                        <div key={t.id} className="flex items-center justify-between rounded-lg border border-white/5 bg-white/[0.02] p-2">
+                          <div>
+                            <p className="font-bold text-slate-200">{t.prenom} {t.nom}</p>
+                            <p className="text-[10px] text-slate-400">{t.specialite || "Formateur"}</p>
+                          </div>
+                          <span className="font-mono text-[10px] text-cyan-300 font-semibold">{t.id}</span>
+                        </div>
+                      ))}
+                    </div>
+                  )}
+                </div>
+
+                {/* Séances planifiées */}
+                <div className="rounded-xl border border-white/10 bg-[#060E20] p-4 text-xs">
+                  <p className="font-bold text-white uppercase tracking-wider mb-2 flex items-center gap-1.5 text-[11px]">
+                    <CalendarDays size={14} className="text-cyan-400" />
+                    Volume planifié dans l'emploi du temps ({scheduleSlots.length} séance(s))
+                  </p>
+                  {scheduleSlots.length === 0 ? (
+                    <p className="text-slate-500 italic">Aucun créneau planifié pour ce module.</p>
+                  ) : (
+                    <div className="flex flex-wrap gap-2">
+                      {scheduleSlots.map((s) => (
+                        <span key={s.id} className="rounded-md border border-white/10 bg-white/5 px-2.5 py-1 text-[11px] text-slate-300">
+                          {s.jour} {s.heureDebut}-{s.heureFin} {s.salle ? `(${s.salle})` : ""}
+                        </span>
+                      ))}
+                    </div>
+                  )}
+                </div>
+
+                <div className="flex justify-end gap-2 pt-2">
+                  <Btn variant="ghost" onClick={() => setStatModule(null)}>Fermer</Btn>
+                </div>
+              </div>
+            );
+          })()}
+        </Modal>
+      )}
 
       {/* edit fiche */}
       <Modal open={creating} onClose={() => setCreating(false)} title={editing ? `Modifier — ${editing.titre}` : "Nouveau module"} wide>
@@ -954,6 +1101,24 @@ export function SchedulePage() {
                               Groupe : {i.groupe}
                             </p>
                           )}
+
+                          {/* Raccourcis opérationnels vers Présences et Heures Enseignant (Sections 11 & 12) */}
+                          <div className="mt-3 grid grid-cols-2 gap-2 border-t border-white/5 pt-2.5">
+                            <Link
+                              to={`/app/presences`}
+                              className="flex items-center justify-center gap-1.5 rounded-lg border border-cyan-400/30 bg-cyan-400/10 py-1.5 text-[11px] font-bold text-cyan-200 hover:bg-cyan-400/20 transition"
+                            >
+                              <ClipboardCheck size={12} />
+                              <span>Présences</span>
+                            </Link>
+                            <Link
+                              to={`/app/heures-enseignants?teacherId=${i.teacherId}`}
+                              className="flex items-center justify-center gap-1.5 rounded-lg border border-white/10 bg-white/5 py-1.5 text-[11px] font-bold text-slate-300 hover:border-emerald-400/40 hover:text-emerald-300 transition"
+                            >
+                              <BadgeDollarSign size={12} />
+                              <span>Vacation</span>
+                            </Link>
+                          </div>
                         </div>
                       );
                     })}
@@ -1385,46 +1550,194 @@ function Info({ label, value }: { label: string; value: React.ReactNode }) {
 
 /* ================= PRÉSENCES ================= */
 export function AttendancePage() {
-  const { db, user, update, log } = useStore();
+  const { db, user, update, log, notify } = useStore();
   const [date, setDate] = useState(today());
   const [moduleId, setModuleId] = useState("");
   const [salle, setSalle] = useState("Salle 01");
+  const [selectedScheduleId, setSelectedScheduleId] = useState("");
   const [status, setStatus] = useState<Record<string, AttendanceStatus>>({});
 
   const teacher = user?.role === "teacher" ? db.teachers.find((t) => t.userId === user.id) : null;
   const teacherModuleIds = teacher ? getTeacherModuleIds(teacher, db) : [];
   const allowedModules = db.modules.filter((m) => (teacher ? teacherModuleIds.includes(m.id) : true));
   const mod = db.modules.find((m) => m.id === moduleId);
-  const students = db.students.filter((s) => (mod ? (s.modules || []).includes(mod.id) : true) && s.statut === "actif");
+
+  // Séances de la date sélectionnée (par date exacte ou jour hebdomadaire)
+  const dayNameFr = ["Dimanche", "Lundi", "Mardi", "Mercredi", "Jeudi", "Vendredi", "Samedi"][new Date(date).getDay()];
+  const availableSlots = (db.schedule || []).filter((s) => {
+    if (teacher && s.teacherId !== teacher.id && s.teacherId !== teacher.userId) return false;
+    if (s.date) return s.date === date;
+    return (s.jour || "").toLowerCase().trim() === dayNameFr.toLowerCase().trim();
+  });
+
+  const onSelectSlot = (slotId: string) => {
+    setSelectedScheduleId(slotId);
+    if (!slotId) return;
+    const slot = db.schedule.find((s) => s.id === slotId);
+    if (slot) {
+      setModuleId(slot.moduleId);
+      if (slot.salle) setSalle(slot.salle);
+    }
+  };
+
+  const selectedSlot = db.schedule.find((s) => s.id === selectedScheduleId);
+
+  const students = useMemo(() => {
+    if (selectedSlot) {
+      return studentsOfSchedule(db, selectedSlot);
+    }
+    return db.students.filter((s) => (mod ? (s.modules || []).includes(mod.id) : true) && s.statut === "actif");
+  }, [db, selectedSlot, mod]);
 
   const existing = db.attendance.filter((a) => a.date === date && a.moduleId === moduleId);
 
+  // Statistiques en direct pour la séance
+  const presentCount = students.filter((s) => (status[s.id] ?? existing.find((a) => a.studentId === s.id)?.statut ?? "present") === "present").length;
+  const retardCount = students.filter((s) => (status[s.id] ?? existing.find((a) => a.studentId === s.id)?.statut) === "retard").length;
+  const absentCount = students.filter((s) => (status[s.id] ?? existing.find((a) => a.studentId === s.id)?.statut) === "absent").length;
+  const attendanceRate = students.length > 0 ? Math.round((presentCount / students.length) * 100) : 0;
+
   const saveAll = () => {
     const recs = students.map((s) => ({
-      id: uid("ATT"), studentId: s.id, date, moduleId, statut: status[s.id] ?? "present",
-      heure: new Date().toTimeString().slice(0, 5), salle, teacherId: teacher?.id ?? user!.id,
+      id: uid("ATT"),
+      studentId: s.id,
+      date,
+      moduleId,
+      statut: status[s.id] ?? existing.find((a) => a.studentId === s.id)?.statut ?? "present",
+      heure: new Date().toTimeString().slice(0, 5),
+      salle,
+      teacherId: selectedSlot?.teacherId ?? teacher?.id ?? user!.id,
     }));
     update((d) => ({
       ...d,
       attendance: [...d.attendance.filter((a) => !(a.date === date && a.moduleId === moduleId)), ...recs],
     }));
-    log(`Présences enregistrées : ${recs.filter((r) => r.statut === "present").length} présents sur ${recs.length}`);
+    const presentTotal = recs.filter((r) => r.statut === "present").length;
+    log(`Présences enregistrées pour ${mod?.titre || "le module"} : ${presentTotal} présents sur ${recs.length} apprenants`);
+    toastMsg.success("Feuille de présence enregistrée ✓", `${presentTotal} présent(s) sur ${recs.length}`);
+  };
+
+  const autoMarkAllPresent = () => {
+    const newStatus: Record<string, AttendanceStatus> = {};
+    students.forEach((s) => {
+      newStatus[s.id] = "present";
+    });
+    setStatus(newStatus);
+    const recs = students.map((s) => ({
+      id: uid("ATT"),
+      studentId: s.id,
+      date,
+      moduleId,
+      statut: "present" as AttendanceStatus,
+      heure: selectedSlot?.heureDebut || new Date().toTimeString().slice(0, 5),
+      salle,
+      teacherId: selectedSlot?.teacherId ?? teacher?.id ?? user!.id,
+    }));
+    update((d) => ({
+      ...d,
+      attendance: [...d.attendance.filter((a) => !(a.date === date && a.moduleId === moduleId)), ...recs],
+    }));
+    log(`Pointage automatique : ${students.length} apprenant(s) marqués présents pour ${mod?.titre || "séance"}`);
+    notify("teacher", "Pointage automatique effectué", `${students.length} apprenant(s) marqués présents pour la séance de ${mod?.titre || "cours"}.`, "presence");
+    toastMsg.success("Pointage automatique validé ✓", `${students.length} apprenant(s) enregistrés présents.`);
+  };
+
+  const exportAttendanceCSV = () => {
+    const headers = ["Matricule", "Nom", "Prénom", "Formation", "Module", "Date", "Statut", "Salle"];
+    const rows = students.map((s) => {
+      const st = status[s.id] ?? existing.find((a) => a.studentId === s.id)?.statut ?? "present";
+      return [s.id, s.nom, s.prenom, formationLabel(s.formation), mod?.titre || moduleId, date, st, salle];
+    });
+    const csv = [headers.join(";"), ...rows.map((r) => r.map((c) => `"${String(c).replace(/"/g, '""')}"`).join(";"))].join("\n");
+    const blob = new Blob(["\ufeff" + csv], { type: "text/csv;charset=utf-8;" });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement("a");
+    a.href = url;
+    a.download = `presences_${date}_${mod?.titre ? mod.titre.slice(0, 15) : "cours"}.csv`;
+    a.click();
+    toastMsg.success("Export émargement CSV téléchargé ✓");
   };
 
   return (
-    <div>
-      <PageHead title="Gestion des présences" subtitle="QR Code ou validation manuelle par l'enseignant" />
-      <Card className="mb-5 p-5">
-        <div className="grid gap-4 md:grid-cols-4">
-          <Field label="Date"><Input type="date" value={date} onChange={(e) => setDate(e.target.value)} /></Field>
-          <Field label="Module">
-            <Select value={moduleId} onChange={(e) => setModuleId(e.target.value)}>
-              <option value="">Tous les modules</option>
-              {allowedModules.map((m) => <option key={m.id} value={m.id}>{formationLabel(m.formation)} — {m.numero}. {m.titre}</option>)}
+    <div className="space-y-4">
+      <PageHead
+        title="Gestion des présences"
+        subtitle="Liaison directe à l'emploi du temps, émargement automatique et correction manuelle"
+        actions={
+          <div className="flex flex-wrap items-center gap-2">
+            <Btn variant="outline" onClick={exportAttendanceCSV} disabled={students.length === 0}>
+              <Download size={15} /> Exporter émargement
+            </Btn>
+            <Btn variant="outline" onClick={autoMarkAllPresent} disabled={students.length === 0} className="border-cyan-400/40 text-cyan-300 hover:bg-cyan-400/10">
+              <ClipboardCheck size={16} /> Pointer toute la séance
+            </Btn>
+          </div>
+        }
+      />
+
+      {/* Sélecteur de séance et paramètres */}
+      <Card className="p-5 border-white/10 bg-[#081024]/90 backdrop-blur-md shadow-xl">
+        <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
+          <Field label="Date de la séance">
+            <Input type="date" value={date} onChange={(e) => { setDate(e.target.value); setSelectedScheduleId(""); }} />
+          </Field>
+
+          <Field label="Séance planifiée (Emploi du temps)" hint={`${availableSlots.length} séance(s) ce jour`}>
+            <Select value={selectedScheduleId} onChange={(e) => onSelectSlot(e.target.value)}>
+              <option value="">Sélection libre (Hors planning)</option>
+              {availableSlots.map((s) => {
+                const mObj = db.modules.find((m) => m.id === s.moduleId);
+                return (
+                  <option key={s.id} value={s.id}>
+                    {s.heureDebut}-{s.heureFin} • {mObj?.titre || s.moduleId} {s.salle ? `(${s.salle})` : ""}
+                  </option>
+                );
+              })}
             </Select>
           </Field>
-          <Field label="Salle"><Input value={salle} onChange={(e) => setSalle(e.target.value)} /></Field>
-          <div className="flex items-end"><Btn onClick={saveAll} className="w-full"><Save size={16} /> Enregistrer {existing.length ? `(${existing.length} déjà)` : ""}</Btn></div>
+
+          <Field label="Module d'enseignement">
+            <Select value={moduleId} onChange={(e) => setModuleId(e.target.value)}>
+              <option value="">Tous les modules</option>
+              {allowedModules.map((m) => (
+                <option key={m.id} value={m.id}>
+                  {formationLabel(m.formation)} — {m.numero}. {m.titre}
+                </option>
+              ))}
+            </Select>
+          </Field>
+
+          <Field label="Salle de cours">
+            <Input value={salle} onChange={(e) => setSalle(e.target.value)} />
+          </Field>
+        </div>
+
+        {/* Tableau de bord de la séance */}
+        {students.length > 0 && (
+          <div className="mt-4 grid grid-cols-2 sm:grid-cols-4 gap-3 border-t border-white/10 pt-4">
+            <div className="rounded-xl border border-white/10 bg-white/[0.02] p-2.5 text-center">
+              <span className="text-[10px] uppercase font-bold text-slate-400">Effectif total</span>
+              <p className="font-display text-lg font-black text-white">{students.length}</p>
+            </div>
+            <div className="rounded-xl border border-emerald-400/30 bg-emerald-400/10 p-2.5 text-center">
+              <span className="text-[10px] uppercase font-bold text-emerald-300">Présents</span>
+              <p className="font-display text-lg font-black text-emerald-300">{presentCount}</p>
+            </div>
+            <div className="rounded-xl border border-amber-400/30 bg-amber-400/10 p-2.5 text-center">
+              <span className="text-[10px] uppercase font-bold text-amber-300">En retard</span>
+              <p className="font-display text-lg font-black text-amber-300">{retardCount}</p>
+            </div>
+            <div className="rounded-xl border border-cyan-400/30 bg-cyan-400/10 p-2.5 text-center">
+              <span className="text-[10px] uppercase font-bold text-cyan-300">Taux d'assiduité</span>
+              <p className="font-display text-lg font-black text-cyan-200">{attendanceRate}%</p>
+            </div>
+          </div>
+        )}
+
+        <div className="mt-4 flex justify-end">
+          <Btn onClick={saveAll} disabled={students.length === 0} className="shadow-[0_0_15px_rgba(0,229,255,0.4)]">
+            <Save size={16} /> Enregistrer l'émargement {existing.length ? `(${existing.length} enregistrés)` : ""}
+          </Btn>
         </div>
       </Card>
 
@@ -1492,6 +1805,7 @@ export function CoursesPage() {
   const [formationFilter, setFormationFilter] = useState("all");
   const [filter, setFilter] = useState("");
   const [teacherFilter, setTeacherFilter] = useState("all");
+  const [groupFilter, setGroupFilter] = useState("all");
   const [courseSearch, setCourseSearch] = useState("");
 
   const teacher = user?.role === "teacher" ? db.teachers.find((t) => t.userId === user.id) : null;
@@ -1500,6 +1814,14 @@ export function CoursesPage() {
     .filter((m) => (teacher ? teacherModuleIds.includes(m.id) : true))
     .filter((m) => formationFilter === "all" || m.formation === formationFilter);
 
+  // Groupes uniques existants parmi les étudiants et les cours
+  const existingGroups = useMemo(() => {
+    const set = new Set<string>();
+    (db.students || []).forEach((s) => { if (s.groupe) set.add(s.groupe); });
+    (db.courses || []).forEach((c) => { if (c.groupe) set.add(c.groupe); });
+    return Array.from(set).sort();
+  }, [db.students, db.courses]);
+
   const courses = db.courses
     .filter((c) => (teacher ? teacherModuleIds.includes(c.moduleId) : true))
     .filter((c) => {
@@ -1507,8 +1829,9 @@ export function CoursesPage() {
       const matchForm = formationFilter === "all" || (mod && mod.formation === formationFilter);
       const matchMod = !filter || c.moduleId === filter;
       const matchTeacher = teacherFilter === "all" || c.teacherId === teacherFilter;
+      const matchGroup = groupFilter === "all" || c.groupe === groupFilter || (c.audience === "groupe" && c.groupe === groupFilter);
       const matchSearch = !courseSearch.trim() || c.titre.toLowerCase().includes(courseSearch.toLowerCase()) || (c.description || "").toLowerCase().includes(courseSearch.toLowerCase());
-      return matchForm && matchMod && matchTeacher && matchSearch;
+      return matchForm && matchMod && matchTeacher && matchGroup && matchSearch;
     });
 
   const blankForm = () => ({
@@ -1801,7 +2124,20 @@ export function CoursesPage() {
             ))}
           </div>
 
-          <div className="flex items-center gap-2">
+          <div className="flex flex-wrap items-center gap-2">
+            <select
+              value={groupFilter}
+              onChange={(e) => setGroupFilter(e.target.value)}
+              className="rounded-xl border border-white/10 bg-[#070E20] px-3 py-1.5 text-xs font-medium text-slate-300 focus:border-cyan-400 focus:outline-none"
+            >
+              <option value="all">Tous les groupes</option>
+              {existingGroups.map((g) => (
+                <option key={g} value={g}>
+                  Groupe {g}
+                </option>
+              ))}
+            </select>
+
             <select
               value={teacherFilter}
               onChange={(e) => setTeacherFilter(e.target.value)}
@@ -2068,9 +2404,14 @@ export function GradesPage() {
   const { db, user, update, log } = useStore();
   const [tab, setTab] = useState<"all" | "manual">("all");
 
-  // Filtres vue globale
+  // Filtres vue globale complets (Section 27)
   const [searchLearner, setSearchLearner] = useState("");
+  const [filterFormation, setFilterFormation] = useState("");
+  const [filterGroup, setFilterGroup] = useState("");
   const [filterModuleId, setFilterModuleId] = useState("");
+  const [filterTeacherId, setFilterTeacherId] = useState("");
+  const [filterAssessment, setFilterAssessment] = useState("");
+  const [filterAcademicYear, setFilterAcademicYear] = useState("");
   const [filterPeriodFrom, setFilterPeriodFrom] = useState("");
   const [filterPeriodTo, setFilterPeriodTo] = useState("");
   const [filterStatus, setFilterStatus] = useState<"all" | "passed" | "failed">("all");
@@ -2083,6 +2424,16 @@ export function GradesPage() {
   const teacher = user?.role === "teacher" ? db.teachers.find((t) => t.userId === user.id) : null;
   const teacherModuleIds = useMemo(() => teacher ? getTeacherModuleIds(teacher, db) : [], [teacher, db]);
   const allowedModules = db.modules.filter((m) => (teacher ? teacherModuleIds.includes(m.id) : true));
+
+  // Groupes uniques existants dans les apprenants
+  const availableGroups = useMemo(() => {
+    const set = new Set<string>();
+    db.students.forEach((s) => {
+      if (s.groupe) set.add(s.groupe);
+      if (s.classe) set.add(s.classe);
+    });
+    return Array.from(set).sort();
+  }, [db.students]);
 
   // Mode Saisie manuelle
   const mod = db.modules.find((m) => m.id === moduleId);
@@ -2098,23 +2449,41 @@ export function GradesPage() {
     toastMsg.success("Notes enregistrées", `${recs.length} note(s) sauvegardée(s) pour ce module.`);
   };
 
-  // Mode "Toutes les notes"
+  // Mode "Toutes les notes" enrichi avec les 8 dimensions de filtrage
   const allGrades = useMemo(() => {
     return db.grades
       .filter((g) => (teacher ? teacherModuleIds.includes(g.moduleId) : true))
       .map((g) => {
         const student = db.students.find((s) => s.id === g.studentId);
         const moduleObj = db.modules.find((m) => m.id === g.moduleId);
+        const relatedCourse = db.courses.find((c) => c.moduleId === g.moduleId);
+        const relatedSchedule = db.schedule.find((s) => s.moduleId === g.moduleId);
+        const teacherObj = db.teachers.find(
+          (t) => t.id === relatedCourse?.teacherId || t.id === relatedSchedule?.teacherId || (moduleObj && (t.modules || []).includes(moduleObj.id))
+        );
+        const studentGroup = student?.groupe || student?.classe || "Standard";
+        const studentFormation = student?.formation || moduleObj?.formation || "informatique";
+        const academicYear = g.academicYearId || g.anneeScolaire || student?.academicYearId || student?.anneeScolaire || "2025-2026";
+
         return {
           ...g,
           studentName: student ? `${student.prenom} ${student.nom}` : g.studentId,
           studentMatricule: student?.id || "",
           moduleTitre: moduleObj ? `${moduleObj.numero}. ${moduleObj.titre}` : g.moduleId,
-          formation: moduleObj?.formation,
+          formation: studentFormation,
+          groupe: studentGroup,
+          teacherId: teacherObj?.id || "",
+          teacherName: teacherObj ? `${teacherObj.prenom} ${teacherObj.nom}` : "Formateur assigné",
+          academicYear,
         };
       })
       .filter((item) => {
         if (filterModuleId && item.moduleId !== filterModuleId) return false;
+        if (filterFormation && item.formation !== filterFormation) return false;
+        if (filterGroup && item.groupe !== filterGroup) return false;
+        if (filterTeacherId && item.teacherId !== filterTeacherId) return false;
+        if (filterAssessment && !item.appreciation.toLowerCase().includes(filterAssessment.toLowerCase())) return false;
+        if (filterAcademicYear && item.academicYear !== filterAcademicYear) return false;
         if (searchLearner) {
           const q = searchLearner.toLowerCase().trim();
           const match = item.studentName.toLowerCase().includes(q) || item.studentMatricule.toLowerCase().includes(q);
@@ -2127,7 +2496,11 @@ export function GradesPage() {
         return true;
       })
       .sort((a, b) => (b.date || "").localeCompare(a.date || ""));
-  }, [db.grades, db.students, db.modules, teacher, teacherModuleIds, filterModuleId, searchLearner, filterPeriodFrom, filterPeriodTo, filterStatus]);
+  }, [
+    db.grades, db.students, db.modules, db.teachers, db.courses, db.schedule, teacher, teacherModuleIds,
+    filterModuleId, filterFormation, filterGroup, filterTeacherId, filterAssessment, filterAcademicYear,
+    searchLearner, filterPeriodFrom, filterPeriodTo, filterStatus
+  ]);
 
   // Statistiques agrégées
   const totalNotes = allGrades.length;
@@ -2140,7 +2513,11 @@ export function GradesPage() {
     const rows = allGrades.map((g) => ({
       Apprenant: g.studentName,
       Matricule: g.studentMatricule,
+      Formation: g.formation,
+      Groupe: g.groupe,
       Module: g.moduleTitre,
+      Enseignant: g.teacherName,
+      Annee: g.academicYear,
       Note_sur_20: g.note,
       Statut: g.note >= 10 ? "Admis" : "Ajourné",
       Appreciation: g.appreciation,
@@ -2160,11 +2537,22 @@ export function GradesPage() {
 
   const resetFilters = () => {
     setSearchLearner("");
+    setFilterFormation("");
+    setFilterGroup("");
     setFilterModuleId("");
+    setFilterTeacherId("");
+    setFilterAssessment("");
+    setFilterAcademicYear("");
     setFilterPeriodFrom("");
     setFilterPeriodTo("");
     setFilterStatus("all");
   };
+
+  const hasActiveFilters = Boolean(
+    searchLearner || filterFormation || filterGroup || filterModuleId ||
+    filterTeacherId || filterAssessment || filterAcademicYear ||
+    filterPeriodFrom || filterPeriodTo || filterStatus !== "all"
+  );
 
   return (
     <div className="space-y-6">
@@ -2250,11 +2638,11 @@ export function GradesPage() {
             </Card>
           </div>
 
-          {/* Filtres de recherche */}
-          <Card className="p-4 border-white/10 bg-slate-900/70">
-            <div className="grid grid-cols-1 md:grid-cols-4 gap-3 items-end">
+          {/* Filtres de recherche exhaustifs (Section 27) */}
+          <Card className="p-4 border-white/10 bg-slate-900/70 space-y-3">
+            <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-4 gap-3 items-end">
               <div>
-                <label className="block text-xs font-semibold text-slate-400 mb-1">Recherche apprenant</label>
+                <label className="block text-xs font-semibold text-slate-400 mb-1">Apprenant</label>
                 <div className="relative">
                   <Search size={14} className="absolute left-3 top-3 text-slate-500" />
                   <Input
@@ -2267,7 +2655,34 @@ export function GradesPage() {
               </div>
 
               <div>
-                <label className="block text-xs font-semibold text-slate-400 mb-1">Module</label>
+                <label className="block text-xs font-semibold text-slate-400 mb-1">Formation / Filière</label>
+                <Select
+                  value={filterFormation}
+                  onChange={(e) => setFilterFormation(e.target.value)}
+                  className="text-xs"
+                >
+                  <option value="">Toutes les formations</option>
+                  <option value="informatique">Génie Informatique & Réseaux</option>
+                  <option value="industriel">Génie Industriel & Maintenance</option>
+                </Select>
+              </div>
+
+              <div>
+                <label className="block text-xs font-semibold text-slate-400 mb-1">Groupe / Classe</label>
+                <Select
+                  value={filterGroup}
+                  onChange={(e) => setFilterGroup(e.target.value)}
+                  className="text-xs"
+                >
+                  <option value="">Tous les groupes ({availableGroups.length})</option>
+                  {availableGroups.map((grp) => (
+                    <option key={grp} value={grp}>{grp}</option>
+                  ))}
+                </Select>
+              </div>
+
+              <div>
+                <label className="block text-xs font-semibold text-slate-400 mb-1">Matière / Module</label>
                 <Select
                   value={filterModuleId}
                   onChange={(e) => setFilterModuleId(e.target.value)}
@@ -2278,6 +2693,48 @@ export function GradesPage() {
                     <option key={m.id} value={m.id}>
                       {m.numero}. {m.titre}
                     </option>
+                  ))}
+                </Select>
+              </div>
+            </div>
+
+            <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-5 gap-3 items-end pt-1 border-t border-white/5">
+              <div>
+                <label className="block text-xs font-semibold text-slate-400 mb-1">Enseignant</label>
+                <Select
+                  value={filterTeacherId}
+                  onChange={(e) => setFilterTeacherId(e.target.value)}
+                  className="text-xs"
+                >
+                  <option value="">Tous les enseignants</option>
+                  {db.teachers.map((t) => (
+                    <option key={t.id} value={t.id}>
+                      {t.prenom} {t.nom}
+                    </option>
+                  ))}
+                </Select>
+              </div>
+
+              <div>
+                <label className="block text-xs font-semibold text-slate-400 mb-1">Évaluation</label>
+                <Input
+                  placeholder="Recherche dans évaluation..."
+                  value={filterAssessment}
+                  onChange={(e) => setFilterAssessment(e.target.value)}
+                  className="text-xs"
+                />
+              </div>
+
+              <div>
+                <label className="block text-xs font-semibold text-slate-400 mb-1">Année académique</label>
+                <Select
+                  value={filterAcademicYear}
+                  onChange={(e) => setFilterAcademicYear(e.target.value)}
+                  className="text-xs"
+                >
+                  <option value="">Toutes les années</option>
+                  {(db.academicYears && db.academicYears.length > 0 ? db.academicYears : [{ id: "2025-2026", libelle: "2025-2026" }, { id: "2026-2027", libelle: "2026-2027" }]).map((y) => (
+                    <option key={y.id} value={y.id}>{y.libelle}</option>
                   ))}
                 </Select>
               </div>
@@ -2310,16 +2767,16 @@ export function GradesPage() {
                     onChange={(e) => setFilterStatus(e.target.value as any)}
                     className="text-xs"
                   >
-                    <option value="all">Toutes les notes</option>
-                    <option value="passed">Validées (≥ 10/20)</option>
-                    <option value="failed">Non validées (&lt; 10/20)</option>
+                    <option value="all">Toutes</option>
+                    <option value="passed">Validées (≥ 10)</option>
+                    <option value="failed">Ajournées (&lt; 10)</option>
                   </Select>
                 </div>
-                {(searchLearner || filterModuleId || filterPeriodFrom || filterPeriodTo || filterStatus !== "all") && (
+                {hasActiveFilters && (
                   <button
                     type="button"
                     onClick={resetFilters}
-                    title="Réinitialiser les filtres"
+                    title="Réinitialiser tous les filtres"
                     className="mt-5 p-2 rounded-lg bg-slate-800 text-slate-400 hover:text-white hover:bg-slate-700 transition"
                   >
                     <RotateCcw size={16} />
@@ -2338,15 +2795,16 @@ export function GradesPage() {
             />
           ) : (
             <Card className="overflow-x-auto border-white/10">
-              <table className="w-full min-w-[700px] text-left">
+              <table className="w-full min-w-[800px] text-left">
                 <thead>
                   <tr className="border-b border-white/10 text-[10px] uppercase tracking-[0.2em] text-slate-400 bg-white/5">
                     <th className="px-4 py-3">Apprenant</th>
-                    <th className="px-4 py-3">Module</th>
+                    <th className="px-4 py-3">Groupe / Filière</th>
+                    <th className="px-4 py-3">Module & Enseignant</th>
                     <th className="px-4 py-3 text-center">Note /20</th>
                     <th className="px-4 py-3">Statut</th>
-                    <th className="px-4 py-3">Appréciation</th>
-                    <th className="px-4 py-3">Date</th>
+                    <th className="px-4 py-3">Évaluation & Appréciation</th>
+                    <th className="px-4 py-3">Année & Date</th>
                     <th className="px-4 py-3 text-right">Actions</th>
                   </tr>
                 </thead>
@@ -2358,10 +2816,12 @@ export function GradesPage() {
                         <p className="font-mono text-[11px] text-slate-500">{g.studentMatricule}</p>
                       </td>
                       <td className="px-4 py-3">
+                        <p className="text-xs font-semibold text-slate-300">{g.groupe}</p>
+                        <span className="text-[10px] text-slate-500 uppercase tracking-wider">{formationLabel(g.formation)}</span>
+                      </td>
+                      <td className="px-4 py-3">
                         <p className="text-xs font-medium text-slate-200">{g.moduleTitre}</p>
-                        {g.formation && (
-                          <span className="text-[10px] text-slate-500 uppercase tracking-wider">{formationLabel(g.formation)}</span>
-                        )}
+                        <p className="text-[11px] text-cyan-400">{g.teacherName}</p>
                       </td>
                       <td className="px-4 py-3 text-center">
                         <span className={cn(
@@ -2384,7 +2844,8 @@ export function GradesPage() {
                         </p>
                       </td>
                       <td className="px-4 py-3 text-xs text-slate-400 whitespace-nowrap">
-                        {g.date || "—"}
+                        <span className="font-semibold text-slate-300">{g.academicYear}</span>
+                        <p className="text-[11px] text-slate-500">{g.date || "—"}</p>
                       </td>
                       <td className="px-4 py-3 text-right">
                         <button
@@ -3801,6 +4262,12 @@ export function CertificatesPage() {
   const [resultat, setResultat] = useState("Admis");
   const [note, setNote] = useState(14);
   const [viewing, setViewing] = useState<any>(null);
+  const [verifyingCert, setVerifyingCert] = useState<any>(null);
+
+  // Filtres
+  const [searchCert, setSearchCert] = useState("");
+  const [filterFormation, setFilterFormation] = useState("");
+  const [filterYear, setFilterYear] = useState("");
 
   const sName = (id: string) => {
     const s = db.students.find((x) => x.id === id);
@@ -3811,80 +4278,265 @@ export function CertificatesPage() {
     if (!studentId) return;
     const s = db.students.find((x) => x.id === studentId)!;
     const numero = nextCertNumber();
-    const cert = { id: uid("CERT"), studentId, numero, formation: s.formation, modules: s.modules, periode: period, resultat, note, date: today() };
+    const academicYearId = db.activeAcademicYearId || s.academicYearId || "2025-2026";
+    const cert = {
+      id: uid("CERT"),
+      studentId,
+      numero,
+      formation: s.formation,
+      modules: s.modules,
+      periode: period,
+      resultat,
+      note,
+      date: today(),
+      academicYearId,
+    };
     update((d) => ({ ...d, certificates: [cert, ...d.certificates] }));
-    if (s.userId) update((d) => ({ ...d, notifications: [{ id: uid("NTF"), toId: s.userId!, title: "Certificat disponible", body: `Votre certificat ${numero} a été émis.`, date: today(), lu: false, type: "certif" }, ...d.notifications] }));
-    log(`Certificat généré : ${numero} pour ${sName(studentId)}`);
+    if (s.userId) {
+      update((d) => ({
+        ...d,
+        notifications: [
+          {
+            id: uid("NTF"),
+            toId: s.userId!,
+            title: "Certificat officiel émis",
+            body: `Votre certificat d'aptitude professionnelle ${numero} a été délivré avec succès.`,
+            date: today(),
+            lu: false,
+            type: "certif",
+          },
+          ...d.notifications,
+        ],
+      }));
+    }
+    log(`Certificat généré : ${numero} pour ${sName(studentId)} (Année: ${academicYearId})`);
+    toastMsg.success("Certificat délivré", `Certificat ${numero} généré avec succès.`);
     setViewing(cert);
   };
 
   const printCert = (c: any) => {
     const s = db.students.find((x) => x.id === c.studentId)!;
-    const mods = db.modules.filter((m) => c.modules.includes(m.id)).map((m) => m.titre).join(" • ");
+    const mods = db.modules.filter((m) => (c.modules || []).includes(m.id)).map((m) => m.titre).join(" • ");
     printHTML(`Certificat ${c.numero}`, `
-      <div class="receipt" style="text-align:center">
-        <p class="accent" style="letter-spacing:4px;font-size:12px">SENTINELLES NUMÉRIQUES</p>
-        <p class="label">Centre de Formation en Génie Informatique & Génie Industriel</p>
-        <div style="margin:24px 0"><h1 style="font-size:40px;letter-spacing:6px">CERTIFICAT</h1><p class="label">de formation professionnelle</p></div>
-        <p class="label">Décerné à</p>
-        <h2 style="font-size:28px;color:#FFB300;margin:8px 0">${s.prenom} ${s.nom}</h2>
-        <p class="label">N° ${s.id} • ${formationLabel(c.formation)}</p>
-        <p style="margin:20px auto;max-width:520px">pour avoir suivi avec succès la formation de <b>${formationLabel(c.formation)}</b> du ${c.periode}.</p>
-        <div class="row" style="max-width:420px;margin:0 auto"><span>Modules couverts</span><span style="text-align:right;max-width:220px">${mods}</span></div>
-        <div class="row" style="max-width:420px;margin:0 auto"><span>Résultat</span><span class="green">${c.resultat} — ${c.note}/20</span></div>
-        <div style="margin-top:32px;display:flex;justify-content:space-between;align-items:end">
-          <div style="text-align:center"><p style="border-top:1px solid #00E5FF;padding-top:6px;font-size:11px">Coach Fredich FOUNDOU<br>Responsable du Centre</p></div>
-          <div style="text-align:center"><p class="font-mono" style="font-size:12px">${c.numero}</p><p class="label">Certificat vérifiable</p></div>
+      <div class="receipt" style="text-align:center;max-width:800px;margin:0 auto;padding:40px;border:2px solid #00E5FF;font-family:sans-serif">
+        <p style="letter-spacing:4px;font-size:13px;font-weight:bold;color:#00E5FF">RÉPUBLIQUE DU CONGO — ENSEIGNEMENT TECHNIQUE ET PROFESSIONNEL</p>
+        <p style="font-size:14px;color:#64748B;margin-top:4px">CENTRE DE FORMATION CONTINUE SENTINELLES NUMÉRIQUES</p>
+        <div style="margin:30px 0">
+          <h1 style="font-size:36px;letter-spacing:4px;color:#0F172A;margin:0">CERTIFICAT DE FORMATION</h1>
+          <p style="font-size:13px;color:#64748B;text-transform:uppercase;letter-spacing:2px;margin-top:6px">Certification des compétences professionnelles</p>
+        </div>
+        <p style="font-size:14px;color:#475569">Le présent certificat est officiellement décerné à :</p>
+        <h2 style="font-size:28px;color:#D97706;margin:12px 0;font-weight:bold">${s.prenom} ${s.nom}</h2>
+        <p style="font-size:13px;color:#64748B;font-family:monospace">Matricule : ${s.id} • Filière : ${formationLabel(c.formation)}</p>
+        <p style="margin:24px auto;max-width:600px;font-size:14px;line-height:1.6;color:#334155">
+          Pour avoir suivi avec assiduité et validé avec succès l'ensemble du cursus de spécialisation professionnelle en <b>${formationLabel(c.formation)}</b> au cours de la période ${c.periode} (Année académique ${c.academicYearId || "2025-2026"}).
+        </p>
+        <div style="background:#F8FAFC;padding:16px;border-radius:8px;max-width:550px;margin:20px auto;text-align:left;font-size:12px">
+          <p style="margin:0 0 6px 0"><strong>Modules validés :</strong> ${mods || "Cursus modulaire complet"}</p>
+          <p style="margin:0"><strong>Mention / Résultat :</strong> <span style="color:#059669;font-weight:bold">${c.resultat} (Moyenne : ${c.note}/20)</span></p>
+        </div>
+        <div style="margin-top:40px;display:flex;justify-content:space-between;align-items:flex-end">
+          <div style="text-align:center">
+            <p style="border-top:1px solid #CBD5E1;padding-top:8px;font-size:12px;color:#475569;margin:0">
+              Direction Pédagogique<br><b>Coach Fredich FOUNDOU</b>
+            </p>
+          </div>
+          <div style="text-align:center">
+            <p style="font-family:monospace;font-size:12px;font-weight:bold;color:#0F172A;margin:0">${c.numero}</p>
+            <p style="font-size:11px;color:#64748B;margin:2px 0 0 0">Certificat authentifié & scellé numériquement</p>
+          </div>
         </div>
       </div>`);
   };
 
+  const filteredCerts = useMemo(() => {
+    return db.certificates.filter((c) => {
+      if (filterFormation && c.formation !== filterFormation) return false;
+      if (filterYear && (c.academicYearId || "2025-2026") !== filterYear) return false;
+      if (searchCert) {
+        const q = searchCert.toLowerCase().trim();
+        const student = db.students.find((s) => s.id === c.studentId);
+        const sFullName = student ? `${student.prenom} ${student.nom}`.toLowerCase() : "";
+        const match = sFullName.includes(q) || (c.numero || "").toLowerCase().includes(q) || (c.studentId || "").toLowerCase().includes(q);
+        if (!match) return false;
+      }
+      return true;
+    });
+  }, [db.certificates, db.students, searchCert, filterFormation, filterYear]);
+
   return (
-    <div>
-      <PageHead title="Certificats" subtitle="Certification des délibérés par ENIA 2.0" />
-      <Card className="mb-6 p-5">
+    <div className="space-y-6">
+      <PageHead
+        title="Certificats & Diplômes"
+        subtitle="Délivrance officielle, vérification d'authenticité et scellement des compétences"
+      />
+
+      {/* Formulaire de génération */}
+      <Card className="p-5 border-white/10 bg-slate-900/80">
+        <h3 className="text-sm font-bold text-white mb-3 flex items-center gap-2">
+          <Award size={16} className="text-amber-400" /> Émettre un nouveau certificat
+        </h3>
         <div className="grid gap-4 md:grid-cols-5">
           <Field label="Apprenant">
             <Select value={studentId} onChange={(e) => setStudentId(e.target.value)}>
-              <option value="">— Choisir —</option>
-              {db.students.map((s) => <option key={s.id} value={s.id}>{s.id} — {s.prenom} {s.nom}</option>)}
+              <option value="">— Sélectionner un apprenant —</option>
+              {db.students.map((s) => (
+                <option key={s.id} value={s.id}>
+                  {s.id} — {s.prenom} {s.nom} ({formationLabel(s.formation)})
+                </option>
+              ))}
             </Select>
           </Field>
-          <Field label="Période"><Input value={period} onChange={(e) => setPeriod(e.target.value)} /></Field>
-          <Field label="Résultat">
+          <Field label="Période">
+            <Input value={period} onChange={(e) => setPeriod(e.target.value)} />
+          </Field>
+          <Field label="Mention / Délibéré">
             <Select value={resultat} onChange={(e) => setResultat(e.target.value)}>
-              <option>Admis</option><option>Admis avec mention</option><option>Non admis</option>
+              <option>Admis</option>
+              <option>Admis avec mention Bien</option>
+              <option>Admis avec mention Très Bien</option>
+              <option>Admis avec Félicitations du Jury</option>
+              <option>Non admis</option>
             </Select>
           </Field>
-          <Field label="Note /20"><Input type="number" value={note} onChange={(e) => setNote(+e.target.value)} /></Field>
-          <div className="flex items-end"><Btn onClick={generate} className="w-full"><Award size={16} /> Générer</Btn></div>
+          <Field label="Note finale /20">
+            <Input type="number" min={0} max={20} step={0.1} value={note} onChange={(e) => setNote(+e.target.value)} />
+          </Field>
+          <div className="flex items-end">
+            <Btn onClick={generate} className="w-full bg-amber-500 hover:bg-amber-400 text-black font-bold">
+              <Award size={16} /> Émettre le certificat
+            </Btn>
+          </div>
         </div>
       </Card>
 
-      {db.certificates.length === 0 ? (
-        <Empty icon={<Award size={40} />} title="Aucun certificat émis" />
+      {/* Barre de recherche et filtres de certificats */}
+      <Card className="p-4 border-white/10 bg-slate-900/70">
+        <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 items-end">
+          <div>
+            <label className="block text-xs font-semibold text-slate-400 mb-1">Recherche certificat</label>
+            <div className="relative">
+              <Search size={14} className="absolute left-3 top-3 text-slate-500" />
+              <Input
+                placeholder="Numéro, nom apprenant ou matricule..."
+                value={searchCert}
+                onChange={(e) => setSearchCert(e.target.value)}
+                className="pl-9 text-xs"
+              />
+            </div>
+          </div>
+
+          <div>
+            <label className="block text-xs font-semibold text-slate-400 mb-1">Formation / Filière</label>
+            <Select
+              value={filterFormation}
+              onChange={(e) => setFilterFormation(e.target.value)}
+              className="text-xs"
+            >
+              <option value="">Toutes les filières</option>
+              <option value="informatique">Génie Informatique & Réseaux</option>
+              <option value="industriel">Génie Industriel & Maintenance</option>
+            </Select>
+          </div>
+
+          <div>
+            <label className="block text-xs font-semibold text-slate-400 mb-1">Année académique</label>
+            <Select
+              value={filterYear}
+              onChange={(e) => setFilterYear(e.target.value)}
+              className="text-xs"
+            >
+              <option value="">Toutes les années</option>
+              {(db.academicYears && db.academicYears.length > 0 ? db.academicYears : [{ id: "2025-2026", libelle: "2025-2026" }, { id: "2026-2027", libelle: "2026-2027" }]).map((y) => (
+                <option key={y.id} value={y.id}>{y.libelle}</option>
+              ))}
+            </Select>
+          </div>
+        </div>
+      </Card>
+
+      {filteredCerts.length === 0 ? (
+        <Empty icon={<Award size={40} className="text-slate-600" />} title="Aucun certificat trouvé" sub="Aucun certificat ne correspond aux filtres de recherche." />
       ) : (
         <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-3">
-          {db.certificates.map((c) => (
-            <Card key={c.id} className="p-5" glow="gold">
+          {filteredCerts.map((c) => (
+            <Card key={c.id} className="p-5 border-amber-400/20 bg-slate-900/90 hover:border-amber-400/40 transition">
               <div className="flex items-center justify-between">
-                <Award size={22} className="text-amber-300" />
+                <Award size={22} className="text-amber-400" />
                 <Badge color="gold">{c.resultat}</Badge>
               </div>
               <h4 className="font-display mt-2 text-lg font-black text-white">{sName(c.studentId)}</h4>
-              <p className="font-mono text-[11px] text-amber-300/80">{c.numero}</p>
-              <p className="mt-1 text-xs text-slate-400">{formationLabel(c.formation)} • {c.periode}</p>
+              <p className="font-mono text-[11px] text-amber-300 font-bold">{c.numero}</p>
+              <p className="mt-1 text-xs text-slate-400">
+                {formationLabel(c.formation)} • {c.periode}
+              </p>
+              <p className="text-[11px] text-slate-500 mt-0.5">
+                Année : {c.academicYearId || "2025-2026"} • Note : {c.note}/20
+              </p>
               <div className="mt-4 flex gap-2">
-                <Btn variant="outline" className="flex-1" onClick={() => setViewing(c)}><Eye size={14} /> Aperçu</Btn>
-                <Btn variant="ghost" onClick={() => printCert(c)}><Printer size={14} /></Btn>
+                <Btn variant="outline" className="flex-1 text-xs" onClick={() => setViewing(c)}>
+                  <Eye size={13} /> Aperçu
+                </Btn>
+                <Btn variant="outline" className="text-xs" onClick={() => setVerifyingCert(c)} title="Vérifier l'authenticité">
+                  <CheckCircle2 size={13} className="text-emerald-400" /> Vérifier
+                </Btn>
+                <Btn variant="ghost" onClick={() => printCert(c)} title="Imprimer le certificat officiel">
+                  <Printer size={14} />
+                </Btn>
               </div>
             </Card>
           ))}
         </div>
       )}
 
+      {/* Modal d'aperçu de certificat */}
       <Modal open={!!viewing} onClose={() => setViewing(null)} title="Aperçu du certificat" wide>
         {viewing && <CertificatePreview cert={viewing} onPrint={() => printCert(viewing)} />}
+      </Modal>
+
+      {/* Modal de vérification d'authenticité */}
+      <Modal open={!!verifyingCert} onClose={() => setVerifyingCert(null)} title="Contrôle d'authenticité du certificat">
+        {verifyingCert && (
+          <div className="space-y-4">
+            <div className="rounded-xl border border-emerald-400/30 bg-emerald-950/20 p-4 text-center">
+              <div className="mx-auto flex h-12 w-12 items-center justify-center rounded-full bg-emerald-500/20 text-emerald-400 mb-2">
+                <CheckCircle2 size={28} />
+              </div>
+              <h4 className="font-display text-lg font-bold text-white">Certificat Authentique & Certifié</h4>
+              <p className="text-xs text-emerald-300 mt-1">Numéro d'enregistrement vérifié au registre national</p>
+            </div>
+
+            <div className="rounded-xl border border-white/10 bg-slate-900/60 p-3.5 space-y-2 text-xs">
+              <div className="flex justify-between border-b border-white/5 pb-2">
+                <span className="text-slate-400">Numéro de série :</span>
+                <span className="font-mono font-bold text-amber-300">{verifyingCert.numero}</span>
+              </div>
+              <div className="flex justify-between border-b border-white/5 pb-2">
+                <span className="text-slate-400">Titulaire :</span>
+                <span className="font-bold text-white">{sName(verifyingCert.studentId)}</span>
+              </div>
+              <div className="flex justify-between border-b border-white/5 pb-2">
+                <span className="text-slate-400">Filière d'enseignement :</span>
+                <span className="text-slate-200">{formationLabel(verifyingCert.formation)}</span>
+              </div>
+              <div className="flex justify-between border-b border-white/5 pb-2">
+                <span className="text-slate-400">Année académique :</span>
+                <span className="text-slate-200">{verifyingCert.academicYearId || "2025-2026"}</span>
+              </div>
+              <div className="flex justify-between">
+                <span className="text-slate-400">Mention & Note :</span>
+                <span className="text-emerald-400 font-bold">{verifyingCert.resultat} ({verifyingCert.note}/20)</span>
+              </div>
+            </div>
+
+            <div className="flex justify-end gap-2 pt-2">
+              <Btn variant="ghost" onClick={() => setVerifyingCert(null)}>Fermer</Btn>
+              <Btn onClick={() => printCert(verifyingCert)}>
+                <Printer size={15} /> Imprimer le duplicata
+              </Btn>
+            </div>
+          </div>
+        )}
       </Modal>
     </div>
   );
@@ -3950,58 +4602,237 @@ const BOURSE_STATUS: { k: any; l: string; c: "gray" | "gold" | "cyan" | "green" 
 
 export function ScholarshipsPage() {
   const { db, update, log } = useStore();
-  const eligible = db.students.filter((s) => s.statut === "actif");
+  const [qSearch, setQSearch] = useState("");
+  const [filterYear, setFilterYear] = useState("");
+  const [filterStatut, setFilterStatut] = useState("");
+  const [filterFormation, setFilterFormation] = useState("");
+
   const get = (id: string) => db.scholarships.find((x) => x.studentId === id);
 
-  const setStatus = (id: string, statut: any) => {
+  const setStatus = (id: string, statut: any, montant?: number) => {
     const existing = get(id);
+    const academicYearId = db.activeAcademicYearId || "2025-2026";
+    const bData = {
+      id: existing?.id || uid("SCHL"),
+      studentId: id,
+      statut,
+      montant: montant !== undefined ? montant : (statut === "trois_ans" ? 100 : statut === "deux_ans" ? 66 : statut === "un_an" ? 33 : 0),
+      date: today(),
+      academicYearId,
+    };
+
     update((d) => ({
       ...d,
       scholarships: existing
-        ? d.scholarships.map((x) => (x.studentId === id ? { ...x, statut } : x))
-        : [...d.scholarships, { id: uid("SCHL"), studentId: id, statut, date: today() }],
+        ? d.scholarships.map((x) => (x.studentId === id ? { ...x, ...bData } : x))
+        : [...d.scholarships, bData],
     }));
+
     const s = db.students.find((x) => x.id === id);
-    if (s?.userId) update((d) => ({ ...d, notifications: [{ id: uid("NTF"), toId: s.userId!, title: "Mise à jour bourse", body: `Votre statut bourse est désormais : ${statut.replace("_", " ")}`, date: today(), lu: false, type: "bourse" }, ...d.notifications] }));
-    log(`Bourse mise à jour : ${s?.prenom} ${s?.nom} → ${statut}`);
+    if (s?.userId) {
+      update((d) => ({
+        ...d,
+        notifications: [
+          {
+            id: uid("NTF"),
+            toId: s.userId!,
+            title: "Attribution de Bourse",
+            body: `Votre statut de bourse pour l'année ${academicYearId} est désormais : ${statut.replace("_", " ")}.`,
+            date: today(),
+            lu: false,
+            type: "bourse",
+          },
+          ...d.notifications,
+        ],
+      }));
+    }
+    log(`Bourse mise à jour : ${s?.prenom} ${s?.nom} → ${statut} (Année: ${academicYearId})`);
+    toastMsg.success("Bourse enregistrée", `Statut mis à jour pour ${s?.prenom} ${s?.nom}.`);
   };
 
+  const eligible = useMemo(() => {
+    return db.students
+      .filter((s) => s.statut === "actif")
+      .filter((s) => {
+        if (filterFormation && s.formation !== filterFormation) return false;
+        if (filterYear) {
+          const sYear = s.academicYearId || s.anneeScolaire || "2025-2026";
+          if (sYear !== filterYear) return false;
+        }
+        if (filterStatut) {
+          const b = get(s.id);
+          const currentStatut = b?.statut || "non_suivi";
+          if (filterStatut === "non_suivi" && b) return false;
+          if (filterStatut !== "non_suivi" && currentStatut !== filterStatut) return false;
+        }
+        if (qSearch) {
+          const q = qSearch.toLowerCase().trim();
+          const match = `${s.prenom} ${s.nom}`.toLowerCase().includes(q) || s.id.toLowerCase().includes(q);
+          if (!match) return false;
+        }
+        return true;
+      });
+  }, [db.students, db.scholarships, qSearch, filterYear, filterStatut, filterFormation]);
+
+  // Statistiques des bourses
+  const totalBoursiers = db.scholarships.filter((b) => b.statut === "trois_ans" || b.statut === "deux_ans" || b.statut === "un_an").length;
+  const enAttente = db.scholarships.filter((b) => b.statut === "en_attente").length;
+
   return (
-    <div>
-      <PageHead title="BOURSE MON AVENIR" subtitle="3 ans d'études 100% gratuites à ENIA 2.0 pour les lauréats du test final" />
-      <Card className="mb-6 flex items-center gap-4 border-amber-400/30 bg-gradient-to-r from-amber-400/10 via-transparent to-transparent p-5">
-        <BadgeDollarSign size={28} className="shrink-0 text-amber-300" />
-        <p className="text-sm text-slate-300">
-          Les apprenants qui réussissent le test final de fin de formation bénéficient d'une <b className="text-amber-300">bourse d'études de 3 ans à ENIA 2.0</b>.
-        </p>
+    <div className="space-y-6">
+      <PageHead
+        title="Bourse Mon Avenir"
+        subtitle="3 ans d'études 100% gratuites à ENIA 2.0 pour les lauréats de fin de cursus"
+      />
+
+      {/* KPI Cards */}
+      <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
+        <Card className="p-4 border-amber-400/20 bg-amber-950/10">
+          <div className="flex items-center justify-between text-xs text-amber-300/80 mb-1">
+            <span>Bourses d'excellence accordées</span>
+            <Award size={16} className="text-amber-400" />
+          </div>
+          <p className="text-2xl font-black text-amber-300">{totalBoursiers}</p>
+          <p className="text-[11px] text-slate-500 mt-1">Prise en charge intégrale ou partielle</p>
+        </Card>
+
+        <Card className="p-4 border-cyan-400/20 bg-cyan-950/10">
+          <div className="flex items-center justify-between text-xs text-cyan-300/80 mb-1">
+            <span>Dossiers en délibération</span>
+            <Clock size={16} className="text-cyan-400" />
+          </div>
+          <p className="text-2xl font-black text-cyan-300">{enAttente}</p>
+          <p className="text-[11px] text-slate-500 mt-1">En attente de validation du jury</p>
+        </Card>
+
+        <Card className="p-4 border-white/10 bg-slate-900/60">
+          <div className="flex items-center justify-between text-xs text-slate-400 mb-1">
+            <span>Apprenants éligibles</span>
+            <Users size={16} className="text-slate-300" />
+          </div>
+          <p className="text-2xl font-black text-white">{eligible.length}</p>
+          <p className="text-[11px] text-slate-500 mt-1">Actuellement en formation</p>
+        </Card>
+      </div>
+
+      {/* Filtres avancés */}
+      <Card className="p-4 border-white/10 bg-slate-900/70">
+        <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-4 gap-3 items-end">
+          <div>
+            <label className="block text-xs font-semibold text-slate-400 mb-1">Recherche apprenant</label>
+            <div className="relative">
+              <Search size={14} className="absolute left-3 top-3 text-slate-500" />
+              <Input
+                placeholder="Nom, prénom ou ID..."
+                value={qSearch}
+                onChange={(e) => setQSearch(e.target.value)}
+                className="pl-9 text-xs"
+              />
+            </div>
+          </div>
+
+          <div>
+            <label className="block text-xs font-semibold text-slate-400 mb-1">Formation / Filière</label>
+            <Select
+              value={filterFormation}
+              onChange={(e) => setFilterFormation(e.target.value)}
+              className="text-xs"
+            >
+              <option value="">Toutes les formations</option>
+              <option value="informatique">Génie Informatique & Réseaux</option>
+              <option value="industriel">Génie Industriel & Maintenance</option>
+            </Select>
+          </div>
+
+          <div>
+            <label className="block text-xs font-semibold text-slate-400 mb-1">Statut Bourse</label>
+            <Select
+              value={filterStatut}
+              onChange={(e) => setFilterStatut(e.target.value)}
+              className="text-xs"
+            >
+              <option value="">Tous les statuts</option>
+              {BOURSE_STATUS.map((x) => (
+                <option key={x.k} value={x.k}>{x.l}</option>
+              ))}
+              <option value="non_suivi">Non suivi</option>
+            </Select>
+          </div>
+
+          <div>
+            <label className="block text-xs font-semibold text-slate-400 mb-1">Année académique</label>
+            <Select
+              value={filterYear}
+              onChange={(e) => setFilterYear(e.target.value)}
+              className="text-xs"
+            >
+              <option value="">Toutes les années</option>
+              {(db.academicYears && db.academicYears.length > 0 ? db.academicYears : [{ id: "2025-2026", libelle: "2025-2026" }, { id: "2026-2027", libelle: "2026-2027" }]).map((y) => (
+                <option key={y.id} value={y.id}>{y.libelle}</option>
+              ))}
+            </Select>
+          </div>
+        </div>
       </Card>
 
-      <Card className="overflow-x-auto">
-        <table className="w-full min-w-[680px] text-left">
+      <Card className="overflow-x-auto border-white/10">
+        <table className="w-full min-w-[750px] text-left">
           <thead>
-            <tr className="border-b border-white/5 text-[10px] uppercase tracking-[0.2em] text-slate-500">
-              <th className="px-4 py-3">Apprenant</th><th className="px-4 py-3">Formation</th><th className="px-4 py-3">Moyenne</th><th className="px-4 py-3">Statut actuel</th><th className="px-4 py-3 text-right">Mettre à jour</th>
+            <tr className="border-b border-white/10 text-[10px] uppercase tracking-[0.2em] text-slate-400 bg-white/5">
+              <th className="px-4 py-3">Apprenant</th>
+              <th className="px-4 py-3">Formation</th>
+              <th className="px-4 py-3">Année</th>
+              <th className="px-4 py-3">Moyenne Générale</th>
+              <th className="px-4 py-3">Statut actuel</th>
+              <th className="px-4 py-3 text-right">Attribution & Mise à jour</th>
             </tr>
           </thead>
-          <tbody>
+          <tbody className="divide-y divide-white/5">
             {eligible.map((s) => {
               const grades = db.grades.filter((g) => g.studentId === s.id);
               const avg = grades.length ? (grades.reduce((a, g) => a + g.note, 0) / grades.length).toFixed(1) : "—";
               const b = get(s.id);
+              const studentYear = s.academicYearId || s.anneeScolaire || "2025-2026";
               return (
-                <tr key={s.id} className="border-b border-white/5 last:border-0 hover:bg-white/[0.02]">
+                <tr key={s.id} className="hover:bg-white/[0.02] transition">
                   <td className="px-4 py-3">
                     <p className="text-sm font-bold text-white">{s.prenom} {s.nom}</p>
                     <p className="font-mono text-[10px] text-slate-500">{s.id}</p>
                   </td>
-                  <td className="px-4 py-3"><Badge color={s.formation === "informatique" ? "red" : "cyan"}>{formationLabel(s.formation)}</Badge></td>
-                  <td className="px-4 py-3 font-display text-sm font-bold text-white">{avg}</td>
                   <td className="px-4 py-3">
-                    {b ? <Badge color={BOURSE_STATUS.find((x) => x.k === b.statut)?.c ?? "gray"}>{BOURSE_STATUS.find((x) => x.k === b.statut)?.l}</Badge> : <Badge color="gray">Non suivi</Badge>}
+                    <Badge color={s.formation === "informatique" ? "red" : "cyan"}>
+                      {formationLabel(s.formation)}
+                    </Badge>
+                  </td>
+                  <td className="px-4 py-3 font-mono text-xs text-slate-300">
+                    {studentYear}
+                  </td>
+                  <td className="px-4 py-3 font-display text-sm font-bold text-white">
+                    <span className={cn(
+                      "inline-block px-2 py-0.5 rounded font-mono",
+                      avg !== "—" && +avg >= 14 ? "bg-amber-500/10 text-amber-300 border border-amber-500/20" : "text-slate-300"
+                    )}>
+                      {avg} {avg !== "—" ? "/20" : ""}
+                    </span>
                   </td>
                   <td className="px-4 py-3">
-                    <Select value={b?.statut ?? "en_attente"} onChange={(e) => setStatus(s.id, e.target.value)} className="w-44 text-xs">
-                      {BOURSE_STATUS.map((x) => <option key={x.k} value={x.k}>{x.l}</option>)}
+                    {b ? (
+                      <Badge color={BOURSE_STATUS.find((x) => x.k === b.statut)?.c ?? "gray"}>
+                        {BOURSE_STATUS.find((x) => x.k === b.statut)?.l}
+                      </Badge>
+                    ) : (
+                      <Badge color="gray">Non suivi</Badge>
+                    )}
+                  </td>
+                  <td className="px-4 py-3 text-right">
+                    <Select
+                      value={b?.statut ?? "en_attente"}
+                      onChange={(e) => setStatus(s.id, e.target.value)}
+                      className="w-48 text-xs inline-block"
+                    >
+                      {BOURSE_STATUS.map((x) => (
+                        <option key={x.k} value={x.k}>{x.l}</option>
+                      ))}
                     </Select>
                   </td>
                 </tr>

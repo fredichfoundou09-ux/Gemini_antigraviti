@@ -2,15 +2,26 @@ import { useState } from "react";
 import { Link } from "react-router-dom";
 import {
   Settings, Activity, Shield, Play, CheckCircle2, AlertTriangle, RotateCcw,
-  Palette, Moon, Flame, Sparkles, Wallet, RefreshCw, School
+  Palette, Moon, Flame, Sparkles, Wallet, School, Compass, Volume2,
+  Calendar, Lock, Plus, Check, Eye
 } from "lucide-react";
 import { useStore } from "@/lib/store";
 import { Btn, Card, PageHead, Field, Input, today } from "@/lib/ui";
 import { cn } from "@/utils/cn";
 import { isSupabaseConfigured, supabase } from "@/lib/supabase/client";
 import { toastMsg } from "@/lib/toast";
-import { UiTheme, getUiTheme, setUiTheme } from "@/lib/uiTheme";
+import {
+  UiTheme, getUiTheme, setUiTheme,
+  getSpatialSettings, setSpatialSettings, SpatialSettings
+} from "@/lib/uiTheme";
+import {
+  NotificationSoundId,
+  getNotificationSoundPreferences,
+  setNotificationSoundPreferences,
+  playNotificationSound,
+} from "@/lib/pushNotifications";
 import { executeScheduleAutomation } from "@/lib/automation/scheduleAutomation";
+import { AcademicYear, ModuleRestriction } from "@/lib/types";
 
 export interface AutomationServiceConfig {
   id: string;
@@ -101,11 +112,16 @@ const DEFAULT_AUTOMATIONS: AutomationServiceConfig[] = [
 ];
 
 export function SettingsPage() {
-  const { db, user, update, log } = useStore();
+  const {
+    db, user, update, log,
+    activeAcademicYear, setActiveAcademicYear,
+    createAcademicYear, closeAcademicYear, archiveAcademicYear,
+    updateModuleRestriction
+  } = useStore();
   const s = db.settings;
 
   const [activeCategory, setActiveCategory] = useState<
-    "automatisations" | "general" | "apparence" | "securite" | "enseignement" | "maintenance"
+    "automatisations" | "general" | "apparence" | "annees" | "restrictions" | "securite" | "enseignement" | "maintenance"
   >("automatisations");
 
   // Général
@@ -114,8 +130,29 @@ export function SettingsPage() {
   const [etablissement, setEtablissement] = useState("Sentinelles Numériques");
   const [devise, setDevise] = useState("FCFA");
 
-  // Apparence
+  // Apparence & Spatial
   const [currentTheme, setCurrentTheme] = useState<UiTheme>(() => getUiTheme());
+  const [spatialSettings, setSpatialState] = useState<SpatialSettings>(() => getSpatialSettings());
+  const [soundPrefs, setSoundPrefsState] = useState(() => getNotificationSoundPreferences());
+
+  const handleUpdateSpatial = (patch: Partial<SpatialSettings>) => {
+    const next = { ...spatialSettings, ...patch };
+    setSpatialState(next);
+    setSpatialSettings(next);
+    toastMsg.success("Paramètres spatiaux appliqués ✓");
+  };
+
+  const handleUpdateSound = (patch: Partial<typeof soundPrefs>) => {
+    const next = { ...soundPrefs, ...patch };
+    setSoundPrefsState(next);
+    setNotificationSoundPreferences(next);
+    toastMsg.success("Préférences sonores enregistrées ✓");
+  };
+
+  // Année académique form
+  const [newYearName, setNewYearName] = useState("");
+  const [newYearStart, setNewYearStart] = useState("2026-10-01");
+  const [newYearEnd, setNewYearEnd] = useState("2027-07-31");
 
   // Automatisations & Pilotage (Point 31)
   const [automations, setAutomations] = useState<AutomationServiceConfig[]>(() => {
@@ -174,7 +211,6 @@ export function SettingsPage() {
         log(`Relance manuelle « ${service.name} » : ${detailMsg}`);
         toastMsg.success(`Exécution terminée ✓`, detailMsg);
       } else {
-        // Simulation réussie pour les autres services
         await new Promise((r) => setTimeout(r, 600));
         saveAutomations(
           automations.map((a) =>
@@ -202,7 +238,9 @@ export function SettingsPage() {
     setUiTheme(theme);
     setCurrentTheme(theme);
     toastMsg.success(
-      theme === "orange-slate"
+      theme === "spatial"
+        ? "Mode Spatial (Poste de Contrôle) activé ✓"
+        : theme === "orange-slate"
         ? "Thème Orange Ardoise activé ✓"
         : theme === "crimson"
         ? "Thème Rouge Sentinelle activé ✓"
@@ -219,7 +257,7 @@ export function SettingsPage() {
         subtitle="Configuration générale, Centre de pilotage des automatisations et Apparence de la plateforme"
       />
 
-      {/* Barre d'onglets par catégories (Point 30) */}
+      {/* Barre d'onglets par catégories */}
       <div className="flex flex-wrap items-center gap-2 rounded-2xl border border-white/10 bg-white/[0.02] p-2">
         <button
           type="button"
@@ -232,9 +270,57 @@ export function SettingsPage() {
           )}
         >
           <Activity size={15} className="text-cyan-400" />
-          <span>Centre de pilotage automatisations (Point 31)</span>
+          <span>Centre d'automatisations</span>
           <span className="rounded-full bg-cyan-400/20 px-2 py-0.5 text-[10px] text-cyan-300 font-mono">
             {automations.filter((a) => a.enabled).length}/{automations.length}
+          </span>
+        </button>
+
+        <button
+          type="button"
+          onClick={() => setActiveCategory("apparence")}
+          className={cn(
+            "flex items-center gap-2 rounded-xl px-4 py-2.5 text-xs font-bold transition-all cursor-pointer",
+            activeCategory === "apparence"
+              ? "bg-cyan-500/20 text-cyan-300 border border-cyan-400/40 shadow-[0_0_15px_rgba(0,229,255,0.2)]"
+              : "text-slate-400 hover:text-white hover:bg-white/5"
+          )}
+        >
+          <Palette size={15} />
+          <span>Apparence & Sons</span>
+        </button>
+
+        <button
+          type="button"
+          onClick={() => setActiveCategory("annees")}
+          className={cn(
+            "flex items-center gap-2 rounded-xl px-4 py-2.5 text-xs font-bold transition-all cursor-pointer",
+            activeCategory === "annees"
+              ? "bg-cyan-500/20 text-cyan-300 border border-cyan-400/40 shadow-[0_0_15px_rgba(0,229,255,0.2)]"
+              : "text-slate-400 hover:text-white hover:bg-white/5"
+          )}
+        >
+          <Calendar size={15} className="text-cyan-400" />
+          <span>Années académiques</span>
+          <span className="rounded-full bg-cyan-400/20 px-2 py-0.5 text-[10px] text-cyan-300 font-mono">
+            {db.academicYears?.length || 0}
+          </span>
+        </button>
+
+        <button
+          type="button"
+          onClick={() => setActiveCategory("restrictions")}
+          className={cn(
+            "flex items-center gap-2 rounded-xl px-4 py-2.5 text-xs font-bold transition-all cursor-pointer",
+            activeCategory === "restrictions"
+              ? "bg-amber-500/20 text-amber-300 border border-amber-400/40 shadow-[0_0_15px_rgba(255,179,0,0.2)]"
+              : "text-slate-400 hover:text-white hover:bg-white/5"
+          )}
+        >
+          <Lock size={15} className="text-amber-400" />
+          <span>Contrôle & Blocages</span>
+          <span className="rounded-full bg-amber-400/20 px-2 py-0.5 text-[10px] text-amber-300 font-mono">
+            {(db.moduleRestrictions || []).filter(r => r.blocked).length}
           </span>
         </button>
 
@@ -254,20 +340,6 @@ export function SettingsPage() {
 
         <button
           type="button"
-          onClick={() => setActiveCategory("apparence")}
-          className={cn(
-            "flex items-center gap-2 rounded-xl px-4 py-2.5 text-xs font-bold transition-all cursor-pointer",
-            activeCategory === "apparence"
-              ? "bg-cyan-500/20 text-cyan-300 border border-cyan-400/40"
-              : "text-slate-400 hover:text-white hover:bg-white/5"
-          )}
-        >
-          <Palette size={15} />
-          <span>Apparence & Thèmes</span>
-        </button>
-
-        <button
-          type="button"
           onClick={() => setActiveCategory("securite")}
           className={cn(
             "flex items-center gap-2 rounded-xl px-4 py-2.5 text-xs font-bold transition-all cursor-pointer",
@@ -277,7 +349,7 @@ export function SettingsPage() {
           )}
         >
           <Shield size={15} />
-          <span>Sécurité & Mode Examen</span>
+          <span>Sécurité & Examen</span>
         </button>
 
         <button
@@ -305,7 +377,7 @@ export function SettingsPage() {
           )}
         >
           <AlertTriangle size={15} />
-          <span>Maintenance & Initialisation</span>
+          <span>Maintenance</span>
         </button>
       </div>
 
@@ -514,155 +586,598 @@ export function SettingsPage() {
         </Card>
       )}
 
-      {/* ================= ONGLET 3 : APPARENCE & THÈMES ================= */}
+      {/* ================= ONGLET : APPARENCE & SONS ================= */}
       {activeCategory === "apparence" && (
+        <div className="space-y-6">
+          <Card className="p-6">
+            <div className="flex items-center justify-between mb-3 border-b border-white/10 pb-3">
+              <div className="flex items-center gap-2.5">
+                <div className="flex h-9 w-9 items-center justify-center rounded-lg bg-cyan-500/20 text-cyan-400 border border-cyan-400/40">
+                  <Palette size={18} />
+                </div>
+                <div>
+                  <h3 className="font-display text-sm font-bold text-white">Thèmes d'interface & Mode Spatial</h3>
+                  <p className="text-xs text-slate-400">
+                    Basculez entre le Mode Classique et le nouveau Mode Spatial (Centre de Contrôle). Tous les thèmes sont 100% réversibles.
+                  </p>
+                </div>
+              </div>
+              <span className="font-mono text-[10px] text-cyan-300 bg-cyan-950/60 border border-cyan-400/30 px-2 py-0.5 rounded-full uppercase tracking-wider">
+                100% Réversible
+              </span>
+            </div>
+
+            <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-5 mt-4">
+              {/* Thème 1: Mode Spatial */}
+              <button
+                type="button"
+                onClick={() => handleSelectTheme("spatial")}
+                className={cn(
+                  "text-left rounded-xl p-3.5 transition border flex flex-col justify-between group cursor-pointer",
+                  currentTheme === "spatial"
+                    ? "border-cyan-400 bg-cyan-950/40 shadow-[0_0_20px_rgba(0,229,255,0.35)] ring-1 ring-cyan-400/50"
+                    : "border-cyan-500/30 bg-[#04070D]/80 hover:bg-[#08162B] hover:border-cyan-400/50"
+                )}
+              >
+                <div>
+                  <div className="flex items-center justify-between mb-2">
+                    <div className="flex items-center gap-1.5">
+                      <Compass size={16} className="text-cyan-400" />
+                      <span className="text-xs font-bold text-cyan-200">Mode Spatial</span>
+                    </div>
+                    {currentTheme === "spatial" && (
+                      <span className="rounded bg-cyan-400/20 px-1.5 py-0.2 text-[9px] font-bold text-cyan-300 border border-cyan-400/40">Actif</span>
+                    )}
+                  </div>
+                  <p className="text-[11px] text-slate-300 leading-snug mb-3">
+                    Esthétique centre de contrôle : Fond #04070D, cyan opérationnel, surfaces semi-transparentes & alertes ambrées.
+                  </p>
+                </div>
+                <div className="flex items-center gap-1.5 pt-2 border-t border-cyan-500/20">
+                  <span className="h-3 w-3 rounded-full bg-[#04070D] border border-cyan-400/50" />
+                  <span className="h-3 w-3 rounded-full bg-[#08162B] border border-cyan-500/30" />
+                  <span className="h-3 w-3 rounded-full bg-[#00E5FF] shadow-[0_0_6px_#00E5FF]" />
+                  <span className="h-3 w-3 rounded-full bg-[#FFB300]" />
+                  <span className="h-3 w-3 rounded-full bg-[#EF4444]" />
+                </div>
+              </button>
+
+              {/* Thème 2: Classique */}
+              <button
+                type="button"
+                onClick={() => handleSelectTheme("classic")}
+                className={cn(
+                  "text-left rounded-xl p-3.5 transition border flex flex-col justify-between group cursor-pointer",
+                  currentTheme === "classic"
+                    ? "border-cyan-400/60 bg-cyan-500/15 shadow-[0_0_15px_rgba(0,229,255,0.25)]"
+                    : "border-white/10 bg-white/[0.02] hover:bg-white/5 hover:border-white/20"
+                )}
+              >
+                <div>
+                  <div className="flex items-center justify-between mb-2">
+                    <div className="flex items-center gap-2">
+                      <Moon size={16} className="text-cyan-400" />
+                      <span className="text-xs font-bold text-white">Classique</span>
+                    </div>
+                    {currentTheme === "classic" && (
+                      <span className="rounded bg-cyan-400/20 px-1.5 py-0.2 text-[9px] font-bold text-cyan-300">Actif</span>
+                    )}
+                  </div>
+                  <p className="text-[11px] text-slate-400 leading-snug mb-3">
+                    Interface sombre d'origine équilibrée et certifiée Sentinelles.
+                  </p>
+                </div>
+                <div className="flex items-center gap-1.5 pt-2 border-t border-white/5">
+                  <span className="h-3 w-3 rounded-full bg-[#080A0F] border border-white/20" />
+                  <span className="h-3 w-3 rounded-full bg-[#00E5FF]" />
+                  <span className="h-3 w-3 rounded-full bg-[#006DFF]" />
+                  <span className="h-3 w-3 rounded-full bg-[#FF174F]" />
+                </div>
+              </button>
+
+              {/* Thème 3: Rouge Sentinelle */}
+              <button
+                type="button"
+                onClick={() => handleSelectTheme("crimson")}
+                className={cn(
+                  "text-left rounded-xl p-3.5 transition border flex flex-col justify-between group cursor-pointer",
+                  currentTheme === "crimson"
+                    ? "border-red-500/70 bg-red-500/20 shadow-[0_0_15px_rgba(255,23,79,0.3)]"
+                    : "border-white/10 bg-white/[0.02] hover:bg-white/5 hover:border-white/20"
+                )}
+              >
+                <div>
+                  <div className="flex items-center justify-between mb-2">
+                    <div className="flex items-center gap-2">
+                      <Shield size={16} className="text-red-500" />
+                      <span className="text-xs font-bold text-red-300">Rouge Sentinelle</span>
+                    </div>
+                    {currentTheme === "crimson" && (
+                      <span className="rounded bg-red-500/30 px-1.5 py-0.2 text-[9px] font-bold text-red-200">Actif</span>
+                    )}
+                  </div>
+                  <p className="text-[11px] text-slate-400 leading-snug mb-3">
+                    Ambiance rubis écarlate et chrome métallique du blason 3D.
+                  </p>
+                </div>
+                <div className="flex items-center gap-1.5 pt-2 border-t border-white/5">
+                  <span className="h-3 w-3 rounded-full bg-[#FF174F]" />
+                  <span className="h-3 w-3 rounded-full bg-[#9E002B]" />
+                  <span className="h-3 w-3 rounded-full bg-[#0E0E14] border border-white/20" />
+                </div>
+              </button>
+
+              {/* Thème 4: Orange Ardoise */}
+              <button
+                type="button"
+                onClick={() => handleSelectTheme("orange-slate")}
+                className={cn(
+                  "text-left rounded-xl p-3.5 transition border flex flex-col justify-between group cursor-pointer",
+                  currentTheme === "orange-slate"
+                    ? "border-[#F03E00] bg-[#F03E00]/25 shadow-[0_0_18px_rgba(240,62,0,0.4)]"
+                    : "border-orange-500/30 bg-orange-950/10 hover:bg-orange-950/20 hover:border-orange-500/50"
+                )}
+              >
+                <div>
+                  <div className="flex items-center justify-between mb-2">
+                    <div className="flex items-center gap-2">
+                      <Flame size={16} className="text-[#F03E00]" />
+                      <span className="text-xs font-bold text-orange-300">Orange Ardoise</span>
+                    </div>
+                    {currentTheme === "orange-slate" && (
+                      <span className="rounded bg-[#F03E00] px-1.5 py-0.2 text-[9px] font-bold text-white shadow-[0_0_6px_#F03E00]">Actif</span>
+                    )}
+                  </div>
+                  <p className="text-[11px] text-slate-300 leading-snug mb-3">
+                    50% Orange vif, 50% Bleu-Noir structuré avec contrastes élevés.
+                  </p>
+                </div>
+                <div className="flex items-center gap-1.5 pt-2 border-t border-white/5">
+                  <span className="h-3 w-3 rounded-full bg-[#F03E00] ring-1 ring-white/30" />
+                  <span className="h-3 w-3 rounded-full bg-[#B33107]" />
+                  <span className="h-3 w-3 rounded-full bg-[#1A2226] ring-1 ring-white/20" />
+                </div>
+              </button>
+
+              {/* Thème 5: Modernisé */}
+              <button
+                type="button"
+                onClick={() => handleSelectTheme("modern")}
+                className={cn(
+                  "text-left rounded-xl p-3.5 transition border flex flex-col justify-between group cursor-pointer",
+                  currentTheme === "modern"
+                    ? "border-violet-500/70 bg-violet-500/20 shadow-[0_0_15px_rgba(139,92,246,0.3)]"
+                    : "border-white/10 bg-white/[0.02] hover:bg-white/5 hover:border-white/20"
+                )}
+              >
+                <div>
+                  <div className="flex items-center justify-between mb-2">
+                    <div className="flex items-center gap-2">
+                      <Sparkles size={16} className="text-violet-400" />
+                      <span className="text-xs font-bold text-violet-300">Modernisé</span>
+                    </div>
+                    {currentTheme === "modern" && (
+                      <span className="rounded bg-violet-500/30 px-1.5 py-0.2 text-[9px] font-bold text-violet-200">Actif</span>
+                    )}
+                  </div>
+                  <p className="text-[11px] text-slate-400 leading-snug mb-3">
+                    Ambiance Midnight Indigo, Violet Électrique & reflets glassmorphism.
+                  </p>
+                </div>
+                <div className="flex items-center gap-1.5 pt-2 border-t border-white/5">
+                  <span className="h-3 w-3 rounded-full bg-[#8B5CF6]" />
+                  <span className="h-3 w-3 rounded-full bg-[#6366F1]" />
+                  <span className="h-3 w-3 rounded-full bg-[#1E1B4B] border border-white/20" />
+                </div>
+              </button>
+            </div>
+
+            {/* Réglages fins Mode Spatial */}
+            <div className="mt-6 pt-5 border-t border-white/10">
+              <h4 className="text-xs font-bold text-cyan-300 flex items-center gap-2 mb-3">
+                <Compass size={14} className="text-cyan-400" />
+                Options visuelles avancées (Mode Spatial)
+              </h4>
+              <div className="grid gap-3 sm:grid-cols-3">
+                <div className="p-3 rounded-xl border border-white/10 bg-white/[0.02]">
+                  <label className="text-[11px] font-bold text-slate-300 block mb-1">Intensité du halo (Glow)</label>
+                  <div className="flex gap-1.5">
+                    {(["subtle", "medium", "high"] as const).map((intensity) => (
+                      <button
+                        key={intensity}
+                        type="button"
+                        onClick={() => handleUpdateSpatial({ glowIntensity: intensity })}
+                        className={cn(
+                          "flex-1 py-1 px-2 rounded text-[11px] font-semibold border transition cursor-pointer",
+                          spatialSettings.glowIntensity === intensity
+                            ? "border-cyan-400 bg-cyan-500/20 text-cyan-200"
+                            : "border-white/10 bg-black/20 text-slate-400 hover:text-white"
+                        )}
+                      >
+                        {intensity === "subtle" ? "Subtil" : intensity === "medium" ? "Moyen" : "Élevé"}
+                      </button>
+                    ))}
+                  </div>
+                </div>
+
+                <div className="p-3 rounded-xl border border-white/10 bg-white/[0.02]">
+                  <label className="text-[11px] font-bold text-slate-300 block mb-1">Panneaux semi-transparents</label>
+                  <button
+                    type="button"
+                    onClick={() => handleUpdateSpatial({ transparency: !spatialSettings.transparency })}
+                    className={cn(
+                      "w-full py-1.5 px-3 rounded text-[11px] font-semibold border transition cursor-pointer flex items-center justify-between",
+                      spatialSettings.transparency
+                        ? "border-emerald-500/40 bg-emerald-500/20 text-emerald-200"
+                        : "border-white/10 bg-black/20 text-slate-400"
+                    )}
+                  >
+                    <span>Transparence & flou HUD</span>
+                    <span className="font-bold">{spatialSettings.transparency ? "Activée" : "Désactivée"}</span>
+                  </button>
+                </div>
+
+                <div className="p-3 rounded-xl border border-white/10 bg-white/[0.02]">
+                  <label className="text-[11px] font-bold text-slate-300 block mb-1">Réduction des animations</label>
+                  <button
+                    type="button"
+                    onClick={() => handleUpdateSpatial({ reducedMotion: !spatialSettings.reducedMotion })}
+                    className={cn(
+                      "w-full py-1.5 px-3 rounded text-[11px] font-semibold border transition cursor-pointer flex items-center justify-between",
+                      spatialSettings.reducedMotion
+                        ? "border-amber-500/40 bg-amber-500/20 text-amber-200"
+                        : "border-white/10 bg-black/20 text-slate-400"
+                    )}
+                  >
+                    <span>Mode sans saccade</span>
+                    <span className="font-bold">{spatialSettings.reducedMotion ? "Activé" : "Désactivé"}</span>
+                  </button>
+                </div>
+              </div>
+            </div>
+          </Card>
+
+          {/* Configuration Audio & Sons des notifications */}
+          <Card className="p-6">
+            <div className="flex items-center justify-between mb-4 border-b border-white/10 pb-3">
+              <div className="flex items-center gap-2.5">
+                <div className="flex h-9 w-9 items-center justify-center rounded-lg bg-cyan-500/20 text-cyan-400 border border-cyan-400/40">
+                  <Volume2 size={18} />
+                </div>
+                <div>
+                  <h3 className="font-display text-sm font-bold text-white">Sons des notifications système</h3>
+                  <p className="text-xs text-slate-400">
+                    Choisissez la signature sonore synthétisée des alertes en arrière-plan (Web Audio API sans latence).
+                  </p>
+                </div>
+              </div>
+              <button
+                type="button"
+                onClick={() => handleUpdateSound({ enabled: !soundPrefs.enabled })}
+                className={cn(
+                  "rounded-full px-3 py-1 text-xs font-bold border transition cursor-pointer",
+                  soundPrefs.enabled
+                    ? "bg-emerald-500/20 border-emerald-500/40 text-emerald-300"
+                    : "bg-slate-800 border-white/10 text-slate-400"
+                )}
+              >
+                {soundPrefs.enabled ? "Sons activés" : "Sons coupés"}
+              </button>
+            </div>
+
+            <div className="grid gap-3 sm:grid-cols-3">
+              {[
+                { id: "sentinel" as NotificationSoundId, label: "Carillon Sentinelle (D5/A5)", desc: "Double note classique et rassurante" },
+                { id: "spatial_bip" as NotificationSoundId, label: "Bip Spatial HUD", desc: "Signal télémétrique centre de contrôle" },
+                { id: "radar" as NotificationSoundId, label: "Sonar / Radar", desc: "Impulsion résonnante progressive" },
+                { id: "harmonic" as NotificationSoundId, label: "Accord Harmonique", desc: "Triade majeure apaisante" },
+                { id: "subtle" as NotificationSoundId, label: "Clic Discret", desc: "Micro-impulsion feutrée sans interruption" },
+                { id: "none" as NotificationSoundId, label: "Silencieux", desc: "Aucun son émis lors des notifications" },
+              ].map((sOption) => (
+                <div
+                  key={sOption.id}
+                  className={cn(
+                    "p-3 rounded-xl border flex flex-col justify-between transition",
+                    soundPrefs.soundId === sOption.id
+                      ? "border-cyan-400 bg-cyan-500/10 shadow-[0_0_10px_rgba(0,229,255,0.15)]"
+                      : "border-white/10 bg-white/[0.02]"
+                  )}
+                >
+                  <div>
+                    <div className="flex items-center justify-between mb-1">
+                      <span className="text-xs font-bold text-white">{sOption.label}</span>
+                      {soundPrefs.soundId === sOption.id && (
+                        <Check size={14} className="text-cyan-400" />
+                      )}
+                    </div>
+                    <p className="text-[11px] text-slate-400">{sOption.desc}</p>
+                  </div>
+                  <div className="flex items-center gap-2 mt-3 pt-2 border-t border-white/5">
+                    <button
+                      type="button"
+                      onClick={() => handleUpdateSound({ soundId: sOption.id })}
+                      className="flex-1 py-1 rounded bg-white/5 hover:bg-white/10 text-[11px] font-semibold text-slate-200 transition cursor-pointer"
+                    >
+                      Sélectionner
+                    </button>
+                    {sOption.id !== "none" && (
+                      <button
+                        type="button"
+                        onClick={() => playNotificationSound(sOption.id)}
+                        className="p-1.5 rounded bg-cyan-500/20 hover:bg-cyan-500/30 text-cyan-300 transition cursor-pointer"
+                        title="Écouter un extrait"
+                      >
+                        <Volume2 size={13} />
+                      </button>
+                    )}
+                  </div>
+                </div>
+              ))}
+            </div>
+          </Card>
+        </div>
+      )}
+
+      {/* ================= ONGLET : GESTION DES ANNÉES ACADÉMIQUES ================= */}
+      {activeCategory === "annees" && (
+        <div className="space-y-6">
+          <Card className="p-6">
+            <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3 border-b border-white/10 pb-4 mb-4">
+              <div>
+                <h3 className="font-display text-sm font-bold text-white flex items-center gap-2">
+                  <Calendar size={16} className="text-cyan-400" />
+                  Gestion des Années Académiques / Scolaires
+                </h3>
+                <p className="text-xs text-slate-400">
+                  Définissez l'année active pour rattacher inscriptions, présences, notes et règlements sans détruire les historiques passés.
+                </p>
+              </div>
+              <div className="flex items-center gap-2">
+                <span className="text-xs text-slate-400">Session courante active :</span>
+                <span className="font-mono text-xs font-bold text-cyan-300 bg-cyan-950/60 border border-cyan-400/40 px-2.5 py-1 rounded-lg">
+                  {activeAcademicYear?.nom || "Aucune session active"}
+                </span>
+              </div>
+            </div>
+
+            {/* Formulaire ajout rapide d'année */}
+            <div className="p-4 rounded-xl border border-cyan-500/30 bg-cyan-950/20 mb-6">
+              <h4 className="text-xs font-bold text-cyan-300 mb-3 flex items-center gap-1.5">
+                <Plus size={14} /> Créer une nouvelle session académique
+              </h4>
+              <div className="grid gap-3 sm:grid-cols-4 items-end">
+                <div>
+                  <label className="text-[11px] font-semibold text-slate-300 block mb-1">Nom / Libellé</label>
+                  <input
+                    type="text"
+                    placeholder="Ex: 2026-2027"
+                    value={newYearName}
+                    onChange={(e) => setNewYearName(e.target.value)}
+                    className="w-full rounded-lg border border-white/15 bg-black/40 px-3 py-1.5 text-xs text-white placeholder-slate-500"
+                  />
+                </div>
+                <div>
+                  <label className="text-[11px] font-semibold text-slate-300 block mb-1">Date de début</label>
+                  <input
+                    type="date"
+                    value={newYearStart}
+                    onChange={(e) => setNewYearStart(e.target.value)}
+                    className="w-full rounded-lg border border-white/15 bg-black/40 px-3 py-1.5 text-xs text-white"
+                  />
+                </div>
+                <div>
+                  <label className="text-[11px] font-semibold text-slate-300 block mb-1">Date de clôture</label>
+                  <input
+                    type="date"
+                    value={newYearEnd}
+                    onChange={(e) => setNewYearEnd(e.target.value)}
+                    className="w-full rounded-lg border border-white/15 bg-black/40 px-3 py-1.5 text-xs text-white"
+                  />
+                </div>
+                <div>
+                  <button
+                    type="button"
+                    onClick={() => {
+                      if (!newYearName.trim()) {
+                        toastMsg.error("Veuillez saisir un nom d'année");
+                        return;
+                      }
+                      createAcademicYear({
+                        nom: newYearName.trim(),
+                        dateDebut: newYearStart,
+                        dateFin: newYearEnd,
+                        estActive: true,
+                        statut: "active",
+                      });
+                      setNewYearName("");
+                      toastMsg.success(`Année « ${newYearName} » créée et activée ✓`);
+                    }}
+                    className="w-full py-2 px-3 rounded-lg bg-cyan-500 hover:bg-cyan-400 text-slate-950 font-bold text-xs transition cursor-pointer flex items-center justify-center gap-1.5 shadow-[0_0_15px_rgba(0,229,255,0.4)]"
+                  >
+                    <Plus size={14} /> Créer & Activer
+                  </button>
+                </div>
+              </div>
+            </div>
+
+            {/* Liste des années académiques */}
+            <div className="overflow-x-auto">
+              <table className="w-full text-left text-xs">
+                <thead className="border-b border-white/10 bg-white/[0.02] text-[11px] font-bold text-slate-400">
+                  <tr>
+                    <th className="p-3">Session</th>
+                    <th className="p-3">Période</th>
+                    <th className="p-3">Statut</th>
+                    <th className="p-3">Données rattachées</th>
+                    <th className="p-3 text-right">Actions</th>
+                  </tr>
+                </thead>
+                <tbody className="divide-y divide-white/5">
+                  {(db.academicYears || []).map((ay) => {
+                    const isCurrent = ay.id === activeAcademicYear?.id;
+                    const studentsCount = (db.students || []).filter(
+                      (st) => st.academicYearId === ay.id || st.anneeScolaire === ay.nom
+                    ).length;
+
+                    return (
+                      <tr key={ay.id} className="hover:bg-white/[0.02]">
+                        <td className="p-3 font-bold text-white flex items-center gap-2">
+                          <Calendar size={14} className="text-cyan-400" />
+                          <span>{ay.nom}</span>
+                          {isCurrent && (
+                            <span className="rounded bg-cyan-400/20 text-cyan-300 border border-cyan-400/40 px-1.5 py-0.2 text-[9px] font-bold">
+                              Session active
+                            </span>
+                          )}
+                        </td>
+                        <td className="p-3 text-slate-300 font-mono text-[11px]">
+                          Du {ay.dateDebut} au {ay.dateFin}
+                        </td>
+                        <td className="p-3">
+                          <span
+                            className={cn(
+                              "inline-block rounded-full px-2.5 py-0.5 text-[10px] font-bold border",
+                              ay.statut === "active"
+                                ? "bg-emerald-500/20 border-emerald-500/40 text-emerald-300"
+                                : ay.statut === "closed"
+                                ? "bg-amber-500/20 border-amber-500/40 text-amber-300"
+                                : "bg-slate-700/50 border-white/10 text-slate-400"
+                            )}
+                          >
+                            {ay.statut === "active" ? "Active" : ay.statut === "closed" ? "Clôturée (Consultable)" : "Archivée"}
+                          </span>
+                        </td>
+                        <td className="p-3 text-slate-400 text-[11px]">
+                          {studentsCount} apprenant(s) inscrit(s)
+                        </td>
+                        <td className="p-3 text-right space-x-2">
+                          {!isCurrent && (
+                            <button
+                              type="button"
+                              onClick={() => {
+                                setActiveAcademicYear(ay.id);
+                                toastMsg.success(`Année active basculée sur « ${ay.nom} » ✓`);
+                              }}
+                              className="px-2.5 py-1 rounded bg-cyan-500/20 hover:bg-cyan-500/30 text-cyan-200 border border-cyan-400/40 font-semibold text-[11px] cursor-pointer"
+                            >
+                              Définir active
+                            </button>
+                          )}
+                          {ay.statut === "active" && (
+                            <button
+                              type="button"
+                              onClick={() => {
+                                closeAcademicYear(ay.id);
+                                toastMsg.info(`Année « ${ay.nom} » clôturée (données préservées).`);
+                              }}
+                              className="px-2 py-1 rounded bg-amber-500/20 hover:bg-amber-500/30 text-amber-300 border border-amber-400/40 text-[11px] cursor-pointer"
+                            >
+                              Clôturer
+                            </button>
+                          )}
+                          {ay.statut !== "archived" && (
+                            <button
+                              type="button"
+                              onClick={() => {
+                                archiveAcademicYear(ay.id);
+                                toastMsg.info(`Année « ${ay.nom} » archivée.`);
+                              }}
+                              className="px-2 py-1 rounded bg-slate-800 hover:bg-slate-700 text-slate-400 border border-white/10 text-[11px] cursor-pointer"
+                            >
+                              Archiver
+                            </button>
+                          )}
+                        </td>
+                      </tr>
+                    );
+                  })}
+                </tbody>
+              </table>
+            </div>
+          </Card>
+        </div>
+      )}
+
+      {/* ================= ONGLET : CONTRÔLE D'ACCÈS & BLOCAGE DE MODULES ================= */}
+      {activeCategory === "restrictions" && (
         <Card className="p-6">
-          <div className="flex items-center justify-between mb-3 border-b border-white/10 pb-3">
+          <div className="flex items-center justify-between mb-4 border-b border-white/10 pb-3">
             <div className="flex items-center gap-2.5">
-              <div className="flex h-9 w-9 items-center justify-center rounded-lg bg-[#F03E00]/20 text-[#F03E00] border border-[#F03E00]/40">
-                <Palette size={18} />
+              <div className="flex h-9 w-9 items-center justify-center rounded-lg bg-amber-500/20 text-amber-400 border border-amber-400/40">
+                <Lock size={18} />
               </div>
               <div>
-                <h3 className="font-display text-sm font-bold text-white">Apparence de l'interface</h3>
+                <h3 className="font-display text-sm font-bold text-white">Contrôle d'accès & Blocage administratif de modules</h3>
                 <p className="text-xs text-slate-400">
-                  Personnalisez les couleurs de SENTINEL'S. Les changements s'appliquent instantanément à l'ensemble du logiciel.
+                  Bloquez temporairement des modules (IA, Finances, Messagerie, Évaluations) par rôle ou de manière globale avec motif explicite.
                 </p>
               </div>
             </div>
-            <span className="font-mono text-[10px] text-cyan-300 bg-cyan-950/60 border border-cyan-400/30 px-2 py-0.5 rounded-full uppercase tracking-wider">
-              100% Réversible
-            </span>
           </div>
 
-          <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4 mt-4">
-            {/* Thème 1: Classique */}
-            <button
-              type="button"
-              onClick={() => handleSelectTheme("classic")}
-              className={cn(
-                "text-left rounded-xl p-3.5 transition border flex flex-col justify-between group cursor-pointer",
-                currentTheme === "classic"
-                  ? "border-cyan-400/60 bg-cyan-500/15 shadow-[0_0_15px_rgba(0,229,255,0.25)]"
-                  : "border-white/10 bg-white/[0.02] hover:bg-white/5 hover:border-white/20"
-              )}
-            >
-              <div>
-                <div className="flex items-center justify-between mb-2">
-                  <div className="flex items-center gap-2">
-                    <Moon size={16} className="text-cyan-400" />
-                    <span className="text-xs font-bold text-white">Classique</span>
+          <div className="space-y-3">
+            {(db.moduleRestrictions || []).map((res) => (
+              <div
+                key={res.id}
+                className={cn(
+                  "p-4 rounded-xl border transition",
+                  res.blocked
+                    ? "border-amber-500/50 bg-amber-950/20"
+                    : "border-white/10 bg-white/[0.02]"
+                )}
+              >
+                <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2">
+                  <div>
+                    <div className="flex items-center gap-2">
+                      <span className="font-bold text-white text-xs">{res.name}</span>
+                      <span className="font-mono text-[10px] text-slate-400 bg-white/5 px-2 py-0.5 rounded">
+                        Clé: {res.moduleKey}
+                      </span>
+                      {res.blocked && (
+                        <span className="rounded-full bg-red-500/20 border border-red-500/40 px-2 py-0.5 text-[10px] font-bold text-red-300">
+                          Bloqué
+                        </span>
+                      )}
+                    </div>
+                    <p className="text-[11px] text-slate-400 mt-1">{res.description}</p>
                   </div>
-                  {currentTheme === "classic" && (
-                    <span className="rounded bg-cyan-400/20 px-1.5 py-0.2 text-[9px] font-bold text-cyan-300">Actif</span>
-                  )}
+                  <div className="flex items-center gap-2">
+                    <button
+                      type="button"
+                      onClick={() => {
+                        const nextBlocked = !res.blocked;
+                        updateModuleRestriction(res.id, {
+                          blocked: nextBlocked,
+                          reason: nextBlocked ? (res.reason || "Blocage administratif préventif") : undefined,
+                        });
+                        toastMsg.info(`Module « ${res.name} » : ${nextBlocked ? "BLOQUÉ" : "DÉBLOQUÉ"}`);
+                      }}
+                      className={cn(
+                        "px-3 py-1.5 rounded-lg text-xs font-bold border transition cursor-pointer",
+                        res.blocked
+                          ? "bg-red-500/20 border-red-500/50 text-red-200 hover:bg-red-500/30"
+                          : "bg-emerald-500/20 border-emerald-500/50 text-emerald-200 hover:bg-emerald-500/30"
+                      )}
+                    >
+                      {res.blocked ? "Débloquer le module" : "Bloquer l'accès"}
+                    </button>
+                  </div>
                 </div>
-                <p className="text-[11px] text-slate-400 leading-snug mb-3">
-                  Interface d'origine sombre et contrastée certifiée Sentinelles.
-                </p>
-              </div>
-              <div className="flex items-center gap-1.5 pt-2 border-t border-white/5">
-                <span className="h-3 w-3 rounded-full bg-[#080A0F] border border-white/20" />
-                <span className="h-3 w-3 rounded-full bg-[#00E5FF]" />
-                <span className="h-3 w-3 rounded-full bg-[#006DFF]" />
-                <span className="h-3 w-3 rounded-full bg-[#FF174F]" />
-              </div>
-            </button>
 
-            {/* Thème 2: Rouge Sentinelle */}
-            <button
-              type="button"
-              onClick={() => handleSelectTheme("crimson")}
-              className={cn(
-                "text-left rounded-xl p-3.5 transition border flex flex-col justify-between group cursor-pointer",
-                currentTheme === "crimson"
-                  ? "border-red-500/70 bg-red-500/20 shadow-[0_0_15px_rgba(255,23,79,0.3)]"
-                  : "border-white/10 bg-white/[0.02] hover:bg-white/5 hover:border-white/20"
-              )}
-            >
-              <div>
-                <div className="flex items-center justify-between mb-2">
-                  <div className="flex items-center gap-2">
-                    <Shield size={16} className="text-red-500" />
-                    <span className="text-xs font-bold text-red-300">Rouge Sentinelle</span>
+                {res.blocked && (
+                  <div className="mt-3 pt-3 border-t border-white/10 flex flex-col sm:flex-row sm:items-center gap-2">
+                    <span className="text-[11px] text-amber-300 font-semibold shrink-0">Motif du blocage affiché aux usagers :</span>
+                    <input
+                      type="text"
+                      value={res.reason || ""}
+                      onChange={(e) => updateModuleRestriction(res.id, { reason: e.target.value })}
+                      placeholder="Indiquez la raison (ex: Clôture comptable, session d'examen...)"
+                      className="flex-1 rounded-lg border border-amber-500/30 bg-black/40 px-2.5 py-1 text-xs text-amber-100"
+                    />
                   </div>
-                  {currentTheme === "crimson" && (
-                    <span className="rounded bg-red-500/30 px-1.5 py-0.2 text-[9px] font-bold text-red-200">Actif</span>
-                  )}
-                </div>
-                <p className="text-[11px] text-slate-400 leading-snug mb-3">
-                  Ambiance rubis écarlate et chrome métallique du blason 3D.
-                </p>
+                )}
               </div>
-              <div className="flex items-center gap-1.5 pt-2 border-t border-white/5">
-                <span className="h-3 w-3 rounded-full bg-[#FF174F]" />
-                <span className="h-3 w-3 rounded-full bg-[#9E002B]" />
-                <span className="h-3 w-3 rounded-full bg-[#0E0E14] border border-white/20" />
-              </div>
-            </button>
-
-            {/* Thème 3: Orange Ardoise */}
-            <button
-              type="button"
-              onClick={() => handleSelectTheme("orange-slate")}
-              className={cn(
-                "text-left rounded-xl p-3.5 transition border flex flex-col justify-between group cursor-pointer",
-                currentTheme === "orange-slate"
-                  ? "border-[#F03E00] bg-[#F03E00]/25 shadow-[0_0_18px_rgba(240,62,0,0.4)]"
-                  : "border-orange-500/30 bg-orange-950/10 hover:bg-orange-950/20 hover:border-orange-500/50"
-              )}
-            >
-              <div>
-                <div className="flex items-center justify-between mb-2">
-                  <div className="flex items-center gap-2">
-                    <Flame size={16} className="text-[#F03E00]" />
-                    <span className="text-xs font-bold text-orange-300">Orange Ardoise</span>
-                  </div>
-                  {currentTheme === "orange-slate" && (
-                    <span className="rounded bg-[#F03E00] px-1.5 py-0.2 text-[9px] font-bold text-white shadow-[0_0_6px_#F03E00]">Actif</span>
-                  )}
-                </div>
-                <p className="text-[11px] text-slate-300 leading-snug mb-3">
-                  50% Orange vif, 50% Bleu-Noir structuré avec textes blancs lisibles.
-                </p>
-              </div>
-              <div className="flex items-center gap-1.5 pt-2 border-t border-white/5">
-                <span className="h-3 w-3 rounded-full bg-[#F03E00] ring-1 ring-white/30" />
-                <span className="h-3 w-3 rounded-full bg-[#B33107]" />
-                <span className="h-3 w-3 rounded-full bg-[#1A2226] ring-1 ring-white/20" />
-              </div>
-            </button>
-
-            {/* Thème 4: Modernisé */}
-            <button
-              type="button"
-              onClick={() => handleSelectTheme("modern")}
-              className={cn(
-                "text-left rounded-xl p-3.5 transition border flex flex-col justify-between group cursor-pointer",
-                currentTheme === "modern"
-                  ? "border-violet-500/70 bg-violet-500/20 shadow-[0_0_15px_rgba(139,92,246,0.3)]"
-                  : "border-white/10 bg-white/[0.02] hover:bg-white/5 hover:border-white/20"
-              )}
-            >
-              <div>
-                <div className="flex items-center justify-between mb-2">
-                  <div className="flex items-center gap-2">
-                    <Sparkles size={16} className="text-violet-400" />
-                    <span className="text-xs font-bold text-violet-300">Modernisé</span>
-                  </div>
-                  {currentTheme === "modern" && (
-                    <span className="rounded bg-violet-500/30 px-1.5 py-0.2 text-[9px] font-bold text-violet-200">Actif</span>
-                  )}
-                </div>
-                <p className="text-[11px] text-slate-400 leading-snug mb-3">
-                  Ambiance Midnight Indigo, Violet Électrique & reflets glassmorphism.
-                </p>
-              </div>
-              <div className="flex items-center gap-1.5 pt-2 border-t border-white/5">
-                <span className="h-3 w-3 rounded-full bg-[#8B5CF6]" />
-                <span className="h-3 w-3 rounded-full bg-[#6366F1]" />
-                <span className="h-3 w-3 rounded-full bg-[#1E1B4B] border border-white/20" />
-              </div>
-            </button>
+            ))}
           </div>
         </Card>
       )}

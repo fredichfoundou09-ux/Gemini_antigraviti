@@ -10,10 +10,15 @@ export function BulletinsPage() {
   const { db } = useStore();
   const [selectedStudentId, setSelectedStudentId] = useState("");
   const [formationFilter, setFormationFilter] = useState("");
+  const [selectedAcademicYearId, setSelectedAcademicYearId] = useState("");
 
-  const filtered = db.students.filter((s) =>
-    (!formationFilter || s.formation === formationFilter) && s.statut === "actif"
-  );
+  const selectedYearLabel = db.academicYears?.find((y) => y.id === selectedAcademicYearId)?.label;
+
+  const filtered = db.students.filter((s) => {
+    const matchFormation = !formationFilter || s.formation === formationFilter;
+    const matchYear = !selectedAcademicYearId || !s.academicYearId || s.academicYearId === selectedAcademicYearId;
+    return matchFormation && matchYear && s.statut === "actif";
+  });
 
   const student = db.students.find((s) => s.id === selectedStudentId);
   const grades = student ? db.grades.filter((g) => g.studentId === student.id) : [];
@@ -27,7 +32,7 @@ export function BulletinsPage() {
         subtitle="Générer et imprimer les bulletins officiels par apprenant"
         actions={
           student && (
-            <Btn onClick={() => generateBulletin(db, selectedStudentId)}>
+            <Btn onClick={() => generateBulletin(db, selectedStudentId, undefined, selectedYearLabel)}>
               <Download size={15} /> Générer le bulletin PDF
             </Btn>
           )
@@ -38,6 +43,17 @@ export function BulletinsPage() {
         {/* Liste apprenants */}
         <Card className="p-4" glow="none">
           <div className="mb-3 space-y-2">
+            <Field label="Année académique">
+              <Select value={selectedAcademicYearId} onChange={(e) => setSelectedAcademicYearId(e.target.value)}>
+                <option value="">Toutes les sessions</option>
+                {(db.academicYears || []).map((y) => (
+                  <option key={y.id} value={y.id}>
+                    {y.label} {y.isDefault ? "(En cours)" : ""}
+                  </option>
+                ))}
+              </Select>
+            </Field>
+
             <Field label="Filtrer par formation">
               <Select value={formationFilter} onChange={(e) => setFormationFilter(e.target.value)}>
                 <option value="">Toutes</option>

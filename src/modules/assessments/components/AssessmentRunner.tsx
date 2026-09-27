@@ -120,6 +120,7 @@ export function AssessmentRunner({
       }
     }
 
+    sessionStorage.setItem("sn_in_exam", "true");
     setPhase("exam");
   };
 
@@ -403,6 +404,7 @@ export function AssessmentRunner({
 
       log(`Évaluation soumise par ${studentName || studentId} : ${finalEval.note}/${rawAssessment.bareme}`);
       clearLocalDraft(`sn_exam_${assessment.id}_${studentId}`);
+      sessionStorage.removeItem("sn_in_exam");
 
       // Sortir du plein écran
       if (document.fullscreenElement && document.exitFullscreen) {

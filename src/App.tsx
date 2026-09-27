@@ -56,8 +56,8 @@ import { ShieldCheck } from "lucide-react";
 import { useAuth } from "@/contexts/AuthContext";
 import { IntroSplash } from "@/components/IntroSplash";
 
-function Gate({ roles, children }: { roles: string[]; children: ReactNode }) {
-  const { user } = useStore();
+function Gate({ roles, moduleKey, children }: { roles: string[]; moduleKey?: string; children: ReactNode }) {
+  const { user, isModuleBlockedForUser } = useStore();
   const { profile } = useAuth();
   const role = user?.role || profile?.role;
   if (!user && !profile) return <Navigate to="/connexion" replace />;
@@ -74,6 +74,27 @@ function Gate({ roles, children }: { roles: string[]; children: ReactNode }) {
       </div>
     );
   }
+
+  if (moduleKey) {
+    const blockCheck = isModuleBlockedForUser(moduleKey, user);
+    if (blockCheck.blocked) {
+      return (
+        <div className="flex min-h-[60vh] flex-col items-center justify-center px-4 text-center">
+          <div className="mb-4 flex h-16 w-16 items-center justify-center rounded-2xl border border-amber-500/30 bg-amber-500/10">
+            <ShieldCheck size={28} className="text-amber-400" />
+          </div>
+          <h2 className="font-display text-xl font-black text-white">Module temporairement restreint</h2>
+          <p className="mt-2 max-w-md text-sm text-amber-300 font-medium">
+            {blockCheck.reason}
+          </p>
+          <p className="mt-2 max-w-sm text-xs text-slate-400">
+            L'accès à cette section est suspendu par la direction administrative. Les tentatives d'accès direct par URL sont systématiquement interceptées.
+          </p>
+        </div>
+      );
+    }
+  }
+
   return <>{children}</>;
 }
 
@@ -151,25 +172,25 @@ export default function App() {
             <Route path="calendrier" element={<Gate roles={["superadmin", "admin", "teacher", "student"]}><VisualCalendar /></Gate>} />
             <Route path="bulletins" element={<Gate roles={["superadmin", "admin"]}><BulletinsPage /></Gate>} />
             <Route path="import" element={<Gate roles={["superadmin", "admin"]}><ImportPage /></Gate>} />
-            <Route path="presences" element={<Gate roles={["superadmin", "admin", "teacher"]}><AttendancePage /></Gate>} />
-            <Route path="cours" element={<Gate roles={["superadmin", "admin", "teacher"]}><CoursesPage /></Gate>} />
-            <Route path="evaluations-devoirs" element={<Gate roles={["superadmin", "admin", "teacher"]}><UnifiedAssessmentsAssignmentsPage /></Gate>} />
-            <Route path="devoirs" element={<Gate roles={["superadmin", "admin", "teacher"]}><TeacherSubmissions /></Gate>} />
-            <Route path="qr-scanner" element={<Gate roles={["superadmin", "admin", "teacher"]}><QrScannerPage /></Gate>} />
-            <Route path="mes-cours" element={<Gate roles={["teacher", "student"]}><MyCoursesRoute /></Gate>} />
-            <Route path="mes-evaluations-devoirs" element={<Gate roles={["student"]}><UnifiedStudentAssessmentsAssignmentsPage /></Gate>} />
-            <Route path="mes-devoirs" element={<Gate roles={["student"]}><StudentSubmission /></Gate>} />
-            <Route path="tests" element={<Gate roles={["superadmin", "admin", "teacher"]}><TestsPage /></Gate>} />
-            <Route path="evaluations" element={<Gate roles={["superadmin", "admin", "teacher"]}><TestsPage /></Gate>} />
-            <Route path="mes-evaluations" element={<Gate roles={["student"]}><UnifiedStudentAssessmentsAssignmentsPage defaultTab="tests" /></Gate>} />
-            <Route path="notes" element={<Gate roles={["superadmin", "admin", "teacher"]}><GradesPage /></Gate>} />
-            <Route path="paiements" element={<Gate roles={["superadmin", "admin"]}><PaymentsPage /></Gate>} />
+            <Route path="presences" element={<Gate roles={["superadmin", "admin", "teacher"]} moduleKey="presences"><AttendancePage /></Gate>} />
+            <Route path="cours" element={<Gate roles={["superadmin", "admin", "teacher"]} moduleKey="cours"><CoursesPage /></Gate>} />
+            <Route path="evaluations-devoirs" element={<Gate roles={["superadmin", "admin", "teacher"]} moduleKey="evaluations"><UnifiedAssessmentsAssignmentsPage /></Gate>} />
+            <Route path="devoirs" element={<Gate roles={["superadmin", "admin", "teacher"]} moduleKey="evaluations"><TeacherSubmissions /></Gate>} />
+            <Route path="qr-scanner" element={<Gate roles={["superadmin", "admin", "teacher"]} moduleKey="presences"><QrScannerPage /></Gate>} />
+            <Route path="mes-cours" element={<Gate roles={["teacher", "student"]} moduleKey="cours"><MyCoursesRoute /></Gate>} />
+            <Route path="mes-evaluations-devoirs" element={<Gate roles={["student"]} moduleKey="evaluations"><UnifiedStudentAssessmentsAssignmentsPage /></Gate>} />
+            <Route path="mes-devoirs" element={<Gate roles={["student"]} moduleKey="evaluations"><StudentSubmission /></Gate>} />
+            <Route path="tests" element={<Gate roles={["superadmin", "admin", "teacher"]} moduleKey="evaluations"><TestsPage /></Gate>} />
+            <Route path="evaluations" element={<Gate roles={["superadmin", "admin", "teacher"]} moduleKey="evaluations"><TestsPage /></Gate>} />
+            <Route path="mes-evaluations" element={<Gate roles={["student"]} moduleKey="evaluations"><UnifiedStudentAssessmentsAssignmentsPage defaultTab="tests" /></Gate>} />
+            <Route path="notes" element={<Gate roles={["superadmin", "admin", "teacher"]} moduleKey="evaluations"><GradesPage /></Gate>} />
+            <Route path="paiements" element={<Gate roles={["superadmin", "admin"]} moduleKey="finances"><PaymentsPage /></Gate>} />
             <Route path="certificats" element={<Gate roles={["superadmin", "admin", "partner_admin"]}><CertificatesPage /></Gate>} />
             <Route path="bourses" element={<Gate roles={["superadmin", "admin", "partner_admin"]}><ScholarshipsPage /></Gate>} />
-            <Route path="enia" element={<Gate roles={["superadmin", "admin", "partner_admin", "partner", "teacher", "student"]}><EniaPage /></Gate>} />
-            <Route path="enia-admin" element={<Gate roles={["superadmin", "admin"]}><EniaAdminPage /></Gate>} />
-            <Route path="sentinel-ai-admin" element={<Gate roles={["superadmin", "admin"]}><SentinelAiAdminPage /></Gate>} />
-            <Route path="messages" element={<MessageCenter />} />
+            <Route path="enia" element={<Gate roles={["superadmin", "admin", "partner_admin", "partner", "teacher", "student"]} moduleKey="ia"><EniaPage /></Gate>} />
+            <Route path="enia-admin" element={<Gate roles={["superadmin", "admin"]} moduleKey="ia"><EniaAdminPage /></Gate>} />
+            <Route path="sentinel-ai-admin" element={<Gate roles={["superadmin", "admin"]} moduleKey="ia"><SentinelAiAdminPage /></Gate>} />
+            <Route path="messages" element={<Gate roles={["superadmin", "admin", "teacher", "student"]} moduleKey="messages"><MessageCenter /></Gate>} />
             <Route path="notifications" element={<NotificationsPage />} />
             <Route path="utilisateurs" element={<Gate roles={["superadmin"]}><UsersPage /></Gate>} />
             <Route path="contenu" element={<Gate roles={["superadmin", "admin"]}><ContentEditor /></Gate>} />

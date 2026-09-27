@@ -62,17 +62,24 @@ const emptyStudent = (): Omit<Student, "id"> => ({
 });
 
 export function StudentsPage() {
-  const { db, user, update, nextStudentId, notify, log, computeAmount } = useStore();
+  const { db, user, update, nextStudentId, notify, log, computeAmount, activeAcademicYear } = useStore();
   const navigate = useNavigate();
   const [searchParams] = useSearchParams();
   const [q, setQ] = useState("");
   const [tab, setTab] = useState<"tous" | Formation>("tous");
   const [fPay, setFPay] = useState("");
   const [fActif, setFActif] = useState("");
+  const [fYear, setFYear] = useState<string>("all");
+  const [sortBy, setSortBy] = useState<"name" | "date" | "reste">("name");
+  const [page, setPage] = useState(1);
+  const PAGE_SIZE = 9;
+
   const [viewMode, setViewMode] = useState<"table" | "cards">("cards");
   const [editing, setEditing] = useState<Student | null>(null);
   const [creating, setCreating] = useState(false);
   const [viewing, setViewing] = useState<Student | null>(null);
+  const [historyStudent, setHistoryStudent] = useState<Student | null>(null);
+  const [docsStudent, setDocsStudent] = useState<Student | null>(null);
   const [printingBadge, setPrintingBadge] = useState<Student | null>(null);
   const [form, setForm] = useState<any>(emptyStudent());
   const [createdCreds, setCreatedCreds] = useState<{
@@ -100,19 +107,47 @@ export function StudentsPage() {
     }
   }, [searchParams, db.students]);
 
-  const filtered = db.students.filter((s) => {
-    const query = q.toLowerCase().trim();
-    const matchQ = !query || `${s.nom} ${s.prenom} ${s.id} ${s.telephone || ""} ${s.whatsapp || ""} ${s.email || ""}`.toLowerCase().includes(query);
-    const matchT = tab === "tous" || s.formation === tab;
-    if (!matchQ || !matchT) return false;
-    if (fPay) {
-      const st = financialSummary(db, s.id).statut;
-      if (st !== fPay) return false;
-    }
-    if (fActif === "actif" && s.actif === false) return false;
-    if (fActif === "inactif" && s.actif !== false) return false;
-    return true;
-  });
+  const filtered = useMemo(() => {
+    const list = db.students.filter((s) => {
+      const query = q.toLowerCase().trim();
+      const matchQ = !query || `${s.nom} ${s.prenom} ${s.id} ${s.telephone || ""} ${s.whatsapp || ""} ${s.email || ""}`.toLowerCase().includes(query);
+      const matchT = tab === "tous" || s.formation === tab;
+      if (!matchQ || !matchT) return false;
+      if (fPay) {
+        const st = financialSummary(db, s.id).statut;
+        if (st !== fPay) return false;
+      }
+      if (fActif === "actif" && s.actif === false) return false;
+      if (fActif === "inactif" && s.actif !== false) return false;
+      if (fYear !== "all") {
+        if (s.academicYearId && s.academicYearId !== fYear) return false;
+        if (!s.academicYearId && s.anneeScolaire && s.anneeScolaire !== fYear) return false;
+      }
+      return true;
+    });
+
+    // Tri
+    return list.sort((a, b) => {
+      if (sortBy === "name") {
+        return a.nom.localeCompare(b.nom) || a.prenom.localeCompare(b.prenom);
+      }
+      if (sortBy === "date") {
+        return (b.dateInscription || "").localeCompare(a.dateInscription || "");
+      }
+      if (sortBy === "reste") {
+        const resteA = financialSummary(db, a.id).reste;
+        const resteB = financialSummary(db, b.id).reste;
+        return resteB - resteA;
+      }
+      return 0;
+    });
+  }, [db, q, tab, fPay, fActif, fYear, sortBy]);
+
+  const totalPages = Math.max(1, Math.ceil(filtered.length / PAGE_SIZE));
+  const paginatedStudents = useMemo(() => {
+    const start = (page - 1) * PAGE_SIZE;
+    return filtered.slice(start, start + PAGE_SIZE);
+  }, [filtered, page]);
 
   const exportStudentsCSV = () => {
     const headers = ["N° Apprenant", "Nom", "Prénom", "Formation", "Téléphone", "WhatsApp", "Email", "Modules", "Paiement", "Statut Compte"];
@@ -718,16 +753,41 @@ export function StudentsPage() {
                 {a === "" ? "Tous" : a === "actif" ? "Actifs" : "Inactifs"}
               </button>
             ))}
+
+            {/* Filtre Année Académique (Section 9) */}
+            <span className="text-slate-400 font-bold uppercase tracking-wider text-[11px] ml-3 mr-1">Session :</span>
+            <select
+              value={fYear}
+              onChange={(e) => { setFYear(e.target.value); setPage(1); }}
+              className="rounded-lg border border-white/10 bg-[#071322] px-2 py-1 text-xs text-cyan-200 outline-none focus:border-cyan-400/50"
+            >
+              <option value="all">Toutes sessions</option>
+              {(db.academicYears || []).map((ay) => (
+                <option key={ay.id} value={ay.id}>{ay.nom} {ay.estActive ? "★" : ""}</option>
+              ))}
+            </select>
+
+            {/* Tri (Section 8) */}
+            <span className="text-slate-400 font-bold uppercase tracking-wider text-[11px] ml-3 mr-1">Tri :</span>
+            <select
+              value={sortBy}
+              onChange={(e) => { setSortBy(e.target.value as any); setPage(1); }}
+              className="rounded-lg border border-white/10 bg-[#071322] px-2 py-1 text-xs text-white outline-none focus:border-cyan-400/50"
+            >
+              <option value="name">Nom (A → Z)</option>
+              <option value="date">Inscription récente</option>
+              <option value="reste">Reste à payer élevé</option>
+            </select>
           </div>
 
           <div className="flex items-center gap-3">
             <span className="text-xs text-slate-400">
               Affichés : <strong className="text-white font-mono">{filtered.length}</strong> / {db.students.length}
             </span>
-            {(q || tab !== "tous" || fPay || fActif) && (
+            {(q || tab !== "tous" || fPay || fActif || fYear !== "all") && (
               <button
                 type="button"
-                onClick={() => { setQ(""); setTab("tous"); setFPay(""); setFActif(""); }}
+                onClick={() => { setQ(""); setTab("tous"); setFPay(""); setFActif(""); setFYear("all"); setPage(1); }}
                 className="text-xs font-bold text-rose-400 hover:underline"
               >
                 Réinitialiser
@@ -757,7 +817,7 @@ export function StudentsPage() {
                 </tr>
               </thead>
               <tbody className="divide-y divide-white/5">
-                {filtered.map((s) => {
+                {paginatedStudents.map((s) => {
                   const fin = financialSummary(db, s.id);
                   const isInfo = s.formation === "informatique";
                   const phoneClean = (s.whatsapp || s.telephone || "").replace(/[^0-9]/g, "");
@@ -965,7 +1025,7 @@ export function StudentsPage() {
       ) : (
         /* VUE 2 : VUE FICHES CARTES (GRILLE MODERNE) */
         <div className="grid gap-5 md:grid-cols-2 xl:grid-cols-3">
-          {filtered.map((s) => {
+          {paginatedStudents.map((s) => {
             const fin = financialSummary(db, s.id);
             const isInfo = s.formation === "informatique";
             const phoneClean = (s.whatsapp || s.telephone || "").replace(/[^0-9]/g, "");
@@ -1042,22 +1102,22 @@ export function StudentsPage() {
                   )}
                 </div>
 
-                {/* Actions Directes de la Carte (Point 3) */}
-                <div className="grid grid-cols-4 gap-1.5 border-t border-white/10 pt-3">
+                {/* Actions Directes de la Carte (Section 8) */}
+                <div className="grid grid-cols-3 sm:grid-cols-6 gap-1.5 border-t border-white/10 pt-3">
                   <button
                     type="button"
                     onClick={() => setViewing(s)}
-                    className="flex flex-col items-center justify-center gap-1 rounded-xl border border-cyan-400/40 bg-cyan-400/10 py-1.5 px-1 text-[11px] font-bold text-cyan-200 hover:bg-cyan-400/25 transition shadow-sm cursor-pointer"
-                    title="Consulter le dossier complet"
+                    className="flex flex-col items-center justify-center gap-1 rounded-xl border border-cyan-400/40 bg-cyan-400/10 py-1.5 px-1 text-[10px] font-bold text-cyan-200 hover:bg-cyan-400/25 transition shadow-sm cursor-pointer"
+                    title="Consulter le dossier profil complet"
                   >
                     <Eye size={13} />
-                    <span>Dossier</span>
+                    <span>Profil</span>
                   </button>
 
                   <button
                     type="button"
                     onClick={() => navigate(`/app/presences`)}
-                    className="flex flex-col items-center justify-center gap-1 rounded-xl border border-white/10 bg-white/5 py-1.5 px-1 text-[11px] font-bold text-slate-300 hover:border-cyan-400/40 hover:text-cyan-300 transition cursor-pointer"
+                    className="flex flex-col items-center justify-center gap-1 rounded-xl border border-white/10 bg-white/5 py-1.5 px-1 text-[10px] font-bold text-slate-300 hover:border-cyan-400/40 hover:text-cyan-300 transition cursor-pointer"
                     title="Consulter les présences"
                   >
                     <ClipboardCheck size={13} />
@@ -1067,7 +1127,7 @@ export function StudentsPage() {
                   <button
                     type="button"
                     onClick={() => navigate(`/app/notes`)}
-                    className="flex flex-col items-center justify-center gap-1 rounded-xl border border-white/10 bg-white/5 py-1.5 px-1 text-[11px] font-bold text-slate-300 hover:border-cyan-400/40 hover:text-cyan-300 transition cursor-pointer"
+                    className="flex flex-col items-center justify-center gap-1 rounded-xl border border-white/10 bg-white/5 py-1.5 px-1 text-[10px] font-bold text-slate-300 hover:border-cyan-400/40 hover:text-cyan-300 transition cursor-pointer"
                     title="Consulter les notes"
                   >
                     <GraduationCap size={13} />
@@ -1077,24 +1137,44 @@ export function StudentsPage() {
                   <button
                     type="button"
                     onClick={() => navigate(`/app/paiements`)}
-                    className="flex flex-col items-center justify-center gap-1 rounded-xl border border-white/10 bg-white/5 py-1.5 px-1 text-[11px] font-bold text-slate-300 hover:border-emerald-400/40 hover:text-emerald-300 transition cursor-pointer"
+                    className="flex flex-col items-center justify-center gap-1 rounded-xl border border-white/10 bg-white/5 py-1.5 px-1 text-[10px] font-bold text-slate-300 hover:border-emerald-400/40 hover:text-emerald-300 transition cursor-pointer"
                     title="Consulter les paiements"
                   >
                     <CreditCard size={13} />
-                    <span>Finances</span>
+                    <span>Paiements</span>
+                  </button>
+
+                  <button
+                    type="button"
+                    onClick={() => setDocsStudent(s)}
+                    className="flex flex-col items-center justify-center gap-1 rounded-xl border border-white/10 bg-white/5 py-1.5 px-1 text-[10px] font-bold text-slate-300 hover:border-cyan-400/40 hover:text-cyan-300 transition cursor-pointer"
+                    title="Documents, badge et attestations"
+                  >
+                    <Printer size={13} />
+                    <span>Documents</span>
+                  </button>
+
+                  <button
+                    type="button"
+                    onClick={() => setHistoryStudent(s)}
+                    className="flex flex-col items-center justify-center gap-1 rounded-xl border border-white/10 bg-white/5 py-1.5 px-1 text-[10px] font-bold text-slate-300 hover:border-purple-400/40 hover:text-purple-300 transition cursor-pointer"
+                    title="Historique des activités"
+                  >
+                    <Clock size={13} />
+                    <span>Historique</span>
                   </button>
                 </div>
 
-                {/* Actions secondaires : Carte, WhatsApp, Modifier, Supprimer */}
-                <div className="flex items-center justify-between gap-1.5 pt-2">
+                {/* Actions secondaires : Modifier, WhatsApp, Supprimer */}
+                <div className="flex items-center justify-between gap-1.5 pt-2 border-t border-white/5 mt-2">
                   <button
                     type="button"
-                    onClick={() => setPrintingBadge(s)}
-                    className="flex-1 flex items-center justify-center gap-1 rounded-lg border border-white/10 py-1.5 text-[11px] font-semibold text-slate-300 hover:border-cyan-400/40 hover:text-cyan-200 transition cursor-pointer"
-                    title="Imprimer carte officielle"
+                    onClick={() => { setForm(s); setEditing(s); setCreating(true); }}
+                    className="flex-1 flex items-center justify-center gap-1 rounded-lg border border-white/10 py-1.5 text-[11px] font-semibold text-slate-300 hover:border-amber-400/50 hover:text-amber-300 hover:bg-amber-400/10 transition cursor-pointer"
+                    title="Modifier les informations"
                   >
-                    <Printer size={13} />
-                    <span>Carte</span>
+                    <Pencil size={13} />
+                    <span>Modifier</span>
                   </button>
                   {phoneClean && (
                     <a
@@ -1111,14 +1191,6 @@ export function StudentsPage() {
                   )}
                   <button
                     type="button"
-                    onClick={() => { setForm(s); setEditing(s); setCreating(true); }}
-                    className="rounded-lg border border-white/10 p-1.5 text-slate-300 hover:border-amber-400/50 hover:text-amber-300 transition cursor-pointer"
-                    title="Modifier les informations"
-                  >
-                    <Pencil size={14} />
-                  </button>
-                  <button
-                    type="button"
                     onClick={() => setDeleteTarget(s)}
                     className="rounded-lg border border-red-500/20 p-1.5 text-red-400 hover:bg-red-500/20 transition cursor-pointer"
                     title="Supprimer l'apprenant"
@@ -1129,6 +1201,36 @@ export function StudentsPage() {
               </Card>
             );
           })}
+        </div>
+      )}
+
+      {/* Pagination (Section 8) */}
+      {filtered.length > PAGE_SIZE && (
+        <div className="flex flex-col sm:flex-row items-center justify-between gap-3 rounded-2xl border border-white/10 bg-[#081024]/80 p-3 text-xs">
+          <span className="text-slate-400">
+            Affichage de <strong className="text-white font-mono">{(page - 1) * PAGE_SIZE + 1}</strong> à <strong className="text-white font-mono">{Math.min(page * PAGE_SIZE, filtered.length)}</strong> sur <strong className="text-cyan-300 font-mono">{filtered.length}</strong> apprenant(s)
+          </span>
+          <div className="flex items-center gap-2">
+            <Btn
+              variant="outline"
+              disabled={page <= 1}
+              onClick={() => setPage((p) => Math.max(1, p - 1))}
+              className="px-3 py-1 text-xs"
+            >
+              ← Précédent
+            </Btn>
+            <span className="rounded-lg border border-white/10 bg-white/5 px-3 py-1 font-mono text-cyan-200">
+              Page {page} / {totalPages}
+            </span>
+            <Btn
+              variant="outline"
+              disabled={page >= totalPages}
+              onClick={() => setPage((p) => Math.min(totalPages, p + 1))}
+              className="px-3 py-1 text-xs"
+            >
+              Suivant →
+            </Btn>
+          </div>
         </div>
       )}
 
@@ -1429,6 +1531,135 @@ export function StudentsPage() {
               <Btn onClick={() => window.print()} className="shadow-[0_0_20px_-4px_rgba(0,229,255,0.7)]">
                 <Printer size={16} /> Imprimer la carte
               </Btn>
+            </div>
+          </div>
+        </Modal>
+      )}
+
+      {/* Modale Documents & Attestations de l'apprenant (Section 8) */}
+      {docsStudent && (
+        <Modal open={Boolean(docsStudent)} onClose={() => setDocsStudent(null)} title={`Documents — ${docsStudent.prenom} ${docsStudent.nom}`} wide={false}>
+          <div className="space-y-4">
+            <div className="rounded-xl border border-white/10 bg-[#060D1E] p-4 text-xs text-slate-300 space-y-3">
+              <div className="flex items-center justify-between border-b border-white/10 pb-2">
+                <span className="font-bold text-white">Matricule : <span className="font-mono text-cyan-300">{docsStudent.id}</span></span>
+                <Badge color="cyan">{formationLabel(docsStudent.formation)}</Badge>
+              </div>
+              <p className="text-slate-400">Documents officiels et attestations disponibles pour cet apprenant :</p>
+              
+              <div className="space-y-2">
+                <button
+                  type="button"
+                  onClick={() => {
+                    const s = docsStudent;
+                    setDocsStudent(null);
+                    setPrintingBadge(s);
+                  }}
+                  className="w-full flex items-center justify-between p-3 rounded-xl border border-cyan-400/30 bg-cyan-400/10 hover:bg-cyan-400/20 text-cyan-200 transition"
+                >
+                  <div className="flex items-center gap-2">
+                    <Printer size={16} />
+                    <div className="text-left">
+                      <p className="font-bold">Carte d'apprenant officielle (Badge)</p>
+                      <p className="text-[10px] text-cyan-300/70">Format carte d'identité avec QR Code certifié</p>
+                    </div>
+                  </div>
+                  <span className="text-xs">Ouvrir →</span>
+                </button>
+
+                <button
+                  type="button"
+                  onClick={() => {
+                    navigate(`/app/bulletins?id=${docsStudent.id}`);
+                    setDocsStudent(null);
+                  }}
+                  className="w-full flex items-center justify-between p-3 rounded-xl border border-white/10 bg-white/5 hover:border-emerald-400/40 hover:text-emerald-300 transition"
+                >
+                  <div className="flex items-center gap-2">
+                    <GraduationCap size={16} />
+                    <div className="text-left">
+                      <p className="font-bold">Bulletin officiel de notes</p>
+                      <p className="text-[10px] text-slate-400">Relevé de notes et appréciations semestrielles</p>
+                    </div>
+                  </div>
+                  <span className="text-xs">Consulter →</span>
+                </button>
+
+                <button
+                  type="button"
+                  onClick={() => {
+                    navigate(`/app/certificats?id=${docsStudent.id}`);
+                    setDocsStudent(null);
+                  }}
+                  className="w-full flex items-center justify-between p-3 rounded-xl border border-white/10 bg-white/5 hover:border-amber-400/40 hover:text-amber-300 transition"
+                >
+                  <div className="flex items-center gap-2">
+                    <CheckCircle2 size={16} />
+                    <div className="text-left">
+                      <p className="font-bold">Certificat de fin de formation</p>
+                      <p className="text-[10px] text-slate-400">Attestation de réussite et certification</p>
+                    </div>
+                  </div>
+                  <span className="text-xs">Consulter →</span>
+                </button>
+              </div>
+            </div>
+
+            <div className="flex justify-end gap-2 pt-1">
+              <Btn variant="ghost" onClick={() => setDocsStudent(null)}>Fermer</Btn>
+            </div>
+          </div>
+        </Modal>
+      )}
+
+      {/* Modale Historique d'activité de l'apprenant (Section 8) */}
+      {historyStudent && (
+        <Modal open={Boolean(historyStudent)} onClose={() => setHistoryStudent(null)} title={`Historique d'activité — ${historyStudent.prenom} ${historyStudent.nom}`} wide>
+          <div className="space-y-4">
+            <div className="rounded-xl border border-white/10 bg-[#060D1E] p-4 text-xs space-y-3">
+              <div className="flex items-center justify-between border-b border-white/10 pb-2">
+                <span className="text-slate-400">Journal des événements & opérations enregistrées</span>
+                <span className="font-mono text-cyan-300">{historyStudent.id}</span>
+              </div>
+
+              {(() => {
+                const qSearch = `${historyStudent.nom} ${historyStudent.prenom} ${historyStudent.id}`.toLowerCase();
+                const matchedLogs = (db.logs || []).filter((l) =>
+                  (l.action || "").toLowerCase().includes(historyStudent.id.toLowerCase()) ||
+                  (l.action || "").toLowerCase().includes(historyStudent.nom.toLowerCase()) ||
+                  (l.user || "").toLowerCase().includes(historyStudent.id.toLowerCase())
+                );
+
+                if (matchedLogs.length === 0) {
+                  return (
+                    <div className="py-6 text-center text-slate-400">
+                      <Clock size={24} className="mx-auto mb-2 opacity-40 text-cyan-400" />
+                      <p>Aucune trace d'activité spécifique enregistrée pour cet apprenant dans le journal système.</p>
+                      <p className="text-[11px] text-slate-500 mt-1">Date d'inscription : {historyStudent.dateInscription || "Non renseignée"}</p>
+                    </div>
+                  );
+                }
+
+                return (
+                  <div className="max-h-[300px] overflow-y-auto divide-y divide-white/5 space-y-2 pr-2">
+                    {matchedLogs.map((lg) => (
+                      <div key={lg.id} className="pt-2 flex items-start justify-between gap-3 text-[11px]">
+                        <div>
+                          <p className="text-slate-200 font-medium">{lg.action}</p>
+                          <p className="text-slate-500 text-[10px]">Auteur / Contexte : {lg.user || "Système"}</p>
+                        </div>
+                        <span className="font-mono text-[10px] text-cyan-400 shrink-0">
+                          {lg.date} {lg.heure || ""}
+                        </span>
+                      </div>
+                    ))}
+                  </div>
+                );
+              })()}
+            </div>
+
+            <div className="flex justify-end gap-2 pt-1">
+              <Btn variant="ghost" onClick={() => setHistoryStudent(null)}>Fermer</Btn>
             </div>
           </div>
         </Modal>
@@ -2029,42 +2260,79 @@ export function TeachersPage() {
             const tModIds = getTeacherModuleIds(t, db, { heuristic: true });
             const mods = db.modules.filter((m) => tModIds.includes(m.id));
             const fin = teacherFinanceSummary(db, t.id);
+            const phoneClean = (t.phone || "").replace(/[^0-9]/g, "");
+
             return (
-              <Card key={t.id} className={cn("p-5", t.actif === false && "opacity-60")} glow="cyan">
+              <Card key={t.id} className={cn("p-5 border-white/10 bg-[#081024]/90 backdrop-blur-md shadow-xl hover:border-cyan-400/40 transition group", t.actif === false && "opacity-60")} glow="cyan">
                 <div className="flex items-start justify-between">
                   <div className="flex items-center gap-3">
                     {t.photo ? (
-                      <img src={t.photo} alt="" className="h-12 w-12 rounded-xl object-cover" />
+                      <img src={t.photo} alt="" className="h-13 w-13 rounded-xl object-cover border border-cyan-400/30 shadow-md" />
                     ) : (
-                      <div className="flex h-12 w-12 items-center justify-center rounded-xl bg-gradient-to-br from-cyan-500/30 to-blue-600/30">
-                        <GraduationCap size={22} className="text-cyan-300" />
+                      <div className="flex h-13 w-13 items-center justify-center rounded-xl bg-gradient-to-br from-cyan-500/30 to-blue-600/30 border border-cyan-400/30 text-cyan-300 font-bold shadow-md">
+                        <GraduationCap size={24} />
                       </div>
                     )}
                     <div>
-                      <p className="font-display text-sm font-bold text-white">{t.prenom} {t.nom}</p>
-                      <p className="text-[11px] text-slate-400">{t.specialite}</p>
-                      <p className="font-mono text-[10px] text-cyan-400/70">{t.id}</p>
+                      <p className="font-display text-sm font-extrabold text-white group-hover:text-cyan-200 transition">{t.prenom} {t.nom}</p>
+                      <p className="text-[11px] text-slate-400">{t.specialite || "Formateur"}</p>
+                      <p className="font-mono text-[10px] text-cyan-400/80 font-semibold">{t.id}</p>
                     </div>
                   </div>
-                  <div className="flex gap-1.5">
-                    <button onClick={() => setViewing(t)} className="rounded-lg border border-white/10 p-2 text-slate-300 hover:border-cyan-400/40 hover:text-cyan-300" title="Détails"><Eye size={14} /></button>
-                    <button onClick={() => toggleActiveTeacher(t)} className="rounded-lg border border-white/10 p-2 text-slate-300 hover:border-amber-400/40 hover:text-amber-300" title={t.actif !== false ? "Désactiver le formateur" : "Réactiver le formateur"}>
-                      {t.actif !== false ? <EyeOff size={14} /> : <CheckCircle2 size={14} className="text-emerald-400" />}
+                  <div className="flex gap-1">
+                    <button onClick={() => toggleActiveTeacher(t)} className="rounded-lg border border-white/10 p-1.5 text-slate-300 hover:border-amber-400/40 hover:text-amber-300 transition" title={t.actif !== false ? "Désactiver le formateur" : "Réactiver le formateur"}>
+                      {t.actif !== false ? <EyeOff size={13} /> : <CheckCircle2 size={13} className="text-emerald-400" />}
                     </button>
-                    <button onClick={() => { setForm(t); setEditing(t); setCreating(true); }} className="rounded-lg border border-white/10 p-2 text-slate-300 hover:border-amber-400/40 hover:text-amber-300" title="Modifier"><Pencil size={14} /></button>
-                    <button onClick={() => setDeleteTarget(t)} className="rounded-lg border border-white/10 p-2 text-slate-300 hover:border-red-500/40 hover:text-red-400" title="Supprimer"><Trash2 size={14} /></button>
+                    <button onClick={() => { setForm(t); setEditing(t); setCreating(true); }} className="rounded-lg border border-white/10 p-1.5 text-slate-300 hover:border-amber-400/40 hover:text-amber-300 transition" title="Modifier"><Pencil size={13} /></button>
+                    <button onClick={() => setDeleteTarget(t)} className="rounded-lg border border-white/10 p-1.5 text-slate-300 hover:border-red-500/40 hover:text-red-400 transition" title="Supprimer"><Trash2 size={13} /></button>
                   </div>
                 </div>
+
                 <div className="mt-3 flex flex-wrap gap-1.5">
                   {t.userId ? <Badge color="green">Compte actif</Badge> : <Badge color="gray">Fiche seule</Badge>}
                   {t.actif === false && <Badge color="red">Inactif</Badge>}
                   {t.typeContrat && <Badge color="gold">{t.typeContrat}</Badge>}
-                  {mods.slice(0, 3).map((m) => <span key={m.id} className="rounded-md border border-white/10 bg-white/[0.03] px-2 py-0.5 text-[10px] text-slate-400">{m.numero}. {m.titre}</span>)}
+                  {mods.slice(0, 3).map((m) => <span key={m.id} className="rounded-md border border-white/10 bg-white/[0.03] px-2 py-0.5 text-[10px] text-slate-300">{m.numero}. {m.titre}</span>)}
                   {mods.length > 3 && <span className="rounded-md border border-white/10 bg-white/[0.03] px-2 py-0.5 text-[10px] text-slate-400">+{mods.length - 3}</span>}
                 </div>
-                <div className="mt-3 flex flex-wrap items-center justify-between gap-2 text-[11px] text-slate-500">
-                  <span className="flex items-center gap-1.5"><Phone size={11} className="text-emerald-300" /> {t.phone || "—"}</span>
-                  <span className="flex items-center gap-1.5 font-semibold text-cyan-300"><Timer size={11} /> {fin.heuresValidees} h · {money(fin.solde)}</span>
+
+                <div className="mt-3 grid grid-cols-2 gap-2 border-t border-white/5 pt-2.5 text-[11px] text-slate-400">
+                  <div className="flex items-center gap-1.5">
+                    <Timer size={12} className="text-cyan-400" />
+                    <span>Heures : <strong className="text-white font-mono">{fin.heuresValidees} h</strong> {t.heuresPrevues ? `/ ${t.heuresPrevues} h` : ""}</span>
+                  </div>
+                  <div className="flex items-center gap-1.5 justify-end">
+                    <Wallet size={12} className="text-emerald-400" />
+                    <span>Dû : <strong className="text-emerald-300 font-mono font-bold">{money(fin.solde)}</strong></span>
+                  </div>
+                </div>
+
+                {/* Barre d'actions rapides (Section 10) */}
+                <div className="mt-3 grid grid-cols-3 gap-1.5 border-t border-white/10 pt-2.5">
+                  <button
+                    type="button"
+                    onClick={() => setViewing(t)}
+                    className="flex items-center justify-center gap-1 rounded-xl border border-cyan-400/30 bg-cyan-400/10 py-1.5 text-[11px] font-bold text-cyan-200 hover:bg-cyan-400/20 transition cursor-pointer"
+                  >
+                    <Eye size={12} />
+                    <span>Profil</span>
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => navigate(`/app/planning?teacherId=${t.id}`)}
+                    className="flex items-center justify-center gap-1 rounded-xl border border-white/10 bg-white/5 py-1.5 text-[11px] font-bold text-slate-300 hover:border-cyan-400/40 hover:text-cyan-300 transition cursor-pointer"
+                  >
+                    <CalendarDays size={12} />
+                    <span>Planning</span>
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => navigate(`/app/heures-enseignants?teacherId=${t.id}`)}
+                    className="flex items-center justify-center gap-1 rounded-xl border border-white/10 bg-white/5 py-1.5 text-[11px] font-bold text-slate-300 hover:border-emerald-400/40 hover:text-emerald-300 transition cursor-pointer"
+                  >
+                    <BadgeDollarSign size={12} />
+                    <span>Heures</span>
+                  </button>
                 </div>
               </Card>
             );
@@ -2361,6 +2629,10 @@ export function UsersPage() {
   const [adding, setAdding] = useState(false);
   const [resetTarget, setResetTarget] = useState<{ id: string; username: string } | null>(null);
   const [deleteTarget, setDeleteTarget] = useState<User | null>(null);
+  const [viewingUser, setViewingUser] = useState<User | null>(null);
+  const [editingUser, setEditingUser] = useState<User | null>(null);
+  const [editUserForm, setEditUserForm] = useState<{ name: string; email: string; phone: string; role: Role }>({ name: "", email: "", phone: "", role: "student" });
+  const [activityUser, setActivityUser] = useState<User | null>(null);
   const [newPw, setNewPw] = useState("");
   const [newPwBusy, setNewPwBusy] = useState(false);
   const [newPwErr, setNewPwErr] = useState("");
@@ -2579,49 +2851,90 @@ export function UsersPage() {
                     </div>
                   </div>
 
-                  {/* Actions rapides visibles directement sur la carte */}
-                  <div className="mt-4 flex items-center justify-between border-t border-white/5 pt-3">
-                    <span className="text-[10px] text-slate-500 uppercase tracking-wider font-semibold">Actions</span>
-                    <div className="flex items-center gap-1.5">
-                      {u.role !== "superadmin" && (
-                        <button
-                          title={u.actif === false ? "Activer le compte" : "Désactiver le compte"}
-                          onClick={() => {
-                            update((d) => ({
-                              ...d,
-                              users: d.users.map((x) => x.id === u.id ? { ...x, actif: x.actif === false } : x),
-                            }));
-                            log(`Compte ${u.actif === false ? "activé" : "désactivé"} : ${u.username}`);
-                            toastMsg.info(`Compte ${u.actif === false ? "activé" : "désactivé"} : ${u.username}`);
-                          }}
-                          className={cn(
-                            "flex items-center gap-1 rounded-lg border px-2.5 py-1.5 text-xs font-semibold transition-all",
-                            u.actif === false
-                              ? "border-emerald-400/40 bg-emerald-400/10 text-emerald-300 hover:bg-emerald-400/20"
-                              : "border-white/10 bg-white/[0.03] text-slate-300 hover:border-amber-400/40 hover:text-amber-300"
-                          )}
-                        >
-                          {u.actif === false ? <Eye size={13} /> : <EyeOff size={13} />}
-                          <span>{u.actif === false ? "Activer" : "Désactiver"}</span>
-                        </button>
-                      )}
+                  {/* Actions rapides conformes à la Section 37 */}
+                  <div className="mt-4 grid grid-cols-4 gap-1.5 border-t border-white/5 pt-3">
+                    <button
+                      type="button"
+                      onClick={() => setViewingUser(u)}
+                      className="flex items-center justify-center gap-1 rounded-xl border border-cyan-400/30 bg-cyan-400/10 py-1.5 text-[11px] font-bold text-cyan-200 hover:bg-cyan-400/20 transition cursor-pointer"
+                      title="Consulter le profil complet"
+                    >
+                      <Eye size={12} />
+                      <span>Profil</span>
+                    </button>
+
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setEditingUser(u);
+                        setEditUserForm({ name: u.name, email: u.email || "", phone: u.phone || "", role: u.role });
+                      }}
+                      className="flex items-center justify-center gap-1 rounded-xl border border-white/10 bg-white/5 py-1.5 text-[11px] font-bold text-slate-300 hover:border-amber-400/40 hover:text-amber-300 transition cursor-pointer"
+                      title="Modifier les informations et rôle"
+                    >
+                      <Pencil size={12} />
+                      <span>Modifier</span>
+                    </button>
+
+                    <button
+                      type="button"
+                      onClick={() => setActivityUser(u)}
+                      className="flex items-center justify-center gap-1 rounded-xl border border-white/10 bg-white/5 py-1.5 text-[11px] font-bold text-slate-300 hover:border-purple-400/40 hover:text-purple-300 transition cursor-pointer"
+                      title="Historique des activités"
+                    >
+                      <Clock size={12} />
+                      <span>Activité</span>
+                    </button>
+
+                    {u.role !== "superadmin" ? (
                       <button
-                        title="Réinitialiser le mot de passe"
-                        onClick={() => { setResetTarget({ id: u.id, username: u.username }); setNewPw(""); setNewPwErr(""); }}
-                        className="rounded-lg border border-white/10 bg-white/[0.03] p-1.5 text-slate-300 hover:border-cyan-400/40 hover:text-cyan-300 transition-colors"
+                        title={u.actif === false ? "Activer le compte" : "Désactiver le compte"}
+                        onClick={() => {
+                          const newStatus = u.actif === false;
+                          update((d) => ({
+                            ...d,
+                            users: d.users.map((x) => x.id === u.id ? { ...x, actif: newStatus } : x),
+                          }));
+                          log(`Compte ${newStatus ? "activé" : "désactivé"} : ${u.username}`);
+                          toastMsg.info(`Compte ${newStatus ? "activé" : "désactivé"} : ${u.username}`);
+                        }}
+                        className={cn(
+                          "flex items-center justify-center gap-1 rounded-xl border py-1.5 text-[11px] font-bold transition-all cursor-pointer",
+                          u.actif === false
+                            ? "border-emerald-400/40 bg-emerald-400/10 text-emerald-300 hover:bg-emerald-400/20"
+                            : "border-white/10 bg-white/5 text-slate-400 hover:border-amber-400/40 hover:text-amber-300"
+                        )}
                       >
-                        <KeyRound size={14} />
+                        {u.actif === false ? <CheckCircle2 size={12} /> : <EyeOff size={12} />}
+                        <span>{u.actif === false ? "Actif" : "Bloquer"}</span>
                       </button>
-                      {user?.id !== u.id && (
-                        <button
-                          title="Supprimer cet utilisateur"
-                          onClick={() => setDeleteTarget(u)}
-                          className="rounded-lg border border-white/10 bg-white/[0.03] p-1.5 text-slate-300 hover:border-red-500/40 hover:text-red-400 transition-colors"
-                        >
-                          <Trash2 size={14} />
-                        </button>
-                      )}
-                    </div>
+                    ) : (
+                      <div className="flex items-center justify-center text-[10px] text-slate-500 font-mono">
+                        SuperAdmin
+                      </div>
+                    )}
+                  </div>
+
+                  {/* Actions secondaires : Mot de passe et suppression */}
+                  <div className="mt-2 flex items-center justify-between border-t border-white/5 pt-2 text-xs">
+                    <button
+                      type="button"
+                      onClick={() => { setResetTarget({ id: u.id, username: u.username }); setNewPw(""); setNewPwErr(""); }}
+                      className="flex items-center gap-1 text-[11px] text-slate-400 hover:text-cyan-300 transition"
+                    >
+                      <KeyRound size={12} />
+                      <span>Réinitialiser MDP</span>
+                    </button>
+                    {user?.id !== u.id && u.role !== "superadmin" && (
+                      <button
+                        type="button"
+                        onClick={() => setDeleteTarget(u)}
+                        className="flex items-center gap-1 text-[11px] text-red-400 hover:text-red-300 transition"
+                      >
+                        <Trash2 size={12} />
+                        <span>Supprimer</span>
+                      </button>
+                    )}
                   </div>
                 </div>
               );
@@ -2668,7 +2981,34 @@ export function UsersPage() {
                       )}
                     </td>
                     <td className="px-4 py-3">
-                      <div className="flex justify-end gap-1.5">
+                      <div className="flex justify-end items-center gap-1.5">
+                        <button
+                          type="button"
+                          onClick={() => setViewingUser(u)}
+                          className="rounded-lg border border-white/10 p-1.5 text-slate-300 hover:border-cyan-400/40 hover:text-cyan-300 transition cursor-pointer"
+                          title="Profil complet"
+                        >
+                          <Eye size={13} />
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() => {
+                            setEditingUser(u);
+                            setEditUserForm({ name: u.name, email: u.email || "", phone: u.phone || "", role: u.role });
+                          }}
+                          className="rounded-lg border border-white/10 p-1.5 text-slate-300 hover:border-amber-400/40 hover:text-amber-300 transition cursor-pointer"
+                          title="Modifier les informations"
+                        >
+                          <Pencil size={13} />
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() => setActivityUser(u)}
+                          className="rounded-lg border border-white/10 p-1.5 text-slate-300 hover:border-purple-400/40 hover:text-purple-300 transition cursor-pointer"
+                          title="Journal d'activité"
+                        >
+                          <Clock size={13} />
+                        </button>
                         {u.role !== "superadmin" && (
                           <button
                             title={u.actif === false ? "Activer le compte" : "Désactiver le compte"}
@@ -2681,29 +3021,29 @@ export function UsersPage() {
                               toastMsg.info(`Compte ${u.actif === false ? "activé" : "désactivé"} : ${u.username}`);
                             }}
                             className={cn(
-                              "rounded-lg border p-2",
+                              "rounded-lg border p-1.5 cursor-pointer",
                               u.actif === false
                                 ? "border-emerald-400/40 text-emerald-300 hover:bg-emerald-400/10"
                                 : "border-white/10 text-slate-300 hover:border-amber-400/40 hover:text-amber-300"
                             )}
                           >
-                            {u.actif === false ? <Eye size={14} /> : <EyeOff size={14} />}
+                            {u.actif === false ? <CheckCircle2 size={13} /> : <EyeOff size={13} />}
                           </button>
                         )}
                         <button
                           title="Réinitialiser le mot de passe"
                           onClick={() => { setResetTarget({ id: u.id, username: u.username }); setNewPw(""); setNewPwErr(""); }}
-                          className="rounded-lg border border-white/10 p-2 text-slate-300 hover:border-cyan-400/40 hover:text-cyan-300"
+                          className="rounded-lg border border-white/10 p-1.5 text-slate-300 hover:border-cyan-400/40 hover:text-cyan-300 cursor-pointer"
                         >
-                          <KeyRound size={14} />
+                          <KeyRound size={13} />
                         </button>
-                        {user?.id !== u.id && (
+                        {user?.id !== u.id && u.role !== "superadmin" && (
                           <button
                             title="Supprimer cet utilisateur"
                             onClick={() => setDeleteTarget(u)}
-                            className="rounded-lg border border-white/10 p-2 text-slate-300 hover:border-red-500/40 hover:text-red-400"
+                            className="rounded-lg border border-white/10 p-1.5 text-slate-300 hover:border-red-500/40 hover:text-red-400 cursor-pointer"
                           >
-                            <Trash2 size={14} />
+                            <Trash2 size={13} />
                           </button>
                         )}
                       </div>
@@ -2714,6 +3054,181 @@ export function UsersPage() {
             </tbody>
           </table>
         </Card>
+      )}
+
+      {/* Modal Détails Profil Utilisateur (Section 37) */}
+      {viewingUser && (
+        <Modal open={Boolean(viewingUser)} onClose={() => setViewingUser(null)} title={`Profil Utilisateur — @${viewingUser.username}`}>
+          <div className="space-y-4">
+            <div className="flex items-center gap-4 rounded-xl border border-white/10 bg-[#060D1E] p-4">
+              <div className="flex h-14 w-14 items-center justify-center rounded-2xl border border-cyan-400/30 bg-cyan-950/40 font-display text-xl font-black text-cyan-300">
+                {viewingUser.name.charAt(0) || "U"}
+              </div>
+              <div className="min-w-0 flex-1">
+                <h3 className="font-display text-base font-bold text-white truncate">{viewingUser.name}</h3>
+                <p className="font-mono text-xs text-cyan-400">@{viewingUser.username}</p>
+                <div className="mt-1 flex items-center gap-2">
+                  <Badge color={roleColor(viewingUser.role) as any}>{roleLabel(viewingUser.role)}</Badge>
+                  <Badge color={viewingUser.actif !== false ? "green" : "red"}>{viewingUser.actif !== false ? "Actif" : "Désactivé"}</Badge>
+                </div>
+              </div>
+            </div>
+
+            <div className="grid gap-3 rounded-xl border border-white/10 bg-[#060D1E]/60 p-4 text-xs">
+              <div className="flex justify-between border-b border-white/5 pb-2">
+                <span className="text-slate-400">Identifiant système (ID) :</span>
+                <span className="font-mono text-cyan-300">{viewingUser.id}</span>
+              </div>
+              <div className="flex justify-between border-b border-white/5 pb-2">
+                <span className="text-slate-400">Adresse email :</span>
+                <span className="text-slate-200">{viewingUser.email || "Non renseignée"}</span>
+              </div>
+              <div className="flex justify-between border-b border-white/5 pb-2">
+                <span className="text-slate-400">Téléphone de contact :</span>
+                <span className="text-slate-200 font-mono">{viewingUser.phone || "Non renseigné"}</span>
+              </div>
+              <div className="flex justify-between border-b border-white/5 pb-2">
+                <span className="text-slate-400">Rattachement entité (Linked ID) :</span>
+                <span className="font-mono text-cyan-300">{viewingUser.linkedId || "Compte direct"}</span>
+              </div>
+              <div className="flex justify-between">
+                <span className="text-slate-400">Date de création du compte :</span>
+                <span className="text-slate-300">{viewingUser.createdAt || "2026"}</span>
+              </div>
+            </div>
+
+            <div className="flex justify-end gap-2 pt-1">
+              <Btn variant="ghost" onClick={() => setViewingUser(null)}>Fermer</Btn>
+            </div>
+          </div>
+        </Modal>
+      )}
+
+      {/* Modal Modification Informations Utilisateur & Permissions (Section 37) */}
+      {editingUser && (
+        <Modal open={Boolean(editingUser)} onClose={() => setEditingUser(null)} title={`Modifier l'utilisateur — @${editingUser.username}`}>
+          <div className="space-y-4">
+            <Field label="Nom complet">
+              <Input
+                value={editUserForm.name}
+                onChange={(e) => setEditUserForm({ ...editUserForm, name: e.target.value })}
+              />
+            </Field>
+
+            <div className="grid gap-3 sm:grid-cols-2">
+              <Field label="Adresse email">
+                <Input
+                  type="email"
+                  value={editUserForm.email}
+                  onChange={(e) => setEditUserForm({ ...editUserForm, email: e.target.value })}
+                />
+              </Field>
+              <Field label="Téléphone">
+                <Input
+                  value={editUserForm.phone}
+                  onChange={(e) => setEditUserForm({ ...editUserForm, phone: e.target.value })}
+                />
+              </Field>
+            </div>
+
+            <Field label="Rôle & Permissions système" hint="Définit les habilitations et accès aux modules">
+              <Select
+                value={editUserForm.role}
+                onChange={(e) => setEditUserForm({ ...editUserForm, role: e.target.value as Role })}
+                disabled={editingUser.role === "superadmin"}
+              >
+                <option value="student">Apprenant</option>
+                <option value="teacher">Enseignant</option>
+                <option value="admin">Administration</option>
+                <option value="partner_admin">Administration partenaire</option>
+                <option value="partner">Partenaire</option>
+                {user?.role === "superadmin" && <option value="superadmin">Super Admin</option>}
+              </Select>
+            </Field>
+
+            <div className="flex justify-end gap-2 pt-2">
+              <Btn variant="ghost" onClick={() => setEditingUser(null)}>Annuler</Btn>
+              <Btn
+                onClick={async () => {
+                  if (!editUserForm.name.trim()) return;
+                  if (isSupabaseConfigured) {
+                    try {
+                      await supabase.from("profiles").update({
+                        name: editUserForm.name,
+                        email: editUserForm.email || null,
+                        phone: editUserForm.phone || null,
+                        role: editUserForm.role,
+                      }).eq("id", editingUser.id);
+                      window.dispatchEvent(new Event("sentinelles:supabase-refresh"));
+                    } catch (err: any) {
+                      toastMsg.error("Erreur mise à jour serveur", err.message);
+                    }
+                  }
+                  update((d) => ({
+                    ...d,
+                    users: d.users.map((x) => x.id === editingUser.id ? { ...x, ...editUserForm } : x),
+                  }));
+                  log(`Compte utilisateur mis à jour : ${editUserForm.name} (${editingUser.username})`);
+                  toastMsg.success("Utilisateur mis à jour avec succès ✓");
+                  setEditingUser(null);
+                }}
+              >
+                Enregistrer les modifications
+              </Btn>
+            </div>
+          </div>
+        </Modal>
+      )}
+
+      {/* Modal Historique & Activité de l'utilisateur (Section 37) */}
+      {activityUser && (
+        <Modal open={Boolean(activityUser)} onClose={() => setActivityUser(null)} title={`Historique d'activité — @${activityUser.username}`} wide>
+          <div className="space-y-4">
+            <div className="rounded-xl border border-white/10 bg-[#060D1E] p-4 text-xs space-y-3">
+              <div className="flex items-center justify-between border-b border-white/10 pb-2">
+                <span className="text-slate-400">Journal d'audit des actions effectuées</span>
+                <span className="font-mono text-cyan-300">{activityUser.name} (@{activityUser.username})</span>
+              </div>
+
+              {(() => {
+                const logs = (db.logs || []).filter((l) =>
+                  (l.user || "").toLowerCase().includes(activityUser.username.toLowerCase()) ||
+                  (l.user || "").toLowerCase().includes(activityUser.name.toLowerCase()) ||
+                  (l.action || "").toLowerCase().includes(activityUser.username.toLowerCase())
+                );
+
+                if (logs.length === 0) {
+                  return (
+                    <div className="py-8 text-center text-slate-400">
+                      <Clock size={24} className="mx-auto mb-2 opacity-40 text-cyan-400" />
+                      <p>Aucune trace d'activité récente dans le journal pour cet utilisateur.</p>
+                    </div>
+                  );
+                }
+
+                return (
+                  <div className="max-h-[320px] overflow-y-auto divide-y divide-white/5 space-y-2 pr-2">
+                    {logs.map((lg) => (
+                      <div key={lg.id} className="pt-2 flex items-start justify-between gap-3 text-[11px]">
+                        <div>
+                          <p className="text-slate-200 font-medium">{lg.action}</p>
+                          <p className="text-slate-500 text-[10px]">Auteur : {lg.user || "Système"}</p>
+                        </div>
+                        <span className="font-mono text-[10px] text-cyan-400 shrink-0">
+                          {lg.date} {lg.heure || ""}
+                        </span>
+                      </div>
+                    ))}
+                  </div>
+                );
+              })()}
+            </div>
+
+            <div className="flex justify-end gap-2 pt-1">
+              <Btn variant="ghost" onClick={() => setActivityUser(null)}>Fermer</Btn>
+            </div>
+          </div>
+        </Modal>
       )}
 
       {/* Modal réinitialisation mot de passe */}

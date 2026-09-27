@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useRef } from "react";
-import { Palette, Check, RotateCcw, Sparkles, Moon, Shield, Flame } from "lucide-react";
+import { Palette, Check, RotateCcw, Sparkles, Moon, Shield, Flame, Radio } from "lucide-react";
 import { getUiTheme, setUiTheme, UiTheme } from "@/lib/uiTheme";
 import { cn } from "@/utils/cn";
 
@@ -48,6 +48,8 @@ export function ThemeToggle({ className, align = "right", showLabel = false }: T
 
   const getThemeLabel = (t: UiTheme) => {
     switch (t) {
+      case "spatial":
+        return "Mode Spatial";
       case "orange-slate":
         return "Orange Ardoise";
       case "crimson":
@@ -159,6 +161,41 @@ export function ThemeToggle({ className, align = "right", showLabel = false }: T
                 </div>
               </div>
               {currentTheme === "classic" && <Check size={16} className="text-cyan-400 shrink-0 mt-0.5" />}
+            </button>
+
+            {/* Option 1b: NOUVEAU DESIGN : MODE SPATIAL (Centre de contrôle professionnel) */}
+            <button
+              type="button"
+              onClick={() => selectTheme("spatial")}
+              className={cn(
+                "w-full text-left rounded-xl p-2.5 transition flex items-start justify-between gap-2 border group",
+                currentTheme === "spatial"
+                  ? "border-[#00E5FF] bg-[#00E5FF]/15 text-white shadow-[0_0_16px_rgba(0,229,255,0.35)]"
+                  : "border-cyan-500/20 bg-cyan-950/20 text-slate-200 hover:border-cyan-400/50 hover:bg-cyan-950/40"
+              )}
+            >
+              <div>
+                <div className="flex items-center gap-2">
+                  <Radio size={14} className="text-[#00E5FF] animate-pulse" />
+                  <p className="text-xs font-bold text-cyan-300">Mode Spatial (Centre de contrôle)</p>
+                  {currentTheme === "spatial" && (
+                    <span className="rounded bg-[#00E5FF]/25 px-1.5 py-0.2 text-[9px] font-bold text-[#00E5FF] border border-[#00E5FF]/40">
+                      Actif
+                    </span>
+                  )}
+                </div>
+                <p className="text-[10px] text-slate-300 mt-0.5 leading-snug">
+                  Esthétique centre spatial : fond #04070D, surface #08162B, panneaux flottants & HUD cyan.
+                </p>
+                <div className="flex items-center gap-1.5 mt-2">
+                  <span className="h-2.5 w-2.5 rounded-full bg-[#04070D] ring-1 ring-white/30" title="Fond profond #04070D" />
+                  <span className="h-2.5 w-2.5 rounded-full bg-[#08162B]" title="Surface #08162B" />
+                  <span className="h-2.5 w-2.5 rounded-full bg-[#0E2E4A]" title="Panneau #0E2E4A" />
+                  <span className="h-2.5 w-2.5 rounded-full bg-[#00E5FF] shadow-[0_0_6px_#00E5FF]" title="Cyan opérationnel #00E5FF" />
+                  <span className="h-2.5 w-2.5 rounded-full bg-[#7FD4E8]" title="HUD #7FD4E8" />
+                </div>
+              </div>
+              {currentTheme === "spatial" && <Check size={16} className="text-[#00E5FF] shrink-0 mt-0.5" />}
             </button>
 
             {/* Option 2: Thème Rouge Sentinelle (Blason 3D) */}

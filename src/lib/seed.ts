@@ -98,6 +98,23 @@ export function emptySettings(): DB["settings"] {
   };
 }
 
+export function defaultAcademicYears(): DB["academicYears"] {
+  return [
+    { id: "ay-2024-2025", label: "2024-2025", dateDebut: "2024-09-01", dateFin: "2025-07-31", statut: "cloturee", isDefault: false, description: "Année académique précédente clôturée" },
+    { id: "ay-2025-2026", label: "2025-2026", dateDebut: "2025-09-01", dateFin: "2026-07-31", statut: "active", isDefault: true, description: "Année académique en cours" },
+    { id: "ay-2026-2027", label: "2026-2027", dateDebut: "2026-09-01", dateFin: "2027-07-31", statut: "active", isDefault: false, description: "Prochaine session académique" },
+  ];
+}
+
+export function defaultModuleRestrictions(): DB["moduleRestrictions"] {
+  return [
+    { id: "mr-ia", moduleKey: "ia", moduleLabel: "Assistant Sentinel AI", bloque: false, roles: [], userIds: [], raison: "", updatedAt: new Date().toISOString() },
+    { id: "mr-finances", moduleKey: "finances", moduleLabel: "Module Finances & Comptabilité", bloque: false, roles: [], userIds: [], raison: "", updatedAt: new Date().toISOString() },
+    { id: "mr-messages", moduleKey: "messages", moduleLabel: "Messagerie interne", bloque: false, roles: [], userIds: [], raison: "", updatedAt: new Date().toISOString() },
+    { id: "mr-evaluations", moduleKey: "evaluations", moduleLabel: "Évaluations et Examens", bloque: false, roles: [], userIds: [], raison: "", updatedAt: new Date().toISOString() },
+  ];
+}
+
 export function emptyDB(preserveUsers?: DB["users"]): DB {
   const users = preserveUsers ?? [];
   return {
@@ -129,6 +146,9 @@ export function emptyDB(preserveUsers?: DB["users"]): DB {
     partners: [],
     announcements: [],
     enia: defaultEniaContent(),
+    academicYears: defaultAcademicYears(),
+    activeAcademicYearId: "ay-2025-2026",
+    moduleRestrictions: defaultModuleRestrictions(),
     log: [
       { id: `LOG-${Date.now()}`, date: today(), user: "Système", action: "Initialisation — base propre créée" },
     ],

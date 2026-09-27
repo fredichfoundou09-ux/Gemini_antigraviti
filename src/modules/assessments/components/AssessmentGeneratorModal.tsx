@@ -28,6 +28,8 @@ export function AssessmentGeneratorModal({
 
   // Mode Adaptatif sur-mesure
   const [topic, setTopic] = useState("");
+  const [selectedFormation, setSelectedFormation] = useState<string>("informatique");
+  const [chapter, setChapter] = useState<string>("");
   const [selectedModuleId, setSelectedModuleId] = useState(allowedModules[0]?.id || "");
   const [level, setLevel] = useState<"debutant" | "intermediaire" | "avance">("intermediaire");
   const [questionTypology, setQuestionTypology] = useState<"mixte" | "qcm" | "ouvertes" | "pratique">("mixte");
@@ -38,7 +40,7 @@ export function AssessmentGeneratorModal({
   const [customInstructions, setCustomInstructions] = useState<string>("");
   const [isGenerating, setIsGenerating] = useState(false);
 
-  // Mode Import de fichier (.MD / .XLSX / .CSV)
+  // Mode Import de fichier (.MD / .XLSX / .CSV / .PDF / .DOCX / .TXT)
   const [file, setFile] = useState<File | null>(null);
   const [fileType, setFileType] = useState<"md" | "excel" | null>(null);
   const [loading, setLoading] = useState(false);
@@ -56,6 +58,7 @@ export function AssessmentGeneratorModal({
     setExcelMapping(null);
     setShowMappingConfig(false);
     setTopic("");
+    setChapter("");
   };
 
   const handleFileChange = async (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -72,7 +75,14 @@ export function AssessmentGeneratorModal({
         const text = await f.text();
         const res = parseMarkdownAssessment(text);
         setParsedMd(res);
-        toastMsg.success("Fichier Markdown analysé", `${res.questions.length} question(s) détectée(s)`);
+        toastMsg.success("Fichier texte analysé", `${res.questions.length} question(s) détectée(s)`);
+      } else if (ext === "pdf" || ext === "docx") {
+        setFileType("md");
+        const { extractTextFromFile } = await import("@/lib/ai/documentIngestion");
+        const text = await extractTextFromFile(f);
+        const res = parseMarkdownAssessment(text);
+        setParsedMd(res);
+        toastMsg.success(`Document ${ext.toUpperCase()} structuré et analysé`, `${res.questions.length} question(s) extraite(s)`);
       } else if (ext === "xlsx" || ext === "xls" || ext === "csv") {
         setFileType("excel");
         const res = await parseExcelAssessment(f);
@@ -81,9 +91,9 @@ export function AssessmentGeneratorModal({
         if (res.isAmbiguous) {
           setShowMappingConfig(true);
         }
-        toastMsg.success("Fichier Excel analysé", `${res.questions.length} question(s) détectée(s)`);
+        toastMsg.success("Fichier tabulaire analysé", `${res.questions.length} question(s) détectée(s)`);
       } else {
-        toastMsg.error("Format non supporté", "Veuillez importer un fichier .MD, .XLSX ou .CSV.");
+        toastMsg.error("Format non supporté", "Veuillez importer un fichier .PDF, .DOCX, .XLSX, .CSV, .MD ou .TXT.");
         reset();
       }
     } catch (err: any) {
@@ -121,6 +131,7 @@ export function AssessmentGeneratorModal({
 
     setIsGenerating(true);
 
+    const calculatedBareme = targetBareme;
     const ptsPerQ = Math.max(1, Math.round(targetBareme / questionCount));
     const generatedQuestions: AssessmentQuestion[] = [];
 
@@ -135,6 +146,12 @@ export function AssessmentGeneratorModal({
         else if (i % 3 === 2) qType = "courte";
         else qType = "vf";
       }
+
+      const sectionTitle = i <= Math.ceil(questionCount * 0.4)
+        ? "Section I : Théorie & Notions Fondamentales"
+        : i <= Math.ceil(questionCount * 0.8)
+        ? "Section II : Application & Analyse Pratique"
+        : "Section III : Étude de Cas & Synthèse";
 
       if (qType === "qcm") {
         generatedQuestions.push({
@@ -188,17 +205,18 @@ export function AssessmentGeneratorModal({
       }
     }
 
-    const calculatedBareme = generatedQuestions.reduce((a, b) => a + b.points, 0);
+    const calculatedTotal = generatedQuestions.reduce((a, b) => a + b.points, 0);
 
     onAssessmentGenerated({
       titre: `Évaluation : ${finalTopic} (${level.toUpperCase()})`,
       moduleId: selectedModuleId,
+      chapitreId: chapter || undefined,
       teacherId: currentTeacherId,
-      consignes: customInstructions.trim() || `Épreuve adaptée de ${durationMinutes} minutes sur le sujet « ${finalTopic} ». Lisez attentivement l'énoncé de chaque question avant de valider.`,
-      description: `Évaluation générée sur-mesure pour le module ${modObj?.titre || selectedModuleId} — Niveau ${level}.`,
+      consignes: customInstructions.trim() || `Épreuve adaptée de ${durationMinutes} minutes sur le sujet « ${finalTopic} ».\n- Section I : Questions théoriques fondamentales\n- Section II : Questions pratiques et études de cas\nLisez attentivement l'énoncé de chaque question avant de valider votre réponse.`,
+      description: `Évaluation générée sur-mesure pour le module ${modObj?.titre || selectedModuleId} — Filière : ${selectedFormation === "informatique" ? "Génie Informatique" : "Génie Industriel"} — Niveau : ${level}.`,
       duree: durationMinutes,
-      bareme: calculatedBareme,
-      seuilReussite: Math.round(calculatedBareme / 2),
+      bareme: calculatedTotal,
+      seuilReussite: Math.round(calculatedTotal / 2),
       statut: "brouillon",
       modeSecurise: enableSecureExam,
       questions: generatedQuestions,
@@ -284,6 +302,13 @@ export function AssessmentGeneratorModal({
             </div>
 
             <div className="grid gap-4 sm:grid-cols-2">
+              <Field label="Formation / Filière">
+                <Select value={selectedFormation} onChange={(e) => setSelectedFormation(e.target.value)}>
+                  <option value="informatique">Génie Informatique & Réseaux</option>
+                  <option value="industriel">Génie Industriel & Maintenance</option>
+                </Select>
+              </Field>
+
               <Field label="Module d'enseignement concerné">
                 <Select value={selectedModuleId} onChange={(e) => setSelectedModuleId(e.target.value)}>
                   {allowedModules.map((m) => (
@@ -293,12 +318,22 @@ export function AssessmentGeneratorModal({
                   ))}
                 </Select>
               </Field>
+            </div>
 
+            <div className="grid gap-4 sm:grid-cols-2">
               <Field label="Thème ou sujet spécifique de l'épreuve">
                 <Input
                   value={topic}
                   onChange={(e) => setTopic(e.target.value)}
                   placeholder="ex: Sécurisation SSH, Automates programmables, Pare-feu..."
+                />
+              </Field>
+
+              <Field label="Chapitre ou section du cours (optionnel)">
+                <Input
+                  value={chapter}
+                  onChange={(e) => setChapter(e.target.value)}
+                  placeholder="ex: Chapitre 3 — Protocoles de routage dynamique"
                 />
               </Field>
             </div>
@@ -405,7 +440,7 @@ export function AssessmentGeneratorModal({
                 <input
                   ref={fileInputRef}
                   type="file"
-                  accept=".md,.markdown,.xlsx,.xls,.csv,.txt"
+                  accept=".md,.markdown,.xlsx,.xls,.csv,.txt,.pdf,.docx"
                   className="hidden"
                   onChange={handleFileChange}
                 />
@@ -413,7 +448,7 @@ export function AssessmentGeneratorModal({
                   <Upload size={28} />
                 </div>
                 <p className="mt-3 text-sm font-bold text-white">Cliquez pour importer un sujet existant</p>
-                <p className="mt-1 text-xs text-slate-400">Formats supportés : Markdown (.MD), Excel (.XLSX) ou CSV (.CSV)</p>
+                <p className="mt-1 text-xs text-slate-400">Formats supportés : PDF (.PDF), Word (.DOCX), Excel (.XLSX, .CSV), Markdown (.MD) ou Texte (.TXT)</p>
               </div>
             ) : (
               <div className="space-y-4">

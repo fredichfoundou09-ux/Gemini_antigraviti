@@ -31,6 +31,8 @@ import {
   Plus,
 } from "lucide-react";
 import { useSentinelAi } from "@/hooks/useSentinelAi";
+import { canUserAccessAi } from "@/lib/ai/aiAccessControl";
+import { ShieldAlert } from "lucide-react";
 import { toolLabel, AiPendingAction } from "@/lib/ai/types";
 import { toastMsg } from "@/lib/toast";
 import { ingestDocumentForRag } from "@/lib/ai/documentIngestion";
@@ -518,10 +520,16 @@ export function SentinelAIChat({ open, onClose, userRole, userName }: SentinelAI
   };
 
 
+  const aiAccess = canUserAccessAi({ role: userRole as any });
+
   if (!open) return null;
 
   const handleSubmit = (e?: React.FormEvent) => {
     if (e) e.preventDefault();
+    if (!aiAccess.allowed) {
+      toastMsg.error("Action restreinte", aiAccess.reason || "Accès à l'assistant IA non autorisé.");
+      return;
+    }
     const text = input.trim();
     if (!text || loading) return;
     setInput("");
@@ -889,12 +897,22 @@ export function SentinelAIChat({ open, onClose, userRole, userName }: SentinelAI
             }}
           />
 
+          {!aiAccess.allowed && (
+            <div className="mb-2.5 p-3 rounded-xl border border-amber-500/30 bg-amber-500/10 text-amber-300 text-xs flex items-center gap-2.5 animate-fadeIn">
+              <ShieldAlert size={18} className="shrink-0 text-amber-400" />
+              <div>
+                <p className="font-bold text-amber-200">Accès restreint par la politique de sécurité</p>
+                <p className="text-[11px] text-amber-300/80 mt-0.5">{aiAccess.reason}</p>
+              </div>
+            </div>
+          )}
+
           <form onSubmit={handleSubmit} className="flex items-center gap-2">
             {/* Bouton Ingestion Document */}
             <button
               type="button"
               onClick={() => fileInputRef.current?.click()}
-              disabled={loading || uploadingDoc}
+              disabled={!aiAccess.allowed || loading || uploadingDoc}
               className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl border border-white/10 bg-white/[0.04] text-slate-400 hover:border-cyan-400/40 hover:bg-cyan-950/30 hover:text-cyan-300 transition cursor-pointer disabled:opacity-40"
               title="Ajouter un document à la base RAG (PDF, DOCX, TXT, CSV)"
             >
@@ -909,8 +927,9 @@ export function SentinelAIChat({ open, onClose, userRole, userName }: SentinelAI
             <input
               value={input}
               onChange={(e) => setInput(e.target.value)}
-              placeholder="Posez une question, dictez ou glissez un fichier..."
-              className="flex-1 rounded-xl border border-white/10 bg-white/[0.04] px-4 py-2.5 text-sm text-white placeholder:text-slate-500 focus:border-cyan-400 focus:bg-white/[0.06] focus:outline-none transition shadow-inner"
+              disabled={!aiAccess.allowed || loading}
+              placeholder={aiAccess.allowed ? "Posez une question, dictez ou glissez un fichier..." : "Assistant IA verrouillé par la politique académique"}
+              className="flex-1 rounded-xl border border-white/10 bg-white/[0.04] px-4 py-2.5 text-sm text-white placeholder:text-slate-500 focus:border-cyan-400 focus:bg-white/[0.06] focus:outline-none transition shadow-inner disabled:cursor-not-allowed disabled:opacity-50"
             />
 
             {/* Bouton Dictée vocale */}
@@ -918,7 +937,8 @@ export function SentinelAIChat({ open, onClose, userRole, userName }: SentinelAI
               <button
                 type="button"
                 onClick={handleToggleVoice}
-                className={`flex h-10 w-10 shrink-0 items-center justify-center rounded-xl border transition cursor-pointer ${
+                disabled={!aiAccess.allowed || loading}
+                className={`flex h-10 w-10 shrink-0 items-center justify-center rounded-xl border transition cursor-pointer disabled:opacity-30 disabled:cursor-not-allowed ${
                   isListening
                     ? "border-red-400/60 bg-red-500/20 text-red-400 animate-pulse shadow-[0_0_12px_rgba(239,68,68,0.4)]"
                     : "border-white/10 bg-white/[0.04] text-slate-400 hover:border-cyan-400/40 hover:bg-cyan-950/30 hover:text-cyan-300"
@@ -932,8 +952,8 @@ export function SentinelAIChat({ open, onClose, userRole, userName }: SentinelAI
             {/* Bouton Envoyer */}
             <button
               type="submit"
-              disabled={loading || !input.trim()}
-              className="flex h-10 items-center justify-center rounded-xl border border-cyan-400/50 bg-cyan-400/20 px-4 text-cyan-300 hover:bg-cyan-400/30 hover:scale-105 active:scale-95 disabled:opacity-40 disabled:hover:scale-100 transition shadow-[0_0_15px_rgba(0,229,255,0.2)] cursor-pointer"
+              disabled={!aiAccess.allowed || loading || !input.trim()}
+              className="flex h-10 items-center justify-center rounded-xl border border-cyan-400/50 bg-cyan-400/20 px-4 text-cyan-300 hover:bg-cyan-400/30 hover:scale-105 active:scale-95 disabled:opacity-40 disabled:hover:scale-100 transition shadow-[0_0_15px_rgba(0,229,255,0.2)] cursor-pointer disabled:cursor-not-allowed"
             >
               <Send size={16} />
             </button>
