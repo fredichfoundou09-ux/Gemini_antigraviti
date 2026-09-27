@@ -316,10 +316,26 @@ export function AssessmentRunner({
         proctoringAlertsCount: proctoringAlerts.length,
       };
 
+      // Synchronisation automatique dans le module Notes (db.grades)
+      const autoGrade = rawAssessment.moduleId ? {
+        id: `GRD_TEST_${rawAssessment.id}_${studentId}`,
+        studentId,
+        moduleId: rawAssessment.moduleId,
+        note: finalEval.note, // sur 20
+        appreciation: `Évaluation: ${rawAssessment.titre}`,
+        date: resultPayload.date,
+      } : null;
+
       // Mettre à jour le store local
       update((d) => ({
         ...d,
         results: [resultPayload, ...d.results.filter((r) => !(r.testId === rawAssessment.id && r.studentId === studentId))],
+        ...(autoGrade ? {
+          grades: [
+            ...d.grades.filter((g) => !(g.moduleId === rawAssessment.moduleId && g.studentId === studentId)),
+            autoGrade,
+          ],
+        } : {}),
       }));
 
       // Persistance Supabase test_results

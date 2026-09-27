@@ -96,9 +96,26 @@ export function AssessmentResultsView({ assessment, onBack }: Props) {
       valide: true,
     };
 
+    const baremeSur20 = bareme > 0 ? (newNote / bareme) * 20 : newNote;
+    const noteSur20 = Math.round(baremeSur20 * 10) / 10;
+    const autoGrade = assessment.moduleId ? {
+      id: `GRD_TEST_${assessment.id}_${selectedResult.studentId}`,
+      studentId: selectedResult.studentId,
+      moduleId: assessment.moduleId,
+      note: noteSur20,
+      appreciation: `Évaluation: ${assessment.titre}`,
+      date: new Date().toISOString().slice(0, 10),
+    } : null;
+
     update((d) => ({
       ...d,
       results: d.results.map((r) => r.id === selectedResult.id ? updatedResult : r),
+      ...(autoGrade ? {
+        grades: [
+          ...d.grades.filter((g) => !(g.moduleId === assessment.moduleId && g.studentId === selectedResult.studentId)),
+          autoGrade,
+        ],
+      } : {}),
     }));
 
     setSelectedResult(updatedResult);

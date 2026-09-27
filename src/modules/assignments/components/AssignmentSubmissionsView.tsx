@@ -24,7 +24,7 @@ export function AssignmentSubmissionsView({
   onBack,
   onRefresh,
 }: AssignmentSubmissionsViewProps) {
-  const { db, user } = useStore();
+  const { db, user, update, log } = useStore();
 
   const [search, setSearch] = useState("");
   const [filterStatus, setFilterStatus] = useState<string>("all");
@@ -102,6 +102,28 @@ export function AssignmentSubmissionsView({
       );
 
       if (!res.success) throw new Error(res.error);
+
+      // Synchronisation automatique dans le module Notes (db.grades)
+      if (assignment.moduleId && gradingSubmission.studentId) {
+        const bareme = assignment.bareme > 0 ? assignment.bareme : 20;
+        const noteSur20 = Math.round(((num / bareme) * 20) * 10) / 10;
+        const autoGrade = {
+          id: `GRD_DEV_${gradingSubmission.id}`,
+          studentId: gradingSubmission.studentId,
+          moduleId: assignment.moduleId,
+          note: noteSur20,
+          appreciation: appreciationVal || `Devoir: ${assignment.titre}`,
+          date: new Date().toISOString().slice(0, 10),
+        };
+        update((d) => ({
+          ...d,
+          grades: [
+            ...d.grades.filter((g) => !(g.moduleId === assignment.moduleId && g.studentId === gradingSubmission.studentId)),
+            autoGrade,
+          ],
+        }));
+        log(`Note synchronisée automatiquement dans le module Notes pour l'apprenant : ${noteSur20}/20`);
+      }
 
       toastMsg.success("Correction enregistrée", `Note de ${num}/${assignment.bareme} attribuée.`);
       setGradingSubmission(null);

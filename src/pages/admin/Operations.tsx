@@ -4,7 +4,7 @@ import {
   PlusCircle, Trash2, Pencil, CalendarDays, Clock, MapPin, ClipboardCheck, FileText,
   PenLine, Wallet, Award, BadgeDollarSign, Printer, CheckCircle2, XCircle, Timer, BookOpen,
   GraduationCap, Eye, Save, ShieldCheck, ReceiptText, Upload, ImageOff, Users, Search, Download, Ban,
-  LayoutGrid, Table2,
+  LayoutGrid, Table2, TrendingUp, RotateCcw,
 } from "lucide-react";
 import { useStore } from "@/lib/store";
 import { toastMsg } from "@/lib/toast";
@@ -15,6 +15,7 @@ import {
 } from "@/lib/ui";
 import { Formation, AttendanceStatus } from "@/lib/types";
 import { ingestFile, fileKind, humanSize, downloadFile } from "@/lib/files";
+import { exportCsv } from "@/lib/export";
 import { studentsOfCourse, studentsOfSchedule, getTeacherModuleIds } from "@/lib/access";
 import { financialSummary, nextReceiptRef, statusLabel, calculateModuleProfitability } from "@/lib/finance";
 import { cancelPaymentWithAudit, executeDailyClosure, fetchDailyClosures } from "@/lib/supabase/finance";
@@ -1929,13 +1930,25 @@ export function TestsPage() {
 /* ================= NOTES ================= */
 export function GradesPage() {
   const { db, user, update, log } = useStore();
+  const [tab, setTab] = useState<"all" | "manual">("all");
+
+  // Filtres vue globale
+  const [searchLearner, setSearchLearner] = useState("");
+  const [filterModuleId, setFilterModuleId] = useState("");
+  const [filterPeriodFrom, setFilterPeriodFrom] = useState("");
+  const [filterPeriodTo, setFilterPeriodTo] = useState("");
+  const [filterStatus, setFilterStatus] = useState<"all" | "passed" | "failed">("all");
+
+  // Saisie manuelle par module
   const [moduleId, setModuleId] = useState("");
   const [notes, setNotes] = useState<Record<string, string>>({});
   const [appr, setAppr] = useState<Record<string, string>>({});
 
   const teacher = user?.role === "teacher" ? db.teachers.find((t) => t.userId === user.id) : null;
-  const teacherModuleIds = teacher ? getTeacherModuleIds(teacher, db) : [];
+  const teacherModuleIds = useMemo(() => teacher ? getTeacherModuleIds(teacher, db) : [], [teacher, db]);
   const allowedModules = db.modules.filter((m) => (teacher ? teacherModuleIds.includes(m.id) : true));
+
+  // Mode Saisie manuelle
   const mod = db.modules.find((m) => m.id === moduleId);
   const students = db.students.filter((s) => (mod ? (s.modules || []).includes(mod.id) : true));
   const existing = db.grades.filter((g) => g.moduleId === moduleId);
@@ -1946,56 +1959,383 @@ export function GradesPage() {
       .map((s) => ({ id: uid("GRD"), studentId: s.id, moduleId, note: Math.min(20, Math.max(0, +notes[s.id])), appreciation: appr[s.id] || "—", date: today() }));
     update((d) => ({ ...d, grades: [...d.grades.filter((g) => !(g.moduleId === moduleId && recs.some((r) => r.studentId === g.studentId))), ...recs] }));
     log(`Notes enregistrées pour ${recs.length} apprenant(s)`);
+    toastMsg.success("Notes enregistrées", `${recs.length} note(s) sauvegardée(s) pour ce module.`);
+  };
+
+  // Mode "Toutes les notes"
+  const allGrades = useMemo(() => {
+    return db.grades
+      .filter((g) => (teacher ? teacherModuleIds.includes(g.moduleId) : true))
+      .map((g) => {
+        const student = db.students.find((s) => s.id === g.studentId);
+        const moduleObj = db.modules.find((m) => m.id === g.moduleId);
+        return {
+          ...g,
+          studentName: student ? `${student.prenom} ${student.nom}` : g.studentId,
+          studentMatricule: student?.id || "",
+          moduleTitre: moduleObj ? `${moduleObj.numero}. ${moduleObj.titre}` : g.moduleId,
+          formation: moduleObj?.formation,
+        };
+      })
+      .filter((item) => {
+        if (filterModuleId && item.moduleId !== filterModuleId) return false;
+        if (searchLearner) {
+          const q = searchLearner.toLowerCase().trim();
+          const match = item.studentName.toLowerCase().includes(q) || item.studentMatricule.toLowerCase().includes(q);
+          if (!match) return false;
+        }
+        if (filterPeriodFrom && item.date < filterPeriodFrom) return false;
+        if (filterPeriodTo && item.date > filterPeriodTo) return false;
+        if (filterStatus === "passed" && item.note < 10) return false;
+        if (filterStatus === "failed" && item.note >= 10) return false;
+        return true;
+      })
+      .sort((a, b) => (b.date || "").localeCompare(a.date || ""));
+  }, [db.grades, db.students, db.modules, teacher, teacherModuleIds, filterModuleId, searchLearner, filterPeriodFrom, filterPeriodTo, filterStatus]);
+
+  // Statistiques agrégées
+  const totalNotes = allGrades.length;
+  const avgGrade = totalNotes > 0 ? (allGrades.reduce((sum, g) => sum + g.note, 0) / totalNotes).toFixed(1) : "—";
+  const passedNotes = allGrades.filter((g) => g.note >= 10).length;
+  const passRate = totalNotes > 0 ? Math.round((passedNotes / totalNotes) * 100) : 0;
+  const topGrade = totalNotes > 0 ? Math.max(...allGrades.map((g) => g.note)) : "—";
+
+  const handleExportAllGradesCsv = () => {
+    const rows = allGrades.map((g) => ({
+      Apprenant: g.studentName,
+      Matricule: g.studentMatricule,
+      Module: g.moduleTitre,
+      Note_sur_20: g.note,
+      Statut: g.note >= 10 ? "Admis" : "Ajourné",
+      Appreciation: g.appreciation,
+      Date: g.date,
+    }));
+    exportCsv(`releve-notes-sentinelles-${today()}`, rows);
+    toastMsg.success("Export terminé", `${rows.length} note(s) exportée(s) en CSV.`);
+  };
+
+  const handleDeleteGrade = (gradeId: string, studentName: string) => {
+    if (confirm(`Confirmer la suppression de la note de ${studentName} ?`)) {
+      update((d) => ({ ...d, grades: d.grades.filter((g) => g.id !== gradeId) }));
+      log(`Suppression de la note ID ${gradeId}`);
+      toastMsg.success("Note supprimée", "La note a été retirée du système.");
+    }
+  };
+
+  const resetFilters = () => {
+    setSearchLearner("");
+    setFilterModuleId("");
+    setFilterPeriodFrom("");
+    setFilterPeriodTo("");
+    setFilterStatus("all");
   };
 
   return (
-    <div>
-      <PageHead title="Saisie des notes" subtitle="Notation sur 20 par module"
-        actions={<Btn onClick={save}><Save size={16} /> Enregistrer les notes</Btn>} />
-      <div className="mb-5 max-w-md">
-        <Field label="Module">
-          <Select value={moduleId} onChange={(e) => setModuleId(e.target.value)}>
-            <option value="">— Choisir un module —</option>
-            {allowedModules.map((m) => <option key={m.id} value={m.id}>{formationLabel(m.formation)} — {m.numero}. {m.titre}</option>)}
-          </Select>
-        </Field>
-      </div>
+    <div className="space-y-6">
+      <PageHead
+        title="Gestion des notes"
+        subtitle="Suivi des résultats académiques, synchronisation automatique et saisie manuelle"
+        actions={
+          <div className="flex flex-wrap items-center gap-2">
+            <div className="inline-flex rounded-xl bg-slate-900/80 p-1 border border-white/10 shadow-inner">
+              <button
+                type="button"
+                onClick={() => setTab("all")}
+                className={cn(
+                  "px-3 py-1.5 rounded-lg text-xs font-semibold transition-all flex items-center gap-1.5",
+                  tab === "all" ? "bg-red-600 text-white shadow-md shadow-red-900/30" : "text-slate-400 hover:text-white"
+                )}
+              >
+                <FileText size={14} /> Toutes les notes ({db.grades.length})
+              </button>
+              <button
+                type="button"
+                onClick={() => setTab("manual")}
+                className={cn(
+                  "px-3 py-1.5 rounded-lg text-xs font-semibold transition-all flex items-center gap-1.5",
+                  tab === "manual" ? "bg-red-600 text-white shadow-md shadow-red-900/30" : "text-slate-400 hover:text-white"
+                )}
+              >
+                <PenLine size={14} /> Saisie manuelle par module
+              </button>
+            </div>
+            {tab === "all" && allGrades.length > 0 && (
+              <Btn variant="outline" onClick={handleExportAllGradesCsv}>
+                <Download size={15} /> Export CSV
+              </Btn>
+            )}
+            {tab === "manual" && moduleId && (
+              <Btn onClick={save}>
+                <Save size={16} /> Enregistrer les notes
+              </Btn>
+            )}
+          </div>
+        }
+      />
 
-      {!moduleId ? (
-        <Empty icon={<PenLine size={40} />} title="Sélectionnez un module" />
-      ) : (
-        <Card className="overflow-x-auto">
-          <table className="w-full min-w-[620px] text-left">
-            <thead>
-              <tr className="border-b border-white/5 text-[10px] uppercase tracking-[0.2em] text-slate-500">
-                <th className="px-4 py-3">Apprenant</th><th className="px-4 py-3">Note actuelle</th><th className="px-4 py-3">Note /20</th><th className="px-4 py-3">Appréciation</th>
-              </tr>
-            </thead>
-            <tbody>
-              {students.map((s) => {
-                const g = existing.find((x) => x.studentId === s.id);
-                return (
-                  <tr key={s.id} className="border-b border-white/5 last:border-0">
-                    <td className="px-4 py-3">
-                      <p className="text-sm font-bold text-white">{s.prenom} {s.nom}</p>
-                      <p className="font-mono text-[10px] text-slate-500">{s.id}</p>
-                    </td>
-                    <td className="px-4 py-3">
-                      {g ? <Badge color={g.note >= 10 ? "green" : "red"}>{g.note}/20</Badge> : <span className="text-xs text-slate-600">—</span>}
-                    </td>
-                    <td className="px-4 py-3">
-                      <Input type="number" min={0} max={20} step={0.5} className="w-24" placeholder={g ? String(g.note) : "—"}
-                        value={notes[s.id] ?? ""} onChange={(e) => setNotes({ ...notes, [s.id]: e.target.value })} />
-                    </td>
-                    <td className="px-4 py-3">
-                      <Input className="w-40" placeholder={g?.appreciation || "Appréciation"} value={appr[s.id] ?? ""} onChange={(e) => setAppr({ ...appr, [s.id]: e.target.value })} />
-                    </td>
+      {tab === "all" ? (
+        <div className="space-y-6">
+          {/* KPI Cards */}
+          <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+            <Card className="p-4 bg-gradient-to-br from-slate-900/90 to-slate-950/90 border-white/10">
+              <div className="flex items-center justify-between text-slate-400 text-xs mb-1">
+                <span>Total des notes</span>
+                <GraduationCap size={16} className="text-red-400" />
+              </div>
+              <p className="text-2xl font-black text-white">{totalNotes}</p>
+              <p className="text-[11px] text-slate-500 mt-1">Attribuées ou synchronisées</p>
+            </Card>
+
+            <Card className="p-4 bg-gradient-to-br from-slate-900/90 to-slate-950/90 border-white/10">
+              <div className="flex items-center justify-between text-slate-400 text-xs mb-1">
+                <span>Moyenne générale</span>
+                <TrendingUp size={16} className="text-cyan-400" />
+              </div>
+              <p className="text-2xl font-black text-cyan-300">{avgGrade}<span className="text-sm font-normal text-slate-400"> /20</span></p>
+              <p className="text-[11px] text-slate-500 mt-1">Sur l'ensemble des modules</p>
+            </Card>
+
+            <Card className="p-4 bg-gradient-to-br from-slate-900/90 to-slate-950/90 border-white/10">
+              <div className="flex items-center justify-between text-slate-400 text-xs mb-1">
+                <span>Taux de validation</span>
+                <CheckCircle2 size={16} className="text-emerald-400" />
+              </div>
+              <p className="text-2xl font-black text-emerald-400">{passRate}%</p>
+              <p className="text-[11px] text-slate-500 mt-1">{passedNotes} note(s) ≥ 10/20</p>
+            </Card>
+
+            <Card className="p-4 bg-gradient-to-br from-slate-900/90 to-slate-950/90 border-white/10">
+              <div className="flex items-center justify-between text-slate-400 text-xs mb-1">
+                <span>Meilleure note</span>
+                <Award size={16} className="text-amber-400" />
+              </div>
+              <p className="text-2xl font-black text-amber-300">{topGrade}<span className="text-sm font-normal text-slate-400"> /20</span></p>
+              <p className="text-[11px] text-slate-500 mt-1">Excellence académique</p>
+            </Card>
+          </div>
+
+          {/* Filtres de recherche */}
+          <Card className="p-4 border-white/10 bg-slate-900/70">
+            <div className="grid grid-cols-1 md:grid-cols-4 gap-3 items-end">
+              <div>
+                <label className="block text-xs font-semibold text-slate-400 mb-1">Recherche apprenant</label>
+                <div className="relative">
+                  <Search size={14} className="absolute left-3 top-3 text-slate-500" />
+                  <Input
+                    placeholder="Nom, prénom ou ID..."
+                    value={searchLearner}
+                    onChange={(e) => setSearchLearner(e.target.value)}
+                    className="pl-9 text-xs"
+                  />
+                </div>
+              </div>
+
+              <div>
+                <label className="block text-xs font-semibold text-slate-400 mb-1">Module</label>
+                <Select
+                  value={filterModuleId}
+                  onChange={(e) => setFilterModuleId(e.target.value)}
+                  className="text-xs"
+                >
+                  <option value="">Tous les modules ({allowedModules.length})</option>
+                  {allowedModules.map((m) => (
+                    <option key={m.id} value={m.id}>
+                      {m.numero}. {m.titre}
+                    </option>
+                  ))}
+                </Select>
+              </div>
+
+              <div>
+                <label className="block text-xs font-semibold text-slate-400 mb-1">Période (date)</label>
+                <div className="grid grid-cols-2 gap-1.5">
+                  <Input
+                    type="date"
+                    value={filterPeriodFrom}
+                    onChange={(e) => setFilterPeriodFrom(e.target.value)}
+                    className="text-[11px] px-2"
+                    title="Du"
+                  />
+                  <Input
+                    type="date"
+                    value={filterPeriodTo}
+                    onChange={(e) => setFilterPeriodTo(e.target.value)}
+                    className="text-[11px] px-2"
+                    title="Au"
+                  />
+                </div>
+              </div>
+
+              <div className="flex items-center gap-2">
+                <div className="flex-1">
+                  <label className="block text-xs font-semibold text-slate-400 mb-1">Statut</label>
+                  <Select
+                    value={filterStatus}
+                    onChange={(e) => setFilterStatus(e.target.value as any)}
+                    className="text-xs"
+                  >
+                    <option value="all">Toutes les notes</option>
+                    <option value="passed">Validées (≥ 10/20)</option>
+                    <option value="failed">Non validées (&lt; 10/20)</option>
+                  </Select>
+                </div>
+                {(searchLearner || filterModuleId || filterPeriodFrom || filterPeriodTo || filterStatus !== "all") && (
+                  <button
+                    type="button"
+                    onClick={resetFilters}
+                    title="Réinitialiser les filtres"
+                    className="mt-5 p-2 rounded-lg bg-slate-800 text-slate-400 hover:text-white hover:bg-slate-700 transition"
+                  >
+                    <RotateCcw size={16} />
+                  </button>
+                )}
+              </div>
+            </div>
+          </Card>
+
+          {/* Liste des notes filtrées */}
+          {allGrades.length === 0 ? (
+            <Empty
+              icon={<GraduationCap size={44} className="text-slate-600" />}
+              title="Aucune note trouvée"
+              sub="Aucun résultat ne correspond aux filtres sélectionnés ou aucune note n'est encore enregistrée."
+            />
+          ) : (
+            <Card className="overflow-x-auto border-white/10">
+              <table className="w-full min-w-[700px] text-left">
+                <thead>
+                  <tr className="border-b border-white/10 text-[10px] uppercase tracking-[0.2em] text-slate-400 bg-white/5">
+                    <th className="px-4 py-3">Apprenant</th>
+                    <th className="px-4 py-3">Module</th>
+                    <th className="px-4 py-3 text-center">Note /20</th>
+                    <th className="px-4 py-3">Statut</th>
+                    <th className="px-4 py-3">Appréciation</th>
+                    <th className="px-4 py-3">Date</th>
+                    <th className="px-4 py-3 text-right">Actions</th>
                   </tr>
-                );
-              })}
-            </tbody>
-          </table>
-        </Card>
+                </thead>
+                <tbody className="divide-y divide-white/5">
+                  {allGrades.map((g) => (
+                    <tr key={g.id} className="hover:bg-white/[0.02] transition-colors">
+                      <td className="px-4 py-3">
+                        <p className="text-sm font-bold text-white">{g.studentName}</p>
+                        <p className="font-mono text-[11px] text-slate-500">{g.studentMatricule}</p>
+                      </td>
+                      <td className="px-4 py-3">
+                        <p className="text-xs font-medium text-slate-200">{g.moduleTitre}</p>
+                        {g.formation && (
+                          <span className="text-[10px] text-slate-500 uppercase tracking-wider">{formationLabel(g.formation)}</span>
+                        )}
+                      </td>
+                      <td className="px-4 py-3 text-center">
+                        <span className={cn(
+                          "inline-block px-2.5 py-1 rounded-md font-mono text-sm font-bold",
+                          g.note >= 10 ? "bg-emerald-500/10 text-emerald-400 border border-emerald-500/20" : "bg-red-500/10 text-red-400 border border-red-500/20"
+                        )}>
+                          {g.note.toFixed(1)} / 20
+                        </span>
+                      </td>
+                      <td className="px-4 py-3">
+                        {g.note >= 10 ? (
+                          <Badge color="green">Admis</Badge>
+                        ) : (
+                          <Badge color="red">Ajourné</Badge>
+                        )}
+                      </td>
+                      <td className="px-4 py-3">
+                        <p className="text-xs text-slate-400 max-w-xs truncate" title={g.appreciation}>
+                          {g.appreciation || "—"}
+                        </p>
+                      </td>
+                      <td className="px-4 py-3 text-xs text-slate-400 whitespace-nowrap">
+                        {g.date || "—"}
+                      </td>
+                      <td className="px-4 py-3 text-right">
+                        <button
+                          type="button"
+                          onClick={() => handleDeleteGrade(g.id, g.studentName)}
+                          title="Supprimer cette note"
+                          className="p-1.5 rounded-lg text-slate-500 hover:text-red-400 hover:bg-red-500/10 transition"
+                        >
+                          <Trash2 size={15} />
+                        </button>
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </Card>
+          )}
+        </div>
+      ) : (
+        /* Onglet Saisie manuelle par module */
+        <div>
+          <div className="mb-5 max-w-md">
+            <Field label="Module à évaluer">
+              <Select value={moduleId} onChange={(e) => setModuleId(e.target.value)}>
+                <option value="">— Choisir un module —</option>
+                {allowedModules.map((m) => (
+                  <option key={m.id} value={m.id}>
+                    {formationLabel(m.formation)} — {m.numero}. {m.titre}
+                  </option>
+                ))}
+              </Select>
+            </Field>
+          </div>
+
+          {!moduleId ? (
+            <Empty icon={<PenLine size={40} />} title="Sélectionnez un module" sub="Choisissez un module ci-dessus pour saisir ou ajuster manuellement les notes des apprenants inscrits." />
+          ) : (
+            <Card className="overflow-x-auto border-white/10">
+              <table className="w-full min-w-[620px] text-left">
+                <thead>
+                  <tr className="border-b border-white/5 text-[10px] uppercase tracking-[0.2em] text-slate-500">
+                    <th className="px-4 py-3">Apprenant</th>
+                    <th className="px-4 py-3">Note actuelle</th>
+                    <th className="px-4 py-3">Note /20</th>
+                    <th className="px-4 py-3">Appréciation</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {students.map((s) => {
+                    const g = existing.find((x) => x.studentId === s.id);
+                    return (
+                      <tr key={s.id} className="border-b border-white/5 last:border-0 hover:bg-white/[0.01]">
+                        <td className="px-4 py-3">
+                          <p className="text-sm font-bold text-white">{s.prenom} {s.nom}</p>
+                          <p className="font-mono text-[10px] text-slate-500">{s.id}</p>
+                        </td>
+                        <td className="px-4 py-3">
+                          {g ? <Badge color={g.note >= 10 ? "green" : "red"}>{g.note}/20</Badge> : <span className="text-xs text-slate-600">—</span>}
+                        </td>
+                        <td className="px-4 py-3">
+                          <Input
+                            type="number"
+                            min={0}
+                            max={20}
+                            step={0.5}
+                            className="w-24 text-xs"
+                            placeholder={g ? String(g.note) : "—"}
+                            value={notes[s.id] ?? ""}
+                            onChange={(e) => setNotes({ ...notes, [s.id]: e.target.value })}
+                          />
+                        </td>
+                        <td className="px-4 py-3">
+                          <Input
+                            className="w-56 text-xs"
+                            placeholder={g?.appreciation || "Appréciation pédagogique"}
+                            value={appr[s.id] ?? ""}
+                            onChange={(e) => setAppr({ ...appr, [s.id]: e.target.value })}
+                          />
+                        </td>
+                      </tr>
+                    );
+                  })}
+                </tbody>
+              </table>
+            </Card>
+          )}
+        </div>
       )}
     </div>
   );

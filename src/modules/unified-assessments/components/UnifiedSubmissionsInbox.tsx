@@ -265,6 +265,28 @@ export function UnifiedSubmissionsInbox({
         toastMsg.success("Note enregistrée ✓", `La note de ${num}/${assignment.bareme} a été validée et enregistrée dans le bulletin.`);
         setGradingSubmission(null);
 
+        // Synchronisation automatique dans le module Notes (db.grades)
+        if (assignment.moduleId && submission.studentId) {
+          const bareme = assignment.bareme > 0 ? assignment.bareme : 20;
+          const noteSur20 = Math.round(((num / bareme) * 20) * 10) / 10;
+          const autoGrade = {
+            id: `GRD_DEV_${submission.id}`,
+            studentId: submission.studentId,
+            moduleId: assignment.moduleId,
+            note: noteSur20,
+            appreciation: appreciationVal || `Devoir: ${assignment.titre}`,
+            date: new Date().toISOString().slice(0, 10),
+          };
+          update((d) => ({
+            ...d,
+            grades: [
+              ...d.grades.filter((g) => !(g.moduleId === assignment.moduleId && g.studentId === submission.studentId)),
+              autoGrade,
+            ],
+          }));
+          log(`Note synchronisée automatiquement dans le module Notes pour l'apprenant : ${noteSur20}/20`);
+        }
+
         // Notifier l'apprenant concerné
         const studentObj = db.students.find((s) => s.id === submission.studentId);
         const targetUserId = studentObj?.userId || submission.studentId;

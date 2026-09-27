@@ -2,6 +2,7 @@ import { useEffect, useRef, useState, useCallback } from "react";
 import { useStore } from "@/lib/store";
 import { isSupabaseConfigured, getSupabase } from "@/lib/supabase/client";
 import { getDeletedMessageIds } from "@/lib/supabase/communication";
+import { runScheduleAutomation } from "@/lib/automation/scheduleAutomation";
 import { toastMsg } from "@/lib/toast";
 import { sendNativeNotification } from "@/lib/pushNotifications";
 
@@ -22,7 +23,7 @@ export interface SyncMessage {
  * - Calcule et maintient en temps réel le badge compteur de messages non lus (1, 2, 3...).
  */
 export function useBackgroundSync() {
-  const { user, db, update } = useStore();
+  const { user, db, update, log } = useStore();
   const [unreadCount, setUnreadCount] = useState<number>(0);
 
   // Mémorise les IDs de messages déjà traités pour éviter les doublons de notification
@@ -203,12 +204,18 @@ export function useBackgroundSync() {
   useEffect(() => {
     if (!isSupabaseConfigured || !user?.id) return;
 
-    // Premier chargement immédiat
+    // Premier chargement immédiat et exécution de l'automatisation emploi du temps
     syncMessagesSilently();
+    try { runScheduleAutomation(db, update, log); } catch { /* ignore */ }
 
     // Timer périodique silencieux
+    let tickCount = 0;
     const interval = setInterval(() => {
       syncMessagesSilently();
+      tickCount++;
+      if (tickCount % 7 === 0) {
+        try { runScheduleAutomation(db, update, log); } catch { /* ignore */ }
+      }
       // Notifie les autres composants pour un rafraîchissement doux
       window.dispatchEvent(new CustomEvent("sentinelles:supabase-refresh"));
     }, 4000);

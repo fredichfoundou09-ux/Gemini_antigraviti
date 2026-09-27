@@ -113,6 +113,36 @@ export function TeacherHoursPage() {
     };
     update((d2) => ({ ...d2, teacherHours: [th, ...d2.teacherHours] }));
     log(`Séance validée : ${teacher.prenom} ${teacher.nom} — ${heures} h · ${money(montant)}`);
+    toastMsg.success("Séance validée ✓", `${money(montant)} crédités au profil formateur.`);
+  };
+
+  const validateAllPending = () => {
+    if (!teacher || pendingSlots.length === 0) return;
+    const d = today();
+    const newHours = pendingSlots.map((slot) => {
+      const heures = hoursBetween(slot.heureDebut, slot.heureFin) || 2;
+      const tarif = tarifFor(db, teacherId, slot.moduleId) || TEACHER_SESSION_RATE;
+      return {
+        id: uid("TH"),
+        scheduleId: slot.id,
+        teacherId: slot.teacherId ?? teacherId,
+        moduleId: slot.moduleId,
+        date: slot.date ?? d,
+        heureDebut: slot.heureDebut,
+        heureFin: slot.heureFin,
+        heures,
+        tarifApplique: tarif,
+        montant: tarif,
+        valide: true,
+        validePar: user?.name || "Automate",
+        dateValidation: d,
+      };
+    });
+
+    update((d2) => ({ ...d2, teacherHours: [...newHours, ...d2.teacherHours] }));
+    const totalMontant = newHours.reduce((acc, h) => acc + h.montant, 0);
+    log(`Validation automatique groupée : ${newHours.length} séance(s) validée(s) pour ${teacher.prenom} ${teacher.nom} (${money(totalMontant)} attribués)`);
+    toastMsg.success("Séances validées automatiquement ✓", `${newHours.length} séance(s) validée(s) et ${money(totalMontant)} crédités.`);
   };
 
   const invalidate = (hId: string) => {
@@ -507,7 +537,19 @@ export function TeacherHoursPage() {
             pendingSlots.length === 0 ? (
               <Empty icon={<CalendarDays size={40} />} title="Aucune séance en attente" sub="Toutes les séances planifiées de ce formateur ont été validées." />
             ) : (
-              <Card className="overflow-x-auto">
+              <div className="space-y-3">
+                {canEdit && (
+                  <div className="flex flex-wrap items-center justify-between gap-3 rounded-2xl border border-cyan-400/30 bg-cyan-950/20 p-3.5 text-xs">
+                    <div>
+                      <p className="font-bold text-white">Validation automatique liée à l'emploi du temps</p>
+                      <p className="text-slate-400">{pendingSlots.length} séance(s) en attente. Une fois validée(s), chaque vacation de 2 500 FCFA est créditée directement sur le profil.</p>
+                    </div>
+                    <Btn variant="green" onClick={validateAllPending} className="whitespace-nowrap">
+                      <CheckCircle2 size={14} /> Tout valider automatiquement ({pendingSlots.length})
+                    </Btn>
+                  </div>
+                )}
+                <Card className="overflow-x-auto">
                 <table className="w-full min-w-[700px] text-left text-sm">
                   <thead>
                     <tr className="border-b border-white/5 text-[10px] uppercase tracking-[0.2em] text-slate-500">
@@ -538,8 +580,8 @@ export function TeacherHoursPage() {
                   </tbody>
                 </table>
               </Card>
-            )
-          )}
+            </div>
+          ))}
 
           {tab === "historique" && (
             sortedHours.length === 0 ? (
