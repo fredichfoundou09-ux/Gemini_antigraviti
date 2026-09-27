@@ -1489,14 +1489,27 @@ export function CoursesPage() {
   const [creating, setCreating] = useState(false);
   const [editing, setEditing] = useState<any>(null);
   const [viewing, setViewing] = useState<any>(null);
+  const [formationFilter, setFormationFilter] = useState("all");
   const [filter, setFilter] = useState("");
+  const [teacherFilter, setTeacherFilter] = useState("all");
+  const [courseSearch, setCourseSearch] = useState("");
 
   const teacher = user?.role === "teacher" ? db.teachers.find((t) => t.userId === user.id) : null;
   const teacherModuleIds = teacher ? getTeacherModuleIds(teacher, db) : [];
-  const allowedModules = db.modules.filter((m) => (teacher ? teacherModuleIds.includes(m.id) : true));
+  const allowedModules = db.modules
+    .filter((m) => (teacher ? teacherModuleIds.includes(m.id) : true))
+    .filter((m) => formationFilter === "all" || m.formation === formationFilter);
+
   const courses = db.courses
-    .filter((c) => (teacher ? allowedModules.some((m) => m.id === c.moduleId) : true))
-    .filter((c) => !filter || c.moduleId === filter);
+    .filter((c) => (teacher ? teacherModuleIds.includes(c.moduleId) : true))
+    .filter((c) => {
+      const mod = db.modules.find((m) => m.id === c.moduleId);
+      const matchForm = formationFilter === "all" || (mod && mod.formation === formationFilter);
+      const matchMod = !filter || c.moduleId === filter;
+      const matchTeacher = teacherFilter === "all" || (c.teacherId === teacherFilter || (mod && (mod.teachers || []).includes(teacherFilter)));
+      const matchSearch = !courseSearch.trim() || c.titre.toLowerCase().includes(courseSearch.toLowerCase()) || (c.description || "").toLowerCase().includes(courseSearch.toLowerCase());
+      return matchForm && matchMod && matchTeacher && matchSearch;
+    });
 
   const blankForm = () => ({
     titre: "", description: "", moduleId: "", type: "cours", content: "",
@@ -1756,42 +1769,87 @@ export function CoursesPage() {
       <PageHead title="Cours & Supports" subtitle="Bibliothèque pédagogique avec téléversement de fichiers et ciblage précis"
         actions={<Btn onClick={() => { setForm(blankForm()); setEditing(null); setCreating(true); }}><PlusCircle size={16} /> Publier un cours</Btn>} />
 
-      <div className="mb-6 rounded-2xl border border-white/10 bg-[#0A1329]/80 p-4 backdrop-blur-md">
-        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
-          <div className="flex items-center gap-2">
-            <BookOpen size={16} className="text-cyan-400" />
-            <span className="text-xs font-bold uppercase tracking-wider text-slate-300">Filtrer par module :</span>
+      <div className="mb-6 rounded-2xl border border-white/10 bg-[#0A1329]/80 p-4 backdrop-blur-md space-y-3.5 shadow-xl">
+        {/* Ligne 1 : Recherche & Sélecteurs de Formation et Enseignant */}
+        <div className="flex flex-col md:flex-row items-stretch md:items-center gap-3">
+          <div className="relative flex-1">
+            <Search size={15} className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-cyan-400" />
+            <Input
+              placeholder="Rechercher un cours par titre ou mot-clé..."
+              value={courseSearch}
+              onChange={(e) => setCourseSearch(e.target.value)}
+              className="pl-9 text-xs"
+            />
           </div>
+
           <div className="flex flex-wrap items-center gap-2">
-            <button
-              onClick={() => setFilter("")}
-              className={cn(
-                "rounded-xl border px-3.5 py-1.5 text-xs font-bold transition-all",
-                !filter
-                  ? "border-cyan-400/60 bg-cyan-400/15 text-cyan-200 shadow-[0_0_12px_rgba(6,182,212,0.25)]"
-                  : "border-white/10 text-slate-400 hover:bg-white/5 hover:text-white"
-              )}
-            >
-              Tous les modules ({db.courses.length})
-            </button>
-            {allowedModules.map((m) => {
-              const cCount = db.courses.filter((c) => c.moduleId === m.id).length;
-              return (
-                <button
-                  key={m.id}
-                  onClick={() => setFilter(m.id)}
-                  className={cn(
-                    "rounded-xl border px-3.5 py-1.5 text-xs font-bold transition-all truncate max-w-xs",
-                    filter === m.id
-                      ? "border-cyan-400/60 bg-cyan-400/15 text-cyan-200 shadow-[0_0_12px_rgba(6,182,212,0.25)]"
-                      : "border-white/10 text-slate-400 hover:bg-white/5 hover:text-white"
-                  )}
-                >
-                  {m.numero}. {m.titre} ({cCount})
-                </button>
-              );
-            })}
+            <span className="text-[11px] font-bold uppercase tracking-wider text-slate-400 mr-1 hidden sm:inline">Formation :</span>
+            {(["all", "informatique", "industriel"] as const).map((f) => (
+              <button
+                key={f}
+                type="button"
+                onClick={() => setFormationFilter(f)}
+                className={cn(
+                  "rounded-xl border px-3 py-1.5 text-xs font-bold transition cursor-pointer",
+                  formationFilter === f
+                    ? "border-cyan-400/60 bg-cyan-400/20 text-cyan-200 shadow-[0_0_12px_rgba(0,229,255,0.25)]"
+                    : "border-white/10 text-slate-400 hover:bg-white/5 hover:text-white"
+                )}
+              >
+                {f === "all" ? "Toutes" : f === "informatique" ? "Génie Info" : "Génie Ind."}
+              </button>
+            ))}
           </div>
+
+          <div className="flex items-center gap-2">
+            <select
+              value={teacherFilter}
+              onChange={(e) => setTeacherFilter(e.target.value)}
+              className="rounded-xl border border-white/10 bg-[#070E20] px-3 py-1.5 text-xs font-medium text-slate-300 focus:border-cyan-400 focus:outline-none"
+            >
+              <option value="all">Tous les formateurs</option>
+              {db.teachers.map((t) => (
+                <option key={t.id} value={t.id}>
+                  {t.prenom} {t.nom}
+                </option>
+              ))}
+            </select>
+          </div>
+        </div>
+
+        {/* Ligne 2 : Filtres de modules */}
+        <div className="flex flex-wrap items-center gap-1.5 border-t border-white/5 pt-3">
+          <span className="text-[11px] font-bold uppercase tracking-wider text-slate-400 mr-2 flex items-center gap-1">
+            <BookOpen size={13} className="text-cyan-400" /> Module :
+          </span>
+          <button
+            onClick={() => setFilter("")}
+            className={cn(
+              "rounded-lg border px-2.5 py-1 text-xs font-semibold transition-all cursor-pointer",
+              !filter
+                ? "border-cyan-400/60 bg-cyan-400/15 text-cyan-200"
+                : "border-white/10 text-slate-400 hover:bg-white/5 hover:text-white"
+            )}
+          >
+            Tous les modules ({courses.length})
+          </button>
+          {allowedModules.map((m) => {
+            const cCount = db.courses.filter((c) => c.moduleId === m.id).length;
+            return (
+              <button
+                key={m.id}
+                onClick={() => setFilter(filter === m.id ? "" : m.id)}
+                className={cn(
+                  "rounded-lg border px-2.5 py-1 text-xs font-semibold transition-all truncate max-w-xs cursor-pointer",
+                  filter === m.id
+                    ? "border-cyan-400/60 bg-cyan-400/20 text-cyan-200 shadow-sm"
+                    : "border-white/10 text-slate-400 hover:bg-white/5 hover:text-white"
+                )}
+              >
+                {m.numero}. {m.titre} ({cCount})
+              </button>
+            );
+          })}
         </div>
       </div>
 

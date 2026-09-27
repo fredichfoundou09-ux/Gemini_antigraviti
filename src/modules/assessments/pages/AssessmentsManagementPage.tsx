@@ -500,27 +500,35 @@ export function AssessmentsManagementPage() {
 
                   {/* Menu secondaire d'actions */}
                   <div className="flex items-center justify-between text-xs pt-1">
-                    <div className="flex items-center gap-1">
+                    <div className="flex items-center gap-1.5">
+                      <button
+                        onClick={() => handleExportPdf(a, false)}
+                        className="flex items-center gap-1 rounded bg-white/5 px-2 py-0.5 text-[10px] text-slate-300 hover:bg-white/10 hover:text-white"
+                        title="Télécharger le sujet seul (PDF)"
+                      >
+                        <FileText size={12} className="text-cyan-400" />
+                        <span>Sujet PDF</span>
+                      </button>
+                      <button
+                        onClick={() => handleExportPdf(a, true)}
+                        className="flex items-center gap-1 rounded bg-emerald-500/10 px-2 py-0.5 text-[10px] font-semibold text-emerald-400 hover:bg-emerald-500/20"
+                        title="Télécharger le sujet + corrigé enseignant (PDF)"
+                      >
+                        <span>Corrigé PDF</span>
+                      </button>
                       <button
                         onClick={() => handleExportDocx(a, false)}
                         className="rounded p-1 text-slate-400 hover:text-white"
                         title="Télécharger l'épreuve Word (.DOCX)"
                       >
-                        <FileDown size={14} />
+                        <FileDown size={13} />
                       </button>
                       <button
-                        onClick={() => handleExportPdf(a, false)}
-                        className="rounded p-1 text-slate-400 hover:text-white"
-                        title="Télécharger l'épreuve PDF"
-                      >
-                        <FileText size={14} />
-                      </button>
-                      <button
-                        onClick={() => handleExportPdf(a, true)}
+                        onClick={() => handleExportDocx(a, true)}
                         className="rounded p-1 text-emerald-400 hover:text-emerald-300"
-                        title="Télécharger le corrigé professeur (.PDF)"
+                        title="Télécharger le corrigé Word (.DOCX)"
                       >
-                        Corrigé
+                        <FileDown size={13} className="text-emerald-400" />
                       </button>
                     </div>
 

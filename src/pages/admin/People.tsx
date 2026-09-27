@@ -1042,22 +1042,59 @@ export function StudentsPage() {
                   )}
                 </div>
 
-                {/* Actions de la Carte */}
-                <div className="flex items-center justify-between gap-1.5 border-t border-white/10 pt-3">
+                {/* Actions Directes de la Carte (Point 3) */}
+                <div className="grid grid-cols-4 gap-1.5 border-t border-white/10 pt-3">
                   <button
                     type="button"
                     onClick={() => setViewing(s)}
-                    className="flex-1 flex items-center justify-center gap-1 rounded-xl border border-cyan-400/40 bg-cyan-400/15 py-2 text-xs font-bold text-cyan-200 hover:bg-cyan-400/25 transition shadow-sm"
+                    className="flex flex-col items-center justify-center gap-1 rounded-xl border border-cyan-400/40 bg-cyan-400/10 py-1.5 px-1 text-[11px] font-bold text-cyan-200 hover:bg-cyan-400/25 transition shadow-sm cursor-pointer"
+                    title="Consulter le dossier complet"
                   >
-                    <Eye size={14} /> Dossier
+                    <Eye size={13} />
+                    <span>Dossier</span>
                   </button>
+
+                  <button
+                    type="button"
+                    onClick={() => navigate(`/app/presences`)}
+                    className="flex flex-col items-center justify-center gap-1 rounded-xl border border-white/10 bg-white/5 py-1.5 px-1 text-[11px] font-bold text-slate-300 hover:border-cyan-400/40 hover:text-cyan-300 transition cursor-pointer"
+                    title="Consulter les présences"
+                  >
+                    <ClipboardCheck size={13} />
+                    <span>Présence</span>
+                  </button>
+
+                  <button
+                    type="button"
+                    onClick={() => navigate(`/app/notes`)}
+                    className="flex flex-col items-center justify-center gap-1 rounded-xl border border-white/10 bg-white/5 py-1.5 px-1 text-[11px] font-bold text-slate-300 hover:border-cyan-400/40 hover:text-cyan-300 transition cursor-pointer"
+                    title="Consulter les notes"
+                  >
+                    <GraduationCap size={13} />
+                    <span>Notes</span>
+                  </button>
+
+                  <button
+                    type="button"
+                    onClick={() => navigate(`/app/paiements`)}
+                    className="flex flex-col items-center justify-center gap-1 rounded-xl border border-white/10 bg-white/5 py-1.5 px-1 text-[11px] font-bold text-slate-300 hover:border-emerald-400/40 hover:text-emerald-300 transition cursor-pointer"
+                    title="Consulter les paiements"
+                  >
+                    <CreditCard size={13} />
+                    <span>Finances</span>
+                  </button>
+                </div>
+
+                {/* Actions secondaires : Carte, WhatsApp, Modifier, Supprimer */}
+                <div className="flex items-center justify-between gap-1.5 pt-2">
                   <button
                     type="button"
                     onClick={() => setPrintingBadge(s)}
-                    className="rounded-xl border border-white/10 p-2 text-slate-300 hover:border-cyan-400/50 hover:text-cyan-300 transition"
-                    title="Imprimer carte"
+                    className="flex-1 flex items-center justify-center gap-1 rounded-lg border border-white/10 py-1.5 text-[11px] font-semibold text-slate-300 hover:border-cyan-400/40 hover:text-cyan-200 transition cursor-pointer"
+                    title="Imprimer carte officielle"
                   >
-                    <Printer size={15} />
+                    <Printer size={13} />
+                    <span>Carte</span>
                   </button>
                   {phoneClean && (
                     <a
@@ -1066,27 +1103,27 @@ export function StudentsPage() {
                       )}`}
                       target="_blank"
                       rel="noreferrer"
-                      className="rounded-xl border border-white/10 p-2 text-slate-300 hover:border-emerald-400/50 hover:text-emerald-400 transition"
-                      title="WhatsApp"
+                      className="rounded-lg border border-white/10 p-1.5 text-slate-300 hover:border-emerald-400/50 hover:text-emerald-400 transition"
+                      title="WhatsApp direct"
                     >
-                      <MessageCircle size={15} />
+                      <MessageCircle size={14} />
                     </a>
                   )}
                   <button
                     type="button"
                     onClick={() => { setForm(s); setEditing(s); setCreating(true); }}
-                    className="rounded-xl border border-white/10 p-2 text-slate-300 hover:border-amber-400/50 hover:text-amber-300 transition"
-                    title="Modifier"
+                    className="rounded-lg border border-white/10 p-1.5 text-slate-300 hover:border-amber-400/50 hover:text-amber-300 transition cursor-pointer"
+                    title="Modifier les informations"
                   >
-                    <Pencil size={15} />
+                    <Pencil size={14} />
                   </button>
                   <button
                     type="button"
                     onClick={() => setDeleteTarget(s)}
-                    className="rounded-xl border border-red-500/20 p-2 text-red-400 hover:bg-red-500/20 transition"
-                    title="Supprimer"
+                    className="rounded-lg border border-red-500/20 p-1.5 text-red-400 hover:bg-red-500/20 transition cursor-pointer"
+                    title="Supprimer l'apprenant"
                   >
-                    <Trash2 size={15} />
+                    <Trash2 size={14} />
                   </button>
                 </div>
               </Card>

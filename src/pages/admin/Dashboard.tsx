@@ -4,7 +4,7 @@ import {
   Users, GraduationCap, BookOpen, ClipboardCheck,
   TestTube2, Award, BadgeDollarSign, TrendingUp, Activity, AlertTriangle, PlusCircle, RotateCcw,
   CalendarDays, FileSpreadsheet, FileJson, Archive, ShieldCheck,
-  Search, Clock, Printer, Brain
+  Search, Clock, Printer, Brain, ChevronLeft, ChevronRight
 } from "lucide-react";
 import { useStore } from "@/lib/store";
 import { Card, PageHead, Badge, Btn, Modal, today, money, Empty, formationLabel, printHTML } from "@/lib/ui";
@@ -88,6 +88,12 @@ export function AdminDashboard() {
 
   // Sélecteur de période pour la répartition des présences (Point 1)
   const [attPeriodFilter, setAttPeriodFilter] = useState<"global" | "today" | "week" | "month">("global");
+
+  // Activité en temps réel télémétrie interactive (Point 1)
+  const [activityFilter, setActivityFilter] = useState<"all" | "presence" | "security" | "grades" | "finance">("all");
+  const [activitySearch, setActivitySearch] = useState("");
+  const [activityPage, setActivityPage] = useState(1);
+  const ACTIVITY_PAGE_SIZE = 4;
 
   // Calcul dynamique des indicateurs selon la période sélectionnée
   const indicatorSeries = useMemo(() => {
@@ -217,6 +223,113 @@ export function AdminDashboard() {
       })
       .slice(0, 3);
   }, [db.log]);
+
+  // Flux télémétrique en direct unifié (Point 1)
+  const liveActivityFeed = useMemo(() => {
+    const events: Array<{
+      id: string;
+      timestamp: string;
+      type: "presence" | "security" | "grades" | "finance" | "system";
+      title: string;
+      detail: string;
+      status: "success" | "alert" | "warning" | "info";
+      actor: string;
+      dateSort: number;
+    }> = [];
+
+    // Logs système et sécurité
+    db.log.forEach((l) => {
+      const a = (l.action || "").toLowerCase();
+      const isSecAlert = a.includes("alerte") || a.includes("erreur") || a.includes("sécur") || a.includes("bloqu");
+      const isPres = a.includes("présence") || a.includes("pointage");
+      const isFin = a.includes("paiement") || a.includes("bourse") || a.includes("rémunération");
+      const isGrd = a.includes("note") || a.includes("évaluation");
+
+      const type = isPres ? "presence" : isSecAlert ? "security" : isFin ? "finance" : isGrd ? "grades" : "system";
+      const status = isSecAlert ? "alert" : a.includes("warn") ? "warning" : "success";
+
+      events.push({
+        id: `log-${l.id}`,
+        timestamp: l.timestamp ? new Date(l.timestamp).toLocaleTimeString("fr-FR", { hour: "2-digit", minute: "2-digit" }) : "Récemment",
+        type,
+        title: l.action || "Action système",
+        detail: l.details || l.target || "",
+        status,
+        actor: l.userName || "Système",
+        dateSort: l.timestamp ? new Date(l.timestamp).getTime() : 0,
+      });
+    });
+
+    // Pointages récents de présence
+    db.attendance.slice(-10).forEach((att) => {
+      const student = db.students.find((s) => s.id === att.studentId);
+      const mod = db.modules.find((m) => m.id === att.moduleId);
+      events.push({
+        id: `att-${att.id}`,
+        timestamp: att.date ? `${att.date.slice(5)}` : "Aujourd'hui",
+        type: "presence",
+        title: `Pointage : ${att.statut.toUpperCase()}`,
+        detail: `${student?.prenom || ""} ${student?.nom || "Apprenant"} - ${mod?.titre || "Session"}`,
+        status: att.statut === "present" ? "success" : att.statut === "absent" ? "alert" : "warning",
+        actor: student?.prenom ? `${student.prenom} ${student.nom}` : "Apprenant",
+        dateSort: att.date ? new Date(att.date).getTime() : Date.now(),
+      });
+    });
+
+    // Paiements récents
+    db.payments.slice(-8).forEach((p) => {
+      const student = db.students.find((s) => s.id === p.studentId);
+      events.push({
+        id: `pay-${p.id}`,
+        timestamp: p.date ? p.date.slice(5) : "Récemment",
+        type: "finance",
+        title: `Paiement ${p.statut === "valide" ? "validé" : "en attente"}`,
+        detail: `${p.montant} FCFA - ${student?.prenom || ""} ${student?.nom || ""}`,
+        status: p.statut === "valide" ? "success" : "warning",
+        actor: student?.prenom ? `${student.prenom} ${student.nom}` : "Finances",
+        dateSort: p.date ? new Date(p.date).getTime() : Date.now(),
+      });
+    });
+
+    // Notes récentes
+    db.grades.slice(-8).forEach((g) => {
+      const student = db.students.find((s) => s.id === g.studentId);
+      const mod = db.modules.find((m) => m.id === g.moduleId);
+      events.push({
+        id: `grd-${g.id}`,
+        timestamp: g.date ? g.date.slice(5) : "Récemment",
+        type: "grades",
+        title: `Note attribuée : ${g.valeur}/20`,
+        detail: `${student?.prenom || ""} ${student?.nom || ""} (${mod?.code || "Module"})`,
+        status: g.valeur >= 10 ? "success" : "alert",
+        actor: student?.prenom ? `${student.prenom} ${student.nom}` : "Évaluation",
+        dateSort: g.date ? new Date(g.date).getTime() : Date.now(),
+      });
+    });
+
+    return events.sort((a, b) => b.dateSort - a.dateSort);
+  }, [db.log, db.attendance, db.payments, db.grades, db.students, db.modules]);
+
+  const filteredActivity = useMemo(() => {
+    return liveActivityFeed.filter((item) => {
+      if (activityFilter !== "all" && item.type !== activityFilter) return false;
+      if (activitySearch.trim()) {
+        const q = activitySearch.toLowerCase();
+        return (
+          item.title.toLowerCase().includes(q) ||
+          item.detail.toLowerCase().includes(q) ||
+          item.actor.toLowerCase().includes(q)
+        );
+      }
+      return true;
+    });
+  }, [liveActivityFeed, activityFilter, activitySearch]);
+
+  const totalActivityPages = Math.max(1, Math.ceil(filteredActivity.length / ACTIVITY_PAGE_SIZE));
+  const paginatedActivity = useMemo(() => {
+    const start = (activityPage - 1) * ACTIVITY_PAGE_SIZE;
+    return filteredActivity.slice(start, start + ACTIVITY_PAGE_SIZE);
+  }, [filteredActivity, activityPage]);
 
   if (isEmpty) {
     return (
@@ -693,13 +806,18 @@ export function AdminDashboard() {
                     ACTIVITÉ EN TEMPS RÉEL
                   </h3>
                 </div>
-                <span className="rounded border border-[#FF174F]/50 bg-[#2A0815] px-1.5 py-0.5 text-[9px] font-bold text-[#FF174F]">
-                  SOC LIVE
-                </span>
+                <div className="flex items-center gap-1.5">
+                  <span className="rounded border border-[#FF174F]/50 bg-[#2A0815] px-1.5 py-0.5 text-[9px] font-bold text-[#FF174F]">
+                    SOC LIVE
+                  </span>
+                  <span className="text-[10px] font-mono text-[#00E5FF]">
+                    {filteredActivity.length} flux
+                  </span>
+                </div>
               </div>
 
               {/* Carte mondiale animée avec flux télécoms */}
-              <div className="relative my-2 h-28 w-full flex items-center justify-center">
+              <div className="relative my-1.5 h-20 w-full flex items-center justify-center">
                 <svg viewBox="0 0 320 130" className="h-full w-full">
                   <g fill="#006DFF" opacity="0.2">
                     <ellipse cx="65" cy="40" rx="35" ry="18" />
@@ -727,7 +845,7 @@ export function AdminDashboard() {
               </div>
 
               {/* Métriques télémétriques 100% réelles */}
-              <div className="grid grid-cols-4 gap-1 border-t border-[#006DFF]/20 pt-1.5 text-center text-[9px]">
+              <div className="grid grid-cols-4 gap-1 border-y border-[#006DFF]/20 py-1 text-center text-[9px] bg-[#071322]/60 rounded my-1">
                 <div>
                   <p className="text-[#4C91B5]">Connectés</p>
                   <p className="font-display text-xs font-black text-[#00E5FF] font-mono">
@@ -751,6 +869,119 @@ export function AdminDashboard() {
                   <p className="font-display text-xs font-black text-[#FF174F] font-mono drop-shadow-[0_0_6px_#FF174F]">
                     {db.registrations.length}
                   </p>
+                </div>
+              </div>
+
+              {/* Barre de recherche et filtres de télémétrie */}
+              <div className="space-y-1.5 my-1.5">
+                <div className="relative">
+                  <Search size={11} className="absolute left-2 top-1/2 -translate-y-1/2 text-[#4C91B5]" />
+                  <input
+                    type="text"
+                    placeholder="Filtrer télémétrie (acteur, action)..."
+                    value={activitySearch}
+                    onChange={(e) => {
+                      setActivitySearch(e.target.value);
+                      setActivityPage(1);
+                    }}
+                    className="w-full rounded bg-[#071322] border border-[#006DFF]/30 py-1 pl-6 pr-2 text-[10px] text-white placeholder-[#4C91B5]/60 focus:border-[#00E5FF] focus:outline-none"
+                  />
+                </div>
+
+                <div className="flex flex-wrap gap-1 text-[9px]">
+                  {(
+                    [
+                      { key: "all", label: "Tous" },
+                      { key: "presence", label: "Présence" },
+                      { key: "security", label: "Sécurité" },
+                      { key: "grades", label: "Notes" },
+                      { key: "finance", label: "Finances" },
+                    ] as const
+                  ).map((btn) => (
+                    <button
+                      key={btn.key}
+                      type="button"
+                      onClick={() => {
+                        setActivityFilter(btn.key);
+                        setActivityPage(1);
+                      }}
+                      className={cn(
+                        "px-1.5 py-0.5 rounded font-bold uppercase transition cursor-pointer text-[8px]",
+                        activityFilter === btn.key
+                          ? "bg-[#FF174F] text-white shadow-[0_0_8px_rgba(255,23,79,0.5)]"
+                          : "bg-[#071A2B] text-[#4C91B5] hover:text-[#00E5FF] border border-[#006DFF]/20"
+                      )}
+                    >
+                      {btn.label}
+                    </button>
+                  ))}
+                </div>
+              </div>
+
+              {/* Flux télémétrique en direct */}
+              <div className="space-y-1 min-h-[120px]">
+                {paginatedActivity.length === 0 ? (
+                  <div className="py-6 text-center text-[10px] text-[#4C91B5]">
+                    Aucun événement correspondant aux critères
+                  </div>
+                ) : (
+                  paginatedActivity.map((ev) => (
+                    <div
+                      key={ev.id}
+                      className="flex items-center justify-between gap-1.5 rounded border border-[#006DFF]/20 bg-[#071322]/80 px-2 py-1 text-[9px] hover:border-[#00E5FF]/40 transition"
+                    >
+                      <div className="min-w-0 flex-1">
+                        <div className="flex items-center gap-1.5">
+                          <span
+                            className={cn(
+                              "h-1.5 w-1.5 shrink-0 rounded-full",
+                              ev.status === "alert"
+                                ? "bg-[#FF174F] shadow-[0_0_6px_#FF174F]"
+                                : ev.status === "warning"
+                                ? "bg-[#FFB300] shadow-[0_0_6px_#FFB300]"
+                                : "bg-[#00E5FF] shadow-[0_0_6px_#00E5FF]"
+                            )}
+                          />
+                          <p className="truncate font-semibold text-white text-[9.5px]">
+                            {ev.title}
+                          </p>
+                        </div>
+                        <p className="truncate text-[#4C91B5] text-[8.5px]">
+                          {ev.actor} {ev.detail ? `— ${ev.detail}` : ""}
+                        </p>
+                      </div>
+                      <div className="shrink-0 text-right">
+                        <span className="font-mono text-[8.5px] text-[#80C8E8]">
+                          {ev.timestamp}
+                        </span>
+                      </div>
+                    </div>
+                  ))
+                )}
+              </div>
+
+              {/* Pagination des flux télémétriques */}
+              <div className="flex items-center justify-between border-t border-[#006DFF]/20 pt-1.5 text-[9px] text-[#4C91B5]">
+                <span>
+                  Page {activityPage} / {totalActivityPages} ({filteredActivity.length})
+                </span>
+                <div className="flex items-center gap-1">
+                  <button
+                    type="button"
+                    disabled={activityPage <= 1}
+                    onClick={() => setActivityPage((p) => Math.max(1, p - 1))}
+                    className="rounded border border-[#006DFF]/30 bg-[#071322] px-1.5 py-0.5 text-[9px] text-[#B8F3FF] disabled:opacity-40 cursor-pointer disabled:cursor-not-allowed hover:bg-[#006DFF]/20"
+                  >
+                    <ChevronLeft size={10} />
+                  </button>
+                  <button
+                    type="button"
+                    disabled={activityPage >= totalActivityPages}
+                    onClick={() => setActivityPage((p) => Math.min(totalActivityPages, p + 1))}
+                    className="rounded border border-[#006DFF]/30 bg-[#071322] px-1.5 py-0.5 text-[9px] text-[#B8F3FF] disabled:opacity-40 cursor-pointer disabled:cursor-not-allowed hover:bg-[#006DFF]/20"
+                  >
+                    <ChevronRight size={10} />
+                  </button>
                 </div>
               </div>
             </div>
