@@ -222,6 +222,38 @@ export function AdminDashboard() {
     };
   }, [indicatorSeries, maxVal1]);
 
+  // Courbe dynamique Card 2 : Présences sur 7 derniers jours (résout ReferenceError: maxVal2 is not defined)
+  const maxVal2 = useMemo(() => {
+    return Math.max(5, ...last7Days.map((d) => d.presents));
+  }, [last7Days]);
+
+  const card2Points = useMemo(() => {
+    const stepX = 400 / 6;
+    const getY = (val: number) => {
+      const ratio = Math.min(1, Math.max(0, val / maxVal2));
+      return Math.round(90 - ratio * 70);
+    };
+    const pts = last7Days.map((d, i) => ({
+      x: 25 + i * stepX,
+      y: getY(d.presents),
+      val: d.presents,
+    }));
+
+    const linePath = generateSmoothPath(pts);
+    let areaPath = "";
+    if (pts.length > 0) {
+      const firstX = pts[0].x;
+      const lastX = pts[pts.length - 1].x;
+      areaPath = `${linePath} L ${lastX} 90 L ${firstX} 90 Z`;
+    }
+
+    return {
+      pts,
+      linePath,
+      areaPath,
+    };
+  }, [last7Days, maxVal2]);
+
   // Liste des groupes disponibles dédupliqués
   const availableGroups = useMemo(() => {
     const set = new Set<string>();
