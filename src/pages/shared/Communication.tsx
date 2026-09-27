@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useState, useCallback } from "react";
 import { useSearchParams } from "react-router-dom";
-import { Send, Mail, Bell, CheckCheck, Users, UserCircle2, Inbox, ChevronRight, Reply, Trash2, Search, ShieldCheck, X } from "lucide-react";
+import { Send, Mail, Bell, CheckCheck, Users, UserCircle2, Inbox, ChevronRight, Reply, Trash2, Search, ShieldCheck, X, Sparkles } from "lucide-react";
 import { useStore } from "@/lib/store";
 import { cn } from "@/utils/cn";
 import { Btn, Card, Field, Input, Textarea, Empty, PageHead, uid, today } from "@/lib/ui";
@@ -659,6 +659,73 @@ export function MessageCenter() {
                 </div>
               )}
             </Field>
+
+            {/* Assistant IA Sentinelle — Préparation intelligente & Modèles automatisés */}
+            <div className="rounded-xl border border-cyan-500/20 bg-gradient-to-r from-cyan-950/20 via-blue-950/20 to-slate-900/40 p-3 space-y-2">
+              <div className="flex items-center justify-between text-xs">
+                <span className="flex items-center gap-1.5 font-semibold text-cyan-300">
+                  <Sparkles size={14} className="text-cyan-400" />
+                  Assistant IA Sentinelle — Suggestions de messages & relances
+                </span>
+                <span className="text-[11px] text-slate-400 hidden sm:inline">
+                  Pré-remplit les champs • Validation humaine requise avant envoi
+                </span>
+              </div>
+              <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-2 pt-1">
+                <button
+                  type="button"
+                  onClick={() => {
+                    setSubject("Rappel assiduité — Régularisation de vos présences en cours");
+                    setBody(`Bonjour,\n\nNous constatons une ou plusieurs absences non justifiées lors des dernières séances d'enseignement.\n\nNous vous rappelons que l'assiduité est un critère déterminant pour la validation de vos modules et la délivrance de votre attestation.\n\nMerci de vous rapprocher au plus tôt de l'administration avec vos éventuels justificatifs.\n\nCordialement,\nLa Coordination Pédagogique — Sentinelles Numériques`);
+                    toastMsg.info("Modèle d'assiduité appliqué. Vous pouvez modifier le texte avant d'envoyer.");
+                  }}
+                  className="rounded-lg border border-cyan-500/30 bg-cyan-950/30 p-2 text-left text-xs hover:bg-cyan-500/10 hover:border-cyan-400/50 transition cursor-pointer text-slate-300"
+                >
+                  <div className="font-medium text-cyan-200">🔔 Rappel assiduité</div>
+                  <div className="text-[11px] text-slate-400 truncate">Absence ou retard constaté</div>
+                </button>
+
+                <button
+                  type="button"
+                  onClick={() => {
+                    setSubject("Notification de scolarité — Échéance de règlement");
+                    setBody(`Bonjour,\n\nSauf erreur de notre part, une échéance liée à vos frais de scolarité arrive prochainement à son terme ou présente un solde à régulariser.\n\nNous vous invitons à consulter votre onglet Finances ou à vous présenter au service comptabilité afin de procéder au règlement.\n\nRestant à votre entière disposition pour tout renseignement complémentaire.\n\nBien cordialement,\nService Comptabilité & Finances`);
+                    toastMsg.info("Modèle de relance financière appliqué. Vous pouvez modifier le texte avant d'envoyer.");
+                  }}
+                  className="rounded-lg border border-amber-500/30 bg-amber-950/30 p-2 text-left text-xs hover:bg-amber-500/10 hover:border-amber-400/50 transition cursor-pointer text-slate-300"
+                >
+                  <div className="font-medium text-amber-200">💳 Relance scolarité</div>
+                  <div className="text-[11px] text-slate-400 truncate">Échéance ou solde dû</div>
+                </button>
+
+                <button
+                  type="button"
+                  onClick={() => {
+                    setSubject("Convocation — Évaluation sommative en mode sécurisé");
+                    setBody(`Chers apprenants,\n\nUne évaluation importante est programmée pour votre promotion.\n\nConsignes obligatoires pour le déroulement :\n1. Prévoyez une connexion stable et votre matériel opérationnel.\n2. L'évaluation se déroulera en mode sécurisé (verrouillage de navigation et assistant IA désactivé).\n3. Tout départ anticipé non validé sera considéré comme une remise définitive.\n\nBonne préparation à toutes et à tous.\n\nL'Équipe Pédagogique`);
+                    toastMsg.info("Modèle de convocation appliqué. Vous pouvez modifier le texte avant d'envoyer.");
+                  }}
+                  className="rounded-lg border border-purple-500/30 bg-purple-950/30 p-2 text-left text-xs hover:bg-purple-500/10 hover:border-purple-400/50 transition cursor-pointer text-slate-300"
+                >
+                  <div className="font-medium text-purple-200">📝 Convocation examen</div>
+                  <div className="text-[11px] text-slate-400 truncate">Consignes mode sécurisé</div>
+                </button>
+
+                <button
+                  type="button"
+                  onClick={() => {
+                    setSubject("Information importante — Organisation des sessions de formation");
+                    setBody(`Chers apprenants, chers enseignants,\n\nNous vous informons d'une mise à jour importante concernant le calendrier et l'organisation des prochains cours.\n\nMerci de consulter votre Emploi du temps ainsi que vos espaces de cours pour prendre connaissance des nouveaux supports déposés.\n\nRestant à votre écoute pour toute question.\n\nLa Direction — Sentinelles Numériques`);
+                    toastMsg.info("Modèle d'information générale appliqué. Vous pouvez modifier le texte avant d'envoyer.");
+                  }}
+                  className="rounded-lg border border-emerald-500/30 bg-emerald-950/30 p-2 text-left text-xs hover:bg-emerald-500/10 hover:border-emerald-400/50 transition cursor-pointer text-slate-300"
+                >
+                  <div className="font-medium text-emerald-200">📢 Information générale</div>
+                  <div className="text-[11px] text-slate-400 truncate">Organisation des cours</div>
+                </button>
+              </div>
+            </div>
+
             <Field label="Objet"><Input required value={subject} onChange={(e) => setSubject(e.target.value)} placeholder="Objet de la discussion" /></Field>
             <Field label="Message"><Textarea required value={body} onChange={(e) => setBody(e.target.value)} placeholder="Rédigez votre message..." /></Field>
             <div className="flex items-center gap-3 pt-2">

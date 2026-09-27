@@ -118,6 +118,17 @@ export default function DashboardLayout() {
   const [open, setOpen] = useState(false);
   const [aiAgentOpen, setAiAgentOpen] = useState(false);
   const [searchOpen, setSearchOpen] = useState(false);
+  const [isExamLocked, setIsExamLocked] = useState(false);
+
+  useEffect(() => {
+    const onExamLock = (e: any) => {
+      const locked = !!e?.detail?.locked;
+      setIsExamLocked(locked);
+      if (locked) setAiAgentOpen(false);
+    };
+    window.addEventListener("sentinelles:exam-lock", onExamLock);
+    return () => window.removeEventListener("sentinelles:exam-lock", onExamLock);
+  }, []);
   const [searchQuery, setSearchQuery] = useState("");
   const searchInputRef = useRef<HTMLInputElement>(null);
   const searchContainerRef = useRef<HTMLDivElement>(null);
@@ -1052,25 +1063,27 @@ export default function DashboardLayout() {
         </NavLink>
       </nav>
 
-      {/* Bouton Flottant (FAB) Assistant IA — Toujours visible à l'écran */}
-      <button
-        type="button"
-        onClick={() => setAiAgentOpen(true)}
-        className="fixed bottom-20 lg:bottom-6 right-6 z-50 flex items-center gap-2.5 rounded-full border-2 border-cyan-400/60 bg-[#060b12]/95 px-4 py-3 text-cyan-300 shadow-[0_0_25px_rgba(0,229,255,0.45)] backdrop-blur-md transition-all hover:scale-105 hover:border-cyan-300 hover:shadow-[0_0_35px_rgba(0,229,255,0.7)] group cursor-pointer"
-        title="Ouvrir l'Assistant IA"
-        aria-label="Ouvrir l'Assistant IA"
-      >
-        <div className="relative">
-          <Bot size={22} className="text-cyan-400 group-hover:rotate-12 transition-transform" />
-          <span className="absolute -top-1 -right-1 flex h-2.5 w-2.5">
-            <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-cyan-400 opacity-75"></span>
-            <span className="relative inline-flex rounded-full h-2.5 w-2.5 bg-emerald-400"></span>
-          </span>
-        </div>
-        <span className="text-xs font-black tracking-wider uppercase text-white drop-shadow">Assistant IA</span>
-      </button>
+      {/* Bouton Flottant (FAB) Assistant IA — Masqué automatiquement en mode examen sécurisé anti-triche */}
+      {!isExamLocked && (
+        <button
+          type="button"
+          onClick={() => setAiAgentOpen(true)}
+          className="fixed bottom-20 lg:bottom-6 right-6 z-50 flex items-center gap-2.5 rounded-full border-2 border-cyan-400/60 bg-[#060b12]/95 px-4 py-3 text-cyan-300 shadow-[0_0_25px_rgba(0,229,255,0.45)] backdrop-blur-md transition-all hover:scale-105 hover:border-cyan-300 hover:shadow-[0_0_35px_rgba(0,229,255,0.7)] group cursor-pointer"
+          title="Ouvrir l'Assistant IA"
+          aria-label="Ouvrir l'Assistant IA"
+        >
+          <div className="relative">
+            <Bot size={22} className="text-cyan-400 group-hover:rotate-12 transition-transform" />
+            <span className="absolute -top-1 -right-1 flex h-2.5 w-2.5">
+              <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-cyan-400 opacity-75"></span>
+              <span className="relative inline-flex rounded-full h-2.5 w-2.5 bg-emerald-400"></span>
+            </span>
+          </div>
+          <span className="text-xs font-black tracking-wider uppercase text-white drop-shadow">Assistant IA</span>
+        </button>
+      )}
 
-      <AiAgentPanel open={aiAgentOpen} onClose={() => setAiAgentOpen(false)} />
+      {!isExamLocked && <AiAgentPanel open={aiAgentOpen} onClose={() => setAiAgentOpen(false)} />}
     </div>
   );
 }

@@ -14,6 +14,7 @@ import {
 import { supabase, isSupabaseConfigured } from "@/lib/supabase/client";
 import { useStore } from "@/lib/store";
 import { Btn, Badge, Card, Modal } from "@/lib/ui";
+import { cn } from "@/utils/cn";
 import { toastMsg } from "@/lib/toast";
 import { notifyAssessmentEvent, broadcastSubmissionsChange } from "@/modules/unified-assessments/services/unifiedSyncService";
 
@@ -209,6 +210,35 @@ export function AssessmentRunner({
       window.removeEventListener("keydown", handleKeyDown);
     };
   }, [phase, rawAssessment.bloquerCopierColler, rawAssessment.bloquerClicDroit, recordProctoringEvent]);
+
+  // 3b. Mode anti-triche sécurisé : verrouillage de l'application et disparition de l'assistant IA
+  useEffect(() => {
+    if (phase === "exam") {
+      window.dispatchEvent(new CustomEvent("sentinelles:exam-lock", { detail: { locked: true } }));
+
+      const handleBeforeUnload = (e: BeforeUnloadEvent) => {
+        e.preventDefault();
+        e.returnValue = "Un examen est en cours. Vos réponses actuelles seront enregistrées.";
+        return e.returnValue;
+      };
+
+      const handlePopState = () => {
+        window.history.pushState(null, "", window.location.href);
+      };
+
+      window.history.pushState(null, "", window.location.href);
+      window.addEventListener("beforeunload", handleBeforeUnload);
+      window.addEventListener("popstate", handlePopState);
+
+      return () => {
+        window.removeEventListener("beforeunload", handleBeforeUnload);
+        window.removeEventListener("popstate", handlePopState);
+        window.dispatchEvent(new CustomEvent("sentinelles:exam-lock", { detail: { locked: false } }));
+      };
+    } else {
+      window.dispatchEvent(new CustomEvent("sentinelles:exam-lock", { detail: { locked: false } }));
+    }
+  }, [phase]);
 
   // 4. Chronomètre persistant basé sur endTimeMs
   useEffect(() => {
@@ -535,7 +565,14 @@ export function AssessmentRunner({
   const isUrgent = secondsRemaining <= 300; // Moins de 5 minutes
 
   return (
-    <div className="flex flex-col h-[calc(100vh-100px)] min-h-[600px] space-y-3 select-none">
+    <div
+      className={cn(
+        "flex flex-col select-none",
+        rawAssessment.modeSecurise
+          ? "fixed inset-0 z-[9999] bg-[#040813] p-4 sm:p-6 overflow-y-auto space-y-4"
+          : "h-[calc(100vh-100px)] min-h-[600px] space-y-3"
+      )}
+    >
       {/* 1. STICKY TOP BAR : CHRONOMÈTRE & INDICATEURS */}
       <div className="sticky top-0 z-20 flex flex-wrap items-center justify-between gap-3 rounded-2xl border border-white/10 bg-slate-950/85 p-3.5 backdrop-blur-xl shadow-xl">
         <div className="flex items-center gap-3">

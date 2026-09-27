@@ -1018,13 +1018,18 @@ export function JournalPage() {
   const [filterUser, setFilterUser] = useState("tous");
   const [searchTerm, setSearchTerm] = useState("");
   const [showArchiveModal, setShowArchiveModal] = useState(false);
+  const [logTab, setLogTab] = useState<"active" | "archived">("active");
 
-  // Liste des utilisateurs distincts ayant des logs
+  const sourceLogs = useMemo(() => {
+    return logTab === "active" ? db.log : (db.archivedLogs || []);
+  }, [logTab, db.log, db.archivedLogs]);
+
+  // Liste des utilisateurs distincts ayant des logs dans la vue sélectionnée
   const distinctUsers = useMemo(() => {
     const set = new Set<string>();
-    db.log.forEach((l) => { if (l.user) set.add(l.user); });
+    sourceLogs.forEach((l) => { if (l.user) set.add(l.user); });
     return Array.from(set).sort();
-  }, [db.log]);
+  }, [sourceLogs]);
 
   const [filterPeriod, setFilterPeriod] = useState<"all" | "today" | "week" | "month">("all");
 
@@ -1034,7 +1039,7 @@ export function JournalPage() {
     const sevenDaysAgo = new Date(now.getTime() - 7 * 24 * 60 * 60 * 1000).toISOString().slice(0, 10);
     const thirtyDaysAgo = new Date(now.getTime() - 30 * 24 * 60 * 60 * 1000).toISOString().slice(0, 10);
 
-    return db.log.filter((l) => {
+    return sourceLogs.filter((l) => {
       const matchU = filterUser === "tous" || l.user === filterUser;
       const matchQ = !searchTerm.trim() || l.action.toLowerCase().includes(searchTerm.toLowerCase()) || l.user.toLowerCase().includes(searchTerm.toLowerCase());
 
@@ -1046,7 +1051,7 @@ export function JournalPage() {
 
       return matchU && matchQ && matchPeriod;
     });
-  }, [db.log, filterUser, searchTerm, filterPeriod]);
+  }, [sourceLogs, filterUser, searchTerm, filterPeriod]);
 
   // Regroupement par jour
   const groupedByDay = useMemo(() => {
@@ -1066,7 +1071,7 @@ export function JournalPage() {
         <div style="display:flex;justify-content:space-between;align-items:center">
           <div>
             <h1 class="accent" style="margin:0;color:#38bdf8">SENTINELLES NUMÉRIQUES</h1>
-            <p style="font-size:11px;color:#94a3b8;margin:2px 0 0 0">ENIA 2.0 • REGISTRE OFFICIEL D'AUDIT ET DE TRAÇABILITÉ</p>
+            <p style="font-size:11px;color:#94a3b8;margin:2px 0 0 0">ENIA 2.0 • REGISTRE OFFICIEL D'AUDIT ET DE TRAÇABILITÉ (${logTab === "active" ? "LOGS ACTIFS" : "ARCHIVES"})</p>
           </div>
           <div style="text-align:right">
             <p style="font-size:10px;text-transform:uppercase;color:#94a3b8;margin:0">Émis le</p>
@@ -1111,7 +1116,7 @@ export function JournalPage() {
     const url = URL.createObjectURL(blob);
     const link = document.createElement("a");
     link.href = url;
-    link.setAttribute("download", `journal_audit_${today()}.csv`);
+    link.setAttribute("download", `journal_audit_${logTab}_${today()}.csv`);
     document.body.appendChild(link);
     link.click();
     document.body.removeChild(link);
@@ -1126,7 +1131,7 @@ export function JournalPage() {
     const url = URL.createObjectURL(blob);
     const link = document.createElement("a");
     link.href = url;
-    link.setAttribute("download", `journal_audit_${today()}.json`);
+    link.setAttribute("download", `journal_audit_${logTab}_${today()}.json`);
     document.body.appendChild(link);
     link.click();
     document.body.removeChild(link);
@@ -1142,15 +1147,27 @@ export function JournalPage() {
       log: [],
     }));
     setShowArchiveModal(false);
-    toastMsg.success("Logs archivés et tableau actif nettoyé ✓", "Toutes les entrées ont été archivées en lieu sûr.");
-    log("Archivage et nettoyage sécurisé du journal d'activité");
+    toastMsg.success("Logs archivés en lieu sûr ✓", "Les logs archivés restent consultables dans l'onglet Archives.");
+    log("Archivage et sécurisation du journal d'activité");
+  };
+
+  // Restauration des archives dans les logs actifs
+  const confirmRestoreArchives = () => {
+    if (!window.confirm("Voulez-vous réintégrer les archives dans les logs actifs ?")) return;
+    update((d) => ({
+      ...d,
+      log: [...(d.archivedLogs || []), ...d.log],
+      archivedLogs: [],
+    }));
+    toastMsg.success("Archives restaurées dans les logs actifs ✓");
+    log("Restauration intégrale des archives dans le journal d'activité");
   };
 
   return (
     <div className="space-y-6">
       <PageHead
         title="Journal d'audit & d'activité"
-        subtitle="Traçabilité complète, regroupement par date et export administratif"
+        subtitle="Traçabilité complète, archivage consultable et recherche dans l'historique"
         actions={
           <div className="flex flex-wrap items-center gap-2">
             <Btn variant="outline" className="px-3 py-1.5 text-xs" onClick={exportPDF} disabled={filteredLogs.length === 0}>
@@ -1162,12 +1179,46 @@ export function JournalPage() {
             <Btn variant="outline" className="px-3 py-1.5 text-xs" onClick={exportJSON} disabled={filteredLogs.length === 0}>
               <FileJson size={14} /> Exporter JSON
             </Btn>
-            <Btn variant="red" className="px-3 py-1.5 text-xs" onClick={() => setShowArchiveModal(true)} disabled={db.log.length === 0}>
-              <Archive size={14} /> Archiver & Nettoyer
-            </Btn>
+            {logTab === "active" ? (
+              <Btn variant="red" className="px-3 py-1.5 text-xs" onClick={() => setShowArchiveModal(true)} disabled={db.log.length === 0}>
+                <Archive size={14} /> Archiver
+              </Btn>
+            ) : (
+              <Btn variant="outline" className="px-3 py-1.5 text-xs text-amber-300 border-amber-400/30" onClick={confirmRestoreArchives} disabled={(db.archivedLogs || []).length === 0}>
+                <RotateCcw size={14} /> Restaurer les archives
+              </Btn>
+            )}
           </div>
         }
       />
+
+      {/* Onglets Actifs / Archives Consultables */}
+      <div className="flex flex-wrap items-center gap-2">
+        <button
+          type="button"
+          onClick={() => setLogTab("active")}
+          className={cn(
+            "rounded-xl border px-4 py-2 text-xs font-bold transition-all",
+            logTab === "active"
+              ? "border-cyan-400/50 bg-cyan-400/15 text-cyan-200 shadow-[0_0_12px_rgba(6,182,212,0.25)]"
+              : "border-white/10 text-slate-400 hover:bg-white/5 hover:text-white"
+          )}
+        >
+          Logs Actifs ({db.log.length})
+        </button>
+        <button
+          type="button"
+          onClick={() => setLogTab("archived")}
+          className={cn(
+            "rounded-xl border px-4 py-2 text-xs font-bold transition-all",
+            logTab === "archived"
+              ? "border-amber-400/50 bg-amber-400/15 text-amber-200 shadow-[0_0_12px_rgba(251,191,36,0.25)]"
+              : "border-white/10 text-slate-400 hover:bg-white/5 hover:text-white"
+          )}
+        >
+          Archives consultables ({(db.archivedLogs || []).length})
+        </button>
+      </div>
 
       {/* Barre de recherche et filtres de période */}
       <Card className="p-4 space-y-3">
