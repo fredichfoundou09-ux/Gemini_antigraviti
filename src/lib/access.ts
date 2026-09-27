@@ -381,35 +381,32 @@ export function assignmentsFor(db: DB, user: User | null, assignments: any[]): a
       (user.linkedId && st.id === user.linkedId) ||
       (user.email && st.email && st.email.toLowerCase().trim() === user.email.toLowerCase().trim())
   );
-  if (!s) return [];
-  const stuMods = s.modules || [];
+  const studentFormation = s?.formation || (user as any).formation || "";
+  const stuMods = s?.modules || [];
   return assignments.filter((a) => {
     if (a.statut !== "publie" && a.statut !== "ouvert") return false;
-    if (a.audience === "all") return true;
+    if (!a.audience || a.audience === "all") return true;
     if (a.audience === "formation" && a.formation) {
-      return a.formation === s.formation;
+      if (studentFormation && a.formation === studentFormation) return true;
+      if (!s) return true;
     }
     if (a.audience === "module" && a.moduleId) {
-      // Correspondance directe
       if (stuMods.includes(a.moduleId)) return true;
-      // Fallback : si l'apprenant n'a pas de modules, vérifier par formation
-      if (stuMods.length === 0 && s.formation) {
-        const mod = db.modules.find((m) => m.id === a.moduleId);
-        if (mod && mod.formation && mod.formation === s.formation) return true;
-      }
+      if (stuMods.length === 0) return true;
+      const mod = db.modules.find((m) => m.id === a.moduleId);
+      if (mod && mod.formation && mod.formation === studentFormation) return true;
       return false;
     }
     if (a.audience === "groupe" && a.targetGroupe) {
-      return (s as any).groupe === a.targetGroupe;
+      return (s as any)?.groupe === a.targetGroupe;
     }
     if (a.audience === "apprenants" && Array.isArray(a.targetStudentIds)) {
-      return a.targetStudentIds.includes(s.id);
+      if (s && a.targetStudentIds.includes(s.id)) return true;
+      if (a.targetStudentIds.includes(user.id)) return true;
+      return false;
     }
-    // Pas d'audience définie : fallback formation/module
-    if (!a.audience) {
-      if (a.formation && s.formation && a.formation === s.formation) return true;
-      if (a.moduleId && stuMods.includes(a.moduleId)) return true;
-    }
+    if (a.formation && studentFormation && a.formation === studentFormation) return true;
+    if (a.moduleId && (stuMods.length === 0 || stuMods.includes(a.moduleId))) return true;
     return false;
   });
 }
@@ -439,35 +436,32 @@ export function assessmentsFor(db: DB, user: User | null, assessments: any[]): a
       (user.linkedId && st.id === user.linkedId) ||
       (user.email && st.email && st.email.toLowerCase().trim() === user.email.toLowerCase().trim())
   );
-  if (!s) return [];
-  const stuMods = s.modules || [];
+  const studentFormation = s?.formation || (user as any).formation || "";
+  const stuMods = s?.modules || [];
   return assessments.filter((a) => {
     if (a.statut !== "publie" && a.statut !== "en_cours") return false;
-    if (a.audience === "all") return true;
+    if (!a.audience || a.audience === "all") return true;
     if (a.audience === "formation" && a.formation) {
-      return a.formation === s.formation;
+      if (studentFormation && a.formation === studentFormation) return true;
+      if (!s) return true;
     }
     if (a.audience === "module" && a.moduleId) {
-      // Correspondance directe
       if (stuMods.includes(a.moduleId)) return true;
-      // Fallback : si l'apprenant n'a pas de modules, vérifier par formation
-      if (stuMods.length === 0 && s.formation) {
-        const mod = db.modules.find((m) => m.id === a.moduleId);
-        if (mod && mod.formation && mod.formation === s.formation) return true;
-      }
+      if (stuMods.length === 0) return true;
+      const mod = db.modules.find((m) => m.id === a.moduleId);
+      if (mod && mod.formation && mod.formation === studentFormation) return true;
       return false;
     }
     if (a.audience === "groupe" && a.targetGroupe) {
-      return (s as any).groupe === a.targetGroupe;
+      return (s as any)?.groupe === a.targetGroupe;
     }
     if (a.audience === "apprenants" && Array.isArray(a.targetStudentIds)) {
-      return a.targetStudentIds.includes(s.id);
+      if (s && a.targetStudentIds.includes(s.id)) return true;
+      if (a.targetStudentIds.includes(user.id)) return true;
+      return false;
     }
-    // Pas d'audience définie : fallback formation/module
-    if (!a.audience) {
-      if (a.formation && s.formation && a.formation === s.formation) return true;
-      if (a.moduleId && stuMods.includes(a.moduleId)) return true;
-    }
+    if (a.formation && studentFormation && a.formation === studentFormation) return true;
+    if (a.moduleId && (stuMods.length === 0 || stuMods.includes(a.moduleId))) return true;
     return false;
   });
 }

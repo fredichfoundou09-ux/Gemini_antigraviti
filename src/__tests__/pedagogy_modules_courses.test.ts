@@ -5,7 +5,7 @@ import type { AppDB } from '../lib/store';
 
 describe('Phase 7 - Pédagogie, Formations, Modules et Cours', () => {
   it('calcule correctement la rentabilité et les statistiques financières d\'un module', () => {
-    const db: AppDB = emptyDB();
+    const db: any = emptyDB();
     db.modules = [
       { id: 'mod-1', nom: 'React & TypeScript', code: 'DEV-101', description: 'Bases React', filiere_id: 'fil-1' } as any
     ];
@@ -30,7 +30,7 @@ describe('Phase 7 - Pédagogie, Formations, Modules et Cours', () => {
   });
 
   it('gère l\'archivage et les filtres de cours avec groupe', () => {
-    const db: AppDB = emptyDB();
+    const db: any = emptyDB();
     db.courses = [
       { id: 'c-1', titre: 'Composants React', module_id: 'mod-1', formateur_id: 't-1', classe: 'Groupe Alpha' } as any,
       { id: 'c-2', titre: 'Hooks avancés', module_id: 'mod-1', formateur_id: 't-1', classe: 'Groupe Beta' } as any,
@@ -38,11 +38,11 @@ describe('Phase 7 - Pédagogie, Formations, Modules et Cours', () => {
     ];
 
     // Filtrage par groupe
-    const groupAlphaCourses = db.courses.filter(c => c.classe === 'Groupe Alpha');
+    const groupAlphaCourses = db.courses.filter((c: any) => c.classe === 'Groupe Alpha');
     expect(groupAlphaCourses.length).toBe(2);
 
     // Filtrage par module et groupe
-    const mod1Alpha = db.courses.filter(c => c.module_id === 'mod-1' && c.classe === 'Groupe Alpha');
+    const mod1Alpha = db.courses.filter((c: any) => c.module_id === 'mod-1' && c.classe === 'Groupe Alpha');
     expect(mod1Alpha.length).toBe(1);
     expect(mod1Alpha[0].titre).toBe('Composants React');
   });

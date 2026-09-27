@@ -263,42 +263,75 @@ export async function persistAssessmentToSupabase(assessment: Assessment): Promi
   try {
     const isUuid = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(assessment.id);
 
-    // Résolution UUID module
+    const testPayload: Record<string, any> = {
+      id: isUuid ? assessment.id : undefined,
+      titre: assessment.titre || "Évaluation sans titre",
+      description: assessment.description || "",
+      consignes: assessment.consignes?.trim() || "Veuillez lire attentivement chaque consigne et répondre dans le temps imparti.",
+      module_id: assessment.moduleId,
+      teacher_id: assessment.teacherId,
+      duree: Number(assessment.duree || 45),
+      bareme: Number(assessment.bareme || 20),
+      seuil_reussite: Number(assessment.seuilReussite || 10),
+      difficulte: assessment.difficulte || "moyen",
+      tentatives: Number(assessment.tentatives || 1),
+      afficher_corrections: assessment.afficherCorrections !== false,
+      validation_requise: Boolean(assessment.validationRequise),
+      statut: assessment.statut || "publie",
+      audience: assessment.audience || "all",
+      target_groupe: assessment.targetGroupe || null,
+      target_student_ids: assessment.targetStudentIds || [],
+      mode_securise: Boolean(assessment.modeSecurise),
+      bloquer_copier_coller: assessment.bloquerCopierColler !== false,
+      bloquer_clic_droit: Boolean(assessment.bloquerClicDroit),
+      navigation_libre: assessment.navigationLibre !== false,
+      date_debut: assessment.dateDebut ? `${assessment.dateDebut}T${assessment.dateDebutHeure || "00:00"}:00Z` : null,
+      date_fin: assessment.dateFin ? `${assessment.dateFin}T${assessment.dateFinHeure || "23:59"}:00Z` : null,
+      date_publication: (assessment.statut === "publie" || assessment.statut === "en_cours") ? (assessment.datePublication || new Date().toISOString()) : null,
+    };
+
+    const questionsPayload = (assessment.questions || []).map((q, idx) => ({
+      question: q.question || `Question ${idx + 1}`,
+      type: q.type || "qcm",
+      points: Number(q.points || 1),
+      bonne_reponse: q.bonneReponse || (q.bonnesReponses ? q.bonnesReponses[0] : "") || "",
+      bonnes_reponses_json: q.bonnesReponses || (q.bonneReponse ? [q.bonneReponse] : []),
+      options_json: q.options || (q.type === "vf" ? ["Vrai", "Faux"] : []),
+      valeur_numerique: q.valeurNumerique !== null && q.valeurNumerique !== undefined ? Number(q.valeurNumerique) : null,
+      tolerance_numerique: Number(q.toleranceNumerique || 0),
+      explication: q.explication || "",
+      ordre: idx + 1,
+      obligatoire: q.obligatoire !== false,
+    }));
+
+    // 1. Tenter l'appel de la RPC sécurisée upsert_test_safe
+    const { data: rpcRes, error: rpcErr } = await supabase.rpc("upsert_test_safe", {
+      p_test: testPayload,
+      p_questions: questionsPayload,
+    });
+
+    if (!rpcErr && rpcRes && rpcRes.success) {
+      return { success: true, id: rpcRes.id || assessment.id };
+    }
+
+    if (rpcErr) {
+      console.warn("Fallback upsert direct tests:", rpcErr);
+    }
+
+    // 2. Fallback upsert direct si la RPC n'est pas invoquable
     let moduleId = assessment.moduleId;
     const isModUuid = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(moduleId);
     if (!isModUuid) {
-      const { data: mRow } = await supabase.from("modules").select("id").or(`code.eq.${moduleId},titre.eq.${moduleId}`).maybeSingle();
+      const { data: mRow } = await supabase.from("modules").select("id").eq("titre", moduleId).maybeSingle();
       if (mRow?.id) moduleId = mRow.id;
+      else {
+        const { data: firstM } = await supabase.from("modules").select("id").limit(1).maybeSingle();
+        if (firstM?.id) moduleId = firstM.id;
+      }
     }
-
-    const testPayload: Record<string, any> = {
-      titre: assessment.titre,
-      description: assessment.description || "",
-      consignes: assessment.consignes || "",
-      module_id: moduleId,
-      teacher_id: assessment.teacherId,
-      duree: assessment.duree,
-      bareme: assessment.bareme,
-      seuil_reussite: assessment.seuilReussite,
-      difficulte: assessment.difficulte,
-      tentatives: assessment.tentatives,
-      afficher_corrections: assessment.afficherCorrections,
-      validation_requise: assessment.validationRequise,
-      statut: assessment.statut,
-      audience: assessment.audience,
-      target_groupe: assessment.targetGroupe || null,
-      target_student_ids: assessment.targetStudentIds || [],
-      mode_securise: assessment.modeSecurise,
-      bloquer_copier_coller: assessment.bloquerCopierColler,
-      bloquer_clic_droit: assessment.bloquerClicDroit,
-      navigation_libre: assessment.navigationLibre,
-      date_debut: assessment.dateDebut ? `${assessment.dateDebut}T${assessment.dateDebutHeure || "00:00"}:00Z` : null,
-      date_fin: assessment.dateFin ? `${assessment.dateFin}T${assessment.dateFinHeure || "23:59"}:00Z` : null,
-      date_publication: assessment.statut === "publie" ? (assessment.datePublication || new Date().toISOString()) : null,
-    };
+    testPayload.module_id = moduleId;
 
     let testId = assessment.id;
-
     if (isUuid) {
       testPayload.id = assessment.id;
       const { error: upsertErr } = await supabase.from("tests").upsert(testPayload);
@@ -309,33 +342,16 @@ export async function persistAssessmentToSupabase(assessment: Assessment): Promi
       if (inserted?.id) testId = inserted.id;
     }
 
-    // Supprimer et recréer les questions pour garantir la cohérence
-    if (assessment.questions.length > 0) {
+    if (questionsPayload.length > 0) {
       await supabase.from("questions").delete().eq("test_id", testId);
-
-      const questionsPayload = assessment.questions.map((q, idx) => ({
-        test_id: testId,
-        question: q.question,
-        type: q.type,
-        points: q.points,
-        bonne_reponse: q.bonneReponse || (q.bonnesReponses ? q.bonnesReponses[0] : "") || "",
-        bonnes_reponses_json: q.bonnesReponses || [],
-        options_json: q.options || [],
-        valeur_numerique: q.valeurNumerique ?? null,
-        tolerance_numerique: q.toleranceNumerique ?? 0,
-        explication: q.explication || "",
-        ordre: idx + 1,
-        obligatoire: q.obligatoire !== false,
-      }));
-
-      const { error: qErr } = await supabase.from("questions").insert(questionsPayload);
-      if (qErr) console.warn("Erreur insertion questions Supabase:", qErr);
+      const rows = questionsPayload.map((q) => ({ ...q, test_id: testId }));
+      await supabase.from("questions").insert(rows);
     }
 
     return { success: true, id: testId };
   } catch (err: any) {
     console.error("Erreur persistAssessmentToSupabase:", err);
-    return { success: false, id: assessment.id, error: err.message };
+    return { success: false, id: assessment.id, error: err.message || "Erreur base de données" };
   }
 }
 
@@ -346,6 +362,14 @@ export async function deleteAssessment(id: string): Promise<{ success: boolean; 
   }
 
   try {
+    const isUuid = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(id);
+    if (isUuid) {
+      const { data, error } = await supabase.rpc("delete_test_safe", { p_test_id: id });
+      if (!error && data && data.success) {
+        return { success: true };
+      }
+    }
+
     const { error } = await supabase.from("tests").delete().eq("id", id);
     if (error) throw error;
     return { success: true };

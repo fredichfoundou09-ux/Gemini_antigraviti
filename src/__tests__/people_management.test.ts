@@ -7,7 +7,7 @@ import { Student, User, Teacher } from "../lib/types";
 describe("Phase 5 — Gestion des personnes : Apprenants, Enseignants, Utilisateurs", () => {
   it("gère le tri et la pagination des apprenants sans altération", () => {
     const db = emptyDB();
-    const students: Student[] = [
+    const students: any[] = [
       { id: "SN-001", nom: "Zack", prenom: "Albert", formation: "informatique", modules: ["m1"], actif: true, dateInscription: "2026-01-10" },
       { id: "SN-002", nom: "Ben", prenom: "Charlie", formation: "informatique", modules: ["m2"], actif: true, dateInscription: "2026-02-15" },
       { id: "SN-003", nom: "Arthur", prenom: "Denis", formation: "industriel", modules: ["m3"], actif: false, dateInscription: "2026-01-01" },
@@ -29,7 +29,7 @@ describe("Phase 5 — Gestion des personnes : Apprenants, Enseignants, Utilisate
   });
 
   it("filtre les apprenants par session académique active", () => {
-    const students: Student[] = [
+    const students: any[] = [
       { id: "SN-01", nom: "K", prenom: "L", formation: "informatique", modules: [], academicYearId: "ay-2025-2026" },
       { id: "SN-02", nom: "M", prenom: "N", formation: "informatique", modules: [], academicYearId: "ay-2026-2027" },
     ];
@@ -41,7 +41,7 @@ describe("Phase 5 — Gestion des personnes : Apprenants, Enseignants, Utilisate
 
   it("calcule avec exactitude les heures et honoraires des enseignants", () => {
     const db = emptyDB();
-    const t: Teacher = {
+    const t: any = {
       id: "T-01",
       nom: "Makosso",
       prenom: "Alain",
@@ -53,7 +53,7 @@ describe("Phase 5 — Gestion des personnes : Apprenants, Enseignants, Utilisate
     };
     db.teachers = [t];
     db.teacherHours = [
-      { id: "th-1", teacherId: "T-01", date: "2026-03-01", heures: 2, montant: 10000, valide: true, statut: "valide", tauxHoraire: 5000 },
+      { id: "th-1", teacherId: "T-01", date: "2026-03-01", heures: 2, montant: 10000, valide: true, statut: "valide", tauxHoraire: 5000 } as any,
     ];
 
     const fin = teacherFinanceSummary(db, t.id);
@@ -65,7 +65,7 @@ describe("Phase 5 — Gestion des personnes : Apprenants, Enseignants, Utilisate
 
   it("supporte l'activation, la désactivation et l'édition de rôle pour les utilisateurs", () => {
     const db = emptyDB();
-    const u: User = {
+    const u: any = {
       id: "u-test",
       username: "test.agent",
       password: "hash",

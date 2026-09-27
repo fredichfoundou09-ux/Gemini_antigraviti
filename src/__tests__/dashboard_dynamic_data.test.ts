@@ -42,7 +42,7 @@ describe("Phase 4 — Dashboard Dynamique (Données Réelles & Groupes)", () => 
     },
   ];
 
-  const mockAttendance: AttendanceRecord[] = [
+  const mockAttendance: any[] = [
     { id: "att-1", studentId: "st-1", moduleId: "mod-1", date: today(), heure: "08:00", statut: "present" },
     { id: "att-2", studentId: "st-1", moduleId: "mod-1", date: "2026-09-20", heure: "08:00", statut: "retard" },
     { id: "att-3", studentId: "st-2", moduleId: "mod-2", date: today(), heure: "10:00", statut: "absent" },

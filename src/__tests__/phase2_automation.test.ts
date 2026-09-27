@@ -108,9 +108,10 @@ describe("Phase 2 — Automatisations métier sensibles", () => {
   });
 
   it("2.1 & 2.2 — Marque automatiquement la présence et crédite les heures d'enseignant une fois la séance terminée", () => {
-    const todayStr = new Date().toISOString().slice(0, 10);
+    const simulatedNow = new Date();
+    simulatedNow.setHours(10, 30, 0, 0);
     const dayNames = ["Dimanche", "Lundi", "Mardi", "Mercredi", "Jeudi", "Vendredi", "Samedi"];
-    const todayDay = dayNames[new Date().getDay()];
+    const todayDay = dayNames[simulatedNow.getDay()];
 
     const pastSession: ScheduleItem = {
       id: "SCHED_PAST_1",
@@ -127,8 +128,6 @@ describe("Phase 2 — Automatisations métier sensibles", () => {
     const update = (fn: (d: DB) => DB) => {
       db = fn(db);
     };
-
-    const simulatedNow = new Date(`${todayStr}T10:30:00`);
 
     // Vérifier les fonctions utilitaires temporelles
     expect(isSessionFinished(pastSession, simulatedNow)).toBe(true);
@@ -199,9 +198,10 @@ describe("Phase 2 — Automatisations métier sensibles", () => {
   });
 
   it("2.1 — Ne valide pas prématurément les heures si la séance n'est pas encore terminée", () => {
-    const todayStr = new Date().toISOString().slice(0, 10);
+    const simulatedMorning = new Date();
+    simulatedMorning.setHours(11, 0, 0, 0);
     const dayNames = ["Dimanche", "Lundi", "Mardi", "Mercredi", "Jeudi", "Vendredi", "Samedi"];
-    const todayDay = dayNames[new Date().getDay()];
+    const todayDay = dayNames[simulatedMorning.getDay()];
 
     const futureSession: ScheduleItem = {
       id: "SCHED_FUTURE",
@@ -220,7 +220,6 @@ describe("Phase 2 — Automatisations métier sensibles", () => {
     };
 
     // Il est 11h du matin : la séance n'a pas commencé
-    const simulatedMorning = new Date(`${todayStr}T11:00:00`);
     expect(isSessionFinished(futureSession, simulatedMorning)).toBe(false);
     expect(isSessionActive(futureSession, simulatedMorning)).toBe(false);
 

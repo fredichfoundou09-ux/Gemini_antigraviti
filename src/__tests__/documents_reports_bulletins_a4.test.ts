@@ -17,7 +17,7 @@ describe('Phase 14 : Documents, Rapports et Bulletins A4 stricts', () => {
     db.modules = [
       { id: 'm-1', numero: 1, titre: 'Algorithmique & Structures de Données', formation: 'informatique', volumeHoraire: 40 },
       { id: 'm-2', numero: 2, titre: 'Cybersécurité & Réseaux', formation: 'informatique', volumeHoraire: 35 },
-    ];
+    ] as any;
     db.students = [
       {
         id: 'ETU-2026-001',
@@ -28,15 +28,15 @@ describe('Phase 14 : Documents, Rapports et Bulletins A4 stricts', () => {
         statut: 'actif',
         academicYearId: 'ay-2025-2026',
         modules: ['m-1', 'm-2'],
-      },
+      } as any,
     ];
     db.grades = [
-      { id: 'g-1', studentId: 'ETU-2026-001', moduleId: 'm-1', note: 16.5, appreciation: 'Excellent travail' },
-      { id: 'g-2', studentId: 'ETU-2026-001', moduleId: 'm-2', note: 14.0, appreciation: 'Très bonne maîtrise' },
+      { id: 'g-1', studentId: 'ETU-2026-001', moduleId: 'm-1', note: 16.5, appreciation: 'Excellent travail', date: '2026-03-10' } as any,
+      { id: 'g-2', studentId: 'ETU-2026-001', moduleId: 'm-2', note: 14.0, appreciation: 'Très bonne maîtrise', date: '2026-03-11' } as any,
     ];
     db.attendance = [
-      { id: 'att-1', studentId: 'ETU-2026-001', date: '2026-03-10', statut: 'present', seanceId: 's-1' },
-      { id: 'att-2', studentId: 'ETU-2026-001', date: '2026-03-11', statut: 'present', seanceId: 's-2' },
+      { id: 'att-1', studentId: 'ETU-2026-001', date: '2026-03-10', statut: 'present', seanceId: 's-1' } as any,
+      { id: 'att-2', studentId: 'ETU-2026-001', date: '2026-03-11', statut: 'present', seanceId: 's-2' } as any,
     ];
 
     // Intercepter printHTML
@@ -90,8 +90,8 @@ describe('Phase 14 : Documents, Rapports et Bulletins A4 stricts', () => {
     it('attribue correctement la mention AJOURNÉ en cas de moyenne < 10', () => {
       // Notes faibles
       db.grades = [
-        { id: 'g-1', studentId: 'ETU-2026-001', moduleId: 'm-1', note: 8.0, appreciation: 'Difficultés' },
-        { id: 'g-2', studentId: 'ETU-2026-001', moduleId: 'm-2', note: 7.5, appreciation: 'Insuffisant' },
+        { id: 'g-1', studentId: 'ETU-2026-001', moduleId: 'm-1', note: 8.0, appreciation: 'Difficultés', date: '2026-03-10' } as any,
+        { id: 'g-2', studentId: 'ETU-2026-001', moduleId: 'm-2', note: 7.5, appreciation: 'Insuffisant', date: '2026-03-11' } as any,
       ];
 
       generateBulletin(db, 'ETU-2026-001');
@@ -103,10 +103,10 @@ describe('Phase 14 : Documents, Rapports et Bulletins A4 stricts', () => {
 
     it('calcule rigoureusement le taux d assiduité de l apprenant', () => {
       db.attendance = [
-        { id: 'att-1', studentId: 'ETU-2026-001', date: '2026-03-10', statut: 'present', seanceId: 's-1' },
-        { id: 'att-2', studentId: 'ETU-2026-001', date: '2026-03-11', statut: 'absent', seanceId: 's-2' },
-        { id: 'att-3', studentId: 'ETU-2026-001', date: '2026-03-12', statut: 'present', seanceId: 's-3' },
-        { id: 'att-4', studentId: 'ETU-2026-001', date: '2026-03-13', statut: 'retard', seanceId: 's-4' },
+        { id: 'att-1', studentId: 'ETU-2026-001', date: '2026-03-10', statut: 'present', seanceId: 's-1' } as any,
+        { id: 'att-2', studentId: 'ETU-2026-001', date: '2026-03-11', statut: 'absent', seanceId: 's-2' } as any,
+        { id: 'att-3', studentId: 'ETU-2026-001', date: '2026-03-12', statut: 'present', seanceId: 's-3' } as any,
+        { id: 'att-4', studentId: 'ETU-2026-001', date: '2026-03-13', statut: 'retard', seanceId: 's-4' } as any,
       ];
 
       generateBulletin(db, 'ETU-2026-001');

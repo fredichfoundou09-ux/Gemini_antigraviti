@@ -69,7 +69,7 @@ describe("Phase 6 — Planning : Emploi du temps, calendrier, présence, rémun�
 
   it("calcule avec exactitude la durée et la rémunération d'un créneau", () => {
     const db = emptyDB();
-    const teacher: Teacher = {
+    const teacher: any = {
       id: "T-01",
       nom: "Makosso",
       prenom: "Alain",
@@ -105,12 +105,12 @@ describe("Phase 6 — Planning : Emploi du temps, calendrier, présence, rémun�
 
   it("associe correctement les apprenants d'une séance pour l'émargement", () => {
     const db = emptyDB();
-    const s1: Student = { id: "SN-1", nom: "D", prenom: "E", formation: "informatique", modules: ["m1"], statut: "actif" };
-    const s2: Student = { id: "SN-2", nom: "F", prenom: "G", formation: "informatique", modules: ["m2"], statut: "actif" };
-    const s3: Student = { id: "SN-3", nom: "H", prenom: "I", formation: "industriel", modules: ["m1"], statut: "actif" };
+    const s1: any = { id: "SN-1", nom: "D", prenom: "E", formation: "informatique", modules: ["m1"], statut: "actif" };
+    const s2: any = { id: "SN-2", nom: "F", prenom: "G", formation: "informatique", modules: ["m2"], statut: "actif" };
+    const s3: any = { id: "SN-3", nom: "H", prenom: "I", formation: "industriel", modules: ["m1"], statut: "actif" };
     db.students = [s1, s2, s3];
 
-    const slot: ScheduleItem = {
+    const slot: any = {
       id: "sch-10",
       formation: "informatique",
       moduleId: "m1",

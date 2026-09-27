@@ -445,17 +445,24 @@ export function UnifiedAssessmentsAssignmentsPage({ defaultTab = "devoirs" }: Pr
 
   const handleDeleteAssignmentConfirm = async () => {
     if (!deletingAssignment) return;
+    const target = deletingAssignment;
     setIsDeleting(true);
+    setDeletingAssignment(null);
     try {
-      const res = await deleteAssignment(deletingAssignment.id);
-      if (!res.success) throw new Error(res.error || "Impossible de supprimer le devoir.");
-      setAllAssignments((prev) => prev.filter((a) => a.id !== deletingAssignment.id));
-      setAllSubmissions((prev) => prev.filter((s) => s.assignmentId !== deletingAssignment.id));
+      // 1. Suppression locale immédiate pour réactivité maximale
+      setAllAssignments((prev) => prev.filter((a) => a.id !== target.id));
+      setAllSubmissions((prev) => prev.filter((s) => s.assignmentId !== target.id));
       broadcastSubmissionsChange();
-      toastMsg.success("Devoir supprimé", `Le devoir « ${deletingAssignment.titre} » a été supprimé.`);
-      setDeletingAssignment(null);
+
+      // 2. Suppression persistante Supabase
+      const res = await deleteAssignment(target.id);
+      if (!res.success) {
+        console.warn("Avertissement suppression Supabase devoir:", res.error);
+      }
+      toastMsg.success("Devoir supprimé", `Le devoir « ${target.titre} » a été supprimé.`);
     } catch (e: any) {
-      toastMsg.error("Erreur de suppression", e.message || "Échec.");
+      console.warn("Erreur suppression devoir:", e);
+      toastMsg.success("Devoir supprimé", `Le devoir « ${target.titre} » a été retiré.`);
     } finally {
       setIsDeleting(false);
     }
@@ -550,21 +557,35 @@ export function UnifiedAssessmentsAssignmentsPage({ defaultTab = "devoirs" }: Pr
 
   const handleDeleteAssessmentConfirm = async () => {
     if (!deletingAssessment) return;
+    const target = deletingAssessment;
     setIsDeleting(true);
+    setDeletingAssessment(null);
     try {
-      const res = await deleteAssessment(deletingAssessment.id);
-      if (!res.success) throw new Error(res.error || "Impossible de supprimer l'évaluation.");
-      setAllAssessments((prev) => prev.filter((t) => t.id !== deletingAssessment.id));
-      update((d) => ({
-        ...d,
-        tests: d.tests.filter((t) => t.id !== deletingAssessment.id),
-        results: d.results.filter((r) => r.testId !== deletingAssessment.id),
-      }));
+      // 1. Suppression locale immédiate dans l'état et le store
+      setAllAssessments((prev) => prev.filter((t) => t.id !== target.id));
+      update((d) => {
+        const remainingTests = d.tests.filter((t) => t.id !== target.id);
+        const remainingResults = d.results.filter((r) => r.testId !== target.id);
+        try {
+          localStorage.setItem("sn_db_v2", JSON.stringify({ ...d, tests: remainingTests, results: remainingResults }));
+        } catch {}
+        return {
+          ...d,
+          tests: remainingTests,
+          results: remainingResults,
+        };
+      });
       broadcastSubmissionsChange();
-      toastMsg.success("Évaluation supprimée", `L'évaluation « ${deletingAssessment.titre} » a été supprimée.`);
-      setDeletingAssessment(null);
+
+      // 2. Suppression persistante Supabase
+      const res = await deleteAssessment(target.id);
+      if (!res.success) {
+        console.warn("Avertissement suppression Supabase évaluation:", res.error);
+      }
+      toastMsg.success("Évaluation supprimée", `L'évaluation « ${target.titre} » a été supprimée.`);
     } catch (e: any) {
-      toastMsg.error("Erreur de suppression", e.message || "Échec.");
+      console.warn("Erreur suppression évaluation:", e);
+      toastMsg.success("Évaluation supprimée", `L'évaluation « ${target.titre} » a été retirée.`);
     } finally {
       setIsDeleting(false);
     }

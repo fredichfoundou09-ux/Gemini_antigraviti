@@ -221,15 +221,94 @@ export function UnifiedStudentAssessmentsAssignmentsPage({ defaultTab = "devoirs
         setSubmissions(student ? getLocalSubmissions().filter((s) => s.studentId === student.id) : []);
       }
 
-      // 2. Évaluations
-      setAssessments(mapDbTestsToAssessments(db.tests));
-      setResults(student ? (db.results.filter((r) => r.studentId === student.id) as any) : []);
+      // 2. Évaluations & Tests (Chargement direct depuis Supabase + fusion locale)
+      if (isSupabaseConfigured) {
+        try {
+          const { data: tData } = await supabase
+            .from("tests")
+            .select("*, questions(*)")
+            .in("statut", ["publie", "en_cours", "ouvert"]);
+
+          if (tData && tData.length > 0) {
+            const mappedTests: Assessment[] = tData.map((row: any) => ({
+              id: row.id,
+              titre: row.titre || "",
+              description: row.description || "",
+              moduleId: row.module_id || "",
+              teacherId: row.teacher_id || "",
+              consignes: row.consignes || "",
+              duree: Number(row.duree || 45),
+              bareme: Number(row.bareme || 20),
+              seuilReussite: Number(row.seuil_reussite || 10),
+              difficulte: row.difficulte || "moyen",
+              tentatives: Number(row.tentatives || 1),
+              afficherCorrections: row.afficher_corrections !== false,
+              validationRequise: Boolean(row.validation_requise),
+              statut: row.statut || "publie",
+              audience: row.audience || "all",
+              targetGroupe: row.target_groupe,
+              targetStudentIds: row.target_student_ids || [],
+              modeSecurise: Boolean(row.mode_securise),
+              bloquerCopierColler: row.bloquer_copier_coller !== false,
+              bloquerClicDroit: Boolean(row.bloquer_clic_droit),
+              navigationLibre: row.navigation_libre !== false,
+              date: row.date || (row.created_at ? row.created_at.slice(0, 10) : new Date().toISOString().slice(0, 10)),
+              dateDebut: row.date_debut ? row.date_debut.slice(0, 10) : undefined,
+              dateFin: row.date_fin ? row.date_fin.slice(0, 10) : undefined,
+              datePublication: row.date_publication,
+              createdAt: row.created_at,
+              questions: (row.questions || [])
+                .sort((a: any, b: any) => (a.ordre || 0) - (b.ordre || 0))
+                .map((q: any, qIdx: number) => ({
+                  id: q.id || `q-${qIdx}`,
+                  question: q.question || "",
+                  type: q.type || "qcm",
+                  points: Number(q.points || 1),
+                  bonneReponse: q.bonne_reponse || "",
+                  bonnesReponses: q.bonnes_reponses_json || (q.bonne_reponse ? [q.bonne_reponse] : []),
+                  options: q.options_json || (q.type === "vf" ? ["Vrai", "Faux"] : []),
+                  valeurNumerique: q.valeur_numerique !== null && q.valeur_numerique !== undefined ? Number(q.valeur_numerique) : undefined,
+                  toleranceNumerique: Number(q.tolerance_numerique || 0),
+                  explication: q.explication || "",
+                  ordre: q.ordre || qIdx + 1,
+                  obligatoire: q.obligatoire !== false,
+                })),
+            }));
+
+            const localOnly = (db.tests || []).filter(
+              (lt: any) => !mappedTests.some((st) => st.id === lt.id) && (lt.statut === "publie" || lt.statut === "en_cours")
+            );
+            setAssessments([...mappedTests, ...mapDbTestsToAssessments(localOnly)]);
+          } else {
+            setAssessments(mapDbTestsToAssessments(db.tests.filter((t: any) => t.statut === "publie" || t.statut === "en_cours")));
+          }
+        } catch (tErr) {
+          console.warn("Erreur chargement tests Supabase pour apprenant:", tErr);
+          setAssessments(mapDbTestsToAssessments(db.tests.filter((t: any) => t.statut === "publie" || t.statut === "en_cours")));
+        }
+
+        // Résultats de cet apprenant depuis Supabase
+        if (student) {
+          try {
+            const { data: resData } = await supabase
+              .from("test_results")
+              .select("*, answers:test_answers(*)")
+              .eq("student_id", student.id);
+            if (resData && resData.length > 0) {
+              setResults(resData as any);
+            } else {
+              setResults(db.results.filter((r) => r.studentId === student.id) as any);
+            }
+          } catch {
+            setResults(db.results.filter((r) => r.studentId === student.id) as any);
+          }
+        }
+      } else {
+        setAssessments(mapDbTestsToAssessments(db.tests.filter((t: any) => t.statut === "publie" || t.statut === "en_cours")));
+        setResults(student ? (db.results.filter((r) => r.studentId === student.id) as any) : []);
+      }
     } catch (err) {
-      console.error("Erreur de chargement données apprenant:", err);
-      setAssignments(getLocalAssignments());
-      setSubmissions(student ? getLocalSubmissions().filter((s) => s.studentId === student.id) : []);
-      setAssessments(mapDbTestsToAssessments(db.tests));
-      setResults(student ? (db.results.filter((r) => r.studentId === student.id) as any) : []);
+      console.error("Erreur chargement données apprenant:", err);
     } finally {
       setIsLoading(false);
     }

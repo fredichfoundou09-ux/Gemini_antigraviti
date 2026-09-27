@@ -3,16 +3,33 @@ import { createNotification } from "@/lib/supabase/communication";
 import { sendNativeNotification, playNotificationChime } from "@/lib/pushNotifications";
 
 export const SUBMISSIONS_UPDATED_EVENT = "sn:submissions-updated";
+const BROADCAST_CHANNEL_NAME = "sn_assessments_broadcast_channel";
+
+let sharedBroadcastChannel: BroadcastChannel | null = null;
+if (typeof window !== "undefined" && typeof BroadcastChannel !== "undefined") {
+  try {
+    sharedBroadcastChannel = new BroadcastChannel(BROADCAST_CHANNEL_NAME);
+  } catch {
+    /* ignore fallback to window event */
+  }
+}
 
 /** Déclenche une synchronisation instantanée inter-composants et multi-onglets */
 export function broadcastSubmissionsChange(): void {
   if (typeof window !== "undefined") {
     window.dispatchEvent(new CustomEvent(SUBMISSIONS_UPDATED_EVENT));
   }
+  if (sharedBroadcastChannel) {
+    try {
+      sharedBroadcastChannel.postMessage({ type: SUBMISSIONS_UPDATED_EVENT, timestamp: Date.now() });
+    } catch {
+      /* ignore */
+    }
+  }
 }
 
 /**
- * Souscrit aux changements en direct (Temps Réel Supabase + Événements locaux)
+ * Souscrit aux changements en direct (Temps Réel Supabase + Polling silencieux 4s + BroadcastChannel + Événements locaux)
  * pour les devoirs, évaluations, remises et résultats.
  */
 export function subscribeToAssessmentsSync(onSync: () => void): { unsubscribe: () => void } {
@@ -25,12 +42,28 @@ export function subscribeToAssessmentsSync(onSync: () => void): { unsubscribe: (
     }, 300);
   };
 
-  // 1. Écouteur local rapide
+  // 1. Écouteur local rapide (CustomEvent)
   if (typeof window !== "undefined") {
     window.addEventListener(SUBMISSIONS_UPDATED_EVENT, debouncedSync);
+    window.addEventListener("sentinelles:supabase-refresh", debouncedSync);
   }
 
-  // 2. Écouteur Supabase Realtime
+  // 2. Écouteur multi-onglets (BroadcastChannel)
+  const onBroadcast = (evt: MessageEvent) => {
+    if (evt.data?.type === SUBMISSIONS_UPDATED_EVENT) {
+      debouncedSync();
+    }
+  };
+  if (sharedBroadcastChannel) {
+    sharedBroadcastChannel.addEventListener("message", onBroadcast);
+  }
+
+  // 3. Polling silencieux d'arrière-plan (toutes les 4 secondes)
+  const pollingInterval = setInterval(() => {
+    onSync();
+  }, 4000);
+
+  // 4. Écouteur Supabase Realtime
   let channel: any = null;
   if (isSupabaseConfigured) {
     const channelName = `realtime-assessments-${Math.random().toString(36).slice(2, 8)}`;
@@ -47,7 +80,12 @@ export function subscribeToAssessmentsSync(onSync: () => void): { unsubscribe: (
     unsubscribe: () => {
       if (typeof window !== "undefined") {
         window.removeEventListener(SUBMISSIONS_UPDATED_EVENT, debouncedSync);
+        window.removeEventListener("sentinelles:supabase-refresh", debouncedSync);
       }
+      if (sharedBroadcastChannel) {
+        sharedBroadcastChannel.removeEventListener("message", onBroadcast);
+      }
+      clearInterval(pollingInterval);
       if (channel) {
         try {
           supabase.removeChannel(channel);

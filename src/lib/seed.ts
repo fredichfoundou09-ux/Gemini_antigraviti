@@ -1,4 +1,4 @@
-import { DB, EniaContent } from "./types";
+import { DB, EniaContent, AcademicYear, ModuleRestriction } from "./types";
 
 const today = () => new Date().toISOString().slice(0, 10);
 
@@ -98,7 +98,7 @@ export function emptySettings(): DB["settings"] {
   };
 }
 
-export function defaultAcademicYears(): DB["academicYears"] {
+export function defaultAcademicYears(): AcademicYear[] {
   return [
     { id: "ay-2024-2025", label: "2024-2025", dateDebut: "2024-09-01", dateFin: "2025-07-31", statut: "cloturee", isDefault: false, description: "Année académique précédente clôturée" },
     { id: "ay-2025-2026", label: "2025-2026", dateDebut: "2025-09-01", dateFin: "2026-07-31", statut: "active", isDefault: true, description: "Année académique en cours" },
@@ -106,7 +106,7 @@ export function defaultAcademicYears(): DB["academicYears"] {
   ];
 }
 
-export function defaultModuleRestrictions(): DB["moduleRestrictions"] {
+export function defaultModuleRestrictions(): ModuleRestriction[] {
   return [
     { id: "mr-ia", moduleKey: "ia", moduleLabel: "Assistant Sentinel AI", bloque: false, roles: [], userIds: [], raison: "", updatedAt: new Date().toISOString() },
     { id: "mr-finances", moduleKey: "finances", moduleLabel: "Module Finances & Comptabilité", bloque: false, roles: [], userIds: [], raison: "", updatedAt: new Date().toISOString() },

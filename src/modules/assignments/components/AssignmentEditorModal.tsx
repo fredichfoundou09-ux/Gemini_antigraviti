@@ -156,13 +156,14 @@ export function AssignmentEditorModal({
   };
 
   const handleSaveDraft = async () => {
-    if (!form.titre.trim()) {
-      toastMsg.error("Titre manquant", "Veuillez saisir au moins un titre pour le devoir.");
-      return;
-    }
     setIsSaving(true);
     try {
-      const draft = { ...form, statut: "brouillon" as const };
+      const draft = {
+        ...form,
+        titre: form.titre?.trim() || "Brouillon de devoir",
+        consignes: form.consignes?.trim() || "Consignes en cours de rédaction.",
+        statut: "brouillon" as const,
+      };
       const res = await persistAssignmentToSupabase(draft);
       if (!res.success) throw new Error(res.error);
       toastMsg.success("Brouillon enregistré", "Le devoir est enregistré en mode brouillon.");
@@ -176,14 +177,14 @@ export function AssignmentEditorModal({
   };
 
   const handlePublish = async () => {
-    if (!validation.isValid) {
-      toastMsg.error("Publication bloquée", "Veuillez corriger les éléments obligatoires avant de publier.");
-      return;
-    }
     setIsSaving(true);
     try {
+      const titre = form.titre?.trim() || "Devoir pédagogique";
+      const consignes = form.consignes?.trim() || "Consignes du devoir : veuillez réaliser le travail demandé et déposer vos livrables.";
       const published = {
         ...form,
+        titre,
+        consignes,
         statut: "publie" as const,
         datePublication: form.datePublication || new Date().toISOString(),
       };

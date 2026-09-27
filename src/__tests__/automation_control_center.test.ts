@@ -156,11 +156,11 @@ describe('Phase 15 : Centre de Pilotage des Automatisations (Sections 13 & 42)',
         moduleId: 'm-1',
         teacherId: 't-1',
         date: '2026-03-27',
-        debut: '08:00',
-        fin: '10:00',
+        heureDebut: '08:00',
+        heureFin: '10:00',
         salle: 'Labo 1',
       },
-    ];
+    ] as any;
     db.students = [
       {
         id: 'stu-auto-1',
@@ -170,7 +170,7 @@ describe('Phase 15 : Centre de Pilotage des Automatisations (Sections 13 & 42)',
         statut: 'actif',
         email: 'amadou@example.com',
         modules: ['m-1'],
-      },
+      } as any,
     ];
 
     // Exécuter l'automatisation de planning

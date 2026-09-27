@@ -337,11 +337,13 @@ export function runScheduleAutomation(
 }
 
 export function isSessionFinished(slot: ScheduleItem, now = new Date()): boolean {
-  return isSlotToday(slot, today(), now) && isSlotEnded(slot.heureFin, now);
+  const currentDateStr = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, "0")}-${String(now.getDate()).padStart(2, "0")}`;
+  return isSlotToday(slot, currentDateStr, now) && isSlotEnded(slot.heureFin, now);
 }
 
 export function isSessionActive(slot: ScheduleItem, now = new Date()): boolean {
-  return isSlotToday(slot, today(), now) && isSlotStarted(slot.heureDebut, now) && !isSlotEnded(slot.heureFin, now);
+  const currentDateStr = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, "0")}-${String(now.getDate()).padStart(2, "0")}`;
+  return isSlotToday(slot, currentDateStr, now) && isSlotStarted(slot.heureDebut, now) && !isSlotEnded(slot.heureFin, now);
 }
 
 export function executeScheduleAutomation(

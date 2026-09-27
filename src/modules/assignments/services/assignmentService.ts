@@ -249,52 +249,74 @@ export async function uploadAssignmentAttachmentToStorage(
 
 // 6. Persistance d'un devoir sur Supabase
 export async function persistAssignmentToSupabase(assignment: Assignment): Promise<{ success: boolean; id: string; error?: string }> {
+  const isUuid = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(assignment.id);
+  const timeStr = assignment.heureLimite || "23:59";
+  const deadlineIso = `${assignment.dateLimite || new Date(Date.now() + 7 * 86400000).toISOString().slice(0, 10)}T${timeStr}:00Z`;
+
+  const payload: Record<string, any> = {
+    id: isUuid ? assignment.id : undefined,
+    titre: assignment.titre || "Devoir sans titre",
+    description: assignment.description || null,
+    consignes: assignment.consignes?.trim() || "Consignes : veuillez réaliser le devoir demandé et déposer vos livrables.",
+    formation: assignment.formation || null,
+    module_id: assignment.moduleId,
+    chapitre_id: assignment.chapitreId || null,
+    teacher_id: assignment.teacherId,
+    date_limite: deadlineIso,
+    heure_limite: assignment.heureLimite || "23:59",
+    duree_estimee_minutes: assignment.dureeEstimeeMinutes || null,
+    nb_fichiers_max: Number(assignment.nbFichiersMax || 3),
+    taille_max_mo: Number(assignment.tailleMaxMo || 10),
+    formats_autorises: assignment.formatsAutorises || ["pdf", "docx"],
+    bareme: Number(assignment.bareme || 20),
+    seuil_reussite: Number(assignment.seuilReussite || 10),
+    statut: assignment.statut || "publie",
+    audience: assignment.audience || "all",
+    target_groupe: assignment.targetGroupe || null,
+    target_student_ids: assignment.targetStudentIds || null,
+    autoriser_remise_tardive: Boolean(assignment.autoriserRemiseTardive),
+    tentatives_max: Number(assignment.tentativesMax || 1),
+    correction_visible_immediatement: Boolean(assignment.correctionVisibleImmediatement),
+    date_publication: (assignment.statut === "publie" || assignment.statut === "ouvert") ? (assignment.datePublication || new Date().toISOString()) : null,
+  };
+
+  const attachmentsPayload = (assignment.attachments || []).map((att) => ({
+    fileName: att.fileName,
+    originalName: att.originalName,
+    fileUrl: att.fileUrl,
+    mime: att.mime,
+    size: att.size,
+    storagePath: att.storagePath || null,
+  }));
+
+  // Toujours mettre à jour le cache local d'abord pour une réactivité instantanée
+  const list = getLocalAssignments();
+  const idx = list.findIndex((a) => a.id === assignment.id);
+  if (idx >= 0) list[idx] = assignment;
+  else list.unshift(assignment);
+  saveLocalAssignments(list);
+
   if (!isSupabaseConfigured) {
-    const list = getLocalAssignments();
-    const idx = list.findIndex((a) => a.id === assignment.id);
-    if (idx >= 0) list[idx] = assignment;
-    else list.unshift(assignment);
-    saveLocalAssignments(list);
     return { success: true, id: assignment.id };
   }
 
   try {
-    const isUuid = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(assignment.id);
+    // 1. Tenter la RPC sécurisée upsert_assignment_safe
+    const { data: rpcRes, error: rpcErr } = await supabase.rpc("upsert_assignment_safe", {
+      p_assignment: payload,
+      p_attachments: attachmentsPayload,
+    });
 
-    const timeStr = assignment.heureLimite || "23:59";
-    const deadlineIso = `${assignment.dateLimite}T${timeStr}:00Z`;
-
-    const payload: Record<string, any> = {
-      titre: assignment.titre,
-      description: assignment.description || null,
-      consignes: assignment.consignes,
-      formation: assignment.formation || null,
-      module_id: assignment.moduleId,
-      chapitre_id: assignment.chapitreId || null,
-      teacher_id: assignment.teacherId,
-      date_limite: deadlineIso,
-      heure_limite: assignment.heureLimite || "23:59",
-      duree_estimee_minutes: assignment.dureeEstimeeMinutes || null,
-      nb_fichiers_max: assignment.nbFichiersMax,
-      taille_max_mo: assignment.tailleMaxMo,
-      formats_autorises: assignment.formatsAutorises,
-      bareme: assignment.bareme,
-      seuil_reussite: assignment.seuilReussite,
-      statut: assignment.statut,
-      audience: assignment.audience,
-      target_groupe: assignment.targetGroupe || null,
-      target_student_ids: assignment.targetStudentIds || null,
-      autoriser_remise_tardive: assignment.autoriserRemiseTardive,
-      tentatives_max: assignment.tentativesMax,
-      correction_visible_immediatement: assignment.correctionVisibleImmediatement,
-    };
-
-    if (assignment.statut === "publie" && !assignment.datePublication) {
-      payload.date_publication = new Date().toISOString();
+    if (!rpcErr && rpcRes && rpcRes.success) {
+      return { success: true, id: rpcRes.id || assignment.id };
     }
 
-    let savedId = assignment.id;
+    if (rpcErr) {
+      console.warn("Fallback upsert direct assignments:", rpcErr);
+    }
 
+    // 2. Fallback upsert direct si la RPC n'est pas invoquable
+    let savedId = assignment.id;
     if (isUuid) {
       payload.id = assignment.id;
       const { data, error } = await supabase.from("assignments").upsert(payload).select("id").single();
@@ -306,9 +328,8 @@ export async function persistAssignmentToSupabase(assignment: Assignment): Promi
       if (data?.id) savedId = data.id;
     }
 
-    // Pièces jointes
-    if (assignment.attachments && assignment.attachments.length > 0) {
-      const attachRows = assignment.attachments.map((att) => ({
+    if (attachmentsPayload.length > 0) {
+      const attachRows = attachmentsPayload.map((att) => ({
         assignment_id: savedId,
         file_name: att.fileName,
         original_name: att.originalName,
@@ -505,6 +526,14 @@ export async function deleteAssignment(id: string): Promise<{ success: boolean; 
   }
 
   try {
+    const isUuid = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(id);
+    if (isUuid) {
+      const { data, error } = await supabase.rpc("delete_assignment_safe", { p_assignment_id: id });
+      if (!error && data && data.success) {
+        return { success: true };
+      }
+    }
+
     const { error } = await supabase.from("assignments").delete().eq("id", id);
     if (error) throw error;
     return { success: true };
@@ -524,6 +553,14 @@ export async function deleteSubmission(id: string): Promise<{ success: boolean; 
   }
 
   try {
+    const isUuid = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(id);
+    if (isUuid) {
+      const { data, error } = await supabase.rpc("delete_submission_safe", { p_submission_id: id });
+      if (!error && data && data.success) {
+        return { success: true };
+      }
+    }
+
     const { error } = await supabase.from("assignment_submissions").delete().eq("id", id);
     if (error) throw error;
     return { success: true };

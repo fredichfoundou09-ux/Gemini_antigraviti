@@ -30,9 +30,9 @@ describe('Phase 10 - Finances, Paiements, Bourses et Certificats (Sections 28, 2
     db.scholarships = [
       { id: 'schl-1', studentId: 'std-1', statut: 'trois_ans', montant: 100, date: '2026-02-01', academicYearId: '2025-2026' },
       { id: 'schl-2', studentId: 'std-2', statut: 'un_an', montant: 33, date: '2026-02-01', academicYearId: '2026-2027' },
-    ];
+    ] as any;
 
-    const year2526Bourses = db.scholarships.filter(s => s.academicYearId === '2025-2026');
+    const year2526Bourses = (db.scholarships as any[]).filter(s => s.academicYearId === '2025-2026');
     expect(year2526Bourses.length).toBe(1);
     expect(year2526Bourses[0].montant).toBe(100);
     expect(year2526Bourses[0].statut).toBe('trois_ans');

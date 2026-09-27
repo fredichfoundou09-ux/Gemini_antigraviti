@@ -27,7 +27,7 @@ describe('Phase 13 : Administration, Sécurité, Blocage des modules, Journalisa
       const restriction = (db.moduleRestrictions || []).find((r) => r.moduleKey === moduleKey);
       if (!restriction || !restriction.bloque) return { blocked: false, reason: '' };
 
-      if (restriction.roles && restriction.roles.length > 0 && restriction.roles.includes(targetUser.role)) {
+      if (restriction.roles && restriction.roles.length > 0 && (restriction.roles as string[]).includes(targetUser.role)) {
         return { blocked: true, reason: restriction.raison || 'Module temporairement restreint pour votre profil.' };
       }
 
@@ -125,7 +125,7 @@ describe('Phase 13 : Administration, Sécurité, Blocage des modules, Journalisa
 
   describe('Section 37 : Gestion et administration des comptes utilisateurs', () => {
     it('permet la désactivation et la réactivation sécurisée d un compte utilisateur', () => {
-      const user: User = {
+      const user: any = {
         id: 'u-temp',
         name: 'Moussa Sarr',
         email: 'moussa@example.com',
