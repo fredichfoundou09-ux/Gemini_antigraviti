@@ -242,8 +242,74 @@ export function UnifiedAssessmentsAssignmentsPage({ defaultTab = "devoirs" }: Pr
         setAllSubmissions(getLocalSubmissions());
       }
 
-      // Évaluations & Tests — on charge depuis db.tests (store global)
-      setAllAssessments(mapDbTestsToAssessments(db.tests));
+      // Évaluations & Tests — Chargement Supabase exhaustif avec questions
+      if (isSupabaseConfigured) {
+        try {
+          const { data: tData } = await supabase.from("tests").select("*, questions(*)");
+          if (tData && tData.length > 0) {
+            const mappedTests: Assessment[] = tData.map((row: any) => ({
+              id: row.id,
+              titre: row.titre || "",
+              description: row.description || "",
+              moduleId: row.module_id || "",
+              teacherId: row.teacher_id || "",
+              consignes: row.consignes || "",
+              duree: Number(row.duree || 45),
+              bareme: Number(row.bareme || 20),
+              seuilReussite: Number(row.seuil_reussite || 10),
+              difficulte: row.difficulte || "moyen",
+              tentatives: Number(row.tentatives || 1),
+              afficherCorrections: row.afficher_corrections !== false,
+              validationRequise: Boolean(row.validation_requise),
+              statut: row.statut || "brouillon",
+              audience: row.audience || "all",
+              targetGroupe: row.target_groupe,
+              targetStudentIds: row.target_student_ids || [],
+              modeSecurise: Boolean(row.mode_securise),
+              bloquerCopierColler: row.bloquer_copier_coller !== false,
+              bloquerClicDroit: Boolean(row.bloquer_clic_droit),
+              navigationLibre: row.navigation_libre !== false,
+              date: row.date || (row.created_at ? row.created_at.slice(0, 10) : new Date().toISOString().slice(0, 10)),
+              dateDebut: row.date_debut ? row.date_debut.slice(0, 10) : undefined,
+              dateFin: row.date_fin ? row.date_fin.slice(0, 10) : undefined,
+              datePublication: row.date_publication,
+              createdAt: row.created_at,
+              questions: (row.questions || [])
+                .sort((a: any, b: any) => (a.ordre || 0) - (b.ordre || 0))
+                .map((q: any, qIdx: number) => ({
+                  id: q.id || `q-${qIdx}`,
+                  question: q.question || "",
+                  type: q.type || "qcm",
+                  points: Number(q.points || 1),
+                  bonneReponse: q.bonne_reponse || "",
+                  bonnesReponses: q.bonnes_reponses_json || (q.bonne_reponse ? [q.bonne_reponse] : []),
+                  options: q.options_json || (q.type === "vf" ? ["Vrai", "Faux"] : []),
+                  valeurNumerique: q.valeur_numerique !== null ? Number(q.valeur_numerique) : undefined,
+                  toleranceNumerique: Number(q.tolerance_numerique || 0),
+                  explication: q.explication || "",
+                  ordre: q.ordre || qIdx + 1,
+                  obligatoire: q.obligatoire !== false,
+                })),
+            }));
+
+            // Fusion avec les tests locaux qui sont des brouillons en cours d'édition
+            const localOnly = (db.tests || []).filter(
+              (lt: any) => !mappedTests.some((st) => st.id === lt.id)
+            );
+            const combined = [...mappedTests, ...mapDbTestsToAssessments(localOnly)];
+            setAllAssessments(combined);
+            update((d) => ({ ...d, tests: combined }));
+          } else {
+            setAllAssessments(mapDbTestsToAssessments(db.tests));
+          }
+        } catch (tErr) {
+          console.warn("Erreur chargement tests Supabase, fallback local:", tErr);
+          setAllAssessments(mapDbTestsToAssessments(db.tests));
+        }
+      } else {
+        setAllAssessments(mapDbTestsToAssessments(db.tests));
+      }
+
       setAllResults(db.results as any);
     } catch (err) {
       console.error("Erreur de chargement unifié:", err);
@@ -397,8 +463,9 @@ export function UnifiedAssessmentsAssignmentsPage({ defaultTab = "devoirs" }: Pr
 
   // Actions Évaluations (Création / Enregistrement / Suppression)
   const handleCreateAssessment = () => {
+    const newId = typeof crypto !== "undefined" && crypto.randomUUID ? crypto.randomUUID() : `TEST-${Date.now().toString(36)}`;
     const newTest: Assessment = {
-      id: `TEST-${Date.now().toString(36)}`,
+      id: newId,
       titre: "",
       moduleId: db.modules[0]?.id || "",
       teacherId: currentTeacherId,
@@ -425,6 +492,11 @@ export function UnifiedAssessmentsAssignmentsPage({ defaultTab = "devoirs" }: Pr
 
   const handleSaveAssessment = async (updated: Assessment) => {
     setIsTestEditorOpen(false);
+
+    // 1. Sauvegarde Supabase en tâche asynchrone sécurisée
+    const persistPromise = persistTestToSupabase(updated);
+
+    // 2. Mise à jour immédiate locale avec ID garanti
     const existingIdx = allAssessments.findIndex((t) => t.id === updated.id);
     let newList: Assessment[];
     if (existingIdx >= 0) {
@@ -434,9 +506,31 @@ export function UnifiedAssessmentsAssignmentsPage({ defaultTab = "devoirs" }: Pr
       newList = [updated, ...allAssessments];
     }
     setAllAssessments(newList);
-    // Mettre à jour le store global
-    update((d) => ({ ...d, tests: newList }));
-    await persistTestToSupabase(updated);
+
+    // 3. Mise à jour du store global et persistance localStorage pour éviter toute disparition
+    update((d) => {
+      const mergedTests = [
+        ...d.tests.filter((t) => t.id !== updated.id),
+        updated,
+      ];
+      try {
+        localStorage.setItem("sn_db_v2", JSON.stringify({ ...d, tests: mergedTests }));
+      } catch {}
+      return { ...d, tests: mergedTests };
+    });
+
+    const persistRes = await persistPromise;
+    if (persistRes && persistRes.id && persistRes.id !== updated.id) {
+      // Si Supabase a réassigné un UUID canonique, synchroniser
+      const canonicalId = persistRes.id;
+      const canonicalAssessment = { ...updated, id: canonicalId };
+      setAllAssessments((prev) => prev.map((t) => (t.id === updated.id ? canonicalAssessment : t)));
+      update((d) => ({
+        ...d,
+        tests: d.tests.map((t) => (t.id === updated.id ? canonicalAssessment : t)),
+      }));
+    }
+
     broadcastSubmissionsChange();
 
     // Notification aux apprenants si l'évaluation est publiée
@@ -451,7 +545,7 @@ export function UnifiedAssessmentsAssignmentsPage({ defaultTab = "devoirs" }: Pr
       });
     }
 
-    toastMsg.success("Évaluation enregistrée", `« ${updated.titre} » a été mise à jour.`);
+    toastMsg.success("Évaluation enregistrée", `« ${updated.titre || "Évaluation"} » a été conservée avec succès.`);
   };
 
   const handleDeleteAssessmentConfirm = async () => {

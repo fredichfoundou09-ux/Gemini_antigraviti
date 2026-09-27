@@ -2415,6 +2415,23 @@ export function GradesPage() {
   const [filterPeriodFrom, setFilterPeriodFrom] = useState("");
   const [filterPeriodTo, setFilterPeriodTo] = useState("");
   const [filterStatus, setFilterStatus] = useState<"all" | "passed" | "failed">("all");
+  const [filterArchive, setFilterArchive] = useState<"all" | "active" | "archived">("active");
+
+  // Modal d'édition d'une note
+  const [editingGrade, setEditingGrade] = useState<{
+    id: string;
+    studentId: string;
+    studentName: string;
+    studentMatricule: string;
+    moduleId: string;
+    moduleTitre: string;
+    note: number;
+    appreciation: string;
+    date: string;
+  } | null>(null);
+  const [editNoteVal, setEditNoteVal] = useState("");
+  const [editApprVal, setEditApprVal] = useState("");
+  const [editDateVal, setEditDateVal] = useState("");
 
   // Saisie manuelle par module
   const [moduleId, setModuleId] = useState("");
@@ -2443,13 +2460,13 @@ export function GradesPage() {
   const save = () => {
     const recs = students
       .filter((s) => notes[s.id] !== undefined && notes[s.id] !== "")
-      .map((s) => ({ id: uid("GRD"), studentId: s.id, moduleId, note: Math.min(20, Math.max(0, +notes[s.id])), appreciation: appr[s.id] || "—", date: today() }));
+      .map((s) => ({ id: uid("GRD"), studentId: s.id, moduleId, note: Math.min(20, Math.max(0, +notes[s.id])), appreciation: appr[s.id] || "—", date: today(), archivee: false }));
     update((d) => ({ ...d, grades: [...d.grades.filter((g) => !(g.moduleId === moduleId && recs.some((r) => r.studentId === g.studentId))), ...recs] }));
     log(`Notes enregistrées pour ${recs.length} apprenant(s)`);
     toastMsg.success("Notes enregistrées", `${recs.length} note(s) sauvegardée(s) pour ce module.`);
   };
 
-  // Mode "Toutes les notes" enrichi avec les 8 dimensions de filtrage
+  // Mode "Toutes les notes" enrichi avec les 8 dimensions de filtrage + archivage
   const allGrades = useMemo(() => {
     return db.grades
       .filter((g) => (teacher ? teacherModuleIds.includes(g.moduleId) : true))
@@ -2475,9 +2492,12 @@ export function GradesPage() {
           teacherId: teacherObj?.id || "",
           teacherName: teacherObj ? `${teacherObj.prenom} ${teacherObj.nom}` : "Formateur assigné",
           academicYear,
+          isArchived: Boolean(g.archivee),
         };
       })
       .filter((item) => {
+        if (filterArchive === "active" && item.isArchived) return false;
+        if (filterArchive === "archived" && !item.isArchived) return false;
         if (filterModuleId && item.moduleId !== filterModuleId) return false;
         if (filterFormation && item.formation !== filterFormation) return false;
         if (filterGroup && item.groupe !== filterGroup) return false;
@@ -2498,7 +2518,7 @@ export function GradesPage() {
       .sort((a, b) => (b.date || "").localeCompare(a.date || ""));
   }, [
     db.grades, db.students, db.modules, db.teachers, db.courses, db.schedule, teacher, teacherModuleIds,
-    filterModuleId, filterFormation, filterGroup, filterTeacherId, filterAssessment, filterAcademicYear,
+    filterArchive, filterModuleId, filterFormation, filterGroup, filterTeacherId, filterAssessment, filterAcademicYear,
     searchLearner, filterPeriodFrom, filterPeriodTo, filterStatus
   ]);
 
@@ -2520,6 +2540,7 @@ export function GradesPage() {
       Annee: g.academicYear,
       Note_sur_20: g.note,
       Statut: g.note >= 10 ? "Admis" : "Ajourné",
+      Archivée: g.isArchived ? "Oui" : "Non",
       Appreciation: g.appreciation,
       Date: g.date,
     }));
@@ -2527,12 +2548,176 @@ export function GradesPage() {
     toastMsg.success("Export terminé", `${rows.length} note(s) exportée(s) en CSV.`);
   };
 
+  // Suppression
   const handleDeleteGrade = (gradeId: string, studentName: string) => {
-    if (confirm(`Confirmer la suppression de la note de ${studentName} ?`)) {
+    if (confirm(`Confirmer la suppression définitive de la note de ${studentName} ?`)) {
       update((d) => ({ ...d, grades: d.grades.filter((g) => g.id !== gradeId) }));
       log(`Suppression de la note ID ${gradeId}`);
       toastMsg.success("Note supprimée", "La note a été retirée du système.");
     }
+  };
+
+  // Archivage / Désarchivage
+  const handleToggleArchiveGrade = (gradeId: string, currentArchived?: boolean) => {
+    const nextState = !currentArchived;
+    update((d) => ({
+      ...d,
+      grades: d.grades.map((g) => (g.id === gradeId ? { ...g, archivee: nextState } : g)),
+    }));
+    log(`Note ID ${gradeId} ${nextState ? "archivée" : "désarchivée"}`);
+    toastMsg.info(nextState ? "Note archivée ✓" : "Note réactivée ✓");
+  };
+
+  // Modification
+  const handleStartEditGrade = (g: any) => {
+    setEditingGrade({
+      id: g.id,
+      studentId: g.studentId,
+      studentName: g.studentName,
+      studentMatricule: g.studentMatricule,
+      moduleId: g.moduleId,
+      moduleTitre: g.moduleTitre,
+      note: g.note,
+      appreciation: g.appreciation || "",
+      date: g.date || today(),
+    });
+    setEditNoteVal(String(g.note));
+    setEditApprVal(g.appreciation || "");
+    setEditDateVal(g.date || today());
+  };
+
+  const handleSaveEditedGrade = () => {
+    if (!editingGrade) return;
+    const num = parseFloat(editNoteVal);
+    if (isNaN(num) || num < 0 || num > 20) {
+      toastMsg.error("Note invalide", "Veuillez renseigner une note comprise entre 0 et 20.");
+      return;
+    }
+
+    update((d) => ({
+      ...d,
+      grades: d.grades.map((g) =>
+        g.id === editingGrade.id
+          ? { ...g, note: num, appreciation: editApprVal.trim(), date: editDateVal || today() }
+          : g
+      ),
+    }));
+    log(`Modification de note pour ${editingGrade.studentName} : ${num}/20`);
+    toastMsg.success("Note modifiée avec succès ✓", `${editingGrade.studentName} : ${num}/20`);
+    setEditingGrade(null);
+  };
+
+  // Impression globale du relevé
+  const handlePrintGradesTable = () => {
+    const rowsHtml = allGrades.map((g) => `
+      <tr style="border-bottom: 1px solid #e2e8f0; font-size: 11px;">
+        <td style="padding: 6px 8px; font-weight: bold;">${g.studentName}<br><span style="font-size: 9px; color: #64748b;">${g.studentMatricule}</span></td>
+        <td style="padding: 6px 8px;">${g.groupe}<br><span style="font-size: 9px; color: #64748b;">${g.formation}</span></td>
+        <td style="padding: 6px 8px;">${g.moduleTitre}<br><span style="font-size: 9px; color: #0284c7;">${g.teacherName}</span></td>
+        <td style="padding: 6px 8px; text-align: center; font-weight: bold; color: ${g.note >= 10 ? '#059669' : '#dc2626'};">${g.note.toFixed(1)} / 20</td>
+        <td style="padding: 6px 8px; text-align: center;">${g.note >= 10 ? '<span style="color: #059669; font-weight: bold;">Admis</span>' : '<span style="color: #dc2626; font-weight: bold;">Ajourné</span>'}</td>
+        <td style="padding: 6px 8px; font-size: 10px; color: #475569;">${g.appreciation || '—'}</td>
+        <td style="padding: 6px 8px; font-size: 10px; white-space: nowrap;">${g.date || '—'}</td>
+      </tr>
+    `).join("");
+
+    const fullHtml = `
+      <div style="font-family: Arial, sans-serif; padding: 20px; color: #0f172a;">
+        <div style="display: flex; justify-content: space-between; align-items: center; border-bottom: 2px solid #0284c7; padding-bottom: 12px; margin-bottom: 16px;">
+          <div>
+            <h1 style="font-size: 18px; margin: 0; color: #0f172a; text-transform: uppercase; letter-spacing: 0.5px;">Sentinelles Numériques</h1>
+            <p style="font-size: 12px; margin: 3px 0 0 0; color: #64748b;">Procès-Verbal Officiel des Notes Académiques</p>
+          </div>
+          <div style="text-align: right; font-size: 11px; color: #64748b;">
+            <p style="margin: 0;">Date d'édition : <strong>${new Date().toLocaleDateString("fr-FR")}</strong></p>
+            <p style="margin: 3px 0 0 0;">Année académique : <strong>${filterAcademicYear || "Toutes"}</strong></p>
+          </div>
+        </div>
+
+        <div style="display: flex; gap: 20px; margin-bottom: 16px; background: #f8fafc; padding: 10px; border-radius: 6px; font-size: 11px;">
+          <div>Effectif listé : <strong>${totalNotes} note(s)</strong></div>
+          <div>Moyenne générale : <strong>${avgGrade} / 20</strong></div>
+          <div>Taux d'admission : <strong>${passRate}%</strong> (${passedNotes} admis)</div>
+          <div>Meilleure note : <strong>${topGrade} / 20</strong></div>
+        </div>
+
+        <table style="width: 100%; border-collapse: collapse; text-align: left;">
+          <thead>
+            <tr style="background: #0f172a; color: #ffffff; font-size: 10px; text-transform: uppercase;">
+              <th style="padding: 6px 8px;">Apprenant</th>
+              <th style="padding: 6px 8px;">Groupe / Filière</th>
+              <th style="padding: 6px 8px;">Module & Formateur</th>
+              <th style="padding: 6px 8px; text-align: center;">Note</th>
+              <th style="padding: 6px 8px; text-align: center;">Statut</th>
+              <th style="padding: 6px 8px;">Évaluation & Appréciation</th>
+              <th style="padding: 6px 8px;">Date</th>
+            </tr>
+          </thead>
+          <tbody>
+            ${rowsHtml}
+          </tbody>
+        </table>
+
+        <div style="margin-top: 30px; display: flex; justify-content: space-between; font-size: 11px;">
+          <div>
+            <p style="margin: 0; color: #64748b;">Document officiel certifié par le département pédagogique.</p>
+          </div>
+          <div style="text-align: center; min-width: 180px;">
+            <p style="margin: 0; font-weight: bold;">Signature & Cachet de l'Établissement</p>
+            <div style="height: 50px;"></div>
+          </div>
+        </div>
+      </div>
+    `;
+
+    printHTML("Procès-Verbal Officiel des Notes", fullHtml);
+  };
+
+  // Impression individuelle d'un bulletin de note
+  const handlePrintSingleGrade = (g: any) => {
+    const singleHtml = `
+      <div style="font-family: Arial, sans-serif; padding: 25px; color: #0f172a; max-width: 600px; margin: 0 auto; border: 1px solid #cbd5e1; border-radius: 8px;">
+        <div style="display: flex; justify-content: space-between; align-items: center; border-bottom: 2px solid #0284c7; padding-bottom: 12px; margin-bottom: 20px;">
+          <div>
+            <h2 style="font-size: 16px; margin: 0; color: #0f172a; text-transform: uppercase;">Sentinelles Numériques</h2>
+            <p style="font-size: 11px; margin: 3px 0 0 0; color: #64748b;">Fiche Individuelle d'Évaluation de Module</p>
+          </div>
+          <div style="text-align: right; font-size: 10px; color: #64748b;">
+            <p style="margin: 0;">Réf: GRD-${g.id.slice(-6)}</p>
+            <p style="margin: 2px 0 0 0;">Date: ${g.date || new Date().toLocaleDateString("fr-FR")}</p>
+          </div>
+        </div>
+
+        <div style="margin-bottom: 20px; background: #f8fafc; padding: 12px; border-radius: 6px; font-size: 12px;">
+          <p style="margin: 0 0 6px 0;"><strong>Apprenant :</strong> ${g.studentName}</p>
+          <p style="margin: 0 0 6px 0;"><strong>Matricule / Identifiant :</strong> ${g.studentMatricule}</p>
+          <p style="margin: 0 0 6px 0;"><strong>Filière / Spécialité :</strong> ${g.formation}</p>
+          <p style="margin: 0;"><strong>Groupe :</strong> ${g.groupe} • Année : ${g.academicYear}</p>
+        </div>
+
+        <div style="margin-bottom: 20px; border: 1px solid #e2e8f0; border-radius: 6px; padding: 15px; text-align: center;">
+          <p style="font-size: 13px; color: #64748b; margin: 0 0 8px 0;">Module évalué : <strong>${g.moduleTitre}</strong></p>
+          <p style="font-size: 11px; color: #0284c7; margin: 0 0 15px 0;">Formateur référent : ${g.teacherName}</p>
+          <div style="font-size: 32px; font-weight: bold; color: ${g.note >= 10 ? '#059669' : '#dc2626'}; margin-bottom: 5px;">
+            ${g.note.toFixed(1)} <span style="font-size: 16px; color: #64748b;">/ 20</span>
+          </div>
+          <p style="font-size: 14px; font-weight: bold; margin: 0; color: ${g.note >= 10 ? '#059669' : '#dc2626'};">
+            ${g.note >= 10 ? '✓ MODULE ADMIS / VALIDÉ' : '✕ MODULE NON VALIDÉ (AJOURNÉ)'}
+          </p>
+        </div>
+
+        <div style="margin-bottom: 25px; background: #ffffff; border: 1px solid #e2e8f0; border-radius: 6px; padding: 12px; font-size: 11px;">
+          <p style="font-weight: bold; margin: 0 0 5px 0; color: #334155;">Appréciation pédagogique :</p>
+          <p style="margin: 0; color: #475569; font-style: italic;">« ${g.appreciation || 'Aucun commentaire spécifique enregistré.'} »</p>
+        </div>
+
+        <div style="display: flex; justify-content: space-between; font-size: 10px; color: #64748b; border-top: 1px solid #e2e8f0; padding-top: 10px;">
+          <div>Signature de l'Apprenant</div>
+          <div style="text-align: right;">Cachet & Visa de la Direction</div>
+        </div>
+      </div>
+    `;
+    printHTML("Fiche Individuelle de Note", singleHtml);
   };
 
   const resetFilters = () => {
@@ -2546,12 +2731,13 @@ export function GradesPage() {
     setFilterPeriodFrom("");
     setFilterPeriodTo("");
     setFilterStatus("all");
+    setFilterArchive("active");
   };
 
   const hasActiveFilters = Boolean(
     searchLearner || filterFormation || filterGroup || filterModuleId ||
     filterTeacherId || filterAssessment || filterAcademicYear ||
-    filterPeriodFrom || filterPeriodTo || filterStatus !== "all"
+    filterPeriodFrom || filterPeriodTo || filterStatus !== "all" || filterArchive !== "active"
   );
 
   return (
@@ -2566,7 +2752,7 @@ export function GradesPage() {
                 type="button"
                 onClick={() => setTab("all")}
                 className={cn(
-                  "px-3 py-1.5 rounded-lg text-xs font-semibold transition-all flex items-center gap-1.5",
+                  "px-3 py-1.5 rounded-lg text-xs font-semibold transition-all flex items-center gap-1.5 cursor-pointer",
                   tab === "all" ? "bg-red-600 text-white shadow-md shadow-red-900/30" : "text-slate-400 hover:text-white"
                 )}
               >
@@ -2576,7 +2762,7 @@ export function GradesPage() {
                 type="button"
                 onClick={() => setTab("manual")}
                 className={cn(
-                  "px-3 py-1.5 rounded-lg text-xs font-semibold transition-all flex items-center gap-1.5",
+                  "px-3 py-1.5 rounded-lg text-xs font-semibold transition-all flex items-center gap-1.5 cursor-pointer",
                   tab === "manual" ? "bg-red-600 text-white shadow-md shadow-red-900/30" : "text-slate-400 hover:text-white"
                 )}
               >
@@ -2584,9 +2770,17 @@ export function GradesPage() {
               </button>
             </div>
             {tab === "all" && allGrades.length > 0 && (
-              <Btn variant="outline" onClick={handleExportAllGradesCsv}>
-                <Download size={15} /> Export CSV
-              </Btn>
+              <>
+                <Btn variant="outline" onClick={handleExportAllGradesCsv} className="gap-1.5 text-xs">
+                  <Download size={14} /> Export CSV
+                </Btn>
+                <Btn
+                  onClick={handlePrintGradesTable}
+                  className="bg-cyan-600 hover:bg-cyan-500 text-white font-bold gap-1.5 text-xs"
+                >
+                  <Printer size={14} /> Imprimer le relevé
+                </Btn>
+              </>
             )}
             {tab === "manual" && moduleId && (
               <Btn onClick={save}>
@@ -2759,8 +2953,8 @@ export function GradesPage() {
                 </div>
               </div>
 
-              <div className="flex items-center gap-2">
-                <div className="flex-1">
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
+                <div>
                   <label className="block text-xs font-semibold text-slate-400 mb-1">Statut</label>
                   <Select
                     value={filterStatus}
@@ -2772,17 +2966,29 @@ export function GradesPage() {
                     <option value="failed">Ajournées (&lt; 10)</option>
                   </Select>
                 </div>
-                {hasActiveFilters && (
-                  <button
-                    type="button"
-                    onClick={resetFilters}
-                    title="Réinitialiser tous les filtres"
-                    className="mt-5 p-2 rounded-lg bg-slate-800 text-slate-400 hover:text-white hover:bg-slate-700 transition"
+                <div>
+                  <label className="block text-xs font-semibold text-slate-400 mb-1">Archivage</label>
+                  <Select
+                    value={filterArchive}
+                    onChange={(e) => setFilterArchive(e.target.value as any)}
+                    className="text-xs"
                   >
-                    <RotateCcw size={16} />
-                  </button>
-                )}
+                    <option value="active">Actives uniquement</option>
+                    <option value="archived">Archivées uniquement</option>
+                    <option value="all">Toutes les notes</option>
+                  </Select>
+                </div>
               </div>
+              {hasActiveFilters && (
+                <button
+                  type="button"
+                  onClick={resetFilters}
+                  title="Réinitialiser tous les filtres"
+                  className="mt-5 p-2 rounded-lg bg-slate-800 text-slate-400 hover:text-white hover:bg-slate-700 transition cursor-pointer"
+                >
+                  <RotateCcw size={16} />
+                </button>
+              )}
             </div>
           </Card>
 
@@ -2795,7 +3001,7 @@ export function GradesPage() {
             />
           ) : (
             <Card className="overflow-x-auto border-white/10">
-              <table className="w-full min-w-[800px] text-left">
+              <table className="w-full min-w-[850px] text-left">
                 <thead>
                   <tr className="border-b border-white/10 text-[10px] uppercase tracking-[0.2em] text-slate-400 bg-white/5">
                     <th className="px-4 py-3">Apprenant</th>
@@ -2832,11 +3038,16 @@ export function GradesPage() {
                         </span>
                       </td>
                       <td className="px-4 py-3">
-                        {g.note >= 10 ? (
-                          <Badge color="green">Admis</Badge>
-                        ) : (
-                          <Badge color="red">Ajourné</Badge>
-                        )}
+                        <div className="flex flex-col gap-1 items-start">
+                          {g.note >= 10 ? (
+                            <Badge color="green">Admis</Badge>
+                          ) : (
+                            <Badge color="red">Ajourné</Badge>
+                          )}
+                          {g.isArchived && (
+                            <Badge color="gray">Archivée</Badge>
+                          )}
+                        </div>
                       </td>
                       <td className="px-4 py-3">
                         <p className="text-xs text-slate-400 max-w-xs truncate" title={g.appreciation}>
@@ -2848,20 +3059,106 @@ export function GradesPage() {
                         <p className="text-[11px] text-slate-500">{g.date || "—"}</p>
                       </td>
                       <td className="px-4 py-3 text-right">
-                        <button
-                          type="button"
-                          onClick={() => handleDeleteGrade(g.id, g.studentName)}
-                          title="Supprimer cette note"
-                          className="p-1.5 rounded-lg text-slate-500 hover:text-red-400 hover:bg-red-500/10 transition"
-                        >
-                          <Trash2 size={15} />
-                        </button>
+                        <div className="flex items-center justify-end gap-1">
+                          <button
+                            type="button"
+                            onClick={() => handleStartEditGrade(g)}
+                            title="Modifier cette note"
+                            className="p-1.5 rounded-lg text-slate-400 hover:text-cyan-400 hover:bg-cyan-500/10 transition cursor-pointer"
+                          >
+                            <Pencil size={14} />
+                          </button>
+                          <button
+                            type="button"
+                            onClick={() => handleToggleArchiveGrade(g.id, g.isArchived)}
+                            title={g.isArchived ? "Désarchiver / Réactiver" : "Archiver cette note"}
+                            className={cn(
+                              "p-1.5 rounded-lg transition cursor-pointer",
+                              g.isArchived
+                                ? "text-amber-400 hover:text-amber-300 hover:bg-amber-500/10"
+                                : "text-slate-400 hover:text-amber-400 hover:bg-amber-500/10"
+                            )}
+                          >
+                            <Archive size={14} />
+                          </button>
+                          <button
+                            type="button"
+                            onClick={() => handlePrintSingleGrade(g)}
+                            title="Imprimer la fiche individuelle"
+                            className="p-1.5 rounded-lg text-slate-400 hover:text-white hover:bg-white/10 transition cursor-pointer"
+                          >
+                            <Printer size={14} />
+                          </button>
+                          <button
+                            type="button"
+                            onClick={() => handleDeleteGrade(g.id, g.studentName)}
+                            title="Supprimer cette note"
+                            className="p-1.5 rounded-lg text-slate-500 hover:text-red-400 hover:bg-red-500/10 transition cursor-pointer"
+                          >
+                            <Trash2 size={14} />
+                          </button>
+                        </div>
                       </td>
                     </tr>
                   ))}
                 </tbody>
               </table>
             </Card>
+          )}
+
+          {/* Modal d'édition de note */}
+          {editingGrade && (
+            <Modal
+              open={!!editingGrade}
+              onClose={() => setEditingGrade(null)}
+              title={`Modifier la note : ${editingGrade.studentName}`}
+            >
+              <div className="space-y-4">
+                <div className="rounded-xl border border-white/10 bg-white/[0.02] p-3 text-xs space-y-1">
+                  <p><span className="text-slate-400">Apprenant :</span> <strong className="text-white">{editingGrade.studentName}</strong> ({editingGrade.studentMatricule})</p>
+                  <p><span className="text-slate-400">Module :</span> <strong className="text-cyan-300">{editingGrade.moduleTitre}</strong></p>
+                </div>
+
+                <div className="grid grid-cols-2 gap-3">
+                  <Field label="Note obtenue (/20) *">
+                    <Input
+                      type="number"
+                      step="0.25"
+                      min="0"
+                      max="20"
+                      value={editNoteVal}
+                      onChange={(e) => setEditNoteVal(e.target.value)}
+                      className="font-bold text-cyan-300 text-lg"
+                    />
+                  </Field>
+                  <Field label="Date d'évaluation">
+                    <Input
+                      type="date"
+                      value={editDateVal}
+                      onChange={(e) => setEditDateVal(e.target.value)}
+                    />
+                  </Field>
+                </div>
+
+                <Field label="Appréciation & Observations">
+                  <Textarea
+                    rows={3}
+                    value={editApprVal}
+                    onChange={(e) => setEditApprVal(e.target.value)}
+                    placeholder="Commentaires, points forts, recommandations..."
+                  />
+                </Field>
+
+                <div className="flex justify-end gap-2 pt-3 border-t border-white/10">
+                  <Btn variant="outline" onClick={() => setEditingGrade(null)}>
+                    Annuler
+                  </Btn>
+                  <Btn onClick={handleSaveEditedGrade} className="bg-cyan-600 hover:bg-cyan-500 text-white font-bold">
+                    <Save size={14} /> Enregistrer les modifications
+                  </Btn>
+                </div>
+              </div>
+            </Modal>
           )}
         </div>
       ) : (

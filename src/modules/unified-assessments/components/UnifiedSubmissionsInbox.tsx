@@ -791,10 +791,49 @@ export function UnifiedSubmissionsInbox({
               })}
             </div>
 
-            <div className="flex justify-end pt-2 border-t border-slate-800">
-              <Btn variant="outline" onClick={() => setViewingTestResult(null)}>
-                Fermer
-              </Btn>
+            <div className="flex items-center justify-between pt-3 border-t border-slate-800">
+              <span className="text-xs text-slate-400">
+                {db.grades.some((g) => g.id === `GRD_TEST_${viewingTestResult.result.id}` || (g.studentId === viewingTestResult.result.studentId && g.moduleId === viewingTestResult.assessment.moduleId)) ? (
+                  <span className="text-emerald-400 font-semibold flex items-center gap-1">
+                    <CheckCircle2 size={13} /> Déjà enregistrée au relevé de notes
+                  </span>
+                ) : (
+                  <span className="text-slate-400 italic">Non transférée au relevé</span>
+                )}
+              </span>
+
+              <div className="flex gap-2">
+                <Btn variant="outline" onClick={() => setViewingTestResult(null)}>
+                  Fermer
+                </Btn>
+                <Btn
+                  onClick={() => {
+                    const bareme = viewingTestResult.result.bareme > 0 ? viewingTestResult.result.bareme : 20;
+                    const noteSur20 = Math.round(((viewingTestResult.result.note / bareme) * 20) * 10) / 10;
+                    const gradeId = `GRD_TEST_${viewingTestResult.result.id}`;
+                    const autoGrade = {
+                      id: gradeId,
+                      studentId: viewingTestResult.result.studentId,
+                      moduleId: viewingTestResult.assessment.moduleId,
+                      note: noteSur20,
+                      appreciation: `Évaluation: ${viewingTestResult.assessment.titre} (${viewingTestResult.result.statut === "reussi" ? "Validée" : "Non validée"})`,
+                      date: viewingTestResult.result.date || new Date().toISOString().slice(0, 10),
+                    };
+                    update((d) => ({
+                      ...d,
+                      grades: [
+                        ...d.grades.filter((g) => g.id !== gradeId && !(g.moduleId === viewingTestResult.assessment.moduleId && g.studentId === viewingTestResult.result.studentId)),
+                        autoGrade,
+                      ],
+                    }));
+                    log(`Note d'évaluation attribuée au bulletin pour ${viewingTestResult.result.studentNom} : ${noteSur20}/20`);
+                    toastMsg.success("Note attribuée au bulletin ✓", `${noteSur20}/20 enregistré dans le module Notes.`);
+                  }}
+                  className="bg-emerald-600 hover:bg-emerald-500 text-white font-bold gap-1.5"
+                >
+                  <Award size={14} /> Attribuer la note au bulletin
+                </Btn>
+              </div>
             </div>
           </div>
         </Modal>

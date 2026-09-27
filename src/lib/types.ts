@@ -378,6 +378,7 @@ export interface Grade {
   date: string;
   academicYearId?: string;
   anneeScolaire?: string;
+  archivee?: boolean;
 }
 
 export interface Message {

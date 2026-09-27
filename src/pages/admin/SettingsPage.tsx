@@ -1152,7 +1152,8 @@ export function SettingsPage() {
                         type="button"
                         onClick={() => {
                           const nextBlocked = !isBlocked;
-                          updateModuleRestriction(res.id, {
+                          const targetKey = res.moduleKey || res.id;
+                          updateModuleRestriction(targetKey, {
                             bloque: nextBlocked,
                             blocked: nextBlocked,
                             raison: nextBlocked ? (currentReason || "Blocage administratif préventif") : "",
@@ -1178,7 +1179,7 @@ export function SettingsPage() {
                       <input
                         type="text"
                         value={currentReason}
-                        onChange={(e) => updateModuleRestriction(res.id, { raison: e.target.value, reason: e.target.value })}
+                        onChange={(e) => updateModuleRestriction(res.moduleKey || res.id, { raison: e.target.value, reason: e.target.value })}
                         placeholder="Indiquez la raison (ex: Clôture comptable, session d'examen...)"
                         className="flex-1 rounded-lg border border-amber-500/30 bg-black/40 px-2.5 py-1 text-xs text-amber-100"
                       />

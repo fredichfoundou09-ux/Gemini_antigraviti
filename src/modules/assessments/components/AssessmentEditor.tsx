@@ -2,11 +2,11 @@ import React, { useState, useMemo } from "react";
 import {
   PlusCircle, Trash2, ArrowUp, ArrowDown, Save, Send, Eye, ShieldAlert,
   CheckCircle2, XCircle, AlertTriangle, Clock, Settings, HelpCircle,
-  FileCheck, Sparkles, Layers, ListOrdered, FileDown
+  FileCheck, Sparkles, Layers, ListOrdered, FileDown, RotateCcw, Zap, FileText, Plus
 } from "lucide-react";
 import { Assessment, AssessmentQuestion, QuestionType, AssessmentStatus, AssessmentAudience, DifficultyLevel } from "../types";
 import { validateAssessmentForPublication, ValidationDiagnostic } from "../services/assessmentService";
-import { Btn, Badge, Field, Input, Select, Card, Modal } from "@/lib/ui";
+import { Btn, Badge, Field, Input, Select, Card, Modal, Textarea } from "@/lib/ui";
 import { toastMsg } from "@/lib/toast";
 
 interface Props {
@@ -30,6 +30,16 @@ export function AssessmentEditor({
 }: Props) {
   const [assessment, setAssessment] = useState<Assessment>({ ...initialAssessment });
   const [selectedQIndex, setSelectedQIndex] = useState<number>(0);
+
+  // Modal Saisie Express / Import Rapide
+  const [isExpressModalOpen, setIsExpressModalOpen] = useState(false);
+  const [expressEnonce, setExpressEnonce] = useState("");
+  const [expressType, setExpressType] = useState<QuestionType>("qcm");
+  const [expressChoicesRaw, setExpressChoicesRaw] = useState("");
+  const [expressCorrectIndex, setExpressCorrectIndex] = useState<number>(0);
+  const [expressPoints, setExpressPoints] = useState<number>(2);
+  const [expressExplication, setExpressExplication] = useState("");
+  const [expressObligatoire, setExpressObligatoire] = useState(true);
 
   const activeQuestion = assessment.questions[selectedQIndex] as AssessmentQuestion | undefined;
 
@@ -59,6 +69,101 @@ export function AssessmentEditor({
     const nextQuestions = [...assessment.questions, newQ];
     setAssessment({ ...assessment, questions: nextQuestions });
     setSelectedQIndex(nextQuestions.length - 1);
+  };
+
+  // 1. Ajouter une question vierge / vide (sans données pré-remplies)
+  const handleAddBlankQuestion = () => {
+    const newBlankQ: AssessmentQuestion = {
+      id: `Q-${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 6)}`,
+      question: "",
+      type: "qcm",
+      options: ["", ""],
+      bonneReponse: "",
+      bonnesReponses: [],
+      points: 1,
+      ordre: assessment.questions.length + 1,
+      obligatoire: true,
+    };
+    const nextQuestions = [...assessment.questions, newBlankQ];
+    setAssessment({ ...assessment, questions: nextQuestions });
+    setSelectedQIndex(nextQuestions.length - 1);
+    toastMsg.info("Question vierge ajoutée", "Renseignez son énoncé et ses options.");
+  };
+
+  // 2. Réinitialiser la question active
+  const handleResetActiveQuestion = () => {
+    if (!activeQuestion) return;
+    const isVf = activeQuestion.type === "vf";
+    const isShort = activeQuestion.type === "courte" || activeQuestion.type === "longue";
+    const isNum = activeQuestion.type === "numerique";
+
+    updateActiveQuestion({
+      question: "",
+      options: isVf ? ["Vrai", "Faux"] : isShort || isNum ? [] : ["", ""],
+      bonneReponse: isVf ? "Vrai" : "",
+      bonnesReponses: [],
+      valeurNumerique: undefined,
+      toleranceNumerique: 0,
+      explication: "",
+    });
+    toastMsg.info("Question réinitialisée", "Les champs de la question ont été vidés.");
+  };
+
+  // 3. Traiter l'insertion par Saisie Express (Import Rapide)
+  const handleInsertExpressQuestion = () => {
+    if (!expressEnonce.trim()) {
+      toastMsg.error("Énoncé manquant", "Veuillez saisir l'énoncé de la question.");
+      return;
+    }
+
+    let parsedOptions: string[] = [];
+    let bonneRep: string = "";
+    let bonnesReps: string[] = [];
+
+    if (expressType === "vf") {
+      parsedOptions = ["Vrai", "Faux"];
+      bonneRep = expressCorrectIndex === 1 ? "Faux" : "Vrai";
+    } else if (expressType.startsWith("qcm")) {
+      // Découper par ligne et nettoyer
+      parsedOptions = expressChoicesRaw
+        .split("\n")
+        .map((l) => l.trim())
+        .filter((l) => l.length > 0);
+
+      if (parsedOptions.length < 2) {
+        toastMsg.error("Options insuffisantes", "Un QCM nécessite au moins 2 choix de réponses distincts.");
+        return;
+      }
+
+      const validIdx = Math.min(Math.max(0, expressCorrectIndex), parsedOptions.length - 1);
+      bonneRep = parsedOptions[validIdx] || parsedOptions[0];
+      bonnesReps = [bonneRep];
+    }
+
+    const expressQ: AssessmentQuestion = {
+      id: `Q-${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 6)}`,
+      question: expressEnonce.trim(),
+      type: expressType,
+      options: parsedOptions,
+      bonneReponse: bonneRep,
+      bonnesReponses: bonnesReps,
+      points: expressPoints > 0 ? expressPoints : 1,
+      ordre: assessment.questions.length + 1,
+      obligatoire: expressObligatoire,
+      explication: expressExplication.trim(),
+    };
+
+    const nextQuestions = [...assessment.questions, expressQ];
+    setAssessment({ ...assessment, questions: nextQuestions });
+    setSelectedQIndex(nextQuestions.length - 1);
+
+    // Reset du formulaire modal
+    setExpressEnonce("");
+    setExpressChoicesRaw("");
+    setExpressExplication("");
+    setExpressCorrectIndex(0);
+    setIsExpressModalOpen(false);
+    toastMsg.success("Question insérée avec succès ✓", "Elle a été ajoutée à l'évaluation.");
   };
 
   const handleDeleteQuestion = (indexToDelete: number) => {
@@ -205,12 +310,23 @@ export function AssessmentEditor({
             <span className="text-xs font-bold uppercase tracking-wider text-slate-400 flex items-center gap-1.5">
               <ListOrdered size={14} /> Questions ({assessment.questions.length})
             </span>
-            <button
-              onClick={() => handleAddQuestion("qcm")}
-              className="inline-flex items-center gap-1 text-xs font-semibold text-cyan-400 hover:text-cyan-300"
-            >
-              <PlusCircle size={14} /> Ajouter
-            </button>
+            <div className="flex items-center gap-1">
+              <button
+                type="button"
+                onClick={() => setIsExpressModalOpen(true)}
+                className="inline-flex items-center gap-1 text-[11px] font-bold text-amber-400 hover:text-amber-300 bg-amber-500/10 px-2 py-0.5 rounded-md border border-amber-500/20 cursor-pointer"
+                title="Import rapide / Saisie Express de question"
+              >
+                <Zap size={12} /> Express
+              </button>
+              <button
+                type="button"
+                onClick={() => handleAddQuestion("qcm")}
+                className="inline-flex items-center gap-1 text-[11px] font-semibold text-cyan-400 hover:text-cyan-300 bg-cyan-500/10 px-2 py-0.5 rounded-md border border-cyan-500/20 cursor-pointer"
+              >
+                <PlusCircle size={12} /> + QCM
+              </button>
+            </div>
           </div>
 
           {/* Liste déroulante des questions */}
@@ -276,25 +392,48 @@ export function AssessmentEditor({
             })}
           </div>
 
-          <div className="pt-3 border-t border-white/5 flex gap-1.5">
-            <button
-              onClick={() => handleAddQuestion("qcm")}
-              className="flex-1 py-1.5 rounded-lg border border-white/5 bg-white/[0.02] text-[11px] text-slate-300 hover:bg-white/5"
-            >
-              + QCM
-            </button>
-            <button
-              onClick={() => handleAddQuestion("vf")}
-              className="flex-1 py-1.5 rounded-lg border border-white/5 bg-white/[0.02] text-[11px] text-slate-300 hover:bg-white/5"
-            >
-              + Vrai/Faux
-            </button>
-            <button
-              onClick={() => handleAddQuestion("courte")}
-              className="flex-1 py-1.5 rounded-lg border border-white/5 bg-white/[0.02] text-[11px] text-slate-300 hover:bg-white/5"
-            >
-              + Texte
-            </button>
+          <div className="pt-3 border-t border-white/5 flex flex-col gap-1.5">
+            <div className="flex gap-1.5">
+              <button
+                type="button"
+                onClick={() => handleAddQuestion("qcm")}
+                className="flex-1 py-1.5 rounded-lg border border-white/5 bg-white/[0.02] text-[11px] text-slate-300 hover:bg-white/5 cursor-pointer"
+              >
+                + QCM
+              </button>
+              <button
+                type="button"
+                onClick={() => handleAddQuestion("vf")}
+                className="flex-1 py-1.5 rounded-lg border border-white/5 bg-white/[0.02] text-[11px] text-slate-300 hover:bg-white/5 cursor-pointer"
+              >
+                + Vrai/Faux
+              </button>
+              <button
+                type="button"
+                onClick={() => handleAddQuestion("courte")}
+                className="flex-1 py-1.5 rounded-lg border border-white/5 bg-white/[0.02] text-[11px] text-slate-300 hover:bg-white/5 cursor-pointer"
+              >
+                + Texte
+              </button>
+            </div>
+            <div className="flex gap-1.5">
+              <button
+                type="button"
+                onClick={handleAddBlankQuestion}
+                className="flex-1 py-1.5 rounded-lg border border-cyan-500/30 bg-cyan-500/10 text-[11px] font-bold text-cyan-300 hover:bg-cyan-500/20 flex items-center justify-center gap-1 cursor-pointer"
+                title="Créer une question vierge sans données préremplies"
+              >
+                <Plus size={12} /> + Question vierge
+              </button>
+              <button
+                type="button"
+                onClick={() => setIsExpressModalOpen(true)}
+                className="flex-1 py-1.5 rounded-lg border border-amber-500/30 bg-amber-500/10 text-[11px] font-bold text-amber-300 hover:bg-amber-500/20 flex items-center justify-center gap-1 cursor-pointer"
+                title="Saisir rapidement énoncé et options par ligne"
+              >
+                <Zap size={12} /> Saisie Express
+              </button>
+            </div>
           </div>
         </div>
 
@@ -309,16 +448,26 @@ export function AssessmentEditor({
                   </span>
                   <Badge color="cyan">{activeQuestion.type.toUpperCase()}</Badge>
                 </div>
-                <div className="flex items-center gap-2">
-                  <span className="text-xs text-slate-400">Points :</span>
-                  <input
-                    type="number"
-                    min="0.5"
-                    step="0.5"
-                    value={activeQuestion.points}
-                    onChange={(e) => updateActiveQuestion({ points: Math.max(0.5, parseFloat(e.target.value) || 1) })}
-                    className="w-16 rounded-lg border border-white/10 bg-white/5 px-2 py-1 text-center text-xs font-bold text-white focus:border-cyan-400 focus:outline-none"
-                  />
+                <div className="flex items-center gap-3">
+                  <button
+                    type="button"
+                    onClick={handleResetActiveQuestion}
+                    className="inline-flex items-center gap-1 text-[11px] text-slate-400 hover:text-amber-300 hover:bg-white/5 px-2 py-1 rounded-lg border border-white/10 transition cursor-pointer"
+                    title="Vider et réinitialiser cette question pour repartir de zéro"
+                  >
+                    <RotateCcw size={12} /> Réinitialiser
+                  </button>
+                  <div className="flex items-center gap-1.5">
+                    <span className="text-xs text-slate-400">Points :</span>
+                    <input
+                      type="number"
+                      min="0.5"
+                      step="0.5"
+                      value={activeQuestion.points}
+                      onChange={(e) => updateActiveQuestion({ points: Math.max(0.5, parseFloat(e.target.value) || 1) })}
+                      className="w-16 rounded-lg border border-white/10 bg-white/5 px-2 py-1 text-center text-xs font-bold text-white focus:border-cyan-400 focus:outline-none"
+                    />
+                  </div>
                 </div>
               </div>
 
@@ -695,6 +844,182 @@ export function AssessmentEditor({
           </div>
         </div>
       </div>
+
+      {/* MODAL : SAISIE EXPRESS / IMPORT RAPIDE DE QUESTION */}
+      {isExpressModalOpen && (
+        <Modal
+          open={isExpressModalOpen}
+          onClose={() => setIsExpressModalOpen(false)}
+          title="⚡ Saisie Express / Import Rapide de Question"
+        >
+          <div className="space-y-4 max-h-[75vh] overflow-y-auto pr-1">
+            <div className="rounded-xl border border-amber-500/30 bg-amber-500/10 p-3 text-xs text-amber-200">
+              <p className="font-semibold text-white flex items-center gap-1.5">
+                <Zap size={14} className="text-amber-400" />
+                Gain de temps : Saisie directe au kilomètre
+              </p>
+              <p className="text-[11px] text-amber-300/90 mt-1">
+                Collez ou tapez votre énoncé, collez les choix de réponse ligne par ligne (1 ligne = 1 choix). Le système structure automatiquement la question dans votre évaluation.
+              </p>
+            </div>
+
+            {/* Énoncé */}
+            <Field label="Énoncé de la question *">
+              <Textarea
+                rows={3}
+                value={expressEnonce}
+                onChange={(e) => setExpressEnonce(e.target.value)}
+                placeholder="Ex : Quelle commande Git permet d'envoyer des commits vers le dépôt distant ?"
+                className="w-full text-xs"
+              />
+            </Field>
+
+            {/* Type et Barème */}
+            <div className="grid grid-cols-2 gap-3">
+              <Field label="Type de question">
+                <Select
+                  value={expressType}
+                  onChange={(e) => setExpressType(e.target.value as QuestionType)}
+                  className="text-xs"
+                >
+                  <option value="qcm">QCM à réponse unique</option>
+                  <option value="qcm_multiple">QCM à réponses multiples</option>
+                  <option value="vf">Vrai / Faux</option>
+                  <option value="courte">Réponse courte (texte)</option>
+                  <option value="longue">Réponse longue (ouverte)</option>
+                </Select>
+              </Field>
+
+              <Field label="Barème (Points)">
+                <Input
+                  type="number"
+                  min="0.5"
+                  step="0.5"
+                  value={expressPoints}
+                  onChange={(e) => setExpressPoints(Math.max(0.5, parseFloat(e.target.value) || 1))}
+                  className="text-xs font-bold text-cyan-300"
+                />
+              </Field>
+            </div>
+
+            {/* Options si QCM */}
+            {(expressType === "qcm" || expressType === "qcm_multiple") && (
+              <div className="space-y-2.5 rounded-xl border border-white/10 bg-white/[0.02] p-3.5">
+                <div className="flex items-center justify-between">
+                  <label className="text-xs font-bold uppercase tracking-wider text-slate-300">
+                    Choix de réponses (Une ligne par choix) *
+                  </label>
+                  <span className="text-[11px] text-slate-400">
+                    {expressChoicesRaw.split("\n").filter((l) => l.trim()).length} choix détecté(s)
+                  </span>
+                </div>
+
+                <Textarea
+                  rows={4}
+                  value={expressChoicesRaw}
+                  onChange={(e) => setExpressChoicesRaw(e.target.value)}
+                  placeholder={`git pull\ngit push origin main\ngit commit -m\ngit checkout`}
+                  className="font-mono text-xs"
+                />
+
+                {/* Sélecteur de bonne réponse dynamique */}
+                {expressChoicesRaw.split("\n").filter((l) => l.trim()).length > 0 && (
+                  <div className="mt-3 pt-3 border-t border-white/10 space-y-2">
+                    <p className="text-xs font-semibold text-slate-300">
+                      Sélectionnez la bonne réponse attendue :
+                    </p>
+                    <div className="space-y-1.5">
+                      {expressChoicesRaw
+                        .split("\n")
+                        .map((l) => l.trim())
+                        .filter((l) => l.length > 0)
+                        .map((opt, oIdx) => (
+                          <label
+                            key={oIdx}
+                            className={`flex items-center gap-2 p-2 rounded-lg border text-xs cursor-pointer transition ${
+                              expressCorrectIndex === oIdx
+                                ? "border-emerald-500/50 bg-emerald-500/10 text-emerald-300 font-semibold"
+                                : "border-white/5 bg-white/[0.02] text-slate-300 hover:bg-white/5"
+                            }`}
+                          >
+                            <input
+                              type="radio"
+                              name="express-correct"
+                              checked={expressCorrectIndex === oIdx}
+                              onChange={() => setExpressCorrectIndex(oIdx)}
+                              className="text-cyan-500"
+                            />
+                            <span className="font-mono text-slate-400 w-5">{String.fromCharCode(65 + oIdx)}.</span>
+                            <span>{opt}</span>
+                          </label>
+                        ))}
+                    </div>
+                  </div>
+                )}
+              </div>
+            )}
+
+            {/* Vrai / Faux */}
+            {expressType === "vf" && (
+              <div className="rounded-xl border border-white/10 bg-white/[0.02] p-3.5 space-y-2">
+                <p className="text-xs font-semibold text-slate-300">Bonne réponse attendue :</p>
+                <div className="flex gap-4">
+                  <label className="flex items-center gap-2 text-xs text-white cursor-pointer">
+                    <input
+                      type="radio"
+                      name="express-vf"
+                      checked={expressCorrectIndex === 0}
+                      onChange={() => setExpressCorrectIndex(0)}
+                    />
+                    ✓ Vrai
+                  </label>
+                  <label className="flex items-center gap-2 text-xs text-white cursor-pointer">
+                    <input
+                      type="radio"
+                      name="express-vf"
+                      checked={expressCorrectIndex === 1}
+                      onChange={() => setExpressCorrectIndex(1)}
+                    />
+                    ✕ Faux
+                  </label>
+                </div>
+              </div>
+            )}
+
+            {/* Explication facultative */}
+            <Field label="Explication pédagogique (facultative)">
+              <Input
+                value={expressExplication}
+                onChange={(e) => setExpressExplication(e.target.value)}
+                placeholder="Explication affichée à l'apprenant après correction..."
+                className="text-xs"
+              />
+            </Field>
+
+            <label className="flex items-center gap-2 text-xs text-slate-300 cursor-pointer pt-1">
+              <input
+                type="checkbox"
+                checked={expressObligatoire}
+                onChange={(e) => setExpressObligatoire(e.target.checked)}
+                className="rounded border-white/20 bg-white/5 text-cyan-500"
+              />
+              Réponse obligatoire pour l'apprenant
+            </label>
+
+            <div className="flex justify-end gap-2 pt-3 border-t border-white/10">
+              <Btn variant="outline" onClick={() => setIsExpressModalOpen(false)}>
+                Annuler
+              </Btn>
+              <Btn
+                onClick={handleInsertExpressQuestion}
+                className="bg-amber-600 hover:bg-amber-500 text-white font-bold gap-1.5"
+              >
+                <Zap size={14} /> Insérer dans l'évaluation
+              </Btn>
+            </div>
+          </div>
+        </Modal>
+      )}
     </div>
   );
 }

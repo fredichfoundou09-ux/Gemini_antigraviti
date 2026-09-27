@@ -1489,21 +1489,21 @@ export function StoreProvider({ children }: { children: React.ReactNode }) {
     updateAcademicYear(id, { statut: "archivee", isDefault: false });
   };
 
-  const updateModuleRestriction = (moduleKey: string, updates: Partial<ModuleRestriction>) => {
+  const updateModuleRestriction = (keyOrId: string, updates: Partial<ModuleRestriction>) => {
     update((d) => {
-      const existing = (d.moduleRestrictions || []).find((r) => r.moduleKey === moduleKey);
+      const existing = (d.moduleRestrictions || []).find((r) => r.moduleKey === keyOrId || r.id === keyOrId);
       let nextRestrictions: ModuleRestriction[];
       if (existing) {
         nextRestrictions = (d.moduleRestrictions || []).map((r) =>
-          r.moduleKey === moduleKey
+          r.moduleKey === keyOrId || r.id === keyOrId
             ? { ...r, ...updates, updatedAt: new Date().toISOString(), updatedBy: user?.id }
             : r
         );
       } else {
         const newR: ModuleRestriction = {
-          id: `mr-${moduleKey}-${Date.now().toString(36)}`,
-          moduleKey,
-          moduleLabel: updates.moduleLabel || moduleKey,
+          id: `mr-${keyOrId}-${Date.now().toString(36)}`,
+          moduleKey: updates.moduleKey || keyOrId,
+          moduleLabel: updates.moduleLabel || keyOrId,
           bloque: updates.bloque ?? true,
           roles: updates.roles || [],
           userIds: updates.userIds || [],
@@ -1513,11 +1513,14 @@ export function StoreProvider({ children }: { children: React.ReactNode }) {
         };
         nextRestrictions = [...(d.moduleRestrictions || []), newR];
       }
+      try {
+        localStorage.setItem("sn_module_restrictions_v1", JSON.stringify(nextRestrictions));
+      } catch {}
       return {
         ...d,
         moduleRestrictions: nextRestrictions,
         log: [
-          { id: `LOG-${Date.now()}`, date: new Date().toISOString().slice(0, 10), user: user?.name ?? "Système", action: `Modification restriction module : ${moduleKey}` },
+          { id: `LOG-${Date.now()}`, date: new Date().toISOString().slice(0, 10), user: user?.name ?? "Système", action: `Modification restriction module : ${keyOrId}` },
           ...(d.log || []),
         ],
       };
