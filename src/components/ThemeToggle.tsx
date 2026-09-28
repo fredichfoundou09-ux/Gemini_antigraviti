@@ -50,6 +50,10 @@ export function ThemeToggle({ className, align = "right", showLabel = false }: T
     switch (t) {
       case "spatial":
         return "Mode Spatial";
+      case "icrm-violet":
+        return "I-CRM Violet";
+      case "uba-archives":
+        return "UBA Archives";
       case "orange-slate":
         return "Orange Ardoise";
       case "crimson":
@@ -68,7 +72,11 @@ export function ThemeToggle({ className, align = "right", showLabel = false }: T
         onClick={() => setOpen(!open)}
         className={cn(
           "relative rounded-lg border p-2 sm:p-2.5 transition shrink-0 inline-flex items-center gap-2",
-          currentTheme === "orange-slate"
+          currentTheme === "icrm-violet"
+            ? "border-[#5B3FC4] bg-[#5B3FC4]/20 text-[#5B3FC4] shadow-[0_0_14px_rgba(91,63,196,0.35)]"
+            : currentTheme === "uba-archives"
+            ? "border-[#E31D25] bg-[#E31D25]/20 text-[#E31D25] shadow-[0_0_14px_rgba(227,29,37,0.35)]"
+            : currentTheme === "orange-slate"
             ? "border-[#F03E00] bg-[#263136] text-[#F03E00] shadow-[0_0_14px_rgba(240,62,0,0.45)]"
             : currentTheme === "crimson"
             ? "border-red-500 bg-red-950/50 text-red-400 shadow-[0_0_14px_rgba(255,23,79,0.4)]"
@@ -90,7 +98,11 @@ export function ThemeToggle({ className, align = "right", showLabel = false }: T
             <span
               className={cn(
                 "animate-ping absolute inline-flex h-full w-full rounded-full opacity-75",
-                currentTheme === "orange-slate"
+                currentTheme === "icrm-violet"
+                  ? "bg-[#5B3FC4]"
+                  : currentTheme === "uba-archives"
+                  ? "bg-[#E31D25]"
+                  : currentTheme === "orange-slate"
                   ? "bg-[#F03E00]"
                   : currentTheme === "crimson"
                   ? "bg-red-500"
@@ -100,7 +112,11 @@ export function ThemeToggle({ className, align = "right", showLabel = false }: T
             <span
               className={cn(
                 "relative inline-flex rounded-full h-2.5 w-2.5",
-                currentTheme === "orange-slate"
+                currentTheme === "icrm-violet"
+                  ? "bg-[#5B3FC4]"
+                  : currentTheme === "uba-archives"
+                  ? "bg-[#E31D25]"
+                  : currentTheme === "orange-slate"
                   ? "bg-[#F03E00]"
                   : currentTheme === "crimson"
                   ? "bg-red-600"
@@ -300,6 +316,80 @@ export function ThemeToggle({ className, align = "right", showLabel = false }: T
                 </div>
               </div>
               {currentTheme === "modern" && <Check size={16} className="text-violet-400 shrink-0 mt-0.5" />}
+            </button>
+
+            {/* Option 5: Thème I-CRM Violet (Dashboard SaaS Moderne) */}
+            <button
+              type="button"
+              onClick={() => selectTheme("icrm-violet")}
+              className={cn(
+                "w-full text-left rounded-xl p-2.5 transition flex items-start justify-between gap-2 border group",
+                currentTheme === "icrm-violet"
+                  ? "border-[#5B3FC4] bg-[#5B3FC4]/25 text-white shadow-[0_0_16px_rgba(91,63,196,0.35)]"
+                  : "border-purple-500/20 bg-purple-950/15 text-slate-200 hover:bg-white/5 hover:border-purple-400/40"
+              )}
+            >
+              <div>
+                <div className="flex items-center gap-2">
+                  <Sparkles size={14} className="text-[#B9A8EA]" />
+                  <p className="text-xs font-bold text-purple-200 group-hover:text-white">
+                    I-CRM Violet (Dashboard SaaS)
+                  </p>
+                  {currentTheme === "icrm-violet" && (
+                    <span className="rounded bg-[#5B3FC4] px-1.5 py-0.2 text-[9px] font-bold text-white shadow-[0_0_6px_#5B3FC4]">
+                      Actif
+                    </span>
+                  )}
+                </div>
+                <p className="text-[10px] text-slate-300 mt-0.5 leading-snug">
+                  Interface cartes blanches 18px, fond lavande #E9E5F5, accents cyan & rose.
+                </p>
+                <div className="flex items-center gap-1.5 mt-2">
+                  <span className="h-2.5 w-2.5 rounded-full bg-[#5B3FC4] ring-1 ring-white/30" title="Violet #5B3FC4" />
+                  <span className="h-2.5 w-2.5 rounded-full bg-[#E9E5F5] ring-1 ring-black/20" title="Lavande #E9E5F5" />
+                  <span className="h-2.5 w-2.5 rounded-full bg-[#FFFFFF] ring-1 ring-black/30" title="Cartes blanches #FFFFFF" />
+                  <span className="h-2.5 w-2.5 rounded-full bg-[#12BFE0]" title="Cyan positif #12BFE0" />
+                  <span className="h-2.5 w-2.5 rounded-full bg-[#E5245C]" title="Rose coût #E5245C" />
+                </div>
+              </div>
+              {currentTheme === "icrm-violet" && <Check size={16} className="text-[#B9A8EA] shrink-0 mt-0.5" />}
+            </button>
+
+            {/* Option 6: Thème UBA Archives (Charte Institutionnelle Rouge & Blanc) */}
+            <button
+              type="button"
+              onClick={() => selectTheme("uba-archives")}
+              className={cn(
+                "w-full text-left rounded-xl p-2.5 transition flex items-start justify-between gap-2 border group",
+                currentTheme === "uba-archives"
+                  ? "border-[#E31D25] bg-[#E31D25]/25 text-white shadow-[0_0_16px_rgba(227,29,37,0.35)]"
+                  : "border-red-500/20 bg-red-950/15 text-slate-200 hover:bg-white/5 hover:border-red-400/40"
+              )}
+            >
+              <div>
+                <div className="flex items-center gap-2">
+                  <Shield size={14} className="text-[#EE777B]" />
+                  <p className="text-xs font-bold text-red-200 group-hover:text-white">
+                    UBA Archives (Institutionnel Rouge & Blanc)
+                  </p>
+                  {currentTheme === "uba-archives" && (
+                    <span className="rounded bg-[#E31D25] px-1.5 py-0.2 text-[9px] font-bold text-white shadow-[0_0_6px_#E31D25]">
+                      Actif
+                    </span>
+                  )}
+                </div>
+                <p className="text-[10px] text-slate-300 mt-0.5 leading-snug">
+                  Charte officielle rouge #E31D25, blanc pur & tableaux à lignes alternées #FDEFF0.
+                </p>
+                <div className="flex items-center gap-1.5 mt-2">
+                  <span className="h-2.5 w-2.5 rounded-full bg-[#E31D25] ring-1 ring-white/30" title="Rouge principal #E31D25" />
+                  <span className="h-2.5 w-2.5 rounded-full bg-[#FFFFFF] ring-1 ring-black/30" title="Blanc pur #FFFFFF" />
+                  <span className="h-2.5 w-2.5 rounded-full bg-[#FDEFF0] ring-1 ring-red-400/30" title="Rose alterné #FDEFF0" />
+                  <span className="h-2.5 w-2.5 rounded-full bg-[#EE777B]" title="Rose d'accent #EE777B" />
+                  <span className="h-2.5 w-2.5 rounded-full bg-[#1A1A1A] ring-1 ring-white/20" title="Noir texte #1A1A1A" />
+                </div>
+              </div>
+              {currentTheme === "uba-archives" && <Check size={16} className="text-[#EE777B] shrink-0 mt-0.5" />}
             </button>
           </div>
 

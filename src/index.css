@@ -61,10 +61,16 @@ html {
   scroll-behavior: smooth;
 }
 
+:root {
+  --app-font-family: var(--font-sans);
+  --app-font-scale: 1;
+}
+
 body {
   background: #020508;
   color: #b8f3ff;
-  font-family: var(--font-sans);
+  font-family: var(--app-font-family, var(--font-sans));
+  font-size: calc(1rem * var(--app-font-scale, 1));
   -webkit-font-smoothing: antialiased;
 }
 
@@ -1261,6 +1267,611 @@ a:active:not(.disabled) {
   animation-iteration-count: 1 !important;
   transition-duration: 0.01ms !important;
 }
+
+/* ========================================================
+   THÈME I-CRM VIOLET — DASHBOARD SAAS MODERNE
+   Activé via [data-theme="icrm-violet"] et .theme-icrm-violet
+   - Dominante : Fond lavande très clair (#E9E5F5 / #F1EEF9)
+   - Cartes : Blanc pur (#FFFFFF), coins arrondis 18px, ombres douces (rgba(91,63,196,0.10))
+   - Menu : Sidebar blanche, item actif en pilule violette (#5B3FC4) à texte blanc
+   - Accents : Cyan (#12BFE0) pour valeurs positives/graphiques, Rose (#E5245C) pour coûts, Orange (#FF6A00)
+   - Textes : Titres #2B2B3A, corps #4A4A5A, libellés secondaires #8C8AA0
+   ======================================================== */
+
+[data-theme="icrm-violet"],
+.theme-icrm-violet {
+  --background: #E9E5F5;
+  --sentinel-bg: #E9E5F5;
+  --color-night: #E9E5F5;
+  --color-night2: #F1EEF9;
+  --color-night3: #EDE8FA;
+  --color-panel: #FFFFFF;
+  --color-panel2: #FFFFFF;
+  --color-panel3: #F8F6FD;
+  --color-electric: #5B3FC4;
+  --color-electric2: #7E63D8;
+  --color-cyber: #12BFE0;
+  --color-neon: #5B3FC4;
+  --color-hudtext: #2B2B3A;
+  --color-hudmuted: #4A4A5A;
+  --color-huddim: #8C8AA0;
+}
+
+/* 1. Arrière-plan global I-CRM (Lavande très clair) */
+[data-theme="icrm-violet"] body {
+  background: linear-gradient(135deg, #E9E5F5 0%, #F1EEF9 100%) fixed !important;
+  color: #4A4A5A !important;
+}
+
+[data-theme="icrm-violet"] .bg-\[\#080A0F\],
+[data-theme="icrm-violet"] .bg-\[\#020508\],
+[data-theme="icrm-violet"] .bg-hud-gradient {
+  background: linear-gradient(135deg, #E9E5F5 0%, #F1EEF9 100%) fixed !important;
+  color: #4A4A5A !important;
+}
+
+/* 2. Menu latéral (Sidebar) I-CRM : Carte blanche, coins 16px, ombre douce */
+[data-theme="icrm-violet"] aside,
+[data-theme="icrm-violet"] aside > div {
+  background-color: #FFFFFF !important;
+  border-color: #E3DEF2 !important;
+  box-shadow: 0 6px 18px rgba(91, 63, 196, 0.08) !important;
+}
+
+[data-theme="icrm-violet"] aside .border-b,
+[data-theme="icrm-violet"] aside .border-t,
+[data-theme="icrm-violet"] aside .bg-\[\#0B111A\]\/50 {
+  border-color: #E3DEF2 !important;
+  background-color: transparent !important;
+}
+
+[data-theme="icrm-violet"] aside nav a {
+  color: #4A4A5A !important;
+  border-radius: 999px !important;
+  transition: all 0.2s ease !important;
+}
+
+[data-theme="icrm-violet"] aside nav a:hover {
+  background-color: #EDE8FA !important;
+  color: #5B3FC4 !important;
+}
+
+[data-theme="icrm-violet"] aside nav a.active {
+  background: #5B3FC4 !important;
+  color: #FFFFFF !important;
+  border-radius: 999px !important;
+  box-shadow: 0 4px 14px rgba(91, 63, 196, 0.35) !important;
+}
+
+[data-theme="icrm-violet"] aside nav a.active svg,
+[data-theme="icrm-violet"] aside nav a.active span {
+  color: #FFFFFF !important;
+}
+
+[data-theme="icrm-violet"] aside .border-t .bg-\[\#0B111A\] {
+  background-color: #F8F6FD !important;
+  border: 1px solid #E3DEF2 !important;
+  border-radius: 12px !important;
+}
+
+[data-theme="icrm-violet"] aside .border-t p {
+  color: #2B2B3A !important;
+}
+
+/* 3. Header / Barre du haut */
+[data-theme="icrm-violet"] header {
+  background: rgba(255, 255, 255, 0.94) !important;
+  border-color: #E3DEF2 !important;
+  box-shadow: 0 4px 18px rgba(91, 63, 196, 0.06) !important;
+  backdrop-filter: blur(12px) !important;
+}
+
+[data-theme="icrm-violet"] header p,
+[data-theme="icrm-violet"] header span,
+[data-theme="icrm-violet"] header h1,
+[data-theme="icrm-violet"] header h2,
+[data-theme="icrm-violet"] header h3,
+[data-theme="icrm-violet"] header .text-white {
+  color: #2B2B3A !important;
+}
+
+[data-theme="icrm-violet"] header a,
+[data-theme="icrm-violet"] header button {
+  background-color: #F8F6FD !important;
+  border-color: #E3DEF2 !important;
+  color: #4A4A5A !important;
+}
+
+[data-theme="icrm-violet"] header a:hover,
+[data-theme="icrm-violet"] header button:hover {
+  background-color: #EDE8FA !important;
+  border-color: #5B3FC4 !important;
+  color: #5B3FC4 !important;
+}
+
+/* 4. Cartes, panneaux et surfaces blanches I-CRM (radius 18px + shadow doux) */
+[data-theme="icrm-violet"] .hud-panel,
+[data-theme="icrm-violet"] .rounded-lg.border.bg-gradient-to-br,
+[data-theme="icrm-violet"] div[class*="bg-gradient-to-br from-[#092033]"],
+[data-theme="icrm-violet"] div[class*="from-[#092033]/75"],
+[data-theme="icrm-violet"] div[class*="bg-[#092033]"],
+[data-theme="icrm-violet"] div[class*="bg-[#0B111A]"],
+[data-theme="icrm-violet"] div[class*="bg-[#04070D]"],
+[data-theme="icrm-violet"] div[class*="bg-[#08162B]"] {
+  background: #FFFFFF !important;
+  border: 1px solid #E3DEF2 !important;
+  border-radius: 18px !important;
+  box-shadow: 0 6px 18px rgba(91, 63, 196, 0.08) !important;
+  color: #4A4A5A !important;
+}
+
+[data-theme="icrm-violet"] .bg-white\/\[0\.02\],
+[data-theme="icrm-violet"] .bg-white\/\[0\.03\],
+[data-theme="icrm-violet"] .bg-white\/5 {
+  background-color: #FFFFFF !important;
+  border-color: #E3DEF2 !important;
+  color: #4A4A5A !important;
+}
+
+[data-theme="icrm-violet"] .border-white\/5,
+[data-theme="icrm-violet"] .border-white\/10,
+[data-theme="icrm-violet"] .border-white\/15,
+[data-theme="icrm-violet"] .border-white\/20,
+[data-theme="icrm-violet"] .border-\[\#006DFF\]\/20,
+[data-theme="icrm-violet"] .border-\[\#006DFF\]\/30,
+[data-theme="icrm-violet"] .border-cyan-400\/20,
+[data-theme="icrm-violet"] .border-cyan-400\/30 {
+  border-color: #E3DEF2 !important;
+}
+
+/* 5. Typographie et textes */
+[data-theme="icrm-violet"] main h1,
+[data-theme="icrm-violet"] main h2,
+[data-theme="icrm-violet"] main h3,
+[data-theme="icrm-violet"] main h4,
+[data-theme="icrm-violet"] main .text-white {
+  color: #2B2B3A !important;
+}
+
+[data-theme="icrm-violet"] main p,
+[data-theme="icrm-violet"] main .text-slate-200,
+[data-theme="icrm-violet"] main .text-slate-300,
+[data-theme="icrm-violet"] main .text-\[\#B8F3FF\] {
+  color: #4A4A5A !important;
+}
+
+[data-theme="icrm-violet"] main .text-slate-400,
+[data-theme="icrm-violet"] main .text-slate-500,
+[data-theme="icrm-violet"] main .text-\[\#4C91B5\] {
+  color: #8C8AA0 !important;
+}
+
+/* Accents Cyan I-CRM (valeurs positives, graphiques) */
+[data-theme="icrm-violet"] main .text-cyan-300,
+[data-theme="icrm-violet"] main .text-cyan-400,
+[data-theme="icrm-violet"] main .text-\[\#00E5FF\],
+[data-theme="icrm-violet"] main .text-\[\#00C8FF\] {
+  color: #12BFE0 !important;
+}
+
+/* Accents Rose / Pink I-CRM (coûts, alertes négatives) */
+[data-theme="icrm-violet"] main .text-red-400,
+[data-theme="icrm-violet"] main .text-red-500,
+[data-theme="icrm-violet"] main .text-rose-400 {
+  color: #E5245C !important;
+}
+
+/* 6. Boutons I-CRM */
+[data-theme="icrm-violet"] button[class*="from-[#006DFF]"],
+[data-theme="icrm-violet"] .btn-primary {
+  background: #5B3FC4 !important;
+  color: #FFFFFF !important;
+  border: 1px solid #5B3FC4 !important;
+  border-radius: 999px !important;
+  box-shadow: 0 4px 14px rgba(91, 63, 196, 0.3) !important;
+}
+
+[data-theme="icrm-violet"] button[class*="from-[#006DFF]"] *,
+[data-theme="icrm-violet"] .btn-primary * {
+  color: #FFFFFF !important;
+}
+
+[data-theme="icrm-violet"] button[class*="from-[#006DFF]"]:hover,
+[data-theme="icrm-violet"] .btn-primary:hover {
+  background: #4A2FA8 !important;
+  box-shadow: 0 6px 18px rgba(91, 63, 196, 0.45) !important;
+}
+
+/* Boutons secondaires I-CRM */
+[data-theme="icrm-violet"] button[class*="from-emerald-500"],
+[data-theme="icrm-violet"] button[class*="from-[#8B0035]"],
+[data-theme="icrm-violet"] button[class*="bg-white/5"] {
+  background-color: #FFFFFF !important;
+  border: 1px solid #E3DEF2 !important;
+  color: #5B3FC4 !important;
+  border-radius: 999px !important;
+}
+
+[data-theme="icrm-violet"] button[class*="bg-white/5"]:hover {
+  background-color: #EDE8FA !important;
+  border-color: #5B3FC4 !important;
+}
+
+/* 7. Formulaires (Inputs blancs, bordure discrète, focus violet) */
+[data-theme="icrm-violet"] input:not([type="checkbox"]):not([type="radio"]),
+[data-theme="icrm-violet"] select,
+[data-theme="icrm-violet"] textarea {
+  background-color: #FFFFFF !important;
+  border: 1px solid #E3DEF2 !important;
+  border-radius: 10px !important;
+  color: #2B2B3A !important;
+}
+
+[data-theme="icrm-violet"] input::placeholder,
+[data-theme="icrm-violet"] textarea::placeholder {
+  color: #8C8AA0 !important;
+}
+
+[data-theme="icrm-violet"] input:focus,
+[data-theme="icrm-violet"] select:focus,
+[data-theme="icrm-violet"] textarea:focus {
+  border-color: #5B3FC4 !important;
+  box-shadow: 0 0 0 3px rgba(91, 63, 196, 0.2) !important;
+  outline: none !important;
+}
+
+/* 8. Tableaux I-CRM */
+[data-theme="icrm-violet"] table {
+  background: #FFFFFF !important;
+  border-color: #E3DEF2 !important;
+  color: #4A4A5A !important;
+  border-radius: 14px !important;
+}
+
+[data-theme="icrm-violet"] thead th {
+  background-color: #EDE8FA !important;
+  color: #2B2B3A !important;
+  border-bottom: 1px solid #E3DEF2 !important;
+  font-weight: 700 !important;
+}
+
+[data-theme="icrm-violet"] tbody tr {
+  border-color: #E3DEF2 !important;
+}
+
+[data-theme="icrm-violet"] tbody tr:hover {
+  background-color: #F8F6FD !important;
+}
+
+[data-theme="icrm-violet"] tbody td {
+  color: #4A4A5A !important;
+}
+
+[data-theme="icrm-violet"] tbody td .text-white {
+  color: #2B2B3A !important;
+}
+
+
+/* ========================================================
+   THÈME UBA ARCHIVES — CHARTE INSTITUTIONNELLE ROUGE & BLANC
+   Activé via [data-theme="uba-archives"] et .theme-uba-archives
+   - Palette :
+     * Rouge principal : #E31D25
+     * Rouge foncé : #C81820
+     * Rose très clair : #FDEFF0 (lignes alternées de tableau)
+     * Rose clair 2 : #FDF1F1 (cartes statistiques)
+     * Rose moyen : #EE777B (bordures d'accent)
+     * Rose pâle : #FBE3E4 (survol de lignes, alertes)
+     * Gris bordure : #E6E6E6
+     * Gris clair fond : #F5F5F5
+     * Noir texte : #1A1A1A
+     * Gris texte : #666666
+     * Blanc fond : #FFFFFF
+   ======================================================== */
+
+[data-theme="uba-archives"],
+.theme-uba-archives {
+  --background: #FFFFFF;
+  --sentinel-bg: #FFFFFF;
+  --color-night: #FFFFFF;
+  --color-night2: #F5F5F5;
+  --color-night3: #FDEFF0;
+  --color-panel: #FFFFFF;
+  --color-panel2: #FDF1F1;
+  --color-panel3: #FFFFFF;
+  --color-electric: #E31D25;
+  --color-electric2: #C81820;
+  --color-cyber: #E31D25;
+  --color-neon: #E31D25;
+  --color-hudtext: #1A1A1A;
+  --color-hudmuted: #666666;
+  --color-huddim: #999999;
+}
+
+/* 1. Arrière-plan global UBA Archives (Blanc dominant) */
+[data-theme="uba-archives"] body {
+  background: #F8F9FA fixed !important;
+  color: #1A1A1A !important;
+}
+
+[data-theme="uba-archives"] .bg-\[\#080A0F\],
+[data-theme="uba-archives"] .bg-\[\#020508\],
+[data-theme="uba-archives"] .bg-hud-gradient {
+  background: #F8F9FA fixed !important;
+  color: #1A1A1A !important;
+}
+
+/* 2. Bandeau d'en-tête (Header) : Bandeau plein rouge #E31D25 sur toute la largeur */
+[data-theme="uba-archives"] header {
+  background: #E31D25 !important;
+  border-bottom: 2px solid #C81820 !important;
+  box-shadow: 0 4px 14px rgba(227, 29, 37, 0.25) !important;
+}
+
+[data-theme="uba-archives"] header h1,
+[data-theme="uba-archives"] header h2,
+[data-theme="uba-archives"] header h3,
+[data-theme="uba-archives"] header p,
+[data-theme="uba-archives"] header span,
+[data-theme="uba-archives"] header .text-white {
+  color: #FFFFFF !important;
+}
+
+[data-theme="uba-archives"] header a,
+[data-theme="uba-archives"] header button {
+  background-color: rgba(255, 255, 255, 0.15) !important;
+  border-color: rgba(255, 255, 255, 0.3) !important;
+  color: #FFFFFF !important;
+}
+
+[data-theme="uba-archives"] header a:hover,
+[data-theme="uba-archives"] header button:hover {
+  background-color: #FFFFFF !important;
+  border-color: #FFFFFF !important;
+  color: #E31D25 !important;
+}
+
+[data-theme="uba-archives"] header input {
+  background-color: #FFFFFF !important;
+  border: 1px solid #E6E6E6 !important;
+  color: #1A1A1A !important;
+}
+
+[data-theme="uba-archives"] header input::placeholder {
+  color: #666666 !important;
+}
+
+/* 3. Menu latéral (Sidebar) UBA Archives */
+[data-theme="uba-archives"] aside,
+[data-theme="uba-archives"] aside > div {
+  background-color: #FFFFFF !important;
+  border-color: #E6E6E6 !important;
+  box-shadow: 2px 0 10px rgba(0, 0, 0, 0.04) !important;
+}
+
+[data-theme="uba-archives"] aside .border-b,
+[data-theme="uba-archives"] aside .border-t,
+[data-theme="uba-archives"] aside .bg-\[\#0B111A\]\/50 {
+  border-color: #E6E6E6 !important;
+  background-color: transparent !important;
+}
+
+[data-theme="uba-archives"] aside nav a {
+  color: #1A1A1A !important;
+  border-radius: 8px !important;
+}
+
+[data-theme="uba-archives"] aside nav a:hover {
+  background-color: #FDEFF0 !important;
+  color: #E31D25 !important;
+}
+
+[data-theme="uba-archives"] aside nav a.active {
+  background: #E31D25 !important;
+  color: #FFFFFF !important;
+  border-radius: 8px !important;
+  box-shadow: 0 4px 12px rgba(227, 29, 37, 0.3) !important;
+}
+
+[data-theme="uba-archives"] aside nav a.active svg,
+[data-theme="uba-archives"] aside nav a.active span {
+  color: #FFFFFF !important;
+}
+
+[data-theme="uba-archives"] aside .border-t .bg-\[\#0B111A\] {
+  background-color: #FDF1F1 !important;
+  border: 1px solid #EE777B !important;
+  border-radius: 8px !important;
+}
+
+[data-theme="uba-archives"] aside .border-t p {
+  color: #1A1A1A !important;
+}
+
+/* 4. Cartes et blocs statistiques UBA Archives (Fond #FDF1F1 ou blanc + bordure #EE777B / #E6E6E6) */
+[data-theme="uba-archives"] .hud-panel,
+[data-theme="uba-archives"] .rounded-lg.border.bg-gradient-to-br,
+[data-theme="uba-archives"] div[class*="bg-gradient-to-br from-[#092033]"],
+[data-theme="uba-archives"] div[class*="from-[#092033]/75"],
+[data-theme="uba-archives"] div[class*="bg-[#092033]"],
+[data-theme="uba-archives"] div[class*="bg-[#0B111A]"],
+[data-theme="uba-archives"] div[class*="bg-[#04070D]"],
+[data-theme="uba-archives"] div[class*="bg-[#08162B]"] {
+  background: #FFFFFF !important;
+  border: 1px solid #E6E6E6 !important;
+  border-radius: 10px !important;
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.04) !important;
+  color: #1A1A1A !important;
+}
+
+[data-theme="uba-archives"] .bg-white\/\[0\.02\],
+[data-theme="uba-archives"] .bg-white\/\[0\.03\],
+[data-theme="uba-archives"] .bg-white\/5 {
+  background-color: #FDF1F1 !important;
+  border-color: #EE777B !important;
+  color: #1A1A1A !important;
+}
+
+[data-theme="uba-archives"] .border-white\/5,
+[data-theme="uba-archives"] .border-white\/10,
+[data-theme="uba-archives"] .border-white\/15,
+[data-theme="uba-archives"] .border-white\/20,
+[data-theme="uba-archives"] .border-\[\#006DFF\]\/20,
+[data-theme="uba-archives"] .border-\[\#006DFF\]\/30,
+[data-theme="uba-archives"] .border-cyan-400\/20,
+[data-theme="uba-archives"] .border-cyan-400\/30 {
+  border-color: #E6E6E6 !important;
+}
+
+/* 5. Typographie et textes UBA Archives */
+[data-theme="uba-archives"] main h1,
+[data-theme="uba-archives"] main h2,
+[data-theme="uba-archives"] main h3,
+[data-theme="uba-archives"] main h4,
+[data-theme="uba-archives"] main .text-white {
+  color: #1A1A1A !important;
+}
+
+[data-theme="uba-archives"] main p,
+[data-theme="uba-archives"] main .text-slate-200,
+[data-theme="uba-archives"] main .text-slate-300,
+[data-theme="uba-archives"] main .text-\[\#B8F3FF\] {
+  color: #1A1A1A !important;
+}
+
+[data-theme="uba-archives"] main .text-slate-400,
+[data-theme="uba-archives"] main .text-slate-500,
+[data-theme="uba-archives"] main .text-\[\#4C91B5\] {
+  color: #666666 !important;
+}
+
+/* Valeurs d'accent et chiffres stats UBA Archives (Rouge principal #E31D25) */
+[data-theme="uba-archives"] main .text-cyan-300,
+[data-theme="uba-archives"] main .text-cyan-400,
+[data-theme="uba-archives"] main .text-\[\#00E5FF\],
+[data-theme="uba-archives"] main .text-\[\#00C8FF\] {
+  color: #E31D25 !important;
+}
+
+/* 6. Boutons UBA Archives (Primaire : Rouge #E31D25 plein / Secondaire : Blanc bordure rouge) */
+[data-theme="uba-archives"] button[class*="from-[#006DFF]"],
+[data-theme="uba-archives"] .btn-primary {
+  background: #E31D25 !important;
+  color: #FFFFFF !important;
+  border: none !important;
+  border-radius: 8px !important;
+  box-shadow: 0 4px 12px rgba(227, 29, 37, 0.3) !important;
+}
+
+[data-theme="uba-archives"] button[class*="from-[#006DFF]"] *,
+[data-theme="uba-archives"] .btn-primary * {
+  color: #FFFFFF !important;
+}
+
+[data-theme="uba-archives"] button[class*="from-[#006DFF]"]:hover,
+[data-theme="uba-archives"] .btn-primary:hover {
+  background: #C81820 !important;
+  box-shadow: 0 4px 16px rgba(227, 29, 37, 0.45) !important;
+}
+
+[data-theme="uba-archives"] button[class*="from-[#006DFF]"]:active,
+[data-theme="uba-archives"] .btn-primary:active {
+  opacity: 0.9 !important;
+}
+
+/* Boutons secondaires UBA Archives : fond blanc, texte rouge #E31D25, bordure rouge */
+[data-theme="uba-archives"] button[class*="from-emerald-500"],
+[data-theme="uba-archives"] button[class*="from-[#8B0035]"],
+[data-theme="uba-archives"] button[class*="bg-white/5"] {
+  background: #FFFFFF !important;
+  border: 1.5px solid #E31D25 !important;
+  color: #E31D25 !important;
+  border-radius: 8px !important;
+}
+
+[data-theme="uba-archives"] button[class*="bg-white/5"]:hover {
+  background: #FDEFF0 !important;
+  color: #C81820 !important;
+}
+
+/* Boutons désactivés */
+[data-theme="uba-archives"] button:disabled {
+  background: #F5F5F5 !important;
+  color: #666666 !important;
+  border-color: #E6E6E6 !important;
+}
+
+/* 7. Formulaires UBA Archives */
+[data-theme="uba-archives"] input:not([type="checkbox"]):not([type="radio"]),
+[data-theme="uba-archives"] select,
+[data-theme="uba-archives"] textarea {
+  background-color: #FFFFFF !important;
+  border: 1px solid #E6E6E6 !important;
+  border-radius: 8px !important;
+  color: #1A1A1A !important;
+}
+
+[data-theme="uba-archives"] input::placeholder,
+[data-theme="uba-archives"] textarea::placeholder {
+  color: #666666 !important;
+}
+
+[data-theme="uba-archives"] input:focus,
+[data-theme="uba-archives"] select:focus,
+[data-theme="uba-archives"] textarea:focus {
+  border-color: #E31D25 !important;
+  box-shadow: 0 0 0 3px rgba(227, 29, 37, 0.2) !important;
+  outline: none !important;
+}
+
+/* 8. Tableaux UBA Archives (En-tête rouge #E31D25, alternance blanc / rose très clair #FDEFF0, survol rose #FBE3E4) */
+[data-theme="uba-archives"] table {
+  background: #FFFFFF !important;
+  border: 1px solid #E6E6E6 !important;
+  color: #1A1A1A !important;
+  border-radius: 8px !important;
+}
+
+[data-theme="uba-archives"] thead th {
+  background-color: #E31D25 !important;
+  color: #FFFFFF !important;
+  border-bottom: 2px solid #C81820 !important;
+  font-weight: 700 !important;
+  padding: 12px !important;
+}
+
+[data-theme="uba-archives"] tbody tr {
+  border-color: #E6E6E6 !important;
+}
+
+/* Alternance des lignes : blanc et rose très clair */
+[data-theme="uba-archives"] tbody tr:nth-child(even) {
+  background-color: #FDEFF0 !important;
+}
+
+[data-theme="uba-archives"] tbody tr:nth-child(odd) {
+  background-color: #FFFFFF !important;
+}
+
+/* Survol de ligne : léger fond rose #FBE3E4 */
+[data-theme="uba-archives"] tbody tr:hover {
+  background-color: #FBE3E4 !important;
+}
+
+[data-theme="uba-archives"] tbody td {
+  color: #1A1A1A !important;
+  border-color: #E6E6E6 !important;
+}
+
+[data-theme="uba-archives"] tbody td .text-white {
+  color: #1A1A1A !important;
+}
+
+[data-theme="uba-archives"] tbody td .text-slate-400,
+[data-theme="uba-archives"] tbody td .text-slate-500 {
+  color: #666666 !important;
+}
+
 
 
 

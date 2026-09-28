@@ -3,14 +3,24 @@
  * 
  * Thèmes supportés :
  * - "classic" (Défaut) : L'interface d'origine sombre & néon Sentinelles.
- * - "spatial" (Nouveau) : Centre de contrôle spatial professionnel (#04070D, #08162B, #00E5FF, HUD cyan).
+ * - "spatial" : Centre de contrôle spatial professionnel (#04070D, #08162B, #00E5FF, HUD cyan).
  * - "crimson" : Thème Rouge Sentinelle & Chrome Métallique inspiré du blason officiel.
- * - "light" : Thème clair instantané avec inversion chromatique équilibrée et compensation des médias.
- * - "modern" : Variante épurée, contrastée avec reflets cyan/saphir adoucis et typographie aérée.
- * - "orange-slate" : Thème Orange Ardoise — Palette orange, bleu-noir et gris ardoise inspirée d'un design infographique moderne.
+ * - "orange-slate" : Thème Orange Ardoise — Palette orange vif & bleu-noir structuré.
+ * - "modern" : Variante épurée, contrastée avec reflets cyan/saphir et typographie aérée.
+ * - "icrm-violet" : Dashboard SaaS Moderne — Cartes blanches 18px, dominante violet/lavande (#5B3FC4 / #E9E5F5), accents cyan (#12BFE0), rose (#E5245C) et orange.
+ * - "uba-archives" : Charte Institutionnelle UBA — Rouge officiel (#E31D25) & Blanc pur, en-têtes contrastés, tableaux à lignes alternées (#FDEFF0).
+ * - "light" : Thème clair hérité (migré vers orange-slate si présent).
  */
 
-export type UiTheme = "classic" | "spatial" | "crimson" | "orange-slate" | "modern" | "light";
+export type UiTheme =
+  | "classic"
+  | "spatial"
+  | "crimson"
+  | "orange-slate"
+  | "modern"
+  | "icrm-violet"
+  | "uba-archives"
+  | "light";
 
 export interface SpatialSettings {
   glowIntensity: "subtle" | "medium" | "high";
@@ -41,7 +51,15 @@ export function getUiTheme(): UiTheme {
       } catch {}
       return "orange-slate";
     }
-    if (saved === "spatial" || saved === "crimson" || saved === "modern" || saved === "classic" || saved === "orange-slate") {
+    if (
+      saved === "spatial" ||
+      saved === "crimson" ||
+      saved === "modern" ||
+      saved === "classic" ||
+      saved === "orange-slate" ||
+      saved === "icrm-violet" ||
+      saved === "uba-archives"
+    ) {
       return saved;
     }
   } catch {
@@ -110,7 +128,16 @@ export function applyThemeToDOM(theme: UiTheme = getUiTheme()): void {
   // Applique l'attribut standard unique
   root.setAttribute("data-theme", theme);
 
-  root.classList.remove("theme-classic", "theme-spatial", "theme-crimson", "theme-modern", "theme-light", "theme-orange-slate");
+  root.classList.remove(
+    "theme-classic",
+    "theme-spatial",
+    "theme-crimson",
+    "theme-modern",
+    "theme-light",
+    "theme-orange-slate",
+    "theme-icrm-violet",
+    "theme-uba-archives"
+  );
   root.classList.add(`theme-${theme}`);
 
   applySpatialSettingsToDOM();

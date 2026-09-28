@@ -138,6 +138,30 @@ describe("Gestionnaire de Thème Réversible (uiTheme)", () => {
     expect(dispatchedEvents[0].detail.theme).toBe("orange-slate");
   });
 
+  it("permet d'activer le thème 'icrm-violet' (I-CRM Violet) et l'applique au DOM et localStorage", () => {
+    setUiTheme("icrm-violet");
+
+    expect(mockStore["sn:ui-theme"]).toBe("icrm-violet");
+    expect(getUiTheme()).toBe("icrm-violet");
+    expect(rootAttributes["data-theme"]).toBe("icrm-violet");
+    expect(rootClasses.has("theme-icrm-violet")).toBe(true);
+    expect(rootClasses.has("theme-classic")).toBe(false);
+    expect(dispatchedEvents.length).toBeGreaterThan(0);
+    expect(dispatchedEvents[0].detail.theme).toBe("icrm-violet");
+  });
+
+  it("permet d'activer le thème 'uba-archives' (UBA Archives) et l'applique au DOM et localStorage", () => {
+    setUiTheme("uba-archives");
+
+    expect(mockStore["sn:ui-theme"]).toBe("uba-archives");
+    expect(getUiTheme()).toBe("uba-archives");
+    expect(rootAttributes["data-theme"]).toBe("uba-archives");
+    expect(rootClasses.has("theme-uba-archives")).toBe(true);
+    expect(rootClasses.has("theme-classic")).toBe(false);
+    expect(dispatchedEvents.length).toBeGreaterThan(0);
+    expect(dispatchedEvents[0].detail.theme).toBe("uba-archives");
+  });
+
   it("applique le thème au DOM correctement avec applyThemeToDOM", () => {
     applyThemeToDOM("crimson");
     expect(rootAttributes["data-theme"]).toBe("crimson");
@@ -150,6 +174,12 @@ describe("Gestionnaire de Thème Réversible (uiTheme)", () => {
 
     applyThemeToDOM("orange-slate");
     expect(rootAttributes["data-theme"]).toBe("orange-slate");
+
+    applyThemeToDOM("icrm-violet");
+    expect(rootAttributes["data-theme"]).toBe("icrm-violet");
+
+    applyThemeToDOM("uba-archives");
+    expect(rootAttributes["data-theme"]).toBe("uba-archives");
 
     applyThemeToDOM("classic");
     expect(rootAttributes["data-theme"]).toBe("classic");

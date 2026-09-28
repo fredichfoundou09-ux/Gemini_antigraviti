@@ -22,6 +22,7 @@ import {
 } from "@/lib/pushNotifications";
 import { executeScheduleAutomation } from "@/lib/automation/scheduleAutomation";
 import { AcademicYear, ModuleRestriction } from "@/lib/types";
+import { FontSelector } from "@/components/FontSelector";
 
 export interface AutomationServiceConfig {
   id: string;
@@ -240,6 +241,10 @@ export function SettingsPage() {
     toastMsg.success(
       theme === "spatial"
         ? "Mode Spatial (Poste de Contrôle) activé ✓"
+        : theme === "icrm-violet"
+        ? "Thème I-CRM Violet activé ✓"
+        : theme === "uba-archives"
+        ? "Thème UBA Archives (Institutionnel) activé ✓"
         : theme === "orange-slate"
         ? "Thème Orange Ardoise activé ✓"
         : theme === "crimson"
@@ -607,7 +612,7 @@ export function SettingsPage() {
               </span>
             </div>
 
-            <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-5 mt-4">
+            <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 mt-4">
               {/* Thème 1: Mode Spatial */}
               <button
                 type="button"
@@ -630,7 +635,7 @@ export function SettingsPage() {
                     )}
                   </div>
                   <p className="text-[11px] text-slate-300 leading-snug mb-3">
-                    Esthétique centre de contrôle : Fond #04070D, cyan opérationnel, surfaces semi-transparentes & alertes ambrées.
+                    Esthétique centre de contrôle : Fond #04070D, cyan opérationnel & HUD.
                   </p>
                 </div>
                 <div className="flex items-center gap-1.5 pt-2 border-t border-cyan-500/20">
@@ -642,7 +647,75 @@ export function SettingsPage() {
                 </div>
               </button>
 
-              {/* Thème 2: Classique */}
+              {/* Thème 2: I-CRM Violet (Dashboard SaaS Moderne) */}
+              <button
+                type="button"
+                onClick={() => handleSelectTheme("icrm-violet")}
+                className={cn(
+                  "text-left rounded-xl p-3.5 transition border flex flex-col justify-between group cursor-pointer",
+                  currentTheme === "icrm-violet"
+                    ? "border-[#5B3FC4] bg-[#5B3FC4]/25 shadow-[0_0_20px_rgba(91,63,196,0.4)] ring-1 ring-[#5B3FC4]/50"
+                    : "border-purple-500/30 bg-purple-950/20 hover:bg-purple-900/30 hover:border-purple-400/50"
+                )}
+              >
+                <div>
+                  <div className="flex items-center justify-between mb-2">
+                    <div className="flex items-center gap-1.5">
+                      <Sparkles size={16} className="text-[#B9A8EA]" />
+                      <span className="text-xs font-bold text-purple-200">I-CRM Violet</span>
+                    </div>
+                    {currentTheme === "icrm-violet" && (
+                      <span className="rounded bg-[#5B3FC4] px-1.5 py-0.2 text-[9px] font-bold text-white shadow-[0_0_6px_#5B3FC4]">Actif</span>
+                    )}
+                  </div>
+                  <p className="text-[11px] text-slate-300 leading-snug mb-3">
+                    Dashboard SaaS : Cartes blanches 18px, fond lavande #E9E5F5, accents cyan & rose.
+                  </p>
+                </div>
+                <div className="flex items-center gap-1.5 pt-2 border-t border-purple-500/20">
+                  <span className="h-3 w-3 rounded-full bg-[#5B3FC4] shadow-[0_0_6px_#5B3FC4]" />
+                  <span className="h-3 w-3 rounded-full bg-[#E9E5F5] ring-1 ring-black/20" />
+                  <span className="h-3 w-3 rounded-full bg-[#FFFFFF] ring-1 ring-black/30" />
+                  <span className="h-3 w-3 rounded-full bg-[#12BFE0]" />
+                  <span className="h-3 w-3 rounded-full bg-[#E5245C]" />
+                </div>
+              </button>
+
+              {/* Thème 3: UBA Archives (Institutionnel Rouge & Blanc) */}
+              <button
+                type="button"
+                onClick={() => handleSelectTheme("uba-archives")}
+                className={cn(
+                  "text-left rounded-xl p-3.5 transition border flex flex-col justify-between group cursor-pointer",
+                  currentTheme === "uba-archives"
+                    ? "border-[#E31D25] bg-[#E31D25]/25 shadow-[0_0_20px_rgba(227,29,37,0.4)] ring-1 ring-[#E31D25]/50"
+                    : "border-red-500/30 bg-red-950/20 hover:bg-red-900/30 hover:border-red-400/50"
+                )}
+              >
+                <div>
+                  <div className="flex items-center justify-between mb-2">
+                    <div className="flex items-center gap-1.5">
+                      <Shield size={16} className="text-[#EE777B]" />
+                      <span className="text-xs font-bold text-red-200">UBA Archives</span>
+                    </div>
+                    {currentTheme === "uba-archives" && (
+                      <span className="rounded bg-[#E31D25] px-1.5 py-0.2 text-[9px] font-bold text-white shadow-[0_0_6px_#E31D25]">Actif</span>
+                    )}
+                  </div>
+                  <p className="text-[11px] text-slate-300 leading-snug mb-3">
+                    Charte institutionnelle : Rouge officiel #E31D25, blanc & lignes de tableau alternées #FDEFF0.
+                  </p>
+                </div>
+                <div className="flex items-center gap-1.5 pt-2 border-t border-red-500/20">
+                  <span className="h-3 w-3 rounded-full bg-[#E31D25] shadow-[0_0_6px_#E31D25]" />
+                  <span className="h-3 w-3 rounded-full bg-[#FFFFFF] ring-1 ring-black/30" />
+                  <span className="h-3 w-3 rounded-full bg-[#FDEFF0] ring-1 ring-red-400/30" />
+                  <span className="h-3 w-3 rounded-full bg-[#EE777B]" />
+                  <span className="h-3 w-3 rounded-full bg-[#1A1A1A]" />
+                </div>
+              </button>
+
+              {/* Thème 4: Classique */}
               <button
                 type="button"
                 onClick={() => handleSelectTheme("classic")}
@@ -675,39 +748,7 @@ export function SettingsPage() {
                 </div>
               </button>
 
-              {/* Thème 3: Rouge Sentinelle */}
-              <button
-                type="button"
-                onClick={() => handleSelectTheme("crimson")}
-                className={cn(
-                  "text-left rounded-xl p-3.5 transition border flex flex-col justify-between group cursor-pointer",
-                  currentTheme === "crimson"
-                    ? "border-red-500/70 bg-red-500/20 shadow-[0_0_15px_rgba(255,23,79,0.3)]"
-                    : "border-white/10 bg-white/[0.02] hover:bg-white/5 hover:border-white/20"
-                )}
-              >
-                <div>
-                  <div className="flex items-center justify-between mb-2">
-                    <div className="flex items-center gap-2">
-                      <Shield size={16} className="text-red-500" />
-                      <span className="text-xs font-bold text-red-300">Rouge Sentinelle</span>
-                    </div>
-                    {currentTheme === "crimson" && (
-                      <span className="rounded bg-red-500/30 px-1.5 py-0.2 text-[9px] font-bold text-red-200">Actif</span>
-                    )}
-                  </div>
-                  <p className="text-[11px] text-slate-400 leading-snug mb-3">
-                    Ambiance rubis écarlate et chrome métallique du blason 3D.
-                  </p>
-                </div>
-                <div className="flex items-center gap-1.5 pt-2 border-t border-white/5">
-                  <span className="h-3 w-3 rounded-full bg-[#FF174F]" />
-                  <span className="h-3 w-3 rounded-full bg-[#9E002B]" />
-                  <span className="h-3 w-3 rounded-full bg-[#0E0E14] border border-white/20" />
-                </div>
-              </button>
-
-              {/* Thème 4: Orange Ardoise */}
+              {/* Thème 5: Orange Ardoise */}
               <button
                 type="button"
                 onClick={() => handleSelectTheme("orange-slate")}
@@ -739,7 +780,39 @@ export function SettingsPage() {
                 </div>
               </button>
 
-              {/* Thème 5: Modernisé */}
+              {/* Thème 6: Rouge Sentinelle */}
+              <button
+                type="button"
+                onClick={() => handleSelectTheme("crimson")}
+                className={cn(
+                  "text-left rounded-xl p-3.5 transition border flex flex-col justify-between group cursor-pointer",
+                  currentTheme === "crimson"
+                    ? "border-red-500/70 bg-red-500/20 shadow-[0_0_15px_rgba(255,23,79,0.3)]"
+                    : "border-white/10 bg-white/[0.02] hover:bg-white/5 hover:border-white/20"
+                )}
+              >
+                <div>
+                  <div className="flex items-center justify-between mb-2">
+                    <div className="flex items-center gap-2">
+                      <Shield size={16} className="text-red-500" />
+                      <span className="text-xs font-bold text-red-300">Rouge Sentinelle</span>
+                    </div>
+                    {currentTheme === "crimson" && (
+                      <span className="rounded bg-red-500/30 px-1.5 py-0.2 text-[9px] font-bold text-red-200">Actif</span>
+                    )}
+                  </div>
+                  <p className="text-[11px] text-slate-400 leading-snug mb-3">
+                    Ambiance rubis écarlate et chrome métallique du blason 3D.
+                  </p>
+                </div>
+                <div className="flex items-center gap-1.5 pt-2 border-t border-white/5">
+                  <span className="h-3 w-3 rounded-full bg-[#FF174F]" />
+                  <span className="h-3 w-3 rounded-full bg-[#9E002B]" />
+                  <span className="h-3 w-3 rounded-full bg-[#0E0E14] border border-white/20" />
+                </div>
+              </button>
+
+              {/* Thème 7: Modernisé */}
               <button
                 type="button"
                 onClick={() => handleSelectTheme("modern")}
@@ -835,6 +908,11 @@ export function SettingsPage() {
                 </div>
               </div>
             </div>
+          </Card>
+
+          {/* ================= SÉLECTEUR DE POLICE & TYPOGRAPHIE ================= */}
+          <Card className="p-6">
+            <FontSelector />
           </Card>
 
           {/* Configuration Audio & Sons des notifications */}

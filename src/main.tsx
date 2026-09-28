@@ -7,9 +7,11 @@ import App from "./App";
 import { AuthProvider } from "@/contexts/AuthContext";
 import { ErrorBoundary } from "@/lib/ErrorBoundary";
 import { applyThemeToDOM } from "@/lib/uiTheme";
+import { applyFontToDOM } from "@/lib/uiFont";
 
-// Application immédiate du thème d'affichage UI/UX réversible
+// Application immédiate du thème d'affichage et de la police UI/UX réversibles
 applyThemeToDOM();
+applyFontToDOM();
 
 // Enregistrement automatique du Service Worker PWA avec auto-update
 registerSW({ immediate: true });
