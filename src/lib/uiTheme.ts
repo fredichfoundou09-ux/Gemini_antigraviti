@@ -7,8 +7,8 @@
  * - "crimson" : Thème Rouge Sentinelle & Chrome Métallique inspiré du blason officiel.
  * - "orange-slate" : Thème Orange Ardoise — Palette orange vif & bleu-noir structuré.
  * - "modern" : Variante épurée, contrastée avec reflets cyan/saphir et typographie aérée.
- * - "icrm-violet" : Dashboard SaaS Moderne — Cartes blanches 18px, dominante violet/lavande (#5B3FC4 / #E9E5F5), accents cyan (#12BFE0), rose (#E5245C) et orange.
- * - "uba-archives" : Charte Institutionnelle UBA — Rouge officiel (#E31D25) & Blanc pur, en-têtes contrastés, tableaux à lignes alternées (#FDEFF0).
+ * - "icrm-violet" : Dashboard SaaS Moderne — Cartes feutrées anti-éblouissement, lavande (#5B3FC4 / #E3DFF2), accents cyan (#12BFE0) et rose.
+ * - "uba-archives" : Charte Institutionnelle UBA — Rouge officiel chaleureux (#D91B23) & Blanc perlé doux, en-têtes contrastés, tableaux à lignes alternées (#FBF0F2).
  * - "light" : Thème clair hérité (migré vers orange-slate si présent).
  */
 
@@ -32,6 +32,7 @@ export interface SpatialSettings {
 
 const STORAGE_KEY = "sn:ui-theme";
 const SPATIAL_SETTINGS_KEY = "sn:spatial-settings";
+const BRIGHTNESS_STORAGE_KEY = "sn:ui-brightness";
 
 const DEFAULT_SPATIAL_SETTINGS: SpatialSettings = {
   glowIntensity: "medium",
@@ -40,6 +41,9 @@ const DEFAULT_SPATIAL_SETTINGS: SpatialSettings = {
   notificationSound: "sentinel",
   soundVolume: 80,
 };
+
+// Valeur par défaut de luminosité : 92% (atténue l'éblouissement et protège la vue)
+const DEFAULT_BRIGHTNESS = 92;
 
 export function getUiTheme(): UiTheme {
   try {
@@ -77,6 +81,67 @@ export function setUiTheme(theme: UiTheme): void {
   applyThemeToDOM(theme);
   if (typeof window !== "undefined") {
     window.dispatchEvent(new CustomEvent("sentinelles:theme-changed", { detail: { theme } }));
+  }
+}
+
+export function getUiBrightness(): number {
+  try {
+    const saved = localStorage.getItem(BRIGHTNESS_STORAGE_KEY);
+    if (saved) {
+      const val = parseInt(saved, 10);
+      if (!isNaN(val) && val >= 60 && val <= 100) {
+        return val;
+      }
+    }
+  } catch {}
+  return DEFAULT_BRIGHTNESS;
+}
+
+export function setUiBrightness(percent: number): void {
+  const clamped = Math.max(60, Math.min(100, Math.round(percent)));
+  try {
+    localStorage.setItem(BRIGHTNESS_STORAGE_KEY, clamped.toString());
+  } catch {}
+  applyBrightnessToDOM(clamped);
+  if (typeof window !== "undefined") {
+    window.dispatchEvent(
+      new CustomEvent("sentinelles:brightness-changed", { detail: { brightness: clamped } })
+    );
+  }
+}
+
+export function applyBrightnessToDOM(brightness: number = getUiBrightness()): void {
+  if (typeof document === "undefined") return;
+  const root = document.documentElement;
+  if (!root) return;
+
+  root.setAttribute("data-brightness", brightness.toString());
+  if (root.style && typeof root.style.setProperty === "function") {
+    root.style.setProperty("--app-brightness", (brightness / 100).toString());
+    root.style.setProperty("--app-brightness-val", brightness.toString());
+  }
+  
+  // Gestion d'un overlay de confort visuel transparent et non-bloquant
+  if (document.body) {
+    let overlay = document.getElementById("sentinelles-comfort-dim");
+    if (!overlay) {
+      overlay = document.createElement("div");
+      overlay.id = "sentinelles-comfort-dim";
+      overlay.setAttribute("aria-hidden", "true");
+      document.body.appendChild(overlay);
+    }
+    
+    // Plus la luminosité diminue sous 100, plus le voile tamisé anti-éblouissement s'applique en douceur
+    const dimFactor = (100 - brightness) * 0.007; // 100% -> 0 opacity, 80% -> 0.14 opacity, 60% -> 0.28 opacity
+    if (overlay.style) {
+      overlay.style.position = "fixed";
+      overlay.style.inset = "0";
+      overlay.style.pointerEvents = "none";
+      overlay.style.zIndex = "99998";
+      overlay.style.backgroundColor = "#000000";
+      overlay.style.opacity = dimFactor.toString();
+      overlay.style.transition = "opacity 0.25s ease";
+    }
   }
 }
 
@@ -141,6 +206,7 @@ export function applyThemeToDOM(theme: UiTheme = getUiTheme()): void {
   root.classList.add(`theme-${theme}`);
 
   applySpatialSettingsToDOM();
+  applyBrightnessToDOM();
 }
 
 // Initialisation immédiate au chargement du script

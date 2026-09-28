@@ -1280,59 +1280,59 @@ a:active:not(.disabled) {
 
 [data-theme="icrm-violet"],
 .theme-icrm-violet {
-  --background: #E9E5F5;
-  --sentinel-bg: #E9E5F5;
-  --color-night: #E9E5F5;
-  --color-night2: #F1EEF9;
-  --color-night3: #EDE8FA;
-  --color-panel: #FFFFFF;
-  --color-panel2: #FFFFFF;
-  --color-panel3: #F8F6FD;
+  --background: #E2DEEF;
+  --sentinel-bg: #E2DEEF;
+  --color-night: #E2DEEF;
+  --color-night2: #EBE7F4;
+  --color-night3: #E6E1F2;
+  --color-panel: #F8F7FC;
+  --color-panel2: #F8F7FC;
+  --color-panel3: #F1EEF8;
   --color-electric: #5B3FC4;
   --color-electric2: #7E63D8;
   --color-cyber: #12BFE0;
   --color-neon: #5B3FC4;
-  --color-hudtext: #2B2B3A;
-  --color-hudmuted: #4A4A5A;
-  --color-huddim: #8C8AA0;
+  --color-hudtext: #262335;
+  --color-hudmuted: #484557;
+  --color-huddim: #7A778D;
 }
 
-/* 1. Arrière-plan global I-CRM (Lavande très clair) */
+/* 1. Arrière-plan global I-CRM (Lavande doux mat anti-éblouissement) */
 [data-theme="icrm-violet"] body {
-  background: linear-gradient(135deg, #E9E5F5 0%, #F1EEF9 100%) fixed !important;
-  color: #4A4A5A !important;
+  background: linear-gradient(135deg, #E2DEEF 0%, #EBE7F4 100%) fixed !important;
+  color: #484557 !important;
 }
 
 [data-theme="icrm-violet"] .bg-\[\#080A0F\],
 [data-theme="icrm-violet"] .bg-\[\#020508\],
 [data-theme="icrm-violet"] .bg-hud-gradient {
-  background: linear-gradient(135deg, #E9E5F5 0%, #F1EEF9 100%) fixed !important;
-  color: #4A4A5A !important;
+  background: linear-gradient(135deg, #E2DEEF 0%, #EBE7F4 100%) fixed !important;
+  color: #484557 !important;
 }
 
-/* 2. Menu latéral (Sidebar) I-CRM : Carte blanche, coins 16px, ombre douce */
+/* 2. Menu latéral (Sidebar) I-CRM : Carte blanche feutrée, coins 16px, ombre douce */
 [data-theme="icrm-violet"] aside,
 [data-theme="icrm-violet"] aside > div {
-  background-color: #FFFFFF !important;
-  border-color: #E3DEF2 !important;
-  box-shadow: 0 6px 18px rgba(91, 63, 196, 0.08) !important;
+  background-color: #F8F7FC !important;
+  border-color: #DDD7ED !important;
+  box-shadow: 0 6px 18px rgba(91, 63, 196, 0.07) !important;
 }
 
 [data-theme="icrm-violet"] aside .border-b,
 [data-theme="icrm-violet"] aside .border-t,
 [data-theme="icrm-violet"] aside .bg-\[\#0B111A\]\/50 {
-  border-color: #E3DEF2 !important;
+  border-color: #DDD7ED !important;
   background-color: transparent !important;
 }
 
 [data-theme="icrm-violet"] aside nav a {
-  color: #4A4A5A !important;
+  color: #484557 !important;
   border-radius: 999px !important;
   transition: all 0.2s ease !important;
 }
 
 [data-theme="icrm-violet"] aside nav a:hover {
-  background-color: #EDE8FA !important;
+  background-color: #EAE5F7 !important;
   color: #5B3FC4 !important;
 }
 
@@ -1340,7 +1340,7 @@ a:active:not(.disabled) {
   background: #5B3FC4 !important;
   color: #FFFFFF !important;
   border-radius: 999px !important;
-  box-shadow: 0 4px 14px rgba(91, 63, 196, 0.35) !important;
+  box-shadow: 0 4px 14px rgba(91, 63, 196, 0.3) !important;
 }
 
 [data-theme="icrm-violet"] aside nav a.active svg,
@@ -1349,20 +1349,20 @@ a:active:not(.disabled) {
 }
 
 [data-theme="icrm-violet"] aside .border-t .bg-\[\#0B111A\] {
-  background-color: #F8F6FD !important;
-  border: 1px solid #E3DEF2 !important;
+  background-color: #F1EEF8 !important;
+  border: 1px solid #DDD7ED !important;
   border-radius: 12px !important;
 }
 
 [data-theme="icrm-violet"] aside .border-t p {
-  color: #2B2B3A !important;
+  color: #262335 !important;
 }
 
 /* 3. Header / Barre du haut */
 [data-theme="icrm-violet"] header {
-  background: rgba(255, 255, 255, 0.94) !important;
-  border-color: #E3DEF2 !important;
-  box-shadow: 0 4px 18px rgba(91, 63, 196, 0.06) !important;
+  background: rgba(248, 247, 252, 0.96) !important;
+  border-color: #DDD7ED !important;
+  box-shadow: 0 4px 16px rgba(91, 63, 196, 0.05) !important;
   backdrop-filter: blur(12px) !important;
 }
 
@@ -1372,24 +1372,24 @@ a:active:not(.disabled) {
 [data-theme="icrm-violet"] header h2,
 [data-theme="icrm-violet"] header h3,
 [data-theme="icrm-violet"] header .text-white {
-  color: #2B2B3A !important;
+  color: #262335 !important;
 }
 
 [data-theme="icrm-violet"] header a,
 [data-theme="icrm-violet"] header button {
-  background-color: #F8F6FD !important;
-  border-color: #E3DEF2 !important;
-  color: #4A4A5A !important;
+  background-color: #F1EEF8 !important;
+  border-color: #DDD7ED !important;
+  color: #484557 !important;
 }
 
 [data-theme="icrm-violet"] header a:hover,
 [data-theme="icrm-violet"] header button:hover {
-  background-color: #EDE8FA !important;
+  background-color: #EAE5F7 !important;
   border-color: #5B3FC4 !important;
   color: #5B3FC4 !important;
 }
 
-/* 4. Cartes, panneaux et surfaces blanches I-CRM (radius 18px + shadow doux) */
+/* 4. Cartes, panneaux et surfaces feutrées I-CRM (radius 18px + shadow doux anti-éblouissement) */
 [data-theme="icrm-violet"] .hud-panel,
 [data-theme="icrm-violet"] .rounded-lg.border.bg-gradient-to-br,
 [data-theme="icrm-violet"] div[class*="bg-gradient-to-br from-[#092033]"],
@@ -1398,19 +1398,19 @@ a:active:not(.disabled) {
 [data-theme="icrm-violet"] div[class*="bg-[#0B111A]"],
 [data-theme="icrm-violet"] div[class*="bg-[#04070D]"],
 [data-theme="icrm-violet"] div[class*="bg-[#08162B]"] {
-  background: #FFFFFF !important;
-  border: 1px solid #E3DEF2 !important;
+  background: #F8F7FC !important;
+  border: 1px solid #DDD7ED !important;
   border-radius: 18px !important;
-  box-shadow: 0 6px 18px rgba(91, 63, 196, 0.08) !important;
-  color: #4A4A5A !important;
+  box-shadow: 0 4px 16px rgba(91, 63, 196, 0.06) !important;
+  color: #484557 !important;
 }
 
 [data-theme="icrm-violet"] .bg-white\/\[0\.02\],
 [data-theme="icrm-violet"] .bg-white\/\[0\.03\],
 [data-theme="icrm-violet"] .bg-white\/5 {
-  background-color: #FFFFFF !important;
-  border-color: #E3DEF2 !important;
-  color: #4A4A5A !important;
+  background-color: #F8F7FC !important;
+  border-color: #DDD7ED !important;
+  color: #484557 !important;
 }
 
 [data-theme="icrm-violet"] .border-white\/5,
@@ -1421,7 +1421,7 @@ a:active:not(.disabled) {
 [data-theme="icrm-violet"] .border-\[\#006DFF\]\/30,
 [data-theme="icrm-violet"] .border-cyan-400\/20,
 [data-theme="icrm-violet"] .border-cyan-400\/30 {
-  border-color: #E3DEF2 !important;
+  border-color: #DDD7ED !important;
 }
 
 /* 5. Typographie et textes */
@@ -1430,20 +1430,20 @@ a:active:not(.disabled) {
 [data-theme="icrm-violet"] main h3,
 [data-theme="icrm-violet"] main h4,
 [data-theme="icrm-violet"] main .text-white {
-  color: #2B2B3A !important;
+  color: #262335 !important;
 }
 
 [data-theme="icrm-violet"] main p,
 [data-theme="icrm-violet"] main .text-slate-200,
 [data-theme="icrm-violet"] main .text-slate-300,
 [data-theme="icrm-violet"] main .text-\[\#B8F3FF\] {
-  color: #4A4A5A !important;
+  color: #484557 !important;
 }
 
 [data-theme="icrm-violet"] main .text-slate-400,
 [data-theme="icrm-violet"] main .text-slate-500,
 [data-theme="icrm-violet"] main .text-\[\#4C91B5\] {
-  color: #8C8AA0 !important;
+  color: #7A778D !important;
 }
 
 /* Accents Cyan I-CRM (valeurs positives, graphiques) */
@@ -1479,37 +1479,37 @@ a:active:not(.disabled) {
 [data-theme="icrm-violet"] button[class*="from-[#006DFF]"]:hover,
 [data-theme="icrm-violet"] .btn-primary:hover {
   background: #4A2FA8 !important;
-  box-shadow: 0 6px 18px rgba(91, 63, 196, 0.45) !important;
+  box-shadow: 0 6px 18px rgba(91, 63, 196, 0.4) !important;
 }
 
 /* Boutons secondaires I-CRM */
 [data-theme="icrm-violet"] button[class*="from-emerald-500"],
 [data-theme="icrm-violet"] button[class*="from-[#8B0035]"],
 [data-theme="icrm-violet"] button[class*="bg-white/5"] {
-  background-color: #FFFFFF !important;
-  border: 1px solid #E3DEF2 !important;
+  background-color: #F8F7FC !important;
+  border: 1px solid #DDD7ED !important;
   color: #5B3FC4 !important;
   border-radius: 999px !important;
 }
 
 [data-theme="icrm-violet"] button[class*="bg-white/5"]:hover {
-  background-color: #EDE8FA !important;
+  background-color: #EAE5F7 !important;
   border-color: #5B3FC4 !important;
 }
 
-/* 7. Formulaires (Inputs blancs, bordure discrète, focus violet) */
+/* 7. Formulaires (Inputs feutrés, bordure discrète, focus violet) */
 [data-theme="icrm-violet"] input:not([type="checkbox"]):not([type="radio"]),
 [data-theme="icrm-violet"] select,
 [data-theme="icrm-violet"] textarea {
-  background-color: #FFFFFF !important;
-  border: 1px solid #E3DEF2 !important;
+  background-color: #FAF9FE !important;
+  border: 1px solid #DDD7ED !important;
   border-radius: 10px !important;
-  color: #2B2B3A !important;
+  color: #262335 !important;
 }
 
 [data-theme="icrm-violet"] input::placeholder,
 [data-theme="icrm-violet"] textarea::placeholder {
-  color: #8C8AA0 !important;
+  color: #7A778D !important;
 }
 
 [data-theme="icrm-violet"] input:focus,
@@ -1522,90 +1522,79 @@ a:active:not(.disabled) {
 
 /* 8. Tableaux I-CRM */
 [data-theme="icrm-violet"] table {
-  background: #FFFFFF !important;
-  border-color: #E3DEF2 !important;
-  color: #4A4A5A !important;
+  background: #F8F7FC !important;
+  border-color: #DDD7ED !important;
+  color: #484557 !important;
   border-radius: 14px !important;
 }
 
 [data-theme="icrm-violet"] thead th {
-  background-color: #EDE8FA !important;
-  color: #2B2B3A !important;
-  border-bottom: 1px solid #E3DEF2 !important;
+  background-color: #E8E3F5 !important;
+  color: #262335 !important;
+  border-bottom: 1px solid #DDD7ED !important;
   font-weight: 700 !important;
 }
 
 [data-theme="icrm-violet"] tbody tr {
-  border-color: #E3DEF2 !important;
+  border-color: #DDD7ED !important;
 }
 
 [data-theme="icrm-violet"] tbody tr:hover {
-  background-color: #F8F6FD !important;
+  background-color: #F2EEFA !important;
 }
 
 [data-theme="icrm-violet"] tbody td {
-  color: #4A4A5A !important;
+  color: #484557 !important;
 }
 
 [data-theme="icrm-violet"] tbody td .text-white {
-  color: #2B2B3A !important;
+  color: #262335 !important;
 }
 
 
 /* ========================================================
    THÈME UBA ARCHIVES — CHARTE INSTITUTIONNELLE ROUGE & BLANC
    Activé via [data-theme="uba-archives"] et .theme-uba-archives
-   - Palette :
-     * Rouge principal : #E31D25
-     * Rouge foncé : #C81820
-     * Rose très clair : #FDEFF0 (lignes alternées de tableau)
-     * Rose clair 2 : #FDF1F1 (cartes statistiques)
-     * Rose moyen : #EE777B (bordures d'accent)
-     * Rose pâle : #FBE3E4 (survol de lignes, alertes)
-     * Gris bordure : #E6E6E6
-     * Gris clair fond : #F5F5F5
-     * Noir texte : #1A1A1A
-     * Gris texte : #666666
-     * Blanc fond : #FFFFFF
+   - Version adoucie avec fond satiné gris perle et blanc lin non-éblouissant
    ======================================================== */
 
 [data-theme="uba-archives"],
 .theme-uba-archives {
-  --background: #FFFFFF;
-  --sentinel-bg: #FFFFFF;
-  --color-night: #FFFFFF;
-  --color-night2: #F5F5F5;
-  --color-night3: #FDEFF0;
-  --color-panel: #FFFFFF;
-  --color-panel2: #FDF1F1;
-  --color-panel3: #FFFFFF;
-  --color-electric: #E31D25;
-  --color-electric2: #C81820;
-  --color-cyber: #E31D25;
-  --color-neon: #E31D25;
-  --color-hudtext: #1A1A1A;
-  --color-hudmuted: #666666;
-  --color-huddim: #999999;
+  --background: #EFEFF2;
+  --sentinel-bg: #EFEFF2;
+  --color-night: #EFEFF2;
+  --color-night2: #E8E8EC;
+  --color-night3: #F9ECEE;
+  --color-panel: #FBFBFC;
+  --color-panel2: #FBF1F2;
+  --color-panel3: #FBFBFC;
+  --color-electric: #D91B23;
+  --color-electric2: #BF171F;
+  --color-cyber: #D91B23;
+  --color-neon: #D91B23;
+  --color-hudtext: #1F1F24;
+  --color-hudmuted: #55555D;
+  --color-huddim: #888892;
 }
 
-/* 1. Arrière-plan global UBA Archives (Blanc dominant) */
+/* 1. Arrière-plan global UBA Archives (Gris perle doux non-éblouissant) */
 [data-theme="uba-archives"] body {
-  background: #F8F9FA fixed !important;
-  color: #1A1A1A !important;
+  background: #EFEFF2 fixed !important;
+  color: #1F1F24 !important;
 }
 
 [data-theme="uba-archives"] .bg-\[\#080A0F\],
 [data-theme="uba-archives"] .bg-\[\#020508\],
 [data-theme="uba-archives"] .bg-hud-gradient {
-  background: #F8F9FA fixed !important;
-  color: #1A1A1A !important;
+  background: #EFEFF2 fixed !important;
+  color: #1F1F24 !important;
 }
 
-/* 2. Bandeau d'en-tête (Header) : Bandeau plein rouge #E31D25 sur toute la largeur */
+/* 2. Bandeau d'en-tête (Header) : Rouge institutionnel chaleureux */
 [data-theme="uba-archives"] header {
-  background: #E31D25 !important;
-  border-bottom: 2px solid #C81820 !important;
-  box-shadow: 0 4px 14px rgba(227, 29, 37, 0.25) !important;
+  background: #D91B23 !important;
+  border-bottom: 2px solid #BF171F !important;
+  box-shadow: 0 4px 14px rgba(217, 27, 35, 0.22) !important;
 }
 
 [data-theme="uba-archives"] header h1,
@@ -1619,8 +1608,8 @@ a:active:not(.disabled) {
 
 [data-theme="uba-archives"] header a,
 [data-theme="uba-archives"] header button {
-  background-color: rgba(255, 255, 255, 0.15) !important;
-  border-color: rgba(255, 255, 255, 0.3) !important;
+  background-color: rgba(255, 255, 255, 0.16) !important;
+  border-color: rgba(255, 255, 255, 0.25) !important;
   color: #FFFFFF !important;
 }
 
@@ -1628,13 +1617,13 @@ a:active:not(.disabled) {
 [data-theme="uba-archives"] header button:hover {
   background-color: #FFFFFF !important;
   border-color: #FFFFFF !important;
-  color: #E31D25 !important;
+  color: #D91B23 !important;
 }
 
 [data-theme="uba-archives"] header input {
-  background-color: #FFFFFF !important;
-  border: 1px solid #E6E6E6 !important;
-  color: #1A1A1A !important;
+  background-color: #FBFBFC !important;
+  border: 1px solid #E0E0E5 !important;
+  color: #1F1F24 !important;
 }
 
 [data-theme="uba-archives"] header input::placeholder {
@@ -1644,33 +1633,33 @@ a:active:not(.disabled) {
 /* 3. Menu latéral (Sidebar) UBA Archives */
 [data-theme="uba-archives"] aside,
 [data-theme="uba-archives"] aside > div {
-  background-color: #FFFFFF !important;
-  border-color: #E6E6E6 !important;
-  box-shadow: 2px 0 10px rgba(0, 0, 0, 0.04) !important;
+  background-color: #FBFBFC !important;
+  border-color: #E0E0E5 !important;
+  box-shadow: 2px 0 10px rgba(0, 0, 0, 0.03) !important;
 }
 
 [data-theme="uba-archives"] aside .border-b,
 [data-theme="uba-archives"] aside .border-t,
 [data-theme="uba-archives"] aside .bg-\[\#0B111A\]\/50 {
-  border-color: #E6E6E6 !important;
+  border-color: #E0E0E5 !important;
   background-color: transparent !important;
 }
 
 [data-theme="uba-archives"] aside nav a {
-  color: #1A1A1A !important;
+  color: #1F1F24 !important;
   border-radius: 8px !important;
 }
 
 [data-theme="uba-archives"] aside nav a:hover {
-  background-color: #FDEFF0 !important;
-  color: #E31D25 !important;
+  background-color: #F9ECEE !important;
+  color: #D91B23 !important;
 }
 
 [data-theme="uba-archives"] aside nav a.active {
-  background: #E31D25 !important;
+  background: #D91B23 !important;
   color: #FFFFFF !important;
   border-radius: 8px !important;
-  box-shadow: 0 4px 12px rgba(227, 29, 37, 0.3) !important;
+  box-shadow: 0 4px 12px rgba(217, 27, 35, 0.28) !important;
 }
 
 [data-theme="uba-archives"] aside nav a.active svg,
@@ -1679,16 +1668,16 @@ a:active:not(.disabled) {
 }
 
 [data-theme="uba-archives"] aside .border-t .bg-\[\#0B111A\] {
-  background-color: #FDF1F1 !important;
-  border: 1px solid #EE777B !important;
+  background-color: #FBF1F2 !important;
+  border: 1px solid #E89FA3 !important;
   border-radius: 8px !important;
 }
 
 [data-theme="uba-archives"] aside .border-t p {
-  color: #1A1A1A !important;
+  color: #1F1F24 !important;
 }
 
-/* 4. Cartes et blocs statistiques UBA Archives (Fond #FDF1F1 ou blanc + bordure #EE777B / #E6E6E6) */
+/* 4. Cartes et blocs statistiques UBA Archives (Blanc feutré satiné, non éblouissant) */
 [data-theme="uba-archives"] .hud-panel,
 [data-theme="uba-archives"] .rounded-lg.border.bg-gradient-to-br,
 [data-theme="uba-archives"] div[class*="bg-gradient-to-br from-[#092033]"],
@@ -1697,19 +1686,19 @@ a:active:not(.disabled) {
 [data-theme="uba-archives"] div[class*="bg-[#0B111A]"],
 [data-theme="uba-archives"] div[class*="bg-[#04070D]"],
 [data-theme="uba-archives"] div[class*="bg-[#08162B]"] {
-  background: #FFFFFF !important;
-  border: 1px solid #E6E6E6 !important;
+  background: #FBFBFC !important;
+  border: 1px solid #E0E0E5 !important;
   border-radius: 10px !important;
-  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.04) !important;
-  color: #1A1A1A !important;
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.03) !important;
+  color: #1F1F24 !important;
 }
 
 [data-theme="uba-archives"] .bg-white\/\[0\.02\],
 [data-theme="uba-archives"] .bg-white\/\[0\.03\],
 [data-theme="uba-archives"] .bg-white\/5 {
-  background-color: #FDF1F1 !important;
-  border-color: #EE777B !important;
-  color: #1A1A1A !important;
+  background-color: #FBF1F2 !important;
+  border-color: #E89FA3 !important;
+  color: #1F1F24 !important;
 }
 
 [data-theme="uba-archives"] .border-white\/5,
@@ -1720,7 +1709,7 @@ a:active:not(.disabled) {
 [data-theme="uba-archives"] .border-\[\#006DFF\]\/30,
 [data-theme="uba-archives"] .border-cyan-400\/20,
 [data-theme="uba-archives"] .border-cyan-400\/30 {
-  border-color: #E6E6E6 !important;
+  border-color: #E0E0E5 !important;
 }
 
 /* 5. Typographie et textes UBA Archives */
@@ -1729,38 +1718,38 @@ a:active:not(.disabled) {
 [data-theme="uba-archives"] main h3,
 [data-theme="uba-archives"] main h4,
 [data-theme="uba-archives"] main .text-white {
-  color: #1A1A1A !important;
+  color: #1F1F24 !important;
 }
 
 [data-theme="uba-archives"] main p,
 [data-theme="uba-archives"] main .text-slate-200,
 [data-theme="uba-archives"] main .text-slate-300,
 [data-theme="uba-archives"] main .text-\[\#B8F3FF\] {
-  color: #1A1A1A !important;
+  color: #1F1F24 !important;
 }
 
 [data-theme="uba-archives"] main .text-slate-400,
 [data-theme="uba-archives"] main .text-slate-500,
 [data-theme="uba-archives"] main .text-\[\#4C91B5\] {
-  color: #666666 !important;
+  color: #55555D !important;
 }
 
-/* Valeurs d'accent et chiffres stats UBA Archives (Rouge principal #E31D25) */
+/* Valeurs d'accent et chiffres stats UBA Archives */
 [data-theme="uba-archives"] main .text-cyan-300,
 [data-theme="uba-archives"] main .text-cyan-400,
 [data-theme="uba-archives"] main .text-\[\#00E5FF\],
 [data-theme="uba-archives"] main .text-\[\#00C8FF\] {
-  color: #E31D25 !important;
+  color: #D91B23 !important;
 }
 
-/* 6. Boutons UBA Archives (Primaire : Rouge #E31D25 plein / Secondaire : Blanc bordure rouge) */
+/* 6. Boutons UBA Archives */
 [data-theme="uba-archives"] button[class*="from-[#006DFF]"],
 [data-theme="uba-archives"] .btn-primary {
-  background: #E31D25 !important;
+  background: #D91B23 !important;
   color: #FFFFFF !important;
   border: none !important;
   border-radius: 8px !important;
-  box-shadow: 0 4px 12px rgba(227, 29, 37, 0.3) !important;
+  box-shadow: 0 4px 12px rgba(217, 27, 35, 0.25) !important;
 }
 
 [data-theme="uba-archives"] button[class*="from-[#006DFF]"] *,
@@ -1770,8 +1759,8 @@ a:active:not(.disabled) {
 
 [data-theme="uba-archives"] button[class*="from-[#006DFF]"]:hover,
 [data-theme="uba-archives"] .btn-primary:hover {
-  background: #C81820 !important;
-  box-shadow: 0 4px 16px rgba(227, 29, 37, 0.45) !important;
+  background: #BF171F !important;
+  box-shadow: 0 4px 16px rgba(217, 27, 35, 0.4) !important;
 }
 
 [data-theme="uba-archives"] button[class*="from-[#006DFF]"]:active,
@@ -1779,36 +1768,36 @@ a:active:not(.disabled) {
   opacity: 0.9 !important;
 }
 
-/* Boutons secondaires UBA Archives : fond blanc, texte rouge #E31D25, bordure rouge */
+/* Boutons secondaires UBA Archives */
 [data-theme="uba-archives"] button[class*="from-emerald-500"],
 [data-theme="uba-archives"] button[class*="from-[#8B0035]"],
 [data-theme="uba-archives"] button[class*="bg-white/5"] {
-  background: #FFFFFF !important;
-  border: 1.5px solid #E31D25 !important;
-  color: #E31D25 !important;
+  background: #FBFBFC !important;
+  border: 1.5px solid #D91B23 !important;
+  color: #D91B23 !important;
   border-radius: 8px !important;
 }
 
 [data-theme="uba-archives"] button[class*="bg-white/5"]:hover {
-  background: #FDEFF0 !important;
-  color: #C81820 !important;
+  background: #F9ECEE !important;
+  color: #BF171F !important;
 }
 
 /* Boutons désactivés */
 [data-theme="uba-archives"] button:disabled {
-  background: #F5F5F5 !important;
+  background: #E8E8EC !important;
   color: #666666 !important;
-  border-color: #E6E6E6 !important;
+  border-color: #E0E0E5 !important;
 }
 
 /* 7. Formulaires UBA Archives */
 [data-theme="uba-archives"] input:not([type="checkbox"]):not([type="radio"]),
 [data-theme="uba-archives"] select,
 [data-theme="uba-archives"] textarea {
-  background-color: #FFFFFF !important;
-  border: 1px solid #E6E6E6 !important;
+  background-color: #FBFBFC !important;
+  border: 1px solid #E0E0E5 !important;
   border-radius: 8px !important;
-  color: #1A1A1A !important;
+  color: #1F1F24 !important;
 }
 
 [data-theme="uba-archives"] input::placeholder,
@@ -1819,57 +1808,57 @@ a:active:not(.disabled) {
 [data-theme="uba-archives"] input:focus,
 [data-theme="uba-archives"] select:focus,
 [data-theme="uba-archives"] textarea:focus {
-  border-color: #E31D25 !important;
-  box-shadow: 0 0 0 3px rgba(227, 29, 37, 0.2) !important;
+  border-color: #D91B23 !important;
+  box-shadow: 0 0 0 3px rgba(217, 27, 35, 0.18) !important;
   outline: none !important;
 }
 
-/* 8. Tableaux UBA Archives (En-tête rouge #E31D25, alternance blanc / rose très clair #FDEFF0, survol rose #FBE3E4) */
+/* 8. Tableaux UBA Archives (En-tête rouge #D91B23, alternance blanc doux / rose très doux, survol feutré) */
 [data-theme="uba-archives"] table {
-  background: #FFFFFF !important;
-  border: 1px solid #E6E6E6 !important;
-  color: #1A1A1A !important;
+  background: #FBFBFC !important;
+  border: 1px solid #E0E0E5 !important;
+  color: #1F1F24 !important;
   border-radius: 8px !important;
 }
 
 [data-theme="uba-archives"] thead th {
-  background-color: #E31D25 !important;
+  background-color: #D91B23 !important;
   color: #FFFFFF !important;
-  border-bottom: 2px solid #C81820 !important;
+  border-bottom: 2px solid #BF171F !important;
   font-weight: 700 !important;
   padding: 12px !important;
 }
 
 [data-theme="uba-archives"] tbody tr {
-  border-color: #E6E6E6 !important;
+  border-color: #E0E0E5 !important;
 }
 
-/* Alternance des lignes : blanc et rose très clair */
+/* Alternance des lignes reposante */
 [data-theme="uba-archives"] tbody tr:nth-child(even) {
-  background-color: #FDEFF0 !important;
+  background-color: #F9ECEE !important;
 }
 
 [data-theme="uba-archives"] tbody tr:nth-child(odd) {
   background-color: #FFFFFF !important;
 }
 
-/* Survol de ligne : léger fond rose #FBE3E4 */
+/* Survol de ligne : rose feutré */
 [data-theme="uba-archives"] tbody tr:hover {
-  background-color: #FBE3E4 !important;
+  background-color: #F4DEE1 !important;
 }
 
 [data-theme="uba-archives"] tbody td {
-  color: #1A1A1A !important;
-  border-color: #E6E6E6 !important;
+  color: #1F1F24 !important;
+  border-color: #E0E0E5 !important;
 }
 
 [data-theme="uba-archives"] tbody td .text-white {
-  color: #1A1A1A !important;
+  color: #1F1F24 !important;
 }
 
 [data-theme="uba-archives"] tbody td .text-slate-400,
 [data-theme="uba-archives"] tbody td .text-slate-500 {
-  color: #666666 !important;
+  color: #55555D !important;
 }
 
 

@@ -2,6 +2,7 @@ import React, { useState, useEffect, useRef } from "react";
 import { Palette, Check, RotateCcw, Sparkles, Moon, Shield, Flame, Radio } from "lucide-react";
 import { getUiTheme, setUiTheme, UiTheme } from "@/lib/uiTheme";
 import { cn } from "@/utils/cn";
+import { BrightnessControl } from "@/components/BrightnessControl";
 
 interface ThemeToggleProps {
   className?: string;
@@ -393,13 +394,18 @@ export function ThemeToggle({ className, align = "right", showLabel = false }: T
             </button>
           </div>
 
+          {/* Contrôle de luminosité et confort visuel direct */}
+          <div className="mt-3 pt-2.5 border-t border-white/10">
+            <BrightnessControl compact />
+          </div>
+
           {/* Bouton de retour rapide si un thème non-défaut est actif */}
           {isNonDefault && (
-            <div className="mt-3 pt-2.5 border-t border-white/10">
+            <div className="mt-2.5 pt-2 border-t border-white/10">
               <button
                 type="button"
                 onClick={() => selectTheme("classic")}
-                className="w-full inline-flex items-center justify-center gap-1.5 rounded-lg border border-white/10 bg-white/5 py-1.5 text-[11px] font-bold text-slate-200 hover:bg-white/10 hover:text-white transition"
+                className="w-full inline-flex items-center justify-center gap-1.5 rounded-lg border border-white/10 bg-white/5 py-1.5 text-[11px] font-bold text-slate-200 hover:bg-white/10 hover:text-white transition cursor-pointer"
               >
                 <RotateCcw size={12} className="text-cyan-400" />
                 <span>Revenir à l'apparence Classique</span>

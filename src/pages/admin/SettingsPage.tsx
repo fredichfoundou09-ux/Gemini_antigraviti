@@ -23,6 +23,7 @@ import {
 import { executeScheduleAutomation } from "@/lib/automation/scheduleAutomation";
 import { AcademicYear, ModuleRestriction } from "@/lib/types";
 import { FontSelector } from "@/components/FontSelector";
+import { BrightnessControl } from "@/components/BrightnessControl";
 
 export interface AutomationServiceConfig {
   id: string;
@@ -908,6 +909,11 @@ export function SettingsPage() {
                 </div>
               </div>
             </div>
+          </Card>
+
+          {/* ================= CONTRÔLE DE LUMINOSITÉ & CONFORT VISUEL ================= */}
+          <Card className="p-6">
+            <BrightnessControl />
           </Card>
 
           {/* ================= SÉLECTEUR DE POLICE & TYPOGRAPHIE ================= */}

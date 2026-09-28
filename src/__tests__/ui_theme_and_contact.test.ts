@@ -1,6 +1,13 @@
 import { describe, it, expect, beforeEach, vi, afterEach } from "vitest";
 import { normalizePhoneForWhatsApp } from "../components/ContactButtons";
-import { getUiTheme, setUiTheme, applyThemeToDOM } from "../lib/uiTheme";
+import {
+  getUiTheme,
+  setUiTheme,
+  applyThemeToDOM,
+  getUiBrightness,
+  setUiBrightness,
+  applyBrightnessToDOM,
+} from "../lib/uiTheme";
 
 describe("Normalisation Téléphonique WhatsApp (ContactButtons)", () => {
   it("gère les numéros locaux congolais à 9 chiffres avec 0 initial", () => {
@@ -57,6 +64,18 @@ describe("Gestionnaire de Thème Réversible (uiTheme)", () => {
           remove: (...classes: string[]) => classes.forEach((c) => rootClasses.delete(c)),
           contains: (c: string) => rootClasses.has(c),
         },
+        style: {
+          setProperty: vi.fn(),
+          getPropertyValue: vi.fn(),
+        },
+      },
+      getElementById: vi.fn(() => null),
+      createElement: vi.fn(() => ({
+        style: {},
+        setAttribute: vi.fn(),
+      })),
+      body: {
+        appendChild: vi.fn(),
       },
     };
 
@@ -183,5 +202,22 @@ describe("Gestionnaire de Thème Réversible (uiTheme)", () => {
 
     applyThemeToDOM("classic");
     expect(rootAttributes["data-theme"]).toBe("classic");
+  });
+
+  it("gère la luminosité par défaut (92% confort visuel) et permet de la modifier", () => {
+    expect(getUiBrightness()).toBe(92);
+
+    setUiBrightness(80);
+    expect(mockStore["sn:ui-brightness"]).toBe("80");
+    expect(getUiBrightness()).toBe(80);
+    expect(rootAttributes["data-brightness"]).toBe("80");
+    expect(dispatchedEvents.some((e) => e.type === "sentinelles:brightness-changed" || e.detail?.brightness === 80)).toBe(true);
+
+    // Clamping entre 60% et 100%
+    setUiBrightness(150);
+    expect(getUiBrightness()).toBe(100);
+
+    setUiBrightness(20);
+    expect(getUiBrightness()).toBe(60);
   });
 });
