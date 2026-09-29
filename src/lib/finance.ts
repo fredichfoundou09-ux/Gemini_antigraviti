@@ -267,9 +267,9 @@ export function calculateModuleProfitability(
   marginPercent: number;
   margeNette: number;
 } {
-  let studentCount = 0;
-  let revenue = 0;
-  let teacherCost = 0;
+  let studentCount: number;
+  let revenue: number;
+  let teacherCost: number;
 
   if (typeof arg1 === "object" && arg1 !== null && "students" in arg1) {
     const db = arg1 as DB;
