@@ -10,6 +10,8 @@ import {
   clearLocalDraft,
   evaluateAnswersLocally,
   sanitizeAssessmentForStudent,
+  submitAssessmentResultToSupabase,
+  saveLocalAssessmentResults,
 } from "../services/assessmentService";
 import { supabase, isSupabaseConfigured } from "@/lib/supabase/client";
 import { useStore } from "@/lib/store";
@@ -369,44 +371,8 @@ export function AssessmentRunner({
         } : {}),
       }));
 
-      // Persistance Supabase test_results sécurisée (RPC ou insertion directe)
-      if (isSupabaseConfigured) {
-        try {
-          const isTestUuid = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(rawAssessment.id);
-          const { error: rpcErr } = await supabase.rpc("submit_assessment_result_safe", {
-            p_result: {
-              testId: isTestUuid ? rawAssessment.id : undefined,
-              studentId,
-              note: finalEval.note,
-              bareme: rawAssessment.bareme,
-              pourcentage: finalEval.pourcentage,
-              date: resultPayload.date,
-              heure: resultPayload.heure,
-              valide: resultPayload.valide,
-              statut: resultPayload.statut,
-            },
-            p_answers: Object.entries(answers).map(([qId, val]) => ({
-              questionId: qId,
-              reponseDonnee: typeof val === "string" ? val : JSON.stringify(val),
-            })),
-          });
-
-          if (rpcErr && isTestUuid) {
-            await supabase.from("test_results").insert({
-              test_id: rawAssessment.id,
-              student_id: studentId,
-              note: finalEval.note,
-              pourcentage: finalEval.pourcentage,
-              date: resultPayload.date,
-              heure: resultPayload.heure,
-              valide: resultPayload.valide,
-              statut: resultPayload.statut,
-            });
-          }
-        } catch (e) {
-          console.warn("Échec persistance Supabase test_results:", e);
-        }
-      }
+      // Persistance ultra-fiable (localStorage + Supabase RPC/insert + gestion d'erreurs)
+      await submitAssessmentResultToSupabase(resultPayload as any, answers);
 
       // Notification automatique du formateur
       if (rawAssessment.teacherId) {

@@ -22,6 +22,7 @@ import { StudentAssignmentModal } from "@/modules/assignments/components/Student
 // Évaluations
 import { Assessment, AssessmentResultSummary, AssessmentStatus } from "@/modules/assessments/types";
 import { AssessmentRunner } from "@/modules/assessments/components/AssessmentRunner";
+import { getLocalAssessmentResults } from "@/modules/assessments/services/assessmentService";
 
 // Règles de visibilité apprenant
 import { assignmentsFor, assessmentsFor } from "@/lib/access";
@@ -241,14 +242,19 @@ export function UnifiedStudentAssessmentsAssignmentsPage({ defaultTab = "devoirs
               })),
               createdAt: row.created_at,
             }));
-            setSubmissions(mappedSubs);
+            const localSubs = getLocalSubmissions().filter((s) => s.studentId === student.id || (user?.id && s.studentId === user.id));
+            const mergedSubs: AssignmentSubmission[] = [
+              ...mappedSubs,
+              ...localSubs.filter((ls) => !mappedSubs.some((ms) => ms.id === ls.id || (ms.assignmentId === ls.assignmentId && ms.version === ls.version)))
+            ];
+            setSubmissions(mergedSubs);
           } else {
-            setSubmissions(getLocalSubmissions().filter((s) => s.studentId === student.id));
+            setSubmissions(getLocalSubmissions().filter((s) => s.studentId === student.id || (user?.id && s.studentId === user.id)));
           }
         }
       } else {
         setAssignments(getLocalAssignments());
-        setSubmissions(student ? getLocalSubmissions().filter((s) => s.studentId === student.id) : []);
+        setSubmissions(student ? getLocalSubmissions().filter((s) => s.studentId === student.id || (user?.id && s.studentId === user.id)) : []);
       }
 
       // 2. Évaluations & Tests (Chargement direct depuis Supabase + fusion locale)
@@ -353,8 +359,16 @@ export function UnifiedStudentAssessmentsAssignmentsPage({ defaultTab = "devoirs
             }) : [];
 
             // Fusionner avec les résultats locaux pour ne jamais perdre de données
+            const savedLocalResults = getLocalAssessmentResults();
+            const allLocalRaw = [
+              ...(db.results || []),
+              ...savedLocalResults.filter((sl: any) => !(db.results || []).some((dr: any) => dr.id === sl.id))
+            ];
             const localStudentResults = mapDbResultsToSummaries(
-              (db.results || []).filter((r: any) => r.studentId === student.id),
+              allLocalRaw.filter((r: any) =>
+                (student?.id && (r.studentId === student.id || r.student_id === student.id)) ||
+                (user?.id && (r.studentId === user.id || r.student_id === user.id))
+              ),
               db,
               student
             );
@@ -367,17 +381,35 @@ export function UnifiedStudentAssessmentsAssignmentsPage({ defaultTab = "devoirs
               ...d,
               results: [
                 ...mergedResults,
-                ...d.results.filter((r: any) => r.studentId !== student.id),
+                ...(d.results || []).filter((r: any) => r.studentId !== student?.id && r.studentId !== user?.id),
               ],
             }));
           } catch (e) {
             console.warn("Erreur chargement résultats apprenant Supabase:", e);
-            setResults(mapDbResultsToSummaries(db.results.filter((r: any) => r.studentId === student.id), db, student));
+            const savedLocalResults = getLocalAssessmentResults();
+            const allLocalRaw = [
+              ...(db.results || []),
+              ...savedLocalResults.filter((sl: any) => !(db.results || []).some((dr: any) => dr.id === sl.id))
+            ];
+            setResults(mapDbResultsToSummaries(
+              allLocalRaw.filter((r: any) => (student?.id && r.studentId === student.id) || (user?.id && r.studentId === user.id)),
+              db,
+              student
+            ));
           }
         }
       } else {
         setAssessments(mapDbTestsToAssessments(db.tests.filter((t: any) => t.statut === "publie" || t.statut === "en_cours")));
-        setResults(student ? mapDbResultsToSummaries(db.results.filter((r: any) => r.studentId === student.id), db, student) : []);
+        const savedLocalResults = getLocalAssessmentResults();
+        const allLocalRaw = [
+          ...(db.results || []),
+          ...savedLocalResults.filter((sl: any) => !(db.results || []).some((dr: any) => dr.id === sl.id))
+        ];
+        setResults(student ? mapDbResultsToSummaries(
+          allLocalRaw.filter((r: any) => (student?.id && r.studentId === student.id) || (user?.id && r.studentId === user.id)),
+          db,
+          student
+        ) : []);
       }
     } catch (err) {
       console.error("Erreur chargement données apprenant:", err);

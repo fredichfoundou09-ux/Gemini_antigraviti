@@ -62,6 +62,9 @@ function migrateDB(parsed: DB): DB {
   if (!parsed.advantages) parsed.advantages = [];
   if (!parsed.partners) parsed.partners = [];
   if (!parsed.announcements) parsed.announcements = [];
+  if (!parsed.tests) parsed.tests = [];
+  if (!parsed.results) parsed.results = [];
+  if (!parsed.grades) parsed.grades = [];
   if (!parsed.settings.formations) {
     parsed.settings.formations = {
       informatique: { titre: "GÉNIE INFORMATIQUE", description: "" },
@@ -672,8 +675,37 @@ export function StoreProvider({ children }: { children: React.ReactNode }) {
             }
             return prev.tests || [];
           })(),
-          results: (resultsRes.data || []).map((r: any) => ({ id: r.id, testId: r.test_id, studentId: r.student_id, note: Number(r.note), pourcentage: Number(r.pourcentage), date: r.date?.slice(0, 10) || "", heure: r.heure, valide: r.valide, statut: r.statut })),
-          grades: (gradesRes.data || []).map((g: any) => ({ id: g.id, studentId: g.student_id, moduleId: g.module_id, note: Number(g.note), appreciation: g.appreciation || "", date: g.date })),
+          results: (() => {
+            const remoteResults = (resultsRes.data || []).map((r: any) => ({
+              id: r.id,
+              testId: r.test_id,
+              studentId: r.student_id,
+              note: Number(r.note),
+              pourcentage: Number(r.pourcentage),
+              date: r.date?.slice(0, 10) || "",
+              heure: r.heure,
+              valide: r.valide,
+              statut: r.statut,
+            }));
+            const localOnly = (prev.results || []).filter(
+              (lr: any) => !remoteResults.some((rr: any) => rr.id === lr.id || (rr.testId === lr.testId && rr.studentId === lr.studentId))
+            );
+            return [...remoteResults, ...localOnly];
+          })(),
+          grades: (() => {
+            const remoteGrades = (gradesRes.data || []).map((g: any) => ({
+              id: g.id,
+              studentId: g.student_id,
+              moduleId: g.module_id,
+              note: Number(g.note),
+              appreciation: g.appreciation || "",
+              date: g.date,
+            }));
+            const localOnly = (prev.grades || []).filter(
+              (lg: any) => !remoteGrades.some((rg: any) => rg.id === lg.id || (rg.moduleId === lg.moduleId && rg.studentId === lg.studentId))
+            );
+            return [...remoteGrades, ...localOnly];
+          })(),
           notifications: (notificationsRes.data || [])
             .filter((n: any) => !getDeletedNotificationIds(sessionUser.id).has(n.id))
             .map((n: any) => ({

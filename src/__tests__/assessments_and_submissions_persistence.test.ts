@@ -19,6 +19,8 @@ describe("Module Évaluations & Devoirs : Persistance, Remises & Résultats", ()
     {
       id: "test-uuid-1",
       titre: "Évaluation Cybersécurité",
+      moduleId: "mod-cyber",
+      difficulte: "moyen",
       bareme: 20,
       seuilReussite: 10,
       teacherId: "ENS-001",
@@ -39,6 +41,8 @@ describe("Module Évaluations & Devoirs : Persistance, Remises & Résultats", ()
     {
       id: "test-uuid-2",
       titre: "Évaluation Réseau IP",
+      moduleId: "mod-reseau",
+      difficulte: "facile",
       bareme: 20,
       seuilReussite: 10,
       teacherId: "ENS-002",

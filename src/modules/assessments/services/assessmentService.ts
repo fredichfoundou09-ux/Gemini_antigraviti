@@ -388,9 +388,138 @@ export async function deleteTestResult(id: string): Promise<{ success: boolean; 
   try {
     const { error } = await supabase.from("test_results").delete().eq("id", id);
     if (error) throw error;
+    // Supprimer également du cache local
+    const locals = getLocalAssessmentResults().filter((r) => r.id !== id);
+    saveLocalAssessmentResults(locals);
     return { success: true };
   } catch (err: any) {
     console.error("Erreur suppression résultat test:", err);
     return { success: false, error: err.message };
   }
 }
+
+// 7. Persistance locale haute fiabilité des résultats d'évaluations (Offline resilience)
+const RESULTS_STORAGE_KEY = "sn_assessment_results";
+
+export function getLocalAssessmentResults(): AssessmentResultSummary[] {
+  try {
+    const raw = localStorage.getItem(RESULTS_STORAGE_KEY);
+    return raw ? JSON.parse(raw) : [];
+  } catch {
+    return [];
+  }
+}
+
+export function saveLocalAssessmentResults(results: AssessmentResultSummary[]): void {
+  try {
+    localStorage.setItem(RESULTS_STORAGE_KEY, JSON.stringify(results));
+  } catch (e) {
+    console.warn("Erreur sauvegarde locale résultats évaluations:", e);
+  }
+}
+
+/**
+ * Enregistre un résultat d'examen de manière infaillible :
+ * 1. Enregistre immédiatement dans le cache local (localStorage) pour garantir l'absence de perte
+ * 2. Tente la RPC sécurisée `submit_assessment_result_safe`
+ * 3. Fallback avec auto-résolution UUID et insertion directe dans public.test_results
+ */
+export async function submitAssessmentResultToSupabase(
+  result: AssessmentResultSummary,
+  answers: Record<string, any> = {}
+): Promise<{ success: boolean; id: string; error?: string }> {
+  // 1. Sauvegarde locale prioritaire et inconditionnelle
+  try {
+    const existing = getLocalAssessmentResults();
+    const updated = [
+      result,
+      ...existing.filter((r) => !(r.testId === result.testId && r.studentId === result.studentId)),
+    ];
+    saveLocalAssessmentResults(updated);
+  } catch (e) {
+    console.warn("Erreur cache local résultat:", e);
+  }
+
+  if (!isSupabaseConfigured) {
+    return { success: true, id: result.id };
+  }
+
+  try {
+    // 2. Appel de la RPC sécurisée SECURITY DEFINER
+    const isTestUuid = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(result.testId);
+    const answersArray = Object.entries(answers).map(([qId, val]) => ({
+      questionId: qId,
+      reponseDonnee: typeof val === "string" ? val : JSON.stringify(val),
+    }));
+
+    const { data: rpcData, error: rpcErr } = await supabase.rpc("submit_assessment_result_safe", {
+      p_result: {
+        testId: isTestUuid ? result.testId : undefined,
+        studentId: result.studentId,
+        studentNom: result.studentNom,
+        studentPrenom: result.studentPrenom,
+        note: result.note,
+        bareme: result.bareme,
+        pourcentage: result.pourcentage,
+        date: result.date,
+        heure: result.heure,
+        valide: result.valide,
+        statut: result.statut,
+      },
+      p_answers: answersArray,
+    });
+
+    if (!rpcErr && rpcData && rpcData.success) {
+      return { success: true, id: rpcData.id || result.id };
+    }
+
+    if (rpcErr) {
+      console.warn("RPC submit_assessment_result_safe non disponible ou erreur, repli direct:", rpcErr);
+    }
+
+    // 3. Fallback direct vers public.test_results
+    if (isTestUuid) {
+      // Résoudre le student_id dans public.students
+      let resolvedStudentId = result.studentId;
+      const { data: stuRow } = await supabase
+        .from("students")
+        .select("id")
+        .or(`id.eq.${result.studentId},user_id.eq.${result.studentId}`)
+        .maybeSingle();
+
+      if (stuRow?.id) {
+        resolvedStudentId = stuRow.id;
+      }
+
+      const { data: insData, error: insErr } = await supabase
+        .from("test_results")
+        .insert({
+          test_id: result.testId,
+          student_id: resolvedStudentId,
+          note: result.note,
+          pourcentage: result.pourcentage,
+          date: result.date,
+          heure: result.heure,
+          valide: result.valide,
+          statut: result.statut,
+        })
+        .select("id")
+        .maybeSingle();
+
+      if (insErr) {
+        console.warn("Échec insertion direct test_results:", insErr);
+        // Même en cas d'erreur réseau, le résultat est conservé en local
+        return { success: true, id: result.id, error: insErr.message };
+      }
+
+      return { success: true, id: insData?.id || result.id };
+    }
+
+    return { success: true, id: result.id };
+  } catch (err: any) {
+    console.warn("Erreur submitAssessmentResultToSupabase:", err);
+    // Garantie de non-blocage pour l'apprenant car déjà sauvé en local
+    return { success: true, id: result.id, error: err.message };
+  }
+}
+

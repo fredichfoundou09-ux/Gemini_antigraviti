@@ -28,6 +28,7 @@ import { Assessment, AssessmentStatus as TestStatus, AssessmentResultSummary } f
 import {
   persistAssessmentToSupabase as persistTestToSupabase,
   deleteAssessment,
+  getLocalAssessmentResults,
 } from "@/modules/assessments/services/assessmentService";
 import { AssessmentEditor } from "@/modules/assessments/components/AssessmentEditor";
 import { AssessmentGeneratorModal } from "@/modules/assessments/components/AssessmentGeneratorModal";
@@ -264,7 +265,11 @@ export function UnifiedAssessmentsAssignmentsPage({ defaultTab = "devoirs" }: Pr
             })),
             createdAt: row.created_at,
           }));
-          setAllSubmissions(mappedS);
+          const localSubs = getLocalSubmissions();
+          const localOnlySubs = localSubs.filter(
+            (ls) => !mappedS.some((ms) => ms.id === ls.id || (ms.assignmentId === ls.assignmentId && ms.studentId === ls.studentId && ms.version === ls.version))
+          );
+          setAllSubmissions([...mappedS, ...localOnlySubs]);
         } else {
           setAllSubmissions(getLocalSubmissions());
         }
@@ -379,7 +384,12 @@ export function UnifiedAssessmentsAssignmentsPage({ defaultTab = "devoirs" }: Pr
             });
 
             // Fusionner avec les résultats locaux pour ne perdre aucun résultat
-            const localConverted = mapDbResultsToSummaries(db.results, db);
+            const localSaved = getLocalAssessmentResults();
+            const allLocalRaw = [
+              ...(db.results || []),
+              ...localSaved.filter((sl: any) => !(db.results || []).some((dr: any) => dr.id === sl.id))
+            ];
+            const localConverted = mapDbResultsToSummaries(allLocalRaw, db);
             const localOnly = localConverted.filter(
               (lr) => !mappedResults.some((mr) => mr.id === lr.id || (mr.testId === lr.testId && mr.studentId === lr.studentId))
             );
@@ -387,21 +397,41 @@ export function UnifiedAssessmentsAssignmentsPage({ defaultTab = "devoirs" }: Pr
             setAllResults(combinedResults);
             update((d) => ({ ...d, results: combinedResults as any }));
           } else {
-            setAllResults(mapDbResultsToSummaries(db.results, db));
+            const localSaved = getLocalAssessmentResults();
+            const allLocalRaw = [
+              ...(db.results || []),
+              ...localSaved.filter((sl: any) => !(db.results || []).some((dr: any) => dr.id === sl.id))
+            ];
+            setAllResults(mapDbResultsToSummaries(allLocalRaw, db));
           }
         } catch (resErr) {
           console.warn("Erreur chargement test_results Supabase:", resErr);
-          setAllResults(mapDbResultsToSummaries(db.results, db));
+          const localSaved = getLocalAssessmentResults();
+          const allLocalRaw = [
+            ...(db.results || []),
+            ...localSaved.filter((sl: any) => !(db.results || []).some((dr: any) => dr.id === sl.id))
+          ];
+          setAllResults(mapDbResultsToSummaries(allLocalRaw, db));
         }
       } else {
-        setAllResults(mapDbResultsToSummaries(db.results, db));
+        const localSaved = getLocalAssessmentResults();
+        const allLocalRaw = [
+          ...(db.results || []),
+          ...localSaved.filter((sl: any) => !(db.results || []).some((dr: any) => dr.id === sl.id))
+        ];
+        setAllResults(mapDbResultsToSummaries(allLocalRaw, db));
       }
     } catch (err) {
       console.error("Erreur de chargement unifié:", err);
       setAllAssignments(getLocalAssignments());
       setAllSubmissions(getLocalSubmissions());
       setAllAssessments(mapDbTestsToAssessments(db.tests));
-      setAllResults(mapDbResultsToSummaries(db.results, db));
+      const localSaved = getLocalAssessmentResults();
+      const allLocalRaw = [
+        ...(db.results || []),
+        ...localSaved.filter((sl: any) => !(db.results || []).some((dr: any) => dr.id === sl.id))
+      ];
+      setAllResults(mapDbResultsToSummaries(allLocalRaw, db));
     } finally {
       setIsLoading(false);
     }
