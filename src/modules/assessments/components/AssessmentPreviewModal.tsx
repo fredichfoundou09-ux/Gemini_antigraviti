@@ -1,15 +1,16 @@
 import React, { useState } from "react";
 import { Modal, Btn, Badge } from "@/lib/ui";
 import { Assessment } from "../types";
-import { Clock, Eye, CheckCircle2, ChevronRight, ChevronLeft } from "lucide-react";
+import { Clock, Eye, CheckCircle2, ChevronRight, ChevronLeft, Copy } from "lucide-react";
 
 interface Props {
   assessment: Assessment | null;
   open: boolean;
   onClose: () => void;
+  onDuplicate?: (assessment: Assessment) => void;
 }
 
-export function AssessmentPreviewModal({ assessment, open, onClose }: Props) {
+export function AssessmentPreviewModal({ assessment, open, onClose, onDuplicate }: Props) {
   const [currentIdx, setCurrentIdx] = useState(0);
   const [mockAnswers, setMockAnswers] = useState<Record<string, any>>({});
 
@@ -161,7 +162,20 @@ export function AssessmentPreviewModal({ assessment, open, onClose }: Props) {
           <p className="text-center py-8 text-xs text-slate-500">Aucune question dans cette évaluation.</p>
         )}
 
-        <div className="flex justify-end pt-2">
+        <div className="flex items-center justify-between pt-3 border-t border-white/5">
+          {onDuplicate && assessment ? (
+            <Btn
+              variant="outline"
+              onClick={() => {
+                onDuplicate(assessment);
+                onClose();
+              }}
+              className="gap-2 border-purple-500/40 text-purple-300 hover:bg-purple-500/20 text-xs py-1.5 px-3"
+            >
+              <Copy size={14} />
+              <span>Copier cette évaluation</span>
+            </Btn>
+          ) : <div />}
           <Btn onClick={onClose}>Fermer la prévisualisation</Btn>
         </div>
       </div>

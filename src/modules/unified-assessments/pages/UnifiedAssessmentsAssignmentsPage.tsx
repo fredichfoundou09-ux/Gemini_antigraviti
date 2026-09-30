@@ -623,6 +623,64 @@ export function UnifiedAssessmentsAssignmentsPage({ defaultTab = "devoirs" }: Pr
     setIsTestEditorOpen(true);
   };
 
+  // Duplication d'un devoir (Copier / Coller)
+  const handleDuplicateAssignment = async (source: Assignment) => {
+    try {
+      const newId = typeof crypto !== "undefined" && crypto.randomUUID ? crypto.randomUUID() : `ASG-${Date.now().toString(36)}`;
+      const clonedAttachments = (source.attachments || []).map((att) => ({
+        ...att,
+        id: typeof crypto !== "undefined" && crypto.randomUUID ? crypto.randomUUID() : `att-${Date.now()}-${Math.random().toString(36).slice(2, 6)}`,
+        assignmentId: newId,
+      }));
+
+      const copyAssignment: Assignment = {
+        ...source,
+        id: newId,
+        titre: `${source.titre} (Copie)`,
+        teacherId: currentTeacherId || source.teacherId,
+        statut: "brouillon",
+        attachments: clonedAttachments,
+        dateCreation: new Date().toISOString(),
+        createdAt: new Date().toISOString(),
+      };
+
+      await handleSaveAssignment(copyAssignment);
+      toastMsg.success("Devoir copié", `Une copie complète de « ${source.titre} » a été créée en brouillon.`);
+    } catch (err: any) {
+      console.error("Erreur duplication devoir:", err);
+      toastMsg.error("Erreur de duplication", err.message || "Impossible de dupliquer le devoir.");
+    }
+  };
+
+  // Duplication d'une évaluation (Copier / Coller)
+  const handleDuplicateAssessment = async (source: Assessment) => {
+    try {
+      const newId = typeof crypto !== "undefined" && crypto.randomUUID ? crypto.randomUUID() : `TEST-${Date.now().toString(36)}`;
+      const clonedQuestions = (source.questions || []).map((q, idx) => ({
+        ...q,
+        id: typeof crypto !== "undefined" && crypto.randomUUID ? crypto.randomUUID() : `q-${Date.now()}-${idx}`,
+        testId: newId,
+      }));
+
+      const copyAssessment: Assessment = {
+        ...source,
+        id: newId,
+        titre: `${source.titre} (Copie)`,
+        teacherId: currentTeacherId || source.teacherId,
+        statut: "brouillon",
+        questions: clonedQuestions,
+        createdAt: new Date().toISOString(),
+        date: new Date().toISOString().slice(0, 10),
+      };
+
+      await handleSaveAssessment(copyAssessment);
+      toastMsg.success("Évaluation copiée", `Une copie complète de « ${source.titre} » a été créée en brouillon.`);
+    } catch (err: any) {
+      console.error("Erreur duplication évaluation:", err);
+      toastMsg.error("Erreur de duplication", err.message || "Impossible de dupliquer l'évaluation.");
+    }
+  };
+
   const handleSaveAssessment = async (updated: Assessment) => {
     setIsTestEditorOpen(false);
 
@@ -967,6 +1025,14 @@ export function UnifiedAssessmentsAssignmentsPage({ defaultTab = "devoirs" }: Pr
                         </button>
                         <button
                           type="button"
+                          onClick={() => handleDuplicateAssignment(a)}
+                          title="Copier / Dupliquer ce devoir"
+                          className="rounded-lg p-2 text-slate-400 hover:bg-cyan-500/10 hover:text-cyan-400 transition"
+                        >
+                          <Copy size={15} />
+                        </button>
+                        <button
+                          type="button"
                           onClick={() => {
                             setEditingAssignment(a);
                             setIsEditorOpen(true);
@@ -1093,6 +1159,14 @@ export function UnifiedAssessmentsAssignmentsPage({ defaultTab = "devoirs" }: Pr
                         </button>
                         <button
                           type="button"
+                          onClick={() => handleDuplicateAssessment(t)}
+                          title="Copier / Dupliquer cette évaluation"
+                          className="rounded-lg p-2 text-slate-400 hover:bg-purple-500/10 hover:text-purple-400 transition"
+                        >
+                          <Copy size={15} />
+                        </button>
+                        <button
+                          type="button"
                           onClick={() => {
                             setEditingAssessment(t);
                             setIsTestEditorOpen(true);
@@ -1156,6 +1230,7 @@ export function UnifiedAssessmentsAssignmentsPage({ defaultTab = "devoirs" }: Pr
           open={!!previewingAssignment}
           assignment={previewingAssignment}
           onClose={() => setPreviewingAssignment(null)}
+          onDuplicate={(a) => handleDuplicateAssignment(a)}
         />
       )}
 
@@ -1165,6 +1240,7 @@ export function UnifiedAssessmentsAssignmentsPage({ defaultTab = "devoirs" }: Pr
           open={!!previewingAssessment}
           assessment={previewingAssessment}
           onClose={() => setPreviewingAssessment(null)}
+          onDuplicate={(t) => handleDuplicateAssessment(t)}
         />
       )}
 

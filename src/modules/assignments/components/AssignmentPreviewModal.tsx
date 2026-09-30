@@ -1,7 +1,6 @@
-import React from "react";
 import {
   FileText, Calendar, Clock, Download, AlertCircle,
-  Upload, Shield, X,
+  Upload, Shield, X, Copy,
 } from "lucide-react";
 import { Assignment } from "../types";
 import { getDeadlineInfo } from "../services/assignmentService";
@@ -13,9 +12,10 @@ interface AssignmentPreviewModalProps {
   open: boolean;
   onClose: () => void;
   assignment: Assignment | null;
+  onDuplicate?: (assignment: Assignment) => void;
 }
 
-export function AssignmentPreviewModal({ open, onClose, assignment }: AssignmentPreviewModalProps) {
+export function AssignmentPreviewModal({ open, onClose, assignment, onDuplicate }: AssignmentPreviewModalProps) {
   const { db } = useStore();
 
   if (!assignment) return null;
@@ -153,7 +153,20 @@ export function AssignmentPreviewModal({ open, onClose, assignment }: Assignment
           </div>
         </div>
 
-        <div className="flex justify-end pt-2">
+        <div className="flex items-center justify-between pt-3 border-t border-white/5">
+          {onDuplicate && assignment ? (
+            <Btn
+              variant="outline"
+              onClick={() => {
+                onDuplicate(assignment);
+                onClose();
+              }}
+              className="gap-2 border-cyan-500/40 text-cyan-300 hover:bg-cyan-500/20 text-xs py-1.5 px-3"
+            >
+              <Copy size={14} />
+              <span>Copier ce devoir</span>
+            </Btn>
+          ) : <div />}
           <Btn variant="outline" onClick={onClose}>Fermer l'aperçu</Btn>
         </div>
       </div>
