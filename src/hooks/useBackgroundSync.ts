@@ -208,17 +208,16 @@ export function useBackgroundSync() {
     syncMessagesSilently();
     try { runScheduleAutomation(db, update, log); } catch { /* ignore */ }
 
-    // Timer périodique silencieux
+    // Timer périodique silencieux (15s, en pause si onglet masqué)
     let tickCount = 0;
     const interval = setInterval(() => {
+      if (typeof document !== "undefined" && document.hidden) return;
       syncMessagesSilently();
       tickCount++;
-      if (tickCount % 7 === 0) {
+      if (tickCount % 4 === 0) {
         try { runScheduleAutomation(db, update, log); } catch { /* ignore */ }
       }
-      // Notifie les autres composants pour un rafraîchissement doux
-      window.dispatchEvent(new CustomEvent("sentinelles:supabase-refresh"));
-    }, 4000);
+    }, 15000);
 
     // Écouteur Realtime Supabase pour réaction instantanée dès l'insertion d'un message
     const sb = getSupabase();

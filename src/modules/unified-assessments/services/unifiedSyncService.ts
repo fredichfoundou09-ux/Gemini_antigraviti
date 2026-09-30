@@ -58,10 +58,23 @@ export function subscribeToAssessmentsSync(onSync: () => void): { unsubscribe: (
     sharedBroadcastChannel.addEventListener("message", onBroadcast);
   }
 
-  // 3. Polling silencieux d'arrière-plan (toutes les 4 secondes)
+  // 3. Sondage lent de secours (60s), en pause si l'onglet est masqué
   const pollingInterval = setInterval(() => {
-    onSync();
-  }, 4000);
+    if (typeof document !== "undefined" && document.hidden) {
+      return;
+    }
+    debouncedSync();
+  }, 60000);
+
+  // Réactivation immédiate au retour sur l'onglet
+  const onVisibilityChange = () => {
+    if (typeof document !== "undefined" && !document.hidden) {
+      debouncedSync();
+    }
+  };
+  if (typeof document !== "undefined") {
+    document.addEventListener("visibilitychange", onVisibilityChange);
+  }
 
   // 4. Écouteur Supabase Realtime
   let channel: any = null;
@@ -81,6 +94,9 @@ export function subscribeToAssessmentsSync(onSync: () => void): { unsubscribe: (
       if (typeof window !== "undefined") {
         window.removeEventListener(SUBMISSIONS_UPDATED_EVENT, debouncedSync);
         window.removeEventListener("sentinelles:supabase-refresh", debouncedSync);
+      }
+      if (typeof document !== "undefined") {
+        document.removeEventListener("visibilitychange", onVisibilityChange);
       }
       if (sharedBroadcastChannel) {
         sharedBroadcastChannel.removeEventListener("message", onBroadcast);

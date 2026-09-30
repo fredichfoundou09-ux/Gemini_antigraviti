@@ -123,7 +123,10 @@ export function usePresence() {
       console.warn("Realtime presence subscription warning:", err);
     }
 
-    const polling = setInterval(fetchPresences, 5000);
+    const polling = setInterval(() => {
+      if (typeof document !== "undefined" && document.hidden) return;
+      fetchPresences();
+    }, 20000);
 
     return () => {
       if (channel) {

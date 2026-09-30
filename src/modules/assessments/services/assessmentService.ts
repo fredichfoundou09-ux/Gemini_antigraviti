@@ -213,11 +213,26 @@ export function evaluateAnswersLocally(
       answerText = String(rawAnswer).trim();
       isCorrect = answerText.toLowerCase() === (q.bonneReponse || "").trim().toLowerCase();
     } else {
-      // Courte
+      // Courte : comparaison stricte sans accents et insensible à la casse
       answerText = String(rawAnswer).trim();
-      const given = answerText.toLowerCase();
-      const expected = (q.bonneReponse || "").trim().toLowerCase();
-      isCorrect = given === expected || Boolean(expected && (given.includes(expected) || expected.includes(given)));
+      const normalizeText = (s: string) =>
+        s.trim().toLowerCase().normalize("NFD").replace(/[\u0300-\u036f]/g, "");
+      const given = normalizeText(answerText);
+      const expected = normalizeText(q.bonneReponse || "");
+
+      if (!expected) {
+        // Bonne réponse non configurée -> correction manuelle requise
+        requiresManual = true;
+        return {
+          questionId: q.id,
+          reponseDonnee: answerText,
+          correct: false,
+          pointsObtenus: 0,
+          statutCorrection: "en_attente" as const,
+        };
+      } else {
+        isCorrect = given === expected;
+      }
     }
 
     if (isCorrect) {
@@ -508,18 +523,42 @@ export async function submitAssessmentResultToSupabase(
 
       if (insErr) {
         console.warn("Échec insertion direct test_results:", insErr);
-        // Même en cas d'erreur réseau, le résultat est conservé en local
-        return { success: true, id: result.id, error: insErr.message };
+        return { success: false, id: result.id, error: insErr.message };
+      }
+
+      if (insData?.id && Object.keys(answers).length > 0) {
+        try {
+          const answerInserts = Object.entries(answers)
+            .filter(([qId]) => /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(qId))
+            .map(([qId, val]) => ({
+              result_id: insData.id,
+              question_id: qId,
+              reponse: typeof val === "string" ? val : JSON.stringify(val),
+              reponse_donnee: typeof val === "string" ? val : JSON.stringify(val),
+            }));
+          if (answerInserts.length > 0) {
+            await supabase.from("test_answers").insert(answerInserts);
+          }
+        } catch (e) {
+          console.warn("Erreur insertion repli test_answers:", e);
+        }
       }
 
       return { success: true, id: insData?.id || result.id };
     }
 
+    if (rpcErr || (rpcData && !rpcData.success)) {
+      return {
+        success: false,
+        id: result.id,
+        error: rpcErr?.message || rpcData?.error || "Échec de l'enregistrement de l'évaluation",
+      };
+    }
+
     return { success: true, id: result.id };
   } catch (err: any) {
     console.warn("Erreur submitAssessmentResultToSupabase:", err);
-    // Garantie de non-blocage pour l'apprenant car déjà sauvé en local
-    return { success: true, id: result.id, error: err.message };
+    return { success: false, id: result.id, error: err.message };
   }
 }
 

@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useMemo } from "react";
+import React, { useState, useEffect, useMemo, useRef } from "react";
 import {
   ClipboardCheck, TestTube2, Inbox, Plus, Sparkles, FileUp,
   Download, Search, Filter, BookOpen, Clock, Calendar, CheckCircle2,
@@ -148,6 +148,8 @@ export function UnifiedAssessmentsAssignmentsPage({ defaultTab = "devoirs" }: Pr
   // État local des évaluations & résultats
   const [allAssessments, setAllAssessments] = useState<Assessment[]>([]);
   const [allResults, setAllResults] = useState<AssessmentResultSummary[]>([]);
+  const prevTestsFingerprint = useRef<string>("");
+  const prevResultsFingerprint = useRef<string>("");
 
   const [isLoading, setIsLoading] = useState(true);
   const [selectedParentIdForRemises, setSelectedParentIdForRemises] = useState<string>("all");
@@ -333,10 +335,15 @@ export function UnifiedAssessmentsAssignmentsPage({ defaultTab = "devoirs" }: Pr
               (lt: any) => !mappedTests.some((st) => st.id === lt.id)
             );
             const combined = [...mappedTests, ...mapDbTestsToAssessments(localOnly)];
-            setAllAssessments(combined);
-            update((d) => ({ ...d, tests: combined }));
+            const testsFp = JSON.stringify(combined.map((t) => [t.id, t.titre, t.statut, t.date, t.questions?.length]));
+            if (testsFp !== prevTestsFingerprint.current) {
+              prevTestsFingerprint.current = testsFp;
+              setAllAssessments(combined);
+              update((d) => ({ ...d, tests: combined }));
+            }
           } else {
-            setAllAssessments(mapDbTestsToAssessments(db.tests));
+            const fallbackTests = mapDbTestsToAssessments(db.tests);
+            setAllAssessments(fallbackTests);
           }
         } catch (tErr) {
           console.warn("Erreur chargement tests Supabase, fallback local:", tErr);
@@ -379,11 +386,11 @@ export function UnifiedAssessmentsAssignmentsPage({ defaultTab = "devoirs" }: Pr
                 nbMauvaises: Number(row.nb_mauvaises || 0),
                 nbNonRepondues: Number(row.nb_non_repondues || 0),
                 proctoringAlertsCount: Number(row.proctoring_alerts_count || 0),
-                reponses: row.answers || {},
+                reponses: Array.isArray(row.answers) ? row.answers : (row.answers || {}),
               };
             });
 
-            // Fusionner avec les résultats locaux pour ne perdre aucun résultat
+            // Fusionner avec les résultats locaux pour ne perdre aucun résultat sans écraser les tentatives
             const localSaved = getLocalAssessmentResults();
             const allLocalRaw = [
               ...(db.results || []),
@@ -391,11 +398,15 @@ export function UnifiedAssessmentsAssignmentsPage({ defaultTab = "devoirs" }: Pr
             ];
             const localConverted = mapDbResultsToSummaries(allLocalRaw, db);
             const localOnly = localConverted.filter(
-              (lr) => !mappedResults.some((mr) => mr.id === lr.id || (mr.testId === lr.testId && mr.studentId === lr.studentId))
+              (lr) => !mappedResults.some((mr) => mr.id === lr.id)
             );
             const combinedResults: AssessmentResultSummary[] = [...mappedResults, ...localOnly];
-            setAllResults(combinedResults);
-            update((d) => ({ ...d, results: combinedResults as any }));
+            const resultsFp = JSON.stringify(combinedResults.map((r) => [r.id, r.note, r.valide, r.statut]));
+            if (resultsFp !== prevResultsFingerprint.current) {
+              prevResultsFingerprint.current = resultsFp;
+              setAllResults(combinedResults);
+              update((d) => ({ ...d, results: combinedResults as any }));
+            }
           } else {
             const localSaved = getLocalAssessmentResults();
             const allLocalRaw = [

@@ -147,7 +147,7 @@ export interface AssessmentResultSummary {
   date: string;
   heure?: string;
   dureeUtilisee?: string;
-  reponses?: Record<string, any>;
+  reponses?: Record<string, any> | any[];
   valide: boolean;
   statut: "reussi" | "echoue";
   nbBonnes: number;

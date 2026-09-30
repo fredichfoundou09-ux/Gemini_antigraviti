@@ -67,6 +67,7 @@ export function AssessmentRunner({
   // Surveillance anti-fraude
   const [proctoringAlerts, setProctoringAlerts] = useState<Array<{ type: ProctoringEventType; time: string; msg: string }>>([]);
   const hasEnteredFullscreenRef = useRef(false);
+  const isSubmittingRef = useRef(false);
 
   const activeQuestion = assessment.questions[activeQIndex] as AssessmentQuestion | undefined;
 
@@ -295,23 +296,40 @@ export function AssessmentRunner({
     return () => clearTimeout(timer);
   }, [answers, phase, assessment.id, studentId, attemptId]);
 
-  // 6. Soumission finale de l'examen
+  // 6. Soumission finale de l'examen (P1 & P4)
   const triggerFinalSubmit = async (forcedByTimeout: boolean = false) => {
+    if (isSubmittingRef.current || isSubmitting) return;
+    isSubmittingRef.current = true;
     setIsSubmitting(true);
 
     try {
       let finalEval: any = null;
+      let alreadyPersistedOnServer = false;
+      let serverResultId: string | null = null;
       const isAttemptUuid = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(attemptId);
 
       // Calcul sécurisé côté serveur si disponible
       if (isSupabaseConfigured && isAttemptUuid) {
-        const { data: submitRes, error } = await supabase.rpc("submit_assessment", {
-          p_attempt_id: attemptId,
-          p_answers: answers,
-        });
+        try {
+          const { data: submitRes, error } = await supabase.rpc("submit_assessment", {
+            p_attempt_id: attemptId,
+            p_answers: answers,
+          });
 
-        if (!error && submitRes?.success) {
-          finalEval = submitRes;
+          if (!error && submitRes?.success) {
+            finalEval = submitRes;
+            alreadyPersistedOnServer = true;
+            serverResultId = submitRes.result_id || null;
+          } else if (error) {
+            console.warn("RPC submit_assessment retour erreur:", error);
+            if (error.message?.includes("déjà clôturée") || error.message?.includes("already closed")) {
+              toastMsg.info("Tentative déjà transmise", "Cette évaluation a déjà été soumise et enregistrée.");
+              setPhase("completed");
+              return;
+            }
+          }
+        } catch (e: any) {
+          console.warn("Exception appel submit_assessment:", e);
         }
       }
 
@@ -329,7 +347,7 @@ export function AssessmentRunner({
       const studentObj = db.students.find((s) => s.id === studentId);
 
       const resultPayload = {
-        id: `RES-${Date.now().toString(36)}`,
+        id: serverResultId || `RES-${Date.now().toString(36)}`,
         testId: rawAssessment.id,
         studentId,
         studentNom: studentObj?.nom,
@@ -349,30 +367,55 @@ export function AssessmentRunner({
         proctoringAlertsCount: proctoringAlerts.length,
       };
 
-      // Synchronisation automatique dans le module Notes (db.grades)
+      // Si pas encore persisté sur le serveur via submit_assessment, tenter submitAssessmentResultToSupabase
+      if (!alreadyPersistedOnServer) {
+        const persisRes = await submitAssessmentResultToSupabase(resultPayload as any, answers);
+        if (!persisRes.success) {
+          console.error("Échec persistance évaluation Supabase:", persisRes.error);
+          toastMsg.error(
+            "Erreur d'enregistrement",
+            persisRes.error || "Impossible d'enregistrer votre évaluation sur le serveur. Veuillez réessayer."
+          );
+          // Ne pas afficher de succès, ne pas effacer le brouillon et ne pas quitter l'épreuve
+          isSubmittingRef.current = false;
+          setIsSubmitting(false);
+          setConfirmModalOpen(false);
+          return;
+        }
+        if (persisRes.id) {
+          resultPayload.id = persisRes.id;
+        }
+      }
+
+      // Synchronisation automatique dans le module Notes (db.grades) — P4 : ne remplacer que cette évaluation spécifique et ramener sur 20
+      const scaledNoteOn20 =
+        rawAssessment.bareme > 0
+          ? Math.round(((finalEval.note / rawAssessment.bareme) * 20) * 100) / 100
+          : finalEval.note;
+      const autoGradeId = `GRD_TEST_${rawAssessment.id}_${studentId}`;
       const autoGrade = rawAssessment.moduleId ? {
-        id: `GRD_TEST_${rawAssessment.id}_${studentId}`,
+        id: autoGradeId,
         studentId,
         moduleId: rawAssessment.moduleId,
-        note: finalEval.note, // sur 20
+        note: scaledNoteOn20, // ramené sur 20
         appreciation: `Évaluation: ${rawAssessment.titre}`,
         date: resultPayload.date,
       } : null;
 
-      // Mettre à jour le store local
+      // Mettre à jour le store local sans écraser les autres notes du module
       update((d) => ({
         ...d,
-        results: [resultPayload, ...d.results.filter((r) => !(r.testId === rawAssessment.id && r.studentId === studentId))],
+        results: [
+          resultPayload,
+          ...d.results.filter((r) => r.id !== resultPayload.id && !(r.testId === rawAssessment.id && r.studentId === studentId)),
+        ],
         ...(autoGrade ? {
           grades: [
-            ...d.grades.filter((g) => !(g.moduleId === rawAssessment.moduleId && g.studentId === studentId)),
+            ...d.grades.filter((g) => g.id !== autoGradeId),
             autoGrade,
           ],
         } : {}),
       }));
-
-      // Persistance ultra-fiable (localStorage + Supabase RPC/insert + gestion d'erreurs)
-      await submitAssessmentResultToSupabase(resultPayload as any, answers);
 
       // Notification automatique du formateur
       if (rawAssessment.teacherId) {
@@ -407,6 +450,7 @@ export function AssessmentRunner({
       toastMsg.error("Erreur de soumission", err.message || "Impossible de finaliser l'enregistrement.");
     } finally {
       setIsSubmitting(false);
+      isSubmittingRef.current = false;
       setConfirmModalOpen(false);
     }
   };

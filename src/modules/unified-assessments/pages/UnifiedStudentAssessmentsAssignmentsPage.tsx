@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useMemo } from "react";
+import React, { useState, useEffect, useMemo, useRef } from "react";
 import {
   ClipboardCheck, TestTube2, Inbox, Calendar, Clock, Download,
   CheckCircle2, AlertTriangle, FileText, Send, Award, ArrowRight,
@@ -118,6 +118,7 @@ export function UnifiedStudentAssessmentsAssignmentsPage({ defaultTab = "devoirs
   const [submissions, setSubmissions] = useState<AssignmentSubmission[]>([]);
   const [assessments, setAssessments] = useState<Assessment[]>([]);
   const [results, setResults] = useState<AssessmentResultSummary[]>([]);
+  const prevResultsFingerprint = useRef<string>("");
   const [isLoading, setIsLoading] = useState(true);
 
   // Modal de remise de devoir
@@ -354,11 +355,11 @@ export function UnifiedStudentAssessmentsAssignmentsPage({ defaultTab = "devoirs
                 nbMauvaises: Number(row.nb_mauvaises || 0),
                 nbNonRepondues: Number(row.nb_non_repondues || 0),
                 proctoringAlertsCount: Number(row.proctoring_alerts_count || 0),
-                reponses: row.answers || {},
+                reponses: Array.isArray(row.answers) ? row.answers : (row.answers || {}),
               };
             }) : [];
 
-            // Fusionner avec les résultats locaux pour ne jamais perdre de données
+            // Fusionner avec les résultats locaux sans écraser les tentatives multiples
             const savedLocalResults = getLocalAssessmentResults();
             const allLocalRaw = [
               ...(db.results || []),
@@ -373,17 +374,21 @@ export function UnifiedStudentAssessmentsAssignmentsPage({ defaultTab = "devoirs
               student
             );
             const localOnly = localStudentResults.filter(
-              (lr) => !mappedSupabaseResults.some((mr) => mr.id === lr.id || (mr.testId && mr.testId === lr.testId))
+              (lr) => !mappedSupabaseResults.some((mr) => mr.id === lr.id)
             );
             const mergedResults: AssessmentResultSummary[] = [...mappedSupabaseResults, ...localOnly];
-            setResults(mergedResults);
-            update((d: any) => ({
-              ...d,
-              results: [
-                ...mergedResults,
-                ...(d.results || []).filter((r: any) => r.studentId !== student?.id && r.studentId !== user?.id),
-              ],
-            }));
+            const resultsFp = JSON.stringify(mergedResults.map((r) => [r.id, r.note, r.statut]));
+            if (resultsFp !== prevResultsFingerprint.current) {
+              prevResultsFingerprint.current = resultsFp;
+              setResults(mergedResults);
+              update((d: any) => ({
+                ...d,
+                results: [
+                  ...mergedResults,
+                  ...(d.results || []).filter((r: any) => r.studentId !== student?.id && r.studentId !== user?.id),
+                ],
+              }));
+            }
           } catch (e) {
             console.warn("Erreur chargement résultats apprenant Supabase:", e);
             const savedLocalResults = getLocalAssessmentResults();

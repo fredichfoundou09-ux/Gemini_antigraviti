@@ -755,9 +755,16 @@ export function UnifiedSubmissionsInbox({
               </h4>
 
               {viewingTestResult.assessment.questions.map((q, idx) => {
-                const repDonnee = viewingTestResult.result.reponses
-                  ? viewingTestResult.result.reponses[q.id]
-                  : undefined;
+                const reponsesVal = viewingTestResult.result.reponses;
+                let repDonnee: any = undefined;
+                if (reponsesVal) {
+                  if (Array.isArray(reponsesVal)) {
+                    const found = reponsesVal.find((a: any) => a.question_id === q.id || a.questionId === q.id);
+                    repDonnee = found?.reponse_donnee ?? found?.reponse ?? found?.reponseDonnee;
+                  } else {
+                    repDonnee = (reponsesVal as Record<string, any>)[q.id];
+                  }
+                }
                 const isCorrect = repDonnee === q.bonneReponse;
 
                 return (

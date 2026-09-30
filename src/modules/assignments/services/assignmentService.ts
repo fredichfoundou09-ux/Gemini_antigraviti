@@ -195,12 +195,7 @@ export async function uploadSubmissionFileToStorage(
 
   if (error) {
     console.error("Erreur upload Storage Supabase:", error);
-    // Fallback dataURL
-    return new Promise((resolve) => {
-      const reader = new FileReader();
-      reader.onload = () => resolve({ fileUrl: String(reader.result), storagePath });
-      reader.readAsDataURL(file);
-    });
+    throw new Error(`Échec du téléversement du fichier « ${file.name} » : ${error.message}`);
   }
 
   const { data: pubData } = supabase.storage.from("submission-files").getPublicUrl(storagePath);
