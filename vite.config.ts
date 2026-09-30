@@ -167,22 +167,10 @@ export default defineConfig({
             if (id.includes("lucide-react") || id.includes("sonner") || id.includes("clsx") || id.includes("tailwind-merge")) {
               return "vendor-ui";
             }
+            if (id.includes("qrcode")) {
+              return "vendor-qrcode";
+            }
             return "vendor-core";
-          }
-          if (id.includes("src/pages/admin/Operations")) {
-            return "pages-admin-ops";
-          }
-          if (id.includes("src/pages/admin")) {
-            return "pages-admin";
-          }
-          if (id.includes("src/pages/teacher")) {
-            return "pages-teacher";
-          }
-          if (id.includes("src/pages/student")) {
-            return "pages-student";
-          }
-          if (id.includes("src/pages/partner")) {
-            return "pages-partner";
           }
         },
       },

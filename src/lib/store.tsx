@@ -17,6 +17,7 @@ import {
 import { writeAudit } from "./supabase/audit";
 import { sanitizeJsonPayload } from "./validation/jsonPayload";
 import { getDeletedNotificationIds, getReadNotificationIds } from "./notifications";
+import { idbSet, idbGet } from "./idbStorage";
 import { today } from "./ui";
 
 function slugify(text: string): string {
@@ -180,9 +181,24 @@ export function StoreProvider({ children }: { children: React.ReactNode }) {
   const [user, setUser] = useState<User | null>(() => loadSession(db));
   const sbActive = useSb;
 
-  // Sauvegarde locale de sécurité en continu (filet de secours et mise en cache)
+  // Hydratation de sécurité depuis IndexedDB si localStorage était vide ou saturé
+  useEffect(() => {
+    idbGet<DB>(DB_KEY).then((cached) => {
+      if (cached && cached.version && cached.settings) {
+        setDb((current) => {
+          if ((!current.users || current.users.length === 0) && cached.users && cached.users.length > 0) {
+            return migrateDB(cached);
+          }
+          return current;
+        });
+      }
+    }).catch(() => {});
+  }, []);
+
+  // Sauvegarde locale de sécurité en continu (filet de secours localStorage + persistance haute capacité IndexedDB)
   useEffect(() => {
     try { localStorage.setItem(DB_KEY, JSON.stringify(db)); } catch { /* quota */ }
+    idbSet(DB_KEY, db).catch(() => {});
   }, [db]);
 
   // Si le compte de l'utilisateur est désactivé ou supprimé pendant la session, on le déconnecte.
@@ -1067,13 +1083,13 @@ export function StoreProvider({ children }: { children: React.ReactNode }) {
           }
         }
 
-        let { data: authData, error: authErr } = await supabase.auth.signInWithPassword({ email, password });
+        let { data: _authData, error: authErr } = await supabase.auth.signInWithPassword({ email, password });
         if (authErr && (authErr.message?.toLowerCase().includes("email not confirmed") || authErr.message?.toLowerCase().includes("invalid login credentials"))) {
           // Retry automatique transparent pour absorber la latence d'indexation Supabase Auth
           await new Promise((r) => setTimeout(r, 400));
           const retryRes = await supabase.auth.signInWithPassword({ email, password });
           if (!retryRes.error) {
-            authData = retryRes.data;
+            _authData = retryRes.data;
             authErr = null;
           }
         }
@@ -1522,7 +1538,9 @@ export function StoreProvider({ children }: { children: React.ReactNode }) {
       }
       try {
         localStorage.setItem("sn_module_restrictions_v1", JSON.stringify(nextRestrictions));
-      } catch {}
+      } catch {
+        /* quota */
+      }
       return {
         ...d,
         moduleRestrictions: nextRestrictions,

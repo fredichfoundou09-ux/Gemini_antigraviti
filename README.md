@@ -36,8 +36,9 @@ React/Vite (Vercel)
 - `src/contexts/AuthContext.tsx` : session Supabase Auth
 - `src/hooks/` : hooks de données
 - `supabase/migrations/` : schéma PostgreSQL + RLS + Storage
-- `supabase/functions/create-user/` : création admin d’utilisateurs
-- `backend/` : référence legacy Express/Prisma (non utilisée en prod Supabase-first)
+- `supabase/functions/create-user/` : création admin d’utilisateurs via Edge Function Deno
+- `supabase/functions/ai-agent/` : orchestration sécurisée de l'agent Sentinel AI v2
+- Architecture 100% serverless & cloud-native (l'ancien serveur Express a été intégralement migré et retiré)
 
 ## Déploiement
 

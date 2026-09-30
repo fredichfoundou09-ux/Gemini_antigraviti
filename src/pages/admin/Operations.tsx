@@ -1,4 +1,4 @@
-import { useState, useMemo } from "react";
+import { useState, useMemo, useCallback } from "react";
 import { Link } from "react-router-dom";
 import { QRCodeSVG } from "qrcode.react";
 import {
@@ -1714,7 +1714,7 @@ export function AttendancePage() {
 
         {/* Tableau de bord de la séance */}
         {students.length > 0 && (
-          <div className="mt-4 grid grid-cols-2 sm:grid-cols-4 gap-3 border-t border-white/10 pt-4">
+          <div className="mt-4 grid grid-cols-2 sm:grid-cols-5 gap-3 border-t border-white/10 pt-4">
             <div className="rounded-xl border border-white/10 bg-white/[0.02] p-2.5 text-center">
               <span className="text-[10px] uppercase font-bold text-slate-400">Effectif total</span>
               <p className="font-display text-lg font-black text-white">{students.length}</p>
@@ -1726,6 +1726,10 @@ export function AttendancePage() {
             <div className="rounded-xl border border-amber-400/30 bg-amber-400/10 p-2.5 text-center">
               <span className="text-[10px] uppercase font-bold text-amber-300">En retard</span>
               <p className="font-display text-lg font-black text-amber-300">{retardCount}</p>
+            </div>
+            <div className="rounded-xl border border-red-400/30 bg-red-400/10 p-2.5 text-center">
+              <span className="text-[10px] uppercase font-bold text-red-300">Absents</span>
+              <p className="font-display text-lg font-black text-red-300">{absentCount}</p>
             </div>
             <div className="rounded-xl border border-cyan-400/30 bg-cyan-400/10 p-2.5 text-center">
               <span className="text-[10px] uppercase font-bold text-cyan-300">Taux d'assiduité</span>
@@ -4904,7 +4908,7 @@ export function ScholarshipsPage() {
   const [filterStatut, setFilterStatut] = useState("");
   const [filterFormation, setFilterFormation] = useState("");
 
-  const get = (id: string) => db.scholarships.find((x) => x.studentId === id);
+  const get = useCallback((id: string) => db.scholarships.find((x) => x.studentId === id), [db.scholarships]);
 
   const setStatus = (id: string, statut: any, montant?: number) => {
     const existing = get(id);
@@ -4969,7 +4973,7 @@ export function ScholarshipsPage() {
         }
         return true;
       });
-  }, [db.students, db.scholarships, qSearch, filterYear, filterStatut, filterFormation]);
+  }, [db.students, get, qSearch, filterYear, filterStatut, filterFormation]);
 
   // Statistiques des bourses
   const totalBoursiers = db.scholarships.filter((b) => (b.statut as string) === "trois_ans" || (b.statut as string) === "deux_ans" || (b.statut as string) === "un_an" || b.statut === "bourse_attribuee").length;
