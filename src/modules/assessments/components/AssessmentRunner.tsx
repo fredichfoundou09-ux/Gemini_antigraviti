@@ -369,21 +369,42 @@ export function AssessmentRunner({
         } : {}),
       }));
 
-      // Persistance Supabase test_results
+      // Persistance Supabase test_results sécurisée (RPC ou insertion directe)
       if (isSupabaseConfigured) {
         try {
-          await supabase.from("test_results").insert({
-            test_id: rawAssessment.id,
-            student_id: studentId,
-            note: finalEval.note,
-            pourcentage: finalEval.pourcentage,
-            date: resultPayload.date,
-            heure: resultPayload.heure,
-            valide: resultPayload.valide,
-            statut: resultPayload.statut,
+          const isTestUuid = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(rawAssessment.id);
+          const { error: rpcErr } = await supabase.rpc("submit_assessment_result_safe", {
+            p_result: {
+              testId: isTestUuid ? rawAssessment.id : undefined,
+              studentId,
+              note: finalEval.note,
+              bareme: rawAssessment.bareme,
+              pourcentage: finalEval.pourcentage,
+              date: resultPayload.date,
+              heure: resultPayload.heure,
+              valide: resultPayload.valide,
+              statut: resultPayload.statut,
+            },
+            p_answers: Object.entries(answers).map(([qId, val]) => ({
+              questionId: qId,
+              reponseDonnee: typeof val === "string" ? val : JSON.stringify(val),
+            })),
           });
+
+          if (rpcErr && isTestUuid) {
+            await supabase.from("test_results").insert({
+              test_id: rawAssessment.id,
+              student_id: studentId,
+              note: finalEval.note,
+              pourcentage: finalEval.pourcentage,
+              date: resultPayload.date,
+              heure: resultPayload.heure,
+              valide: resultPayload.valide,
+              statut: resultPayload.statut,
+            });
+          }
         } catch (e) {
-          console.warn("Échec insertion direct test_results:", e);
+          console.warn("Échec persistance Supabase test_results:", e);
         }
       }
 
@@ -415,7 +436,6 @@ export function AssessmentRunner({
 
       setFinalResult(resultPayload);
       setPhase("completed");
-      onFinish(resultPayload);
     } catch (err: any) {
       console.error("Erreur soumission examen:", err);
       toastMsg.error("Erreur de soumission", err.message || "Impossible de finaliser l'enregistrement.");
@@ -552,8 +572,8 @@ export function AssessmentRunner({
           )}
 
           <div className="mt-8 flex justify-center">
-            <Btn onClick={onCancel} className="px-8">
-              Retourner à mes évaluations
+            <Btn onClick={() => onFinish(finalResult)} className="px-8 bg-purple-600 hover:bg-purple-500 text-white font-bold">
+              Consulter mes remises & résultats
             </Btn>
           </div>
         </Card>

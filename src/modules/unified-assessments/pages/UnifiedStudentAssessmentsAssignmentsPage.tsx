@@ -74,12 +74,42 @@ function mapDbTestsToAssessments(tests: any[]): Assessment[] {
   }));
 }
 
+/** Convertit les entrées db.results vers le modèle AssessmentResultSummary */
+function mapDbResultsToSummaries(results: any[], db: any, studentObj?: any): AssessmentResultSummary[] {
+  return (results || []).map((lr: any) => {
+    const matchedTest = db.tests.find((t: any) => t.id === (lr.testId || lr.test_id));
+    const calculatedBareme = Number(lr.bareme || matchedTest?.bareme || 20);
+    const calculatedNote = Number(lr.note ?? 0);
+    return {
+      id: lr.id,
+      testId: lr.testId || lr.test_id || "",
+      studentId: lr.studentId || lr.student_id || studentObj?.id || "",
+      studentNom: lr.studentNom || studentObj?.nom || "",
+      studentPrenom: lr.studentPrenom || studentObj?.prenom || "",
+      studentEmail: lr.studentEmail || studentObj?.email,
+      note: calculatedNote,
+      bareme: calculatedBareme,
+      pourcentage: Number(lr.pourcentage ?? Math.round((calculatedNote / (calculatedBareme || 1)) * 100)),
+      date: lr.date || new Date().toISOString().slice(0, 10),
+      heure: lr.heure || "",
+      valide: Boolean(lr.valide),
+      statut: ((lr.statut === "reussi" || lr.statut === "echoue") ? lr.statut : (calculatedNote >= (calculatedBareme / 2) ? "reussi" : "echoue")),
+      dureeUtilisee: lr.dureeUtilisee || lr.duree_utilisee || "",
+      nbBonnes: Number(lr.nbBonnes || lr.nb_bonnes || 0),
+      nbMauvaises: Number(lr.nbMauvaises || lr.nb_mauvaises || 0),
+      nbNonRepondues: Number(lr.nbNonRepondues || lr.nb_non_repondues || 0),
+      proctoringAlertsCount: Number(lr.proctoringAlertsCount || lr.proctoring_alerts_count || 0),
+      reponses: lr.reponses || lr.answers || {},
+    };
+  });
+}
+
 interface Props {
   defaultTab?: "devoirs" | "tests" | "mes_remises";
 }
 
 export function UnifiedStudentAssessmentsAssignmentsPage({ defaultTab = "devoirs" }: Props) {
-  const { db, user } = useStore();
+  const { db, user, update } = useStore();
   const { profile } = useAuth();
 
   const [activeTab, setActiveTab] = useState<"devoirs" | "tests" | "mes_remises">(defaultTab);
@@ -290,22 +320,64 @@ export function UnifiedStudentAssessmentsAssignmentsPage({ defaultTab = "devoirs
         // Résultats de cet apprenant depuis Supabase
         if (student) {
           try {
-            const { data: resData } = await supabase
+            const { data: resData, error: resErr } = await supabase
               .from("test_results")
               .select("*, answers:test_answers(*)")
               .eq("student_id", student.id);
-            if (resData && resData.length > 0) {
-              setResults(resData as any);
-            } else {
-              setResults(db.results.filter((r) => r.studentId === student.id) as any);
-            }
-          } catch {
-            setResults(db.results.filter((r) => r.studentId === student.id) as any);
+
+            const mappedSupabaseResults: AssessmentResultSummary[] = (!resErr && resData) ? resData.map((row: any) => {
+              const matchedTest = db.tests.find((t: any) => t.id === row.test_id);
+              const calculatedBareme = Number(row.bareme || matchedTest?.bareme || 20);
+              const calculatedNote = Number(row.note ?? 0);
+              return {
+                id: row.id,
+                testId: row.test_id,
+                studentId: row.student_id,
+                studentNom: student.nom,
+                studentPrenom: student.prenom,
+                studentEmail: (student as any).email,
+                note: calculatedNote,
+                bareme: calculatedBareme,
+                pourcentage: Number(row.pourcentage ?? Math.round((calculatedNote / (calculatedBareme || 1)) * 100)),
+                date: (row.date ? new Date(row.date).toISOString().slice(0, 10) : new Date().toISOString().slice(0, 10)),
+                heure: row.heure || "",
+                valide: Boolean(row.valide),
+                statut: ((row.statut === "reussi" || row.statut === "echoue") ? row.statut : (calculatedNote >= (calculatedBareme / 2) ? "reussi" : "echoue")),
+                dureeUtilisee: row.duree_utilisee || "",
+                nbBonnes: Number(row.nb_bonnes || 0),
+                nbMauvaises: Number(row.nb_mauvaises || 0),
+                nbNonRepondues: Number(row.nb_non_repondues || 0),
+                proctoringAlertsCount: Number(row.proctoring_alerts_count || 0),
+                reponses: row.answers || {},
+              };
+            }) : [];
+
+            // Fusionner avec les résultats locaux pour ne jamais perdre de données
+            const localStudentResults = mapDbResultsToSummaries(
+              (db.results || []).filter((r: any) => r.studentId === student.id),
+              db,
+              student
+            );
+            const localOnly = localStudentResults.filter(
+              (lr) => !mappedSupabaseResults.some((mr) => mr.id === lr.id || (mr.testId && mr.testId === lr.testId))
+            );
+            const mergedResults: AssessmentResultSummary[] = [...mappedSupabaseResults, ...localOnly];
+            setResults(mergedResults);
+            update((d: any) => ({
+              ...d,
+              results: [
+                ...mergedResults,
+                ...d.results.filter((r: any) => r.studentId !== student.id),
+              ],
+            }));
+          } catch (e) {
+            console.warn("Erreur chargement résultats apprenant Supabase:", e);
+            setResults(mapDbResultsToSummaries(db.results.filter((r: any) => r.studentId === student.id), db, student));
           }
         }
       } else {
         setAssessments(mapDbTestsToAssessments(db.tests.filter((t: any) => t.statut === "publie" || t.statut === "en_cours")));
-        setResults(student ? (db.results.filter((r) => r.studentId === student.id) as any) : []);
+        setResults(student ? mapDbResultsToSummaries(db.results.filter((r: any) => r.studentId === student.id), db, student) : []);
       }
     } catch (err) {
       console.error("Erreur chargement données apprenant:", err);
@@ -621,7 +693,10 @@ export function UnifiedStudentAssessmentsAssignmentsPage({ defaultTab = "devoirs
               loadData();
               setActiveTab("mes_remises");
             }}
-            onCancel={() => setRunningAssessment(null)}
+            onCancel={() => {
+              setRunningAssessment(null);
+              loadData();
+            }}
           />
         </div>
       )}

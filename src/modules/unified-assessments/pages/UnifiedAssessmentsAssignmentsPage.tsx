@@ -102,6 +102,37 @@ function mapDbTestsToAssessments(tests: any[]): Assessment[] {
   }));
 }
 
+/** Convertit les entrées db.results (store global) vers le modèle AssessmentResultSummary unifié */
+function mapDbResultsToSummaries(results: any[], db: any): AssessmentResultSummary[] {
+  return (results || []).map((lr: any) => {
+    const stu = db.students.find((s: any) => s.id === (lr.studentId || lr.student_id));
+    const matchedTest = db.tests.find((t: any) => t.id === (lr.testId || lr.test_id));
+    const calculatedBareme = Number(lr.bareme || matchedTest?.bareme || 20);
+    const calculatedNote = Number(lr.note ?? 0);
+    return {
+      id: lr.id,
+      testId: lr.testId || lr.test_id || "",
+      studentId: lr.studentId || lr.student_id || "",
+      studentNom: lr.studentNom || stu?.nom || lr.studentId || lr.student_id || "",
+      studentPrenom: lr.studentPrenom || stu?.prenom || "",
+      studentEmail: lr.studentEmail || stu?.email,
+      note: calculatedNote,
+      bareme: calculatedBareme,
+      pourcentage: Number(lr.pourcentage ?? Math.round((calculatedNote / (calculatedBareme || 1)) * 100)),
+      date: lr.date || new Date().toISOString().slice(0, 10),
+      heure: lr.heure || "",
+      valide: Boolean(lr.valide),
+      statut: ((lr.statut === "reussi" || lr.statut === "echoue") ? lr.statut : (calculatedNote >= (calculatedBareme / 2) ? "reussi" : "echoue")),
+      dureeUtilisee: lr.dureeUtilisee || lr.duree_utilisee || "",
+      nbBonnes: Number(lr.nbBonnes || lr.nb_bonnes || 0),
+      nbMauvaises: Number(lr.nbMauvaises || lr.nb_mauvaises || 0),
+      nbNonRepondues: Number(lr.nbNonRepondues || lr.nb_non_repondues || 0),
+      proctoringAlertsCount: Number(lr.proctoringAlertsCount || lr.proctoring_alerts_count || 0),
+      reponses: lr.reponses || lr.answers || {},
+    };
+  });
+}
+
 export function UnifiedAssessmentsAssignmentsPage({ defaultTab = "devoirs" }: Props) {
   const { db, user, update, log, notify } = useStore();
   const { profile } = useAuth();
@@ -310,13 +341,67 @@ export function UnifiedAssessmentsAssignmentsPage({ defaultTab = "devoirs" }: Pr
         setAllAssessments(mapDbTestsToAssessments(db.tests));
       }
 
-      setAllResults(db.results as any);
+      // 4. Chargement des résultats de tests (Supabase + fallback local)
+      if (isSupabaseConfigured) {
+        try {
+          const { data: resData, error: resErr } = await supabase
+            .from("test_results")
+            .select("*, answers:test_answers(*)")
+            .order("date", { ascending: false });
+
+          if (!resErr && resData) {
+            const mappedResults: AssessmentResultSummary[] = resData.map((row: any) => {
+              const stu = db.students.find((s) => s.id === row.student_id);
+              const matchedTest = db.tests.find((t: any) => t.id === row.test_id);
+              const calculatedBareme = Number(row.bareme || matchedTest?.bareme || 20);
+              const calculatedNote = Number(row.note ?? 0);
+              return {
+                id: row.id,
+                testId: row.test_id,
+                studentId: row.student_id,
+                studentNom: stu?.nom || row.student_id,
+                studentPrenom: stu?.prenom || "",
+                studentEmail: stu?.email,
+                note: calculatedNote,
+                bareme: calculatedBareme,
+                pourcentage: Number(row.pourcentage ?? Math.round((calculatedNote / (calculatedBareme || 1)) * 100)),
+                date: (row.date ? new Date(row.date).toISOString().slice(0, 10) : new Date().toISOString().slice(0, 10)),
+                heure: row.heure || "",
+                valide: Boolean(row.valide),
+                statut: ((row.statut === "reussi" || row.statut === "echoue") ? row.statut : (calculatedNote >= (calculatedBareme / 2) ? "reussi" : "echoue")),
+                dureeUtilisee: row.duree_utilisee || "",
+                nbBonnes: Number(row.nb_bonnes || 0),
+                nbMauvaises: Number(row.nb_mauvaises || 0),
+                nbNonRepondues: Number(row.nb_non_repondues || 0),
+                proctoringAlertsCount: Number(row.proctoring_alerts_count || 0),
+                reponses: row.answers || {},
+              };
+            });
+
+            // Fusionner avec les résultats locaux pour ne perdre aucun résultat
+            const localConverted = mapDbResultsToSummaries(db.results, db);
+            const localOnly = localConverted.filter(
+              (lr) => !mappedResults.some((mr) => mr.id === lr.id || (mr.testId === lr.testId && mr.studentId === lr.studentId))
+            );
+            const combinedResults: AssessmentResultSummary[] = [...mappedResults, ...localOnly];
+            setAllResults(combinedResults);
+            update((d) => ({ ...d, results: combinedResults as any }));
+          } else {
+            setAllResults(mapDbResultsToSummaries(db.results, db));
+          }
+        } catch (resErr) {
+          console.warn("Erreur chargement test_results Supabase:", resErr);
+          setAllResults(mapDbResultsToSummaries(db.results, db));
+        }
+      } else {
+        setAllResults(mapDbResultsToSummaries(db.results, db));
+      }
     } catch (err) {
       console.error("Erreur de chargement unifié:", err);
       setAllAssignments(getLocalAssignments());
       setAllSubmissions(getLocalSubmissions());
       setAllAssessments(mapDbTestsToAssessments(db.tests));
-      setAllResults(db.results as any);
+      setAllResults(mapDbResultsToSummaries(db.results, db));
     } finally {
       setIsLoading(false);
     }

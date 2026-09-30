@@ -4,7 +4,13 @@ import {
   Clock, Trash2, Send, AlertTriangle, Check, RotateCcw,
 } from "lucide-react";
 import { Assignment, AssignmentSubmission } from "../types";
-import { getDeadlineInfo, submitAssignmentWork, uploadSubmissionFileToStorage } from "../services/assignmentService";
+import {
+  getDeadlineInfo,
+  submitAssignmentWork,
+  uploadSubmissionFileToStorage,
+  getLocalSubmissions,
+  saveLocalSubmissions,
+} from "../services/assignmentService";
 import { Badge, Btn, Field, Input, Modal, Textarea } from "@/lib/ui";
 import { useStore } from "@/lib/store";
 import { toastMsg } from "@/lib/toast";
@@ -171,6 +177,33 @@ export function StudentAssignmentModal({
       if (!res.success) {
         throw new Error(res.error || "Impossible d'enregistrer la remise.");
       }
+
+      // Mise à jour immédiate du store local
+      const newSubmissionObj: AssignmentSubmission = {
+        id: res.submissionId || `SUB-${Date.now().toString(36)}`,
+        assignmentId: assignment.id,
+        studentId: student.id,
+        version: res.version || 1,
+        texte: texte.trim() || undefined,
+        statut: isLate ? "en_retard" : "remis",
+        dateRemise: new Date().toISOString(),
+        publie: true,
+        files: uploadedFilesPayload.map((f, idx) => ({
+          id: `FILE-${idx + 1}-${Date.now().toString(36)}`,
+          fileName: f.fileName,
+          originalName: f.originalName,
+          fileUrl: f.fileUrl,
+          mime: f.mime,
+          size: f.size,
+          storagePath: f.storagePath,
+        })),
+      };
+
+      const currentLocals = getLocalSubmissions();
+      saveLocalSubmissions([
+        newSubmissionObj,
+        ...currentLocals.filter((s) => !(s.assignmentId === assignment.id && s.studentId === student.id)),
+      ]);
 
       toastMsg.success(
         "Devoir remis avec succès !",

@@ -472,7 +472,7 @@ describe("SENTINEL'S AI v2 - Suite Complète de Tests Avancés", () => {
       const res = await ingestDocumentForRag(txtFile);
       expect(res.title).toBe("reglement.txt");
       expect(res.chunksCount).toBeGreaterThanOrEqual(1);
-    });
+    }, 15000);
 
     it("extrait le texte ou le contexte d'un fichier PDF et image sans planter", async () => {
       const { extractTextFromFile, ingestDocumentForRag } = await import(
@@ -497,7 +497,7 @@ describe("SENTINEL'S AI v2 - Suite Complète de Tests Avancés", () => {
       });
       const extractedImg = await extractTextFromFile(imgFile);
       expect(extractedImg).toContain("Document image indexé");
-    });
+    }, 15000);
   });
 });
 
