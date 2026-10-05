@@ -3,7 +3,7 @@ import {
   ClipboardCheck, TestTube2, Inbox, Plus, Sparkles, FileUp,
   Download, Search, Filter, BookOpen, Clock, Calendar, CheckCircle2,
   AlertTriangle, Users, Layers, Eye, Edit3, Trash2, Copy, Archive, ArrowRight,
-  Award
+  Award, Printer, FileSpreadsheet
 } from "lucide-react";
 import { useStore } from "@/lib/store";
 import { useAuth } from "@/contexts/AuthContext";
@@ -36,6 +36,7 @@ import { AssessmentPreviewModal as TestPreviewModal } from "@/modules/assessment
 import { DocumentImporterModal } from "@/modules/assessments/components/DocumentImporterModal";
 import { generateAssessmentDocx } from "@/modules/assessments/exporters/docxExport";
 import { generateAssessmentPdf } from "@/modules/assessments/exporters/pdfExport";
+import { generatePrintableExamSheet, generateClassGradeRoster } from "@/modules/assessments/exporters/printableExamPdf";
 
 // Boîte de réception unifiée & synchronisation
 import { UnifiedSubmissionsInbox } from "../components/UnifiedSubmissionsInbox";
@@ -775,6 +776,30 @@ export function UnifiedAssessmentsAssignmentsPage({ defaultTab = "devoirs" }: Pr
     }
   };
 
+  const handlePrintExam = (t: Assessment) => {
+    const mod = db.modules.find((m: any) => m.id === t.moduleId);
+    generatePrintableExamSheet(t, {
+      moduleName: mod?.titre || (mod as any)?.nom || t.moduleId,
+      schoolName: (db.settings as any)?.etablissement || "Sentinelles Numériques",
+    });
+    toastMsg.success("Sujet papier A4", "Génération du sujet officiel imprimable avec cartouche d'examen.");
+  };
+
+  const handlePrintRoster = (t: Assessment) => {
+    const mod = db.modules.find((m: any) => m.id === t.moduleId);
+    const classStudents = db.students.filter((s: any) => {
+      if (t.audience === "groupe" && t.targetGroupe) {
+        return (s.formation || s.classe) === t.targetGroupe;
+      }
+      return true;
+    });
+    generateClassGradeRoster(t, classStudents, {
+      moduleName: mod?.titre || (mod as any)?.nom || t.moduleId,
+      schoolName: (db.settings as any)?.etablissement || "Sentinelles Numériques",
+    });
+    toastMsg.success("Bordereau / Émargement", "Génération de la feuille d'émargement et relevé de notes PDF.");
+  };
+
   // Si l'éditeur d'évaluation est ouvert, on affiche l'AssessmentEditor complet
   if (isTestEditorOpen && editingAssessment) {
     return (
@@ -1149,6 +1174,22 @@ export function UnifiedAssessmentsAssignmentsPage({ defaultTab = "devoirs" }: Pr
                       </Btn>
 
                       <div className="flex items-center gap-1">
+                        <button
+                          type="button"
+                          onClick={() => handlePrintExam(t)}
+                          title="Imprimer le sujet officiel A4 (Papier)"
+                          className="rounded-lg p-2 text-slate-400 hover:bg-emerald-500/10 hover:text-emerald-400 transition"
+                        >
+                          <Printer size={15} />
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() => handlePrintRoster(t)}
+                          title="Générer la feuille d'émargement / bordereau PDF"
+                          className="rounded-lg p-2 text-slate-400 hover:bg-cyan-500/10 hover:text-cyan-400 transition"
+                        >
+                          <FileSpreadsheet size={15} />
+                        </button>
                         <button
                           type="button"
                           onClick={() => setPreviewingAssessment(t)}

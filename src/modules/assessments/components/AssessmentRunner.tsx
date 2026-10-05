@@ -1,7 +1,8 @@
 import React, { useState, useEffect, useRef, useCallback } from "react";
 import {
   Clock, ShieldAlert, CheckCircle2, AlertTriangle, Eye, ArrowRight,
-  ArrowLeft, Send, Check, RefreshCw, Lock, Award, FileText, ChevronRight, ChevronLeft
+  ArrowLeft, Send, Check, RefreshCw, Lock, Award, FileText, ChevronRight, ChevronLeft,
+  Bookmark, UploadCloud, Paperclip, X
 } from "lucide-react";
 import { Assessment, AssessmentQuestion, ProctoringEventType } from "../types";
 import {
@@ -56,6 +57,8 @@ export function AssessmentRunner({
 
   // Navigation des questions
   const [activeQIndex, setActiveQIndex] = useState<number>(0);
+  const [flaggedQuestions, setFlaggedQuestions] = useState<Record<string, boolean>>({});
+  const [scannedFiles, setScannedFiles] = useState<Array<{ name: string; url: string; size: number }>>([]);
 
   // Modale de soumission
   const [confirmModalOpen, setConfirmModalOpen] = useState(false);
@@ -365,6 +368,7 @@ export function AssessmentRunner({
         nbMauvaises: finalEval.nbMauvaises || 0,
         nbNonRepondues: finalEval.nbNonRepondues || 0,
         proctoringAlertsCount: proctoringAlerts.length,
+        scannedCopyUrls: scannedFiles.map((f) => f.url),
       };
 
       // Si pas encore persisté sur le serveur via submit_assessment, tenter submitAssessmentResultToSupabase
@@ -661,6 +665,7 @@ export function AssessmentRunner({
             {assessment.questions.map((q, idx) => {
               const isAnswered = answers[q.id] !== undefined && String(answers[q.id]).trim() !== "";
               const isCurrent = idx === activeQIndex;
+              const isFlagged = Boolean(flaggedQuestions[q.id]);
               return (
                 <button
                   key={q.id}
@@ -668,7 +673,7 @@ export function AssessmentRunner({
                     if (rawAssessment.navigationLibre) setActiveQIndex(idx);
                   }}
                   disabled={!rawAssessment.navigationLibre}
-                  className={`h-10 rounded-xl border text-xs font-bold transition flex items-center justify-center ${
+                  className={`relative h-10 rounded-xl border text-xs font-bold transition flex items-center justify-center ${
                     isCurrent
                       ? "border-cyan-400 bg-cyan-400 text-slate-950 shadow-md shadow-cyan-500/20"
                       : isAnswered
@@ -677,6 +682,12 @@ export function AssessmentRunner({
                   }`}
                 >
                   {idx + 1}
+                  {isFlagged && (
+                    <span
+                      className="absolute top-1 right-1 h-2 w-2 rounded-full bg-amber-400 ring-2 ring-slate-950"
+                      title="Marquée pour relecture"
+                    />
+                  )}
                 </button>
               );
             })}
@@ -688,6 +699,9 @@ export function AssessmentRunner({
             </div>
             <div className="flex items-center gap-2">
               <span className="h-2 w-2 rounded-full bg-cyan-400" /> Question en cours
+            </div>
+            <div className="flex items-center gap-2">
+              <span className="h-2 w-2 rounded-full bg-amber-400" /> Marquée pour relecture
             </div>
             <div className="flex items-center gap-2">
               <span className="h-2 w-2 rounded-full bg-slate-600" /> Non répondue
@@ -704,6 +718,28 @@ export function AssessmentRunner({
                   Question {activeQIndex + 1} sur {assessment.questions.length}
                 </span>
                 <div className="flex items-center gap-2">
+                  <button
+                    type="button"
+                    onClick={() =>
+                      setFlaggedQuestions((prev) => ({
+                        ...prev,
+                        [activeQuestion.id]: !prev[activeQuestion.id],
+                      }))
+                    }
+                    className={cn(
+                      "flex items-center gap-1.5 px-2.5 py-1 rounded-lg text-xs font-semibold transition border",
+                      flaggedQuestions[activeQuestion.id]
+                        ? "border-amber-400/60 bg-amber-400/20 text-amber-300"
+                        : "border-white/10 bg-white/5 text-slate-400 hover:text-white"
+                    )}
+                    title="Marquer cette question pour vérification ultérieure"
+                  >
+                    <Bookmark
+                      size={13}
+                      className={flaggedQuestions[activeQuestion.id] ? "fill-amber-400 text-amber-400" : ""}
+                    />
+                    <span>{flaggedQuestions[activeQuestion.id] ? "À revoir" : "Marquer"}</span>
+                  </button>
                   <Badge color="cyan">{activeQuestion.type.toUpperCase()}</Badge>
                   <Badge color="gold">{activeQuestion.points} point{activeQuestion.points > 1 ? "s" : ""}</Badge>
                 </div>
@@ -873,6 +909,72 @@ export function AssessmentRunner({
             <div className="flex items-center gap-2 rounded-lg border border-amber-400/30 bg-amber-400/10 p-2.5 text-xs text-amber-200">
               <AlertTriangle size={15} className="shrink-0" />
               <span>Attention : il vous reste {unansweredCount} question(s) sans réponse.</span>
+            </div>
+          )}
+
+          {Object.values(flaggedQuestions).filter(Boolean).length > 0 && (
+            <div className="flex items-center gap-2 rounded-lg border border-amber-400/40 bg-amber-400/10 p-2.5 text-xs text-amber-300">
+              <Bookmark size={15} className="shrink-0 fill-amber-400 text-amber-400" />
+              <span>
+                Vous avez {Object.values(flaggedQuestions).filter(Boolean).length} question(s) marquée(s) pour relecture.
+              </span>
+            </div>
+          )}
+
+          {(rawAssessment.scannedCopiesAllowed || rawAssessment.formatEpreuve === "hybride") && (
+            <div className="rounded-xl border border-white/10 bg-white/[0.02] p-3.5 space-y-2">
+              <div className="flex items-center justify-between">
+                <span className="text-xs font-bold text-white flex items-center gap-1.5">
+                  <Paperclip size={13} className="text-cyan-400" /> Copie manuscrite / Brouillons scannés (Optionnel)
+                </span>
+                <span className="text-[11px] text-slate-400 font-mono">
+                  {scannedFiles.length} fichier(s)
+                </span>
+              </div>
+              <p className="text-[11px] text-slate-400">
+                Vous pouvez joindre des photos ou un PDF de vos calculs ou rédaction manuscrite.
+              </p>
+
+              <label className="flex items-center justify-center gap-2 p-3 rounded-lg border border-dashed border-white/20 bg-white/[0.02] hover:bg-white/5 cursor-pointer transition text-xs text-slate-300">
+                <UploadCloud size={16} className="text-cyan-400" />
+                <span>Ajouter une copie manuscrite (photo ou PDF)</span>
+                <input
+                  type="file"
+                  multiple
+                  accept="image/*,application/pdf"
+                  className="hidden"
+                  onChange={(e) => {
+                    const files = Array.from(e.target.files || []);
+                    files.forEach((file) => {
+                      const reader = new FileReader();
+                      reader.onload = (loadEvt) => {
+                        const url = loadEvt.target?.result as string;
+                        if (url) {
+                          setScannedFiles((prev) => [...prev, { name: file.name, url, size: file.size }]);
+                        }
+                      };
+                      reader.readAsDataURL(file);
+                    });
+                  }}
+                />
+              </label>
+
+              {scannedFiles.length > 0 && (
+                <div className="space-y-1.5 max-h-32 overflow-y-auto pt-1">
+                  {scannedFiles.map((f, fIdx) => (
+                    <div key={fIdx} className="flex items-center justify-between text-xs bg-slate-950/60 p-2 rounded-lg border border-white/5">
+                      <span className="text-slate-300 truncate max-w-xs">{f.name}</span>
+                      <button
+                        type="button"
+                        onClick={() => setScannedFiles((prev) => prev.filter((_, i) => i !== fIdx))}
+                        className="text-red-400 hover:text-red-300 p-1"
+                      >
+                        <X size={13} />
+                      </button>
+                    </div>
+                  ))}
+                </div>
+              )}
             </div>
           )}
 

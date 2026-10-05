@@ -75,6 +75,11 @@ export interface Assessment {
   bloquerCopierColler: boolean;
   bloquerClicDroit: boolean;
   navigationLibre: boolean;
+  formatEpreuve?: "numerique" | "papier" | "hybride";
+  consignesImpression?: string;
+  documentsAutorises?: boolean;
+  calculatriceAutorisee?: boolean;
+  scannedCopiesAllowed?: boolean;
   datePublication?: string;
   createdAt?: string;
 }
@@ -155,6 +160,10 @@ export interface AssessmentResultSummary {
   nbNonRepondues: number;
   proctoringAlertsCount: number;
   detailsAnswers?: AssessmentAnswerDetail[];
+  manualGrades?: Record<string, number>;
+  manualComments?: Record<string, string>;
+  scannedCopyUrls?: string[];
+  correctionType?: "auto" | "manuelle" | "mixte";
 }
 
 export interface AssessmentDocument {

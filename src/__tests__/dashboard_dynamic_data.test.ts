@@ -43,9 +43,9 @@ describe("Phase 4 — Dashboard Dynamique (Données Réelles & Groupes)", () => 
   ];
 
   const mockAttendance: any[] = [
-    { id: "att-1", studentId: "st-1", moduleId: "mod-1", date: today(), heure: "08:00", statut: "present" },
+    { id: "att-1", studentId: "st-1", moduleId: "mod-1", date: "2026-09-10", heure: "08:00", statut: "present" },
     { id: "att-2", studentId: "st-1", moduleId: "mod-1", date: "2026-09-20", heure: "08:00", statut: "retard" },
-    { id: "att-3", studentId: "st-2", moduleId: "mod-2", date: today(), heure: "10:00", statut: "absent" },
+    { id: "att-3", studentId: "st-2", moduleId: "mod-2", date: "2026-09-25", heure: "10:00", statut: "absent" },
   ];
 
   it("agrège correctement la répartition des présences par groupe et filière sans données codées en dur", () => {

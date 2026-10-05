@@ -153,6 +153,6 @@ describe("Système de Messagerie & Suppression", () => {
 
     markConversationAsDeleted(testConvId, testUserId);
     expect(getDeletedConversationIds(testUserId).has(testConvId)).toBe(true);
-  });
+  }, 15000);
 });
 

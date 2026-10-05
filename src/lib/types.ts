@@ -523,6 +523,12 @@ export interface SiteContent {
   partenaires: string[];
   preInscription: { enabled: boolean; title: string; description: string };
   contact: { email: string; adresse: string };
+  communicationPolicy?: {
+    allowStudentToStudent: boolean;
+    restrictStudentToSameGroup: boolean;
+    examBlackout: boolean;
+    antiSpamHourlyLimit?: number;
+  };
 }
 
 export interface EniaFeeItem { id: string; label: string; value: string; ordre: number }
@@ -552,6 +558,7 @@ export interface EniaContent {
 export interface DB {
   version: number;
   settings: SiteContent;
+  siteContent?: SiteContent;
   modules: Module[];
   users: User[];
   students: Student[];

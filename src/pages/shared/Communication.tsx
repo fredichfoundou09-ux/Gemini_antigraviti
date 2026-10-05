@@ -40,7 +40,8 @@ export function MessageCenter() {
   const { db, user, update, userName, log } = useStore();
   const [searchParams] = useSearchParams();
   const [mode, setMode] = useState<"inbox" | "new" | "ai_automations">("inbox");
-  const [to, setTo] = useState(user?.role === "student" ? "" : "all_students");
+  const isStudent = user?.role === "student";
+  const [to, setTo] = useState(isStudent ? "" : "all_students");
   const [subject, setSubject] = useState("");
   const [body, setBody] = useState("");
   const [sending, setSending] = useState(false);
@@ -615,10 +616,45 @@ export function MessageCenter() {
       }
     });
 
+    // Détection du profil étudiant connecté pour cloisonnement
+    const myStudentObj = isStudent
+      ? (db.students || []).find(
+          (s) => s.userId === user?.id || s.id === user?.id || (user?.email && s.email && s.email.toLowerCase() === user.email.toLowerCase())
+        )
+      : null;
+    const myStudentModules = myStudentObj?.modules || [];
+    const myStudentGroupe = myStudentObj?.groupe || (myStudentObj as any)?.classe || "";
+    const myStudentFormation = myStudentObj?.formation;
+
+    // Déterminer les formateurs assignés aux modules de l'étudiant
+    const allowedTeacherIds = new Set<string>();
+    (db.teachers || []).forEach((t: any) => {
+      const tMods = t.modules || [];
+      const teachesMyModule =
+        tMods.some((m: string) => myStudentModules.includes(m)) ||
+        (db.courses || []).some(
+          (c) => (c.teacherId === t.id || (t.userId && c.teacherId === t.userId)) && myStudentModules.includes(c.moduleId)
+        ) ||
+        (db.schedule || []).some(
+          (sc) => (sc.teacherId === t.id || (t.userId && sc.teacherId === t.userId)) && myStudentModules.includes(sc.moduleId)
+        );
+      if (teachesMyModule || myStudentModules.length === 0) {
+        if (t.userId) allowedTeacherIds.add(t.userId);
+        if (t.id) allowedTeacherIds.add(t.id);
+      }
+    });
+
+    // Politique de communication (configurable par l'administration dans Paramètres)
+    const commPolicy = db.settings?.communicationPolicy || {
+      allowStudentToStudent: false, // Bloqué par défaut pour protéger l'intégrité académique
+      restrictStudentToSameGroup: true,
+      examBlackout: false,
+    };
+
     // Traitement et catégorisation des profils
     let hasAdmin = false;
     candidates.forEach((p) => {
-      if (!p.id || seen.has(p.id)) return;
+      if (!p.id || seen.has(p.id) || p.id === user?.id) return;
       seen.add(p.id);
 
       const r = (p.role || "").toLowerCase();
@@ -637,19 +673,31 @@ export function MessageCenter() {
             category: "admin",
           });
         } else if (isTeacher) {
-          opts.push({
-            id: p.id,
-            label: `👨‍🏫 ${p.name || p.username || "Formateur"} (Formateur)`,
-            icon: <UserCircle2 size={14} className="text-emerald-400" />,
-            category: "teacher",
-          });
-        } else if (isStudentRole) {
-          opts.push({
-            id: p.id,
-            label: `🎓 ${p.name || p.username || "Apprenant"} (Apprenant)`,
-            icon: <Users size={14} className="text-purple-400" />,
-            category: "student",
-          });
+          // Uniquement les formateurs assignés aux modules de l'étudiant
+          if (allowedTeacherIds.size === 0 || allowedTeacherIds.has(p.id)) {
+            opts.push({
+              id: p.id,
+              label: `👨‍🏫 ${p.name || p.username || "Formateur"} (Mon Formateur)`,
+              icon: <UserCircle2 size={14} className="text-emerald-400" />,
+              category: "teacher",
+            });
+          }
+        } else if (isStudentRole && commPolicy.allowStudentToStudent) {
+          // Cloisonnement camarades : même groupe / formation uniquement
+          const targetStudent = (db.students || []).find(
+            (s) => s.userId === p.id || s.id === p.id || s.email === p.email
+          );
+          const isSameGroup = myStudentGroupe && (targetStudent?.groupe === myStudentGroupe || (targetStudent as any)?.classe === myStudentGroupe);
+          const isSameFormation = myStudentFormation && targetStudent?.formation === myStudentFormation;
+
+          if (!commPolicy.restrictStudentToSameGroup || isSameGroup || isSameFormation) {
+            opts.push({
+              id: p.id,
+              label: `🎓 ${p.name || p.username || "Apprenant"} (${myStudentGroupe || "Promotion"})`,
+              icon: <Users size={14} className="text-purple-400" />,
+              category: "student",
+            });
+          }
         }
       } else {
         const cat = isAdmin ? "admin" : isTeacher ? "teacher" : "student";
@@ -993,6 +1041,18 @@ export function MessageCenter() {
             </button>
           </div>
 
+          {isStudent && (db.settings?.communicationPolicy?.examBlackout || (typeof window !== "undefined" && window.sessionStorage?.getItem("sn_in_exam") === "true")) && (
+            <div className="mb-4 flex items-center gap-3 rounded-xl border border-amber-500/30 bg-amber-500/10 p-3.5 text-xs text-amber-200">
+              <AlertTriangle size={18} className="shrink-0 text-amber-400" />
+              <div>
+                <p className="font-bold text-white">Mode Examen / Restriction actif</p>
+                <p className="text-amber-300/90 mt-0.5">
+                  L'envoi de messages externes est temporairement suspendu pour préserver la régularité des épreuves académiques.
+                </p>
+              </div>
+            </div>
+          )}
+
           <form onSubmit={send} className="space-y-4">
             <Field label="Destinataire">
               {/* Filtres par rôle avec décompte visible */}
@@ -1130,7 +1190,7 @@ export function MessageCenter() {
               >
                 Annuler
               </button>
-              <Btn type="submit" disabled={sending} className="flex-1 py-3">
+              <Btn type="submit" disabled={sending || (isStudent && (db.settings?.communicationPolicy?.examBlackout || (typeof window !== "undefined" && window.sessionStorage?.getItem("sn_in_exam") === "true")))} className="flex-1 py-3">
                 <Send size={16} /> {sending ? "Envoi en cours..." : "Envoyer le message"}
               </Btn>
             </div>

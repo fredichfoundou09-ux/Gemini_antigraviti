@@ -10,6 +10,7 @@ import { Assessment, AssessmentQuestion, AssessmentResultSummary } from "@/modul
 import { gradeAssignmentSubmission, deleteSubmission } from "@/modules/assignments/services/assignmentService";
 import { deleteTestResult } from "@/modules/assessments/services/assessmentService";
 import { notifyAssessmentEvent, broadcastSubmissionsChange } from "../services/unifiedSyncService";
+import { BatchPaperGradingModal } from "./BatchPaperGradingModal";
 import { Btn, Badge, Card, Empty, Field, Input, Modal, Select, Textarea } from "@/lib/ui";
 import { useStore } from "@/lib/store";
 import { toastMsg } from "@/lib/toast";
@@ -66,6 +67,9 @@ export function UnifiedSubmissionsInbox({
   const [filterType, setFilterType] = useState<"all" | "devoir" | "evaluation">("all");
   const [filterStatus, setFilterStatus] = useState<"all" | "to_grade" | "graded" | "late">("all");
   const [selectedParentId, setSelectedParentId] = useState<string>(preselectedParentId || "all");
+
+  // Modal de saisie examen papier (Bordereau)
+  const [batchPaperModalOpen, setBatchPaperModalOpen] = useState(false);
 
   // Modal de suppression (Onglet 3)
   const [deletingItem, setDeletingItem] = useState<UnifiedSubmissionItem | null>(null);
@@ -313,6 +317,125 @@ export function UnifiedSubmissionsInbox({
     }
   };
 
+  // 4.2 Ouvrir modale de consultation et notation détaillée d'évaluation
+  const handleOpenTestResultModal = (item: UnifiedSubmissionItem) => {
+    if (!item.evaluationResult || !item.evaluationAssessment) return;
+    const res = item.evaluationResult;
+    const ass = item.evaluationAssessment;
+
+    const initialG: Record<string, number> = {};
+    const initialC: Record<string, string> = {};
+
+    ass.questions.forEach((q) => {
+      if (res.manualGrades && res.manualGrades[q.id] !== undefined) {
+        initialG[q.id] = Number(res.manualGrades[q.id]);
+      } else {
+        const reponsesVal = res.reponses;
+        let repDonnee: any = undefined;
+        if (reponsesVal) {
+          if (Array.isArray(reponsesVal)) {
+            const found = reponsesVal.find((a: any) => a.question_id === q.id || a.questionId === q.id);
+            repDonnee = found?.reponse_donnee ?? found?.reponse ?? found?.reponseDonnee;
+          } else {
+            repDonnee = (reponsesVal as Record<string, any>)[q.id];
+          }
+        }
+        const isCorrect = repDonnee !== undefined && String(repDonnee).trim().toLowerCase() === String(q.bonneReponse || "").trim().toLowerCase();
+        initialG[q.id] = isCorrect ? q.points : 0;
+      }
+
+      if (res.manualComments && res.manualComments[q.id]) {
+        initialC[q.id] = res.manualComments[q.id];
+      }
+    });
+
+    setManualGrades(initialG);
+    setManualComments(initialC);
+    setViewingTestResult({
+      result: res,
+      assessment: ass,
+    });
+  };
+
+  const liveTotalScore = useMemo(() => {
+    if (!viewingTestResult) return 0;
+    return viewingTestResult.assessment.questions.reduce(
+      (sum, q) => sum + (manualGrades[q.id] !== undefined ? manualGrades[q.id] : 0),
+      0
+    );
+  }, [viewingTestResult, manualGrades]);
+
+  const liveTotalPercentage = useMemo(() => {
+    if (!viewingTestResult) return 0;
+    const b = viewingTestResult.result.bareme || viewingTestResult.assessment.bareme || 20;
+    return Math.round((liveTotalScore / (b || 1)) * 100);
+  }, [viewingTestResult, liveTotalScore]);
+
+  const handleSaveManualTestGrades = async () => {
+    if (!viewingTestResult) return;
+    const { result, assessment } = viewingTestResult;
+    const bareme = assessment.bareme || 20;
+    const noteSur20 = Math.round(((liveTotalScore / bareme) * 20) * 10) / 10;
+    const isReussi = liveTotalScore >= (assessment.seuilReussite || bareme / 2);
+
+    const updatedResult: AssessmentResultSummary = {
+      ...result,
+      note: liveTotalScore,
+      bareme,
+      pourcentage: liveTotalPercentage,
+      statut: isReussi ? "reussi" : "echoue",
+      valide: true,
+      manualGrades,
+      manualComments,
+      correctionType: "manuelle",
+    };
+
+    const gradeId = `GRD_TEST_${result.id}`;
+    const autoGrade = {
+      id: gradeId,
+      studentId: result.studentId,
+      moduleId: assessment.moduleId,
+      note: noteSur20,
+      appreciation: `Évaluation : ${assessment.titre} (${isReussi ? "Validée" : "Non validée"}) - Note manuelle`,
+      date: result.date || new Date().toISOString().slice(0, 10),
+    };
+
+    update((d) => ({
+      ...d,
+      results: (d.results || []).map((r) =>
+        r.id === result.id || (r.testId === assessment.id && r.studentId === result.studentId)
+          ? { ...r, ...updatedResult }
+          : r
+      ),
+      grades: [
+        ...(d.grades || []).filter(
+          (g) => g.id !== gradeId && !(g.moduleId === assessment.moduleId && g.studentId === result.studentId)
+        ),
+        autoGrade,
+      ],
+    }));
+
+    log(`Correction manuelle enregistrée pour ${result.studentNom} : ${liveTotalScore}/${bareme} pts (${noteSur20}/20)`);
+    toastMsg.success("Correction manuelle enregistrée ✓", `Note de ${liveTotalScore}/${bareme} enregistrée dans le bulletin.`);
+
+    const studentObj = db.students.find((s) => s.id === result.studentId);
+    const targetUserId = studentObj?.userId || result.studentId;
+    if (targetUserId) {
+      notifyAssessmentEvent({
+        targetUserId,
+        title: "Évaluation notée",
+        body: `Votre copie pour « ${assessment.titre} » a été corrigée : ${liveTotalScore}/${bareme} pts (${noteSur20}/20).`,
+        type: "note",
+        url: "/app/mes-evaluations-devoirs",
+        storeNotify: notify,
+      });
+    }
+
+    broadcastSubmissionsChange();
+    setViewingTestResult(null);
+    if (onRefresh) onRefresh();
+  };
+
   // 5. Export CSV consolidé
   const handleExportCsv = () => {
     const data = filteredItems.map((i) => ({
@@ -463,6 +586,13 @@ export function UnifiedSubmissionsInbox({
               </optgroup>
             </select>
 
+            <Btn
+              onClick={() => setBatchPaperModalOpen(true)}
+              className="shrink-0 text-xs py-1 px-2.5 bg-gradient-to-r from-cyan-600 to-blue-600 hover:from-cyan-500 hover:to-blue-500 text-white font-bold gap-1.5"
+            >
+              <FileText size={14} /> Saisie Examen Papier (Bordereau)
+            </Btn>
+
             <Btn variant="outline" onClick={handleExportCsv} className="shrink-0 text-xs py-1 px-2.5">
               <Download size={14} /> Export CSV
             </Btn>
@@ -577,18 +707,11 @@ export function UnifiedSubmissionsInbox({
                     ) : (
                       <Btn
                         variant="outline"
-                        onClick={() => {
-                          if (item.evaluationResult && item.evaluationAssessment) {
-                            setViewingTestResult({
-                              result: item.evaluationResult,
-                              assessment: item.evaluationAssessment,
-                            });
-                          }
-                        }}
+                        onClick={() => handleOpenTestResultModal(item)}
                         className="gap-1.5 text-xs py-1 px-2.5 text-purple-300 hover:text-white"
                       >
                         <Eye size={14} />
-                        Voir la copie
+                        Voir la copie / Noter
                       </Btn>
                     )}
 
@@ -719,40 +842,71 @@ export function UnifiedSubmissionsInbox({
         </Modal>
       )}
 
-      {/* MODAL 2 : CONSULTATION COPIE ÉVALUATION (QCM / TEST) */}
+      {/* MODAL 2 : CONSULTATION ET NOTATION MANUELLE D'ÉVALUATION */}
       {viewingTestResult && (
         <Modal
           open={!!viewingTestResult}
           onClose={() => setViewingTestResult(null)}
-          title={`Copie d'examen : ${viewingTestResult.assessment.titre}`}
+          title={`Correction & Notation : ${viewingTestResult.assessment.titre}`}
         >
           <div className="space-y-4 max-h-[75vh] overflow-y-auto pr-1">
-            <div className="grid grid-cols-2 gap-3 sm:grid-cols-4 rounded-xl border border-slate-800 bg-slate-950/60 p-3 text-xs">
+            {/* Résumé interactif avec calcul en direct de la note */}
+            <div className="grid grid-cols-2 gap-3 sm:grid-cols-4 rounded-xl border border-slate-800 bg-slate-950/80 p-3 text-xs">
               <div>
                 <span className="text-slate-400">Apprenant :</span>
                 <p className="font-semibold text-white">{viewingTestResult.result.studentNom || viewingTestResult.result.studentId}</p>
               </div>
               <div>
-                <span className="text-slate-400">Note obtenue :</span>
-                <p className="font-bold text-cyan-400 text-sm">{viewingTestResult.result.note} / {viewingTestResult.result.bareme}</p>
+                <span className="text-slate-400">Note recalculée en direct :</span>
+                <p className="font-bold text-cyan-400 text-sm">
+                  {liveTotalScore} / {viewingTestResult.assessment.bareme || 20} pts
+                  <span className="ml-1.5 text-xs font-normal text-slate-400">({liveTotalPercentage}%)</span>
+                </p>
               </div>
               <div>
-                <span className="text-slate-400">Date & heure :</span>
+                <span className="text-slate-400">Date de composition :</span>
                 <p className="text-white">{viewingTestResult.result.date} {viewingTestResult.result.heure || ""}</p>
               </div>
               <div>
-                <span className="text-slate-400">Statut :</span>
-                <Badge color={viewingTestResult.result.statut === "reussi" ? "green" : "red"}>
-                  {viewingTestResult.result.statut === "reussi" ? "Réussi" : "Échoué"}
+                <span className="text-slate-400">Statut de validation :</span>
+                <Badge color={liveTotalScore >= (viewingTestResult.assessment.seuilReussite || (viewingTestResult.assessment.bareme / 2)) ? "green" : "red"}>
+                  {liveTotalScore >= (viewingTestResult.assessment.seuilReussite || (viewingTestResult.assessment.bareme / 2)) ? "Admis / Validé" : "Non validé"}
                 </Badge>
               </div>
             </div>
 
-            {/* Questions et réponses données */}
+            {/* Copies manuscrites / scannées de l'étudiant (si épreuve papier / hybride) */}
+            {viewingTestResult.result.scannedCopyUrls && viewingTestResult.result.scannedCopyUrls.length > 0 && (
+              <div className="rounded-xl border border-cyan-500/30 bg-cyan-950/20 p-3 space-y-2">
+                <span className="text-xs font-bold uppercase tracking-wider text-cyan-300 flex items-center gap-1.5">
+                  <FileText size={14} /> Copies manuscrites scannées déposées ({viewingTestResult.result.scannedCopyUrls.length})
+                </span>
+                <div className="flex flex-wrap gap-2 pt-1">
+                  {viewingTestResult.result.scannedCopyUrls.map((url, i) => (
+                    <a
+                      key={i}
+                      href={url}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      className="inline-flex items-center gap-1.5 rounded-lg border border-cyan-400/40 bg-slate-900 px-3 py-1.5 text-xs text-cyan-200 hover:bg-cyan-500/20 transition"
+                    >
+                      <Eye size={12} /> Page manuscrite #{i + 1}
+                    </a>
+                  ))}
+                </div>
+              </div>
+            )}
+
+            {/* Questions et notation interactive question par question */}
             <div className="space-y-3">
-              <h4 className="text-xs font-semibold uppercase text-slate-400 tracking-wider">
-                Détail des questions ({viewingTestResult.assessment.questions.length})
-              </h4>
+              <div className="flex items-center justify-between border-b border-slate-800 pb-2">
+                <h4 className="text-xs font-semibold uppercase text-slate-400 tracking-wider">
+                  Barème & Notation par question ({viewingTestResult.assessment.questions.length})
+                </h4>
+                <span className="text-[11px] text-cyan-400 font-medium">
+                  Total ajusté : {liveTotalScore} / {viewingTestResult.assessment.bareme} pts
+                </span>
+              </div>
 
               {viewingTestResult.assessment.questions.map((q, idx) => {
                 const reponsesVal = viewingTestResult.result.reponses;
@@ -765,85 +919,135 @@ export function UnifiedSubmissionsInbox({
                     repDonnee = (reponsesVal as Record<string, any>)[q.id];
                   }
                 }
-                const isCorrect = repDonnee === q.bonneReponse;
+                const isAutoCorrect = repDonnee !== undefined && String(repDonnee).trim().toLowerCase() === String(q.bonneReponse || "").trim().toLowerCase();
+                const currentScore = manualGrades[q.id] !== undefined ? manualGrades[q.id] : (isAutoCorrect ? q.points : 0);
 
                 return (
                   <div
                     key={q.id}
-                    className="rounded-xl border border-slate-800 bg-slate-900/50 p-3 text-xs space-y-2"
+                    className="rounded-xl border border-slate-800 bg-slate-900/50 p-3.5 text-xs space-y-2.5 transition hover:border-slate-700"
                   >
                     <div className="flex items-start justify-between gap-2">
                       <span className="font-semibold text-white">
                         {idx + 1}. {q.question}
                       </span>
-                      <span className="text-slate-400 font-mono">({q.points} pt{q.points > 1 ? "s" : ""})</span>
+                      <div className="flex items-center gap-1.5 shrink-0">
+                        <Badge color="blue">{q.type.toUpperCase()}</Badge>
+                        <Badge color="cyan">{q.points} pt{q.points > 1 ? "s" : ""}</Badge>
+                      </div>
                     </div>
 
-                    <div className="rounded-lg bg-slate-950/60 p-2 border border-slate-800/80 space-y-1">
-                      <div className="flex items-center gap-2">
-                        <span className="text-slate-400">Réponse de l'apprenant :</span>
-                        <span className={`font-semibold ${isCorrect ? "text-emerald-400" : "text-rose-400"}`}>
-                          {repDonnee !== undefined ? String(repDonnee) : "Non répondu"}
+                    {/* Réponse de l'apprenant */}
+                    <div className="rounded-lg bg-slate-950/60 p-2.5 border border-slate-800/80 space-y-1">
+                      <div className="flex items-start gap-2">
+                        <span className="text-slate-400 font-medium shrink-0">Réponse donnée :</span>
+                        <span className={`font-semibold ${q.bonneReponse ? (isAutoCorrect ? "text-emerald-400" : "text-rose-400") : "text-slate-200"}`}>
+                          {repDonnee !== undefined && String(repDonnee).trim() !== "" ? String(repDonnee) : "Non répondu"}
                         </span>
                       </div>
                       {q.bonneReponse && (
-                        <div className="flex items-center gap-2 text-slate-400">
-                          <span>Bonne réponse :</span>
+                        <div className="flex items-center gap-2 text-slate-400 pt-0.5">
+                          <span>Bonne réponse attendue :</span>
                           <span className="text-slate-300 font-medium">{q.bonneReponse}</span>
                         </div>
                       )}
                     </div>
+
+                    {/* Console d'attribution des points & raccourcis */}
+                    <div className="flex flex-wrap items-center justify-between gap-2 pt-1 border-t border-slate-800/50">
+                      <div className="flex items-center gap-2">
+                        <span className="text-slate-300 font-medium">Points accordés :</span>
+                        <input
+                          type="number"
+                          step="0.25"
+                          min="0"
+                          max={q.points}
+                          value={currentScore}
+                          onChange={(e) => {
+                            const val = parseFloat(e.target.value);
+                            setManualGrades((prev) => ({
+                              ...prev,
+                              [q.id]: isNaN(val) ? 0 : Math.min(q.points, Math.max(0, val)),
+                            }));
+                          }}
+                          className="w-20 rounded-lg border border-slate-700 bg-slate-900 px-2 py-1 text-center font-bold text-cyan-300 focus:border-cyan-400 focus:outline-none"
+                        />
+                        <span className="text-slate-400 font-mono">/ {q.points} pts</span>
+
+                        {/* Raccourcis rapides */}
+                        <div className="flex items-center gap-1 ml-1.5">
+                          <button
+                            type="button"
+                            onClick={() => setManualGrades((prev) => ({ ...prev, [q.id]: q.points }))}
+                            className="px-2 py-0.5 rounded bg-emerald-500/20 text-emerald-300 hover:bg-emerald-500/30 text-[10px] font-bold transition"
+                          >
+                            Max
+                          </button>
+                          <button
+                            type="button"
+                            onClick={() => setManualGrades((prev) => ({ ...prev, [q.id]: Math.round((q.points / 2) * 10) / 10 }))}
+                            className="px-2 py-0.5 rounded bg-amber-500/20 text-amber-300 hover:bg-amber-500/30 text-[10px] font-bold transition"
+                          >
+                            1/2
+                          </button>
+                          <button
+                            type="button"
+                            onClick={() => setManualGrades((prev) => ({ ...prev, [q.id]: 0 }))}
+                            className="px-2 py-0.5 rounded bg-rose-500/20 text-rose-300 hover:bg-rose-500/30 text-[10px] font-bold transition"
+                          >
+                            0
+                          </button>
+                        </div>
+                      </div>
+                    </div>
+
+                    {/* Champ de remarque individuelle sur la question */}
+                    <input
+                      type="text"
+                      value={manualComments[q.id] || ""}
+                      onChange={(e) => setManualComments((prev) => ({ ...prev, [q.id]: e.target.value }))}
+                      placeholder="Commentaire correcteur sur cette question (optionnel)..."
+                      className="w-full rounded-lg border border-slate-800 bg-slate-950/70 px-2.5 py-1 text-xs text-slate-200 placeholder-slate-600 focus:border-cyan-400 focus:outline-none"
+                    />
                   </div>
                 );
               })}
             </div>
 
-            <div className="flex items-center justify-between pt-3 border-t border-slate-800">
+            {/* Pied de modal avec validation et synchronisation bulletin */}
+            <div className="flex flex-wrap items-center justify-between gap-3 pt-3 border-t border-slate-800">
               <span className="text-xs text-slate-400">
-                {db.grades.some((g) => g.id === `GRD_TEST_${viewingTestResult.result.id}` || (g.studentId === viewingTestResult.result.studentId && g.moduleId === viewingTestResult.assessment.moduleId)) ? (
-                  <span className="text-emerald-400 font-semibold flex items-center gap-1">
-                    <CheckCircle2 size={13} /> Déjà enregistrée au relevé de notes
-                  </span>
-                ) : (
-                  <span className="text-slate-400 italic">Non transférée au relevé</span>
-                )}
+                Note finale calculée :{" "}
+                <strong className="text-cyan-400 font-bold text-sm">
+                  {liveTotalScore} / {viewingTestResult.assessment.bareme || 20} pts
+                </strong>{" "}
+                (soit {Math.round(((liveTotalScore / (viewingTestResult.assessment.bareme || 20)) * 20) * 10) / 10}/20)
               </span>
 
               <div className="flex gap-2">
                 <Btn variant="outline" onClick={() => setViewingTestResult(null)}>
-                  Fermer
+                  Annuler
                 </Btn>
                 <Btn
-                  onClick={() => {
-                    const bareme = viewingTestResult.result.bareme > 0 ? viewingTestResult.result.bareme : 20;
-                    const noteSur20 = Math.round(((viewingTestResult.result.note / bareme) * 20) * 10) / 10;
-                    const gradeId = `GRD_TEST_${viewingTestResult.result.id}`;
-                    const autoGrade = {
-                      id: gradeId,
-                      studentId: viewingTestResult.result.studentId,
-                      moduleId: viewingTestResult.assessment.moduleId,
-                      note: noteSur20,
-                      appreciation: `Évaluation: ${viewingTestResult.assessment.titre} (${viewingTestResult.result.statut === "reussi" ? "Validée" : "Non validée"})`,
-                      date: viewingTestResult.result.date || new Date().toISOString().slice(0, 10),
-                    };
-                    update((d) => ({
-                      ...d,
-                      grades: [
-                        ...d.grades.filter((g) => g.id !== gradeId && !(g.moduleId === viewingTestResult.assessment.moduleId && g.studentId === viewingTestResult.result.studentId)),
-                        autoGrade,
-                      ],
-                    }));
-                    log(`Note d'évaluation attribuée au bulletin pour ${viewingTestResult.result.studentNom} : ${noteSur20}/20`);
-                    toastMsg.success("Note attribuée au bulletin ✓", `${noteSur20}/20 enregistré dans le module Notes.`);
-                  }}
+                  onClick={handleSaveManualTestGrades}
                   className="bg-emerald-600 hover:bg-emerald-500 text-white font-bold gap-1.5"
                 >
-                  <Award size={14} /> Attribuer la note au bulletin
+                  <Award size={14} /> Valider la correction & Attribuer au bulletin
                 </Btn>
               </div>
             </div>
           </div>
         </Modal>
+      )}
+
+      {/* MODAL 3 : SAISIE BORDEREAU EXAMEN PAPIER DE CLASSE */}
+      {batchPaperModalOpen && (
+        <BatchPaperGradingModal
+          open={batchPaperModalOpen}
+          onClose={() => setBatchPaperModalOpen(false)}
+          assessments={assessments}
+          onSuccess={onRefresh}
+        />
       )}
 
       {/* MODAL 3 : CONFIRMATION DE SUPPRESSION (Onglet 3) */}

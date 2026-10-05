@@ -3,7 +3,7 @@ import { Link } from "react-router-dom";
 import {
   Settings, Activity, Shield, Play, CheckCircle2, AlertTriangle, RotateCcw,
   Palette, Moon, Flame, Sparkles, Wallet, School, Compass, Volume2,
-  Calendar, Lock, Plus, Check, Eye, RefreshCw
+  Calendar, Lock, Plus, Check, Eye, RefreshCw, MessageSquare
 } from "lucide-react";
 import { useStore } from "@/lib/store";
 import { Btn, Card, PageHead, Field, Input, today } from "@/lib/ui";
@@ -123,8 +123,20 @@ export function SettingsPage() {
   const s = db.settings;
 
   const [activeCategory, setActiveCategory] = useState<
-    "automatisations" | "general" | "apparence" | "annees" | "restrictions" | "securite" | "enseignement" | "maintenance"
+    "automatisations" | "general" | "apparence" | "annees" | "restrictions" | "communication" | "securite" | "enseignement" | "maintenance"
   >("automatisations");
+
+  // Politique de messagerie & restrictions communication
+  const initialCommPolicy = db.settings?.communicationPolicy || {
+    allowStudentToStudent: true,
+    restrictStudentToSameGroup: true,
+    examBlackout: false,
+    antiSpamHourlyLimit: 30,
+  };
+  const [allowStudentToStudent, setAllowStudentToStudent] = useState(initialCommPolicy.allowStudentToStudent ?? true);
+  const [restrictStudentToSameGroup, setRestrictStudentToSameGroup] = useState(initialCommPolicy.restrictStudentToSameGroup ?? true);
+  const [examBlackout, setExamBlackout] = useState(initialCommPolicy.examBlackout ?? false);
+  const [antiSpamHourlyLimit, setAntiSpamHourlyLimit] = useState(initialCommPolicy.antiSpamHourlyLimit ?? 30);
 
   // Général
   const [email, setEmail] = useState(s?.contact?.email || "contact@sentinelles-numeriques.com");
@@ -328,6 +340,25 @@ export function SettingsPage() {
           <span className="rounded-full bg-amber-400/20 px-2 py-0.5 text-[10px] text-amber-300 font-mono">
             {(db.moduleRestrictions || []).filter(r => r.bloque || r.blocked).length}
           </span>
+        </button>
+
+        <button
+          type="button"
+          onClick={() => setActiveCategory("communication")}
+          className={cn(
+            "flex items-center gap-2 rounded-xl px-4 py-2.5 text-xs font-bold transition-all cursor-pointer",
+            activeCategory === "communication"
+              ? "bg-purple-500/20 text-purple-300 border border-purple-400/40 shadow-[0_0_15px_rgba(168,85,247,0.2)]"
+              : "text-slate-400 hover:text-white hover:bg-white/5"
+          )}
+        >
+          <MessageSquare size={15} className="text-purple-400" />
+          <span>Politique Messagerie</span>
+          {examBlackout && (
+            <span className="rounded-full bg-red-500/20 px-2 py-0.5 text-[10px] text-red-300 font-bold">
+              Blackout actif
+            </span>
+          )}
         </button>
 
         <button
@@ -1272,6 +1303,178 @@ export function SettingsPage() {
                 </div>
               );
             })}
+          </div>
+        </Card>
+      )}
+
+      {/* ================= ONGLET : POLITIQUE DE MESSAGERIE & RESTRICTIONS ================= */}
+      {activeCategory === "communication" && (
+        <Card className="p-6">
+          <div className="flex items-center justify-between mb-4 border-b border-white/10 pb-3">
+            <div className="flex items-center gap-2.5">
+              <div className="flex h-9 w-9 items-center justify-center rounded-lg bg-purple-500/20 text-purple-400 border border-purple-400/40">
+                <MessageSquare size={18} />
+              </div>
+              <div>
+                <h3 className="font-display text-sm font-bold text-white">Politique de messagerie & Cloisonnement des communications</h3>
+                <p className="text-xs text-slate-400">
+                  Définissez les règles de communication entre pairs, la restriction par filière et activez le mode blackout durant les examens.
+                </p>
+              </div>
+            </div>
+            {examBlackout && (
+              <span className="rounded-full bg-red-500/20 border border-red-500/40 px-3 py-1 text-xs font-bold text-red-300 animate-pulse">
+                Blackout d'examen ACTIF
+              </span>
+            )}
+          </div>
+
+          <div className="space-y-4">
+            {/* 1. Messagerie directe entre pairs */}
+            <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3 p-4 rounded-xl border border-white/10 bg-white/[0.02]">
+              <div>
+                <p className="font-bold text-white text-xs">Messagerie directe entre apprenants</p>
+                <p className="text-[11px] text-slate-400">
+                  Si désactivé, les apprenants ne peuvent contacter que l'administration et leurs professeurs assignés.
+                </p>
+              </div>
+              <button
+                type="button"
+                onClick={() => setAllowStudentToStudent(!allowStudentToStudent)}
+                className={cn(
+                  "px-3 py-1.5 rounded-lg text-xs font-bold border transition cursor-pointer shrink-0",
+                  allowStudentToStudent
+                    ? "bg-emerald-500/20 border-emerald-500/40 text-emerald-300"
+                    : "bg-red-500/20 border-red-500/40 text-red-300"
+                )}
+              >
+                {allowStudentToStudent ? "Autorisée (Activée)" : "Interdite (Bloquée)"}
+              </button>
+            </div>
+
+            {/* 2. Cloisonnement par filière */}
+            <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3 p-4 rounded-xl border border-white/10 bg-white/[0.02]">
+              <div>
+                <p className="font-bold text-white text-xs">Cloisonnement strict par promotion / filière</p>
+                <p className="text-[11px] text-slate-400">
+                  Limite les discussions de groupe et contacts entre pairs uniquement aux apprenants inscrits dans la même filière/classe.
+                </p>
+              </div>
+              <button
+                type="button"
+                onClick={() => setRestrictStudentToSameGroup(!restrictStudentToSameGroup)}
+                className={cn(
+                  "px-3 py-1.5 rounded-lg text-xs font-bold border transition cursor-pointer shrink-0",
+                  restrictStudentToSameGroup
+                    ? "bg-cyan-500/20 border-cyan-500/40 text-cyan-300"
+                    : "bg-slate-800 border-white/10 text-slate-400"
+                )}
+              >
+                {restrictStudentToSameGroup ? "Cloisonnement actif" : "Transversal (Tous)"}
+              </button>
+            </div>
+
+            {/* 3. Mode Blackout Examen */}
+            <div className={cn(
+              "flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3 p-4 rounded-xl border transition",
+              examBlackout
+                ? "border-red-500/60 bg-red-950/30 shadow-[0_0_20px_rgba(239,68,68,0.2)]"
+                : "border-white/10 bg-white/[0.02]"
+            )}>
+              <div>
+                <div className="flex items-center gap-2">
+                  <p className="font-bold text-white text-xs">Mode Blackout Examen (Point 16)</p>
+                  {examBlackout && (
+                    <span className="rounded-full bg-red-500/30 text-red-200 border border-red-400/50 text-[10px] px-2 py-0.5 font-bold">
+                      URGENCE EXAMEN
+                    </span>
+                  )}
+                </div>
+                <p className="text-[11px] text-slate-400 mt-0.5">
+                  Verrouille et désactive immédiatement l'envoi de messages pour l'ensemble des apprenants durant les épreuves officielles.
+                </p>
+              </div>
+              <button
+                type="button"
+                onClick={() => setExamBlackout(!examBlackout)}
+                className={cn(
+                  "px-3 py-1.5 rounded-lg text-xs font-bold border transition cursor-pointer shrink-0",
+                  examBlackout
+                    ? "bg-red-500 text-white border-red-400 shadow-md shadow-red-900/50 hover:bg-red-600"
+                    : "bg-slate-800 border-white/10 text-slate-300 hover:bg-slate-700"
+                )}
+              >
+                {examBlackout ? "Désactiver le Blackout" : "Activer le Blackout Examen"}
+              </button>
+            </div>
+
+            {/* 4. Limite anti-spam horaire */}
+            <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3 p-4 rounded-xl border border-white/10 bg-white/[0.02]">
+              <div>
+                <p className="font-bold text-white text-xs">Seuil anti-spam horaire par apprenant</p>
+                <p className="text-[11px] text-slate-400">
+                  Nombre maximum de messages qu'un apprenant peut expédier en une heure pour prévenir tout flood.
+                </p>
+              </div>
+              <div className="flex items-center gap-2">
+                <input
+                  type="number"
+                  min={5}
+                  max={200}
+                  value={antiSpamHourlyLimit}
+                  onChange={(e) => setAntiSpamHourlyLimit(Number(e.target.value) || 30)}
+                  className="w-24 rounded-lg border border-white/15 bg-black/40 px-3 py-1.5 text-xs text-white text-center font-mono"
+                />
+                <span className="text-xs text-slate-400">msg/h</span>
+              </div>
+            </div>
+
+            <div className="pt-3 border-t border-white/10 flex justify-end">
+              <Btn
+                onClick={async () => {
+                  const updatedPolicy = {
+                    allowStudentToStudent,
+                    restrictStudentToSameGroup,
+                    examBlackout,
+                    antiSpamHourlyLimit,
+                  };
+                  update((d) => ({
+                    ...d,
+                    settings: {
+                      ...d.settings,
+                      communicationPolicy: updatedPolicy,
+                    },
+                  }));
+
+                  if (isSupabaseConfigured) {
+                    try {
+                      await supabase.from("site_settings").upsert({
+                        id: "default",
+                        data: {
+                          settings: {
+                            ...db.settings,
+                            communicationPolicy: updatedPolicy,
+                          },
+                          advantages: db.advantages,
+                          partners: db.partners,
+                          announcements: db.announcements,
+                          communicationPolicy: updatedPolicy,
+                        },
+                        updated_at: new Date().toISOString(),
+                      });
+                    } catch (err) {
+                      console.error("Erreur sauvegarde communicationPolicy:", err);
+                    }
+                  }
+
+                  log("Politique de messagerie mise à jour");
+                  toastMsg.success("Politique de communication enregistrée avec succès ✓");
+                }}
+                className="bg-purple-600 hover:bg-purple-500 text-white font-bold"
+              >
+                Enregistrer la politique de messagerie
+              </Btn>
+            </div>
           </div>
         </Card>
       )}
