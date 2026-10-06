@@ -509,14 +509,11 @@ export async function gradeAssignmentSubmission(
 
 // 9. Suppression sécurisée d'un devoir
 export async function deleteAssignment(id: string): Promise<{ success: boolean; error?: string }> {
-  // Mise à jour cache local
-  const localList = getLocalAssignments().filter((a) => a.id !== id);
-  saveLocalAssignments(localList);
-
-  const localSubs = getLocalSubmissions().filter((s) => s.assignmentId !== id);
-  saveLocalSubmissions(localSubs);
-
   if (!isSupabaseConfigured) {
+    const localList = getLocalAssignments().filter((a) => a.id !== id);
+    saveLocalAssignments(localList);
+    const localSubs = getLocalSubmissions().filter((s) => s.assignmentId !== id);
+    saveLocalSubmissions(localSubs);
     return { success: true };
   }
 
@@ -524,13 +521,29 @@ export async function deleteAssignment(id: string): Promise<{ success: boolean; 
     const isUuid = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(id);
     if (isUuid) {
       const { data, error } = await supabase.rpc("delete_assignment_safe", { p_assignment_id: id });
-      if (!error && data && data.success) {
-        return { success: true };
+      if (error) {
+        console.warn("delete_assignment_safe RPC error, repli direct:", error);
+      } else if (data) {
+        if (data.success) {
+          const localList = getLocalAssignments().filter((a) => a.id !== id);
+          saveLocalAssignments(localList);
+          const localSubs = getLocalSubmissions().filter((s) => s.assignmentId !== id);
+          saveLocalSubmissions(localSubs);
+          return { success: true };
+        }
+        return { success: false, error: data.error || "Suppression refusée par le serveur." };
       }
     }
 
-    const { error } = await supabase.from("assignments").delete().eq("id", id);
+    const { data, error } = await supabase.from("assignments").delete().eq("id", id).select("id");
     if (error) throw error;
+    if (!data?.length) {
+      return { success: false, error: "Suppression refusée ou devoir introuvable (droits insuffisants)." };
+    }
+    const localList = getLocalAssignments().filter((a) => a.id !== id);
+    saveLocalAssignments(localList);
+    const localSubs = getLocalSubmissions().filter((s) => s.assignmentId !== id);
+    saveLocalSubmissions(localSubs);
     return { success: true };
   } catch (err: any) {
     console.error("Erreur suppression devoir:", err);
@@ -540,10 +553,9 @@ export async function deleteAssignment(id: string): Promise<{ success: boolean; 
 
 // 10. Suppression d'une remise
 export async function deleteSubmission(id: string): Promise<{ success: boolean; error?: string }> {
-  const localSubs = getLocalSubmissions().filter((s) => s.id !== id);
-  saveLocalSubmissions(localSubs);
-
   if (!isSupabaseConfigured) {
+    const localSubs = getLocalSubmissions().filter((s) => s.id !== id);
+    saveLocalSubmissions(localSubs);
     return { success: true };
   }
 
@@ -551,13 +563,25 @@ export async function deleteSubmission(id: string): Promise<{ success: boolean; 
     const isUuid = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(id);
     if (isUuid) {
       const { data, error } = await supabase.rpc("delete_submission_safe", { p_submission_id: id });
-      if (!error && data && data.success) {
-        return { success: true };
+      if (error) {
+        console.warn("delete_submission_safe RPC error, repli direct:", error);
+      } else if (data) {
+        if (data.success) {
+          const localSubs = getLocalSubmissions().filter((s) => s.id !== id);
+          saveLocalSubmissions(localSubs);
+          return { success: true };
+        }
+        return { success: false, error: data.error || "Suppression refusée par le serveur." };
       }
     }
 
-    const { error } = await supabase.from("assignment_submissions").delete().eq("id", id);
+    const { data, error } = await supabase.from("assignment_submissions").delete().eq("id", id).select("id");
     if (error) throw error;
+    if (!data?.length) {
+      return { success: false, error: "Suppression refusée ou remise introuvable (droits insuffisants)." };
+    }
+    const localSubs = getLocalSubmissions().filter((s) => s.id !== id);
+    saveLocalSubmissions(localSubs);
     return { success: true };
   } catch (err: any) {
     console.error("Erreur suppression remise:", err);

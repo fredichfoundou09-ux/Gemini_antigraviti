@@ -3,7 +3,7 @@ import {
   ClipboardCheck, TestTube2, Download, CheckCircle2, Clock,
   AlertTriangle, Search, Filter, PenLine, User, Calendar,
   Check, FileText, Award, Eye, ShieldAlert, ArrowUpDown, ChevronRight,
-  TrendingUp, RefreshCw, Trash2
+  TrendingUp, RefreshCw, Trash2, RotateCcw
 } from "lucide-react";
 import { Assignment, AssignmentSubmission } from "@/modules/assignments/types";
 import { Assessment, AssessmentQuestion, AssessmentResultSummary } from "@/modules/assessments/types";
@@ -76,7 +76,7 @@ export function UnifiedSubmissionsInbox({
   const [deletingItem, setDeletingItem] = useState<UnifiedSubmissionItem | null>(null);
   const [isDeleting, setIsDeleting] = useState(false);
 
-  const handleConfirmDelete = async () => {
+  const handleConfirmDelete = async (resetAttempt: boolean = false) => {
     if (!deletingItem) return;
     setIsDeleting(true);
     try {
@@ -85,13 +85,20 @@ export function UnifiedSubmissionsInbox({
         if (!res.success) throw new Error(res.error || "Impossible de supprimer la remise.");
         toastMsg.success("Remise supprimée", `La remise de ${deletingItem.studentNom} a été supprimée.`);
       } else if (deletingItem.sourceType === "evaluation" && deletingItem.evaluationResult) {
-        const res = await deleteTestResult(deletingItem.evaluationResult.id);
+        const res = await deleteTestResult(deletingItem.evaluationResult.id, resetAttempt);
         if (!res.success) throw new Error(res.error || "Impossible de supprimer le résultat.");
         update((d) => ({
           ...d,
           results: d.results.filter((r) => r.id !== deletingItem.evaluationResult?.id),
         }));
-        toastMsg.success("Résultat supprimé", `Le résultat de ${deletingItem.studentNom} a été supprimé.`);
+        if (resetAttempt) {
+          toastMsg.success(
+            "Résultat supprimé & recomposition autorisée ✓",
+            `La tentative de ${deletingItem.studentNom} a été réinitialisée.`
+          );
+        } else {
+          toastMsg.success("Résultat supprimé", `Le résultat de ${deletingItem.studentNom} a été supprimé.`);
+        }
       }
 
       broadcastSubmissionsChange();
@@ -1117,14 +1124,24 @@ export function UnifiedSubmissionsInbox({
               </div>
             </div>
 
-            <div className="flex justify-end gap-2 pt-2">
+            <div className="flex flex-wrap items-center justify-end gap-2 pt-2">
               <Btn variant="outline" onClick={() => setDeletingItem(null)}>
                 Annuler
               </Btn>
+              {deletingItem.sourceType === "evaluation" && (
+                <Btn
+                  onClick={() => handleConfirmDelete(true)}
+                  disabled={isDeleting}
+                  className="bg-amber-600 hover:bg-amber-500 text-white gap-1.5 text-xs font-semibold"
+                >
+                  <RotateCcw size={14} />
+                  {isDeleting ? "Traitement..." : "Supprimer & autoriser à recomposer"}
+                </Btn>
+              )}
               <Btn
-                onClick={handleConfirmDelete}
+                onClick={() => handleConfirmDelete(false)}
                 disabled={isDeleting}
-                className="bg-red-600 hover:bg-red-500 text-white gap-1.5"
+                className="bg-red-600 hover:bg-red-500 text-white gap-1.5 text-xs font-semibold"
               >
                 <Trash2 size={14} />
                 {isDeleting ? "Suppression..." : "Supprimer définitivement"}

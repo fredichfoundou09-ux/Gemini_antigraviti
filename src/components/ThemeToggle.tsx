@@ -59,6 +59,8 @@ export function ThemeToggle({ className, align = "right", showLabel = false }: T
         return "Orange Ardoise";
       case "crimson":
         return "Rouge Sentinelle";
+      case "noir-rouge":
+        return "Noir · Rouge · Blanc";
       case "modern":
         return "Modernisé";
       default:
@@ -73,7 +75,9 @@ export function ThemeToggle({ className, align = "right", showLabel = false }: T
         onClick={() => setOpen(!open)}
         className={cn(
           "relative rounded-lg border p-2 sm:p-2.5 transition shrink-0 inline-flex items-center gap-2",
-          currentTheme === "icrm-violet"
+          currentTheme === "noir-rouge"
+            ? "border-[#E10600] bg-black text-[#E10600] shadow-[0_0_14px_rgba(225,6,0,0.5)]"
+            : currentTheme === "icrm-violet"
             ? "border-[#5B3FC4] bg-[#5B3FC4]/20 text-[#5B3FC4] shadow-[0_0_14px_rgba(91,63,196,0.35)]"
             : currentTheme === "uba-archives"
             ? "border-[#E31D25] bg-[#E31D25]/20 text-[#E31D25] shadow-[0_0_14px_rgba(227,29,37,0.35)]"
@@ -246,6 +250,39 @@ export function ThemeToggle({ className, align = "right", showLabel = false }: T
                 </div>
               </div>
               {currentTheme === "crimson" && <Check size={16} className="text-red-400 shrink-0 mt-0.5" />}
+            </button>
+
+            {/* Option: Thème Noir · Rouge · Blanc */}
+            <button
+              type="button"
+              onClick={() => selectTheme("noir-rouge")}
+              className={cn(
+                "w-full text-left rounded-xl p-2.5 transition flex items-start justify-between gap-2 border group",
+                currentTheme === "noir-rouge"
+                  ? "border-[#E10600] bg-black text-white shadow-[0_0_15px_rgba(225,6,0,0.45)]"
+                  : "border-white/10 bg-black/60 text-slate-300 hover:bg-black hover:border-red-600/50 hover:text-white"
+              )}
+            >
+              <div>
+                <div className="flex items-center gap-2">
+                  <Shield size={14} className="text-[#E10600]" />
+                  <p className="text-xs font-bold text-white">Noir · Rouge · Blanc</p>
+                  {currentTheme === "noir-rouge" && (
+                    <span className="rounded bg-[#E10600] px-1.5 py-0.2 text-[9px] font-bold text-white shadow-[0_0_6px_#E10600]">
+                      Actif
+                    </span>
+                  )}
+                </div>
+                <p className="text-[10px] text-white/70 mt-0.5 leading-snug">
+                  Fond noir absolu, rouge écarlate et typographie blanche pure.
+                </p>
+                <div className="flex items-center gap-1.5 mt-1.5">
+                  <span className="h-2.5 w-2.5 rounded-full bg-[#000000] ring-1 ring-white/50" title="Noir #000000" />
+                  <span className="h-2.5 w-2.5 rounded-full bg-[#E10600] shadow-[0_0_4px_#E10600]" title="Rouge #E10600" />
+                  <span className="h-2.5 w-2.5 rounded-full bg-[#FFFFFF] ring-1 ring-black/40" title="Blanc #FFFFFF" />
+                </div>
+              </div>
+              {currentTheme === "noir-rouge" && <Check size={16} className="text-[#E10600] shrink-0 mt-0.5" />}
             </button>
 
             {/* Option 3: Thème Orange Ardoise (Style Infographique - Écrits blancs, 50% Orange / 50% Bleu-Noir) */}

@@ -262,6 +262,8 @@ export function SettingsPage() {
         ? "Thème Orange Ardoise activé ✓"
         : theme === "crimson"
         ? "Thème Rouge Sentinelle activé ✓"
+        : theme === "noir-rouge"
+        ? "Thème Noir · Rouge · Blanc activé ✓"
         : theme === "modern"
         ? "Thème Modernisé activé ✓"
         : "Thème Classique rétabli ✓"
@@ -841,6 +843,38 @@ export function SettingsPage() {
                   <span className="h-3 w-3 rounded-full bg-[#FF174F]" />
                   <span className="h-3 w-3 rounded-full bg-[#9E002B]" />
                   <span className="h-3 w-3 rounded-full bg-[#0E0E14] border border-white/20" />
+                </div>
+              </button>
+
+              {/* Thème: Noir · Rouge · Blanc */}
+              <button
+                type="button"
+                onClick={() => handleSelectTheme("noir-rouge")}
+                className={cn(
+                  "text-left rounded-xl p-3.5 transition border flex flex-col justify-between group cursor-pointer",
+                  currentTheme === "noir-rouge"
+                    ? "border-[#E10600] bg-black shadow-[0_0_18px_rgba(225,6,0,0.45)]"
+                    : "border-white/10 bg-black/70 hover:bg-black hover:border-red-600/50"
+                )}
+              >
+                <div>
+                  <div className="flex items-center justify-between mb-2">
+                    <div className="flex items-center gap-2">
+                      <Shield size={16} className="text-[#E10600]" />
+                      <span className="text-xs font-bold text-white">Noir · Rouge · Blanc</span>
+                    </div>
+                    {currentTheme === "noir-rouge" && (
+                      <span className="rounded bg-[#E10600] px-1.5 py-0.2 text-[9px] font-bold text-white shadow-[0_0_6px_#E10600]">Actif</span>
+                    )}
+                  </div>
+                  <p className="text-[11px] text-white/70 leading-snug mb-3">
+                    Fond noir absolu, rouge écarlate et typographie blanche pure.
+                  </p>
+                </div>
+                <div className="flex items-center gap-1.5 pt-2 border-t border-white/10">
+                  <span className="h-3 w-3 rounded-full bg-[#000000] ring-1 ring-white/50" />
+                  <span className="h-3 w-3 rounded-full bg-[#E10600]" />
+                  <span className="h-3 w-3 rounded-full bg-[#FFFFFF] ring-1 ring-black/40" />
                 </div>
               </button>
 

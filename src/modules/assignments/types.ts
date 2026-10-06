@@ -94,10 +94,17 @@ export interface Assignment {
   autoriserRemiseTardive: boolean;
   tentativesMax: number; // 1, 2, 3, ou 0 pour illimité
   correctionVisibleImmediatement: boolean;
+  modeCorrection?: AssignmentCorrectionMode;
+  modePublication?: AssignmentPublicationMode;
+  datePublicationResultats?: string;
+  anonymiser?: boolean;
   attachments?: AssignmentAttachment[];
   createdAt?: string;
   updatedAt?: string;
 }
+
+export type AssignmentCorrectionMode = "auto" | "manuel" | "hybride";
+export type AssignmentPublicationMode = "immediate" | "apres_validation" | "planifiee";
 
 export interface AssignmentValidationDiagnostic {
   isValid: boolean;

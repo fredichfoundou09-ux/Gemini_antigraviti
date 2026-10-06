@@ -514,6 +514,33 @@ export function AssignmentEditorModal({
                     </Select>
                   </Field>
                 </div>
+
+                {/* Modes Auto / Manuel / Hybride (Refonte Devoirs & Évaluations) */}
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-4 rounded-xl border border-cyan-500/20 bg-cyan-950/20 p-3">
+                  <Field label="Mode de correction devoir">
+                    <Select
+                      value={form.modeCorrection || "manuel"}
+                      onChange={(e) => setForm({ ...form, modeCorrection: e.target.value as any })}
+                      className="text-xs"
+                    >
+                      <option value="manuel">✋ Manuel (Correction détaillée enseignant)</option>
+                      <option value="auto">🤖 Auto (Barème automatique)</option>
+                      <option value="hybride">🔀 Hybride (Grille critériée + appréciation)</option>
+                    </Select>
+                  </Field>
+
+                  <Field label="Publication des résultats">
+                    <Select
+                      value={form.modePublication || "apres_validation"}
+                      onChange={(e) => setForm({ ...form, modePublication: e.target.value as any })}
+                      className="text-xs"
+                    >
+                      <option value="apres_validation">✋ Après validation du formateur</option>
+                      <option value="immediate">🤖 Immédiate à la remise</option>
+                      <option value="planifiee">📅 Planifiée à une date</option>
+                    </Select>
+                  </Field>
+                </div>
               </div>
             </div>
           )}

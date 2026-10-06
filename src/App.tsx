@@ -30,7 +30,6 @@ const ModulesPage = lazy(() => import("@/pages/admin/Operations").then((m) => ({
 const SchedulePage = lazy(() => import("@/pages/admin/Operations").then((m) => ({ default: m.SchedulePage })));
 const AttendancePage = lazy(() => import("@/pages/admin/Operations").then((m) => ({ default: m.AttendancePage })));
 const CoursesPage = lazy(() => import("@/pages/admin/Operations").then((m) => ({ default: m.CoursesPage })));
-const TestsPage = lazy(() => import("@/pages/admin/Operations").then((m) => ({ default: m.TestsPage })));
 const GradesPage = lazy(() => import("@/pages/admin/Operations").then((m) => ({ default: m.GradesPage })));
 const PaymentsPage = lazy(() => import("@/pages/admin/Operations").then((m) => ({ default: m.PaymentsPage })));
 const CertificatesPage = lazy(() => import("@/pages/admin/Operations").then((m) => ({ default: m.CertificatesPage })));
@@ -240,8 +239,8 @@ export default function App() {
               <Route path="mes-cours" element={<Gate roles={["teacher", "student"]} moduleKey="cours"><MyCoursesRoute /></Gate>} />
               <Route path="mes-evaluations-devoirs" element={<Gate roles={["student"]} moduleKey="evaluations"><UnifiedStudentAssessmentsAssignmentsPage /></Gate>} />
               <Route path="mes-devoirs" element={<Gate roles={["student"]} moduleKey="evaluations"><StudentSubmission /></Gate>} />
-              <Route path="tests" element={<Gate roles={["superadmin", "admin", "teacher"]} moduleKey="evaluations"><TestsPage /></Gate>} />
-              <Route path="evaluations" element={<Gate roles={["superadmin", "admin", "teacher"]} moduleKey="evaluations"><TestsPage /></Gate>} />
+              <Route path="tests" element={<Navigate to="/app/evaluations-devoirs" replace />} />
+              <Route path="evaluations" element={<Navigate to="/app/evaluations-devoirs" replace />} />
               <Route path="mes-evaluations" element={<Gate roles={["student"]} moduleKey="evaluations"><UnifiedStudentAssessmentsAssignmentsPage defaultTab="tests" /></Gate>} />
               <Route path="notes" element={<Gate roles={["superadmin", "admin", "teacher"]} moduleKey="evaluations"><GradesPage /></Gate>} />
               <Route path="paiements" element={<Gate roles={["superadmin", "admin"]} moduleKey="finances"><PaymentsPage /></Gate>} />

@@ -968,4 +968,314 @@ $$;
 REVOKE EXECUTE ON FUNCTION public.submit_assessment(uuid, jsonb) FROM PUBLIC, anon;
 GRANT EXECUTE ON FUNCTION public.submit_assessment(uuid, jsonb) TO authenticated, service_role;
 
+-- ==============================================================================
+-- 10. NOTATION MANUELLE, BORDEREAU PAPIER, ET MODES AUTO/MANUEL/HYBRIDE
+-- ==============================================================================
+
+CREATE OR REPLACE FUNCTION public.grade_test_result(
+  p_result_id uuid,
+  p_grades jsonb DEFAULT '{}'::jsonb,
+  p_comments jsonb DEFAULT '{}'::jsonb
+)
+RETURNS jsonb
+LANGUAGE plpgsql
+SECURITY DEFINER
+SET search_path = public, pg_temp
+AS $$
+DECLARE
+  v_user_id uuid := auth.uid();
+  v_role text;
+  v_test_id uuid;
+  v_teacher_id uuid;
+  v_test_owner_uid uuid;
+  v_bareme numeric;
+  v_seuil numeric;
+  v_total_points numeric := 0;
+  v_total_max numeric := 0;
+  v_pourcentage numeric := 0;
+  v_statut text;
+  v_q_id text;
+  v_q_val text;
+  v_comm text;
+  v_num_note numeric;
+BEGIN
+  IF v_user_id IS NULL THEN
+    RETURN jsonb_build_object('success', false, 'error', 'Non authentifié');
+  END IF;
+
+  SELECT role INTO v_role FROM public.users WHERE id = v_user_id;
+
+  SELECT tr.test_id INTO v_test_id
+  FROM public.test_results tr
+  WHERE tr.id = p_result_id;
+
+  IF v_test_id IS NULL THEN
+    RETURN jsonb_build_object('success', false, 'error', 'Résultat introuvable');
+  END IF;
+
+  SELECT t.teacher_id, t.bareme, t.seuil_reussite
+  INTO v_teacher_id, v_bareme, v_seuil
+  FROM public.tests t
+  WHERE t.id = v_test_id;
+
+  IF v_teacher_id IS NOT NULL THEN
+    SELECT te.user_id INTO v_test_owner_uid
+    FROM public.teachers te
+    WHERE te.id = v_teacher_id;
+  END IF;
+
+  IF v_role NOT IN ('admin', 'superadmin') AND (v_test_owner_uid IS NULL OR v_test_owner_uid <> v_user_id) THEN
+    RETURN jsonb_build_object('success', false, 'error', 'Accès non autorisé : vous devez être le formateur titulaire de cette épreuve.');
+  END IF;
+
+  FOR v_q_id IN SELECT jsonb_object_keys(p_grades)
+  LOOP
+    v_q_val := p_grades->>v_q_id;
+    v_comm := p_comments->>v_q_id;
+    BEGIN
+      v_num_note := v_q_val::numeric;
+    EXCEPTION WHEN OTHERS THEN
+      v_num_note := 0;
+    END;
+
+    UPDATE public.test_answers
+    SET note_manuelle = v_num_note,
+        commentaire_formateur = v_comm,
+        statut_correction = 'corrige'
+    WHERE result_id = p_result_id
+      AND question_id = v_q_id::uuid;
+  END LOOP;
+
+  SELECT COALESCE(SUM(COALESCE(ta.note_manuelle, ta.points_obtenus, 0)), 0),
+         COALESCE(SUM(COALESCE(q.points, 1)), 20)
+  INTO v_total_points, v_total_max
+  FROM public.test_answers ta
+  LEFT JOIN public.questions q ON q.id = ta.question_id
+  WHERE ta.result_id = p_result_id;
+
+  IF v_bareme IS NULL OR v_bareme <= 0 THEN
+    v_bareme := 20;
+  END IF;
+
+  IF v_total_max > 0 THEN
+    v_total_points := ROUND(((v_total_points / v_total_max) * v_bareme)::numeric, 2);
+    v_pourcentage := ROUND(((v_total_points / v_bareme) * 100)::numeric, 0);
+  ELSE
+    v_pourcentage := 0;
+  END IF;
+
+  IF v_seuil IS NULL THEN
+    v_seuil := v_bareme / 2;
+  END IF;
+
+  IF v_total_points >= v_seuil THEN
+    v_statut := 'reussi';
+  ELSE
+    v_statut := 'echoue';
+  END IF;
+
+  UPDATE public.test_results
+  SET note = v_total_points,
+      pourcentage = v_pourcentage,
+      statut = v_statut,
+      valide = true
+  WHERE id = p_result_id;
+
+  RETURN jsonb_build_object(
+    'success', true,
+    'result_id', p_result_id,
+    'note', v_total_points,
+    'pourcentage', v_pourcentage,
+    'statut', v_statut,
+    'valide', true
+  );
+END;
+$$;
+
+REVOKE EXECUTE ON FUNCTION public.grade_test_result(uuid, jsonb, jsonb) FROM PUBLIC, anon;
+GRANT EXECUTE ON FUNCTION public.grade_test_result(uuid, jsonb, jsonb) TO authenticated, service_role;
+
+CREATE OR REPLACE FUNCTION public.delete_test_result_safe(
+  p_result_id uuid,
+  p_reset_attempt boolean DEFAULT false
+)
+RETURNS jsonb
+LANGUAGE plpgsql
+SECURITY DEFINER
+SET search_path = public, pg_temp
+AS $$
+DECLARE
+  v_caller_uid uuid := auth.uid();
+  v_role text;
+  v_test_id uuid;
+  v_student_id text;
+  v_teacher_id text;
+  v_owner_uid uuid;
+BEGIN
+  IF v_caller_uid IS NULL THEN
+    RETURN jsonb_build_object('success', false, 'error', 'Non authentifié');
+  END IF;
+
+  SELECT tr.test_id, tr.student_id INTO v_test_id, v_student_id
+  FROM public.test_results tr
+  WHERE tr.id = p_result_id;
+
+  IF v_test_id IS NULL THEN
+    RETURN jsonb_build_object('success', false, 'error', 'Résultat introuvable');
+  END IF;
+
+  SELECT role INTO v_role FROM public.users WHERE id = v_caller_uid;
+  SELECT teacher_id INTO v_teacher_id FROM public.tests WHERE id = v_test_id;
+
+  IF v_teacher_id IS NOT NULL THEN
+    SELECT user_id INTO v_owner_uid FROM public.teachers WHERE id = v_teacher_id;
+  END IF;
+
+  IF v_role NOT IN ('admin', 'superadmin') AND (v_owner_uid IS NULL OR v_owner_uid <> v_caller_uid) THEN
+    RETURN jsonb_build_object('success', false, 'error', 'Droits formateur titulaire ou administration requis');
+  END IF;
+
+  DELETE FROM public.test_answers WHERE result_id = p_result_id;
+  DELETE FROM public.test_results WHERE id = p_result_id;
+
+  IF p_reset_attempt AND v_test_id IS NOT NULL AND v_student_id IS NOT NULL THEN
+    DELETE FROM public.assessment_attempts
+    WHERE test_id = v_test_id AND student_id = v_student_id;
+  END IF;
+
+  RETURN jsonb_build_object(
+    'success', true,
+    'result_id', p_result_id,
+    'attempt_reset', p_reset_attempt
+  );
+END;
+$$;
+
+REVOKE EXECUTE ON FUNCTION public.delete_test_result_safe(uuid, boolean) FROM PUBLIC, anon;
+GRANT EXECUTE ON FUNCTION public.delete_test_result_safe(uuid, boolean) TO authenticated, service_role;
+
+CREATE OR REPLACE FUNCTION public.save_paper_results(
+  p_test_id uuid,
+  p_rows jsonb
+)
+RETURNS jsonb
+LANGUAGE plpgsql
+SECURITY DEFINER
+SET search_path = public, pg_temp
+AS $$
+DECLARE
+  v_caller_uid uuid := auth.uid();
+  v_role text;
+  v_test RECORD;
+  v_owner_uid uuid;
+  v_row jsonb;
+  v_student_id text;
+  v_note numeric;
+  v_bareme numeric;
+  v_pourcentage numeric;
+  v_statut text;
+  v_appreciation text;
+  v_result_id uuid;
+  v_saved_count int := 0;
+BEGIN
+  IF v_caller_uid IS NULL THEN
+    RETURN jsonb_build_object('success', false, 'error', 'Non authentifié');
+  END IF;
+
+  SELECT * INTO v_test FROM public.tests WHERE id = p_test_id;
+  IF v_test.id IS NULL THEN
+    RETURN jsonb_build_object('success', false, 'error', 'Évaluation introuvable');
+  END IF;
+
+  SELECT role INTO v_role FROM public.users WHERE id = v_caller_uid;
+  IF v_test.teacher_id IS NOT NULL THEN
+    SELECT user_id INTO v_owner_uid FROM public.teachers WHERE id = v_test.teacher_id;
+  END IF;
+
+  IF v_role NOT IN ('admin', 'superadmin') AND (v_owner_uid IS NULL OR v_owner_uid <> v_caller_uid) THEN
+    RETURN jsonb_build_object('success', false, 'error', 'Droits formateur titulaire ou administration requis');
+  END IF;
+
+  v_bareme := COALESCE(v_test.bareme, 20);
+  IF v_bareme <= 0 THEN v_bareme := 20; END IF;
+
+  FOR v_row IN SELECT * FROM jsonb_array_elements(p_rows)
+  LOOP
+    v_student_id := v_row->>'student_id';
+    BEGIN
+      v_note := (v_row->>'note')::numeric;
+    EXCEPTION WHEN OTHERS THEN
+      CONTINUE;
+    END;
+
+    IF v_student_id IS NULL OR v_note IS NULL THEN
+      CONTINUE;
+    END IF;
+
+    v_appreciation := COALESCE(v_row->>'appreciation', 'Examen papier validé');
+    v_pourcentage := ROUND(((v_note / v_bareme) * 100)::numeric, 0);
+    IF v_note >= (v_bareme / 2) THEN
+      v_statut := 'reussi';
+    ELSE
+      v_statut := 'echoue';
+    END IF;
+
+    SELECT id INTO v_result_id
+    FROM public.test_results
+    WHERE test_id = p_test_id AND student_id = v_student_id;
+
+    IF v_result_id IS NOT NULL THEN
+      UPDATE public.test_results
+      SET note = v_note,
+          pourcentage = v_pourcentage,
+          statut = v_statut,
+          valide = true,
+          date = now()
+      WHERE id = v_result_id;
+    ELSE
+      INSERT INTO public.test_results (
+        test_id, student_id, note, pourcentage, date, heure, valide, statut
+      ) VALUES (
+        p_test_id, v_student_id, v_note, v_pourcentage, now(), to_char(now(), 'HH24:MI'), true, v_statut
+      )
+      RETURNING id INTO v_result_id;
+    END IF;
+
+    IF v_test.module_id IS NOT NULL THEN
+      INSERT INTO public.grades (student_id, module_id, note, appreciation, date, created_by)
+      VALUES (
+        v_student_id,
+        v_test.module_id,
+        ROUND(((v_note / v_bareme) * 20)::numeric, 1),
+        v_appreciation,
+        CURRENT_DATE,
+        v_caller_uid
+      );
+    END IF;
+
+    v_saved_count := v_saved_count + 1;
+  END LOOP;
+
+  RETURN jsonb_build_object('success', true, 'saved_count', v_saved_count);
+END;
+$$;
+
+REVOKE EXECUTE ON FUNCTION public.save_paper_results(uuid, jsonb) FROM PUBLIC, anon;
+GRANT EXECUTE ON FUNCTION public.save_paper_results(uuid, jsonb) TO authenticated, service_role;
+
+ALTER TABLE public.tests
+  ADD COLUMN IF NOT EXISTS mode_correction text DEFAULT 'auto',
+  ADD COLUMN IF NOT EXISTS mode_publication text DEFAULT 'immediate',
+  ADD COLUMN IF NOT EXISTS date_publication_resultats timestamptz,
+  ADD COLUMN IF NOT EXISTS anonymiser boolean DEFAULT false;
+
+ALTER TABLE public.assignments
+  ADD COLUMN IF NOT EXISTS mode_correction text DEFAULT 'manuel',
+  ADD COLUMN IF NOT EXISTS mode_publication text DEFAULT 'apres_validation',
+  ADD COLUMN IF NOT EXISTS date_publication_resultats timestamptz,
+  ADD COLUMN IF NOT EXISTS anonymiser boolean DEFAULT false;
+
+ALTER TABLE public.test_results
+  ADD COLUMN IF NOT EXISTS workflow_statut text DEFAULT 'publie';
+
 COMMIT;

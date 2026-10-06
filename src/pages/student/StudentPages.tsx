@@ -1198,7 +1198,15 @@ export function MyCourses() {
         )}
       </Modal>
 
-      <h3 className="font-display mb-3 mt-8 text-lg font-bold text-white">🧪 Tests à passer</h3>
+      <div className="flex items-center justify-between mb-3 mt-8">
+        <h3 className="font-display text-lg font-bold text-white">🧪 Tests & Évaluations</h3>
+        <Link
+          to="/app/mes-evaluations-devoirs"
+          className="text-xs text-cyan-400 hover:text-cyan-300 font-medium inline-flex items-center gap-1 hover:underline"
+        >
+          Portail unifié complet <ArrowRight size={13} />
+        </Link>
+      </div>
       {tests.length === 0 ? (
         <p className="text-sm text-slate-500">Aucun test disponible pour le moment.</p>
       ) : (

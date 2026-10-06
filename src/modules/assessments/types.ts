@@ -81,8 +81,15 @@ export interface Assessment {
   calculatriceAutorisee?: boolean;
   scannedCopiesAllowed?: boolean;
   datePublication?: string;
+  modeCorrection?: AssessmentCorrectionMode;
+  modePublication?: AssessmentPublicationMode;
+  datePublicationResultats?: string;
+  anonymiser?: boolean;
   createdAt?: string;
 }
+
+export type AssessmentCorrectionMode = "auto" | "manuel" | "hybride";
+export type AssessmentPublicationMode = "immediate" | "apres_validation" | "planifiee";
 
 export type ProctoringEventType =
   | "changement_onglet"

@@ -16,6 +16,7 @@ export type UiTheme =
   | "classic"
   | "spatial"
   | "crimson"
+  | "noir-rouge"
   | "orange-slate"
   | "modern"
   | "icrm-violet"
@@ -58,6 +59,7 @@ export function getUiTheme(): UiTheme {
     if (
       saved === "spatial" ||
       saved === "crimson" ||
+      saved === "noir-rouge" ||
       saved === "modern" ||
       saved === "classic" ||
       saved === "orange-slate" ||
@@ -197,6 +199,7 @@ export function applyThemeToDOM(theme: UiTheme = getUiTheme()): void {
     "theme-classic",
     "theme-spatial",
     "theme-crimson",
+    "theme-noir-rouge",
     "theme-modern",
     "theme-light",
     "theme-orange-slate",

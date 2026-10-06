@@ -1861,6 +1861,247 @@ a:active:not(.disabled) {
   color: #55555D !important;
 }
 
+/* ========================================================
+   THÈME NOIR · ROUGE · BLANC (noir-rouge)
+   Strictement 3 couleurs :
+   - Noir absolu (#000000) pour tous les arrière-plans
+   - Rouge autorité (#E10600) pour accents, boutons, en-têtes
+   - Blanc pur (#FFFFFF) pour tous les textes et écrits
+   ======================================================== */
+[data-theme="noir-rouge"],
+.theme-noir-rouge {
+  --background: #000000;
+  --sentinel-bg: #000000;
+  --color-night: #000000;
+  --color-night2: #050505;
+  --color-night3: #0a0a0a;
+  --color-panel: #000000;
+  --color-panel2: #050505;
+  --color-panel3: #0a0a0a;
+  --color-electric: #E10600;
+  --color-electric2: #FF1A1A;
+  --color-cyber: #E10600;
+  --color-neon: #FF1A1A;
+  --color-hudtext: #FFFFFF;
+  --color-hudmuted: rgba(255, 255, 255, 0.72);
+  --color-huddim: rgba(255, 255, 255, 0.45);
+  color-scheme: dark;
+}
+
+[data-theme="noir-rouge"] body {
+  background: #000000 !important;
+  color: #FFFFFF !important;
+}
+
+[data-theme="noir-rouge"] header {
+  background-color: #000000 !important;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.14) !important;
+  box-shadow: 0 4px 14px rgba(225, 6, 0, 0.12);
+}
+
+[data-theme="noir-rouge"] aside {
+  background-color: #000000 !important;
+  border-right: 1px solid rgba(255, 255, 255, 0.14) !important;
+}
+
+[data-theme="noir-rouge"] main {
+  background-color: #000000 !important;
+}
+
+/* Cartes, panneaux et fenêtres modales */
+[data-theme="noir-rouge"] .card,
+[data-theme="noir-rouge"] .bg-slate-950,
+[data-theme="noir-rouge"] .bg-slate-900,
+[data-theme="noir-rouge"] .bg-slate-900\/60,
+[data-theme="noir-rouge"] .bg-slate-900\/80,
+[data-theme="noir-rouge"] .bg-slate-800\/50,
+[data-theme="noir-rouge"] .bg-slate-950\/70,
+[data-theme="noir-rouge"] [role="dialog"],
+[data-theme="noir-rouge"] .modal-content {
+  background-color: #000000 !important;
+  border-color: rgba(255, 255, 255, 0.14) !important;
+  color: #FFFFFF !important;
+}
+
+/* Typographie 100% blanche pour tous les écrits */
+[data-theme="noir-rouge"] h1,
+[data-theme="noir-rouge"] h2,
+[data-theme="noir-rouge"] h3,
+[data-theme="noir-rouge"] h4,
+[data-theme="noir-rouge"] h5,
+[data-theme="noir-rouge"] h6,
+[data-theme="noir-rouge"] p,
+[data-theme="noir-rouge"] span,
+[data-theme="noir-rouge"] label,
+[data-theme="noir-rouge"] .text-slate-100,
+[data-theme="noir-rouge"] .text-slate-200,
+[data-theme="noir-rouge"] .text-slate-300,
+[data-theme="noir-rouge"] .text-white {
+  color: #FFFFFF !important;
+}
+
+[data-theme="noir-rouge"] .text-slate-400,
+[data-theme="noir-rouge"] .text-slate-500,
+[data-theme="noir-rouge"] .text-muted-foreground {
+  color: rgba(255, 255, 255, 0.72) !important;
+}
+
+/* Séparateurs et bordures fines */
+[data-theme="noir-rouge"] .border-slate-800,
+[data-theme="noir-rouge"] .border-slate-700,
+[data-theme="noir-rouge"] .border-white\/10,
+[data-theme="noir-rouge"] .border-white\/5,
+[data-theme="noir-rouge"] hr {
+  border-color: rgba(255, 255, 255, 0.14) !important;
+}
+
+/* Tableaux avec en-têtes rouges et lignes alternées */
+[data-theme="noir-rouge"] table thead,
+[data-theme="noir-rouge"] table thead tr,
+[data-theme="noir-rouge"] table thead th {
+  background-color: #E10600 !important;
+  color: #FFFFFF !important;
+  font-weight: 700 !important;
+  border-bottom: 2px solid #B30000 !important;
+}
+
+[data-theme="noir-rouge"] table tbody tr {
+  background-color: #000000 !important;
+  color: #FFFFFF !important;
+  transition: background-color 0.15s ease;
+}
+
+[data-theme="noir-rouge"] table tbody tr:nth-child(even) {
+  background-color: #0B0000 !important;
+}
+
+[data-theme="noir-rouge"] table tbody tr:hover {
+  background-color: #1A0000 !important;
+}
+
+[data-theme="noir-rouge"] table tbody tr.selected,
+[data-theme="noir-rouge"] table tbody tr[aria-selected="true"] {
+  background-color: #2A0000 !important;
+  border-left: 3px solid #E10600 !important;
+}
+
+[data-theme="noir-rouge"] table td {
+  border-bottom: 1px solid rgba(255, 255, 255, 0.14) !important;
+}
+
+/* Champs de saisie (inputs, textareas, selects) */
+[data-theme="noir-rouge"] input,
+[data-theme="noir-rouge"] select,
+[data-theme="noir-rouge"] textarea {
+  background-color: #000000 !important;
+  color: #FFFFFF !important;
+  border: 1px solid rgba(255, 255, 255, 0.25) !important;
+}
+
+[data-theme="noir-rouge"] input:focus,
+[data-theme="noir-rouge"] select:focus,
+[data-theme="noir-rouge"] textarea:focus {
+  border-color: #E10600 !important;
+  box-shadow: 0 0 10px rgba(225, 6, 0, 0.4) !important;
+  outline: none !important;
+}
+
+[data-theme="noir-rouge"] input::placeholder,
+[data-theme="noir-rouge"] textarea::placeholder {
+  color: rgba(255, 255, 255, 0.45) !important;
+}
+
+/* Boutons principaux et secondaires */
+[data-theme="noir-rouge"] button.btn-primary,
+[data-theme="noir-rouge"] .bg-cyan-500,
+[data-theme="noir-rouge"] .bg-cyan-600,
+[data-theme="noir-rouge"] .bg-blue-600 {
+  background-color: #E10600 !important;
+  color: #FFFFFF !important;
+  border-color: #E10600 !important;
+}
+
+[data-theme="noir-rouge"] button.btn-primary:hover,
+[data-theme="noir-rouge"] .bg-cyan-500:hover,
+[data-theme="noir-rouge"] .bg-cyan-600:hover,
+[data-theme="noir-rouge"] .bg-blue-600:hover {
+  background-color: #FF1A1A !important;
+  border-color: #FF1A1A !important;
+}
+
+[data-theme="noir-rouge"] button.btn-primary:active {
+  background-color: #B30000 !important;
+}
+
+[data-theme="noir-rouge"] button.btn-outline,
+[data-theme="noir-rouge"] button.btn-secondary {
+  background-color: #000000 !important;
+  border: 1px solid #E10600 !important;
+  color: #FFFFFF !important;
+}
+
+[data-theme="noir-rouge"] button.btn-outline:hover,
+[data-theme="noir-rouge"] button.btn-secondary:hover {
+  background-color: #1A0000 !important;
+  color: #FFFFFF !important;
+}
+
+/* Boutons destructifs */
+[data-theme="noir-rouge"] .bg-red-600,
+[data-theme="noir-rouge"] .bg-red-700 {
+  background-color: #7A0000 !important;
+  color: #FFFFFF !important;
+}
+
+[data-theme="noir-rouge"] .bg-red-600:hover,
+[data-theme="noir-rouge"] .bg-red-700:hover {
+  background-color: #E10600 !important;
+}
+
+/* Badges d'état respectant la règle sans 4e couleur */
+[data-theme="noir-rouge"] .badge-success,
+[data-theme="noir-rouge"] .bg-emerald-500\/10,
+[data-theme="noir-rouge"] .bg-emerald-500\/20 {
+  background-color: #000000 !important;
+  border: 1px solid #FFFFFF !important;
+  color: #FFFFFF !important;
+}
+
+[data-theme="noir-rouge"] .badge-danger,
+[data-theme="noir-rouge"] .bg-red-500\/10,
+[data-theme="noir-rouge"] .bg-red-500\/20 {
+  background-color: #E10600 !important;
+  border: 1px solid #E10600 !important;
+  color: #FFFFFF !important;
+}
+
+[data-theme="noir-rouge"] .badge-warning,
+[data-theme="noir-rouge"] .bg-amber-500\/10,
+[data-theme="noir-rouge"] .bg-amber-500\/20 {
+  background-color: #000000 !important;
+  border: 1px dashed #FFFFFF !important;
+  color: #FFFFFF !important;
+}
+
+/* Remappage des accents cyan et néon vers le rouge */
+[data-theme="noir-rouge"] .text-cyan-300,
+[data-theme="noir-rouge"] .text-cyan-400,
+[data-theme="noir-rouge"] .text-\[\#00E5FF\],
+[data-theme="noir-rouge"] .text-\[\#006DFF\] {
+  color: #FF3B30 !important;
+}
+
+[data-theme="noir-rouge"] .border-cyan-400,
+[data-theme="noir-rouge"] .border-cyan-400\/30,
+[data-theme="noir-rouge"] .border-cyan-500\/30 {
+  border-color: #E10600 !important;
+}
+
+[data-theme="noir-rouge"] .hud-border-blue {
+  border-color: #E10600 !important;
+  box-shadow: 0 0 14px rgba(225, 6, 0, 0.25) !important;
+}
+
 
 
 

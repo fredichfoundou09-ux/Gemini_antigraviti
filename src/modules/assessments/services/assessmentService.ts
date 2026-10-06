@@ -409,13 +409,19 @@ export async function deleteAssessment(id: string): Promise<{ success: boolean; 
     const isUuid = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(id);
     if (isUuid) {
       const { data, error } = await supabase.rpc("delete_test_safe", { p_test_id: id });
-      if (!error && data && data.success) {
-        return { success: true };
+      if (error) {
+        console.warn("delete_test_safe RPC non disponible, repli sécurisé:", error);
+      } else if (data) {
+        if (data.success) return { success: true };
+        return { success: false, error: data.error || "Échec de suppression de l'évaluation." };
       }
     }
 
-    const { error } = await supabase.from("tests").delete().eq("id", id);
+    const { data, error } = await supabase.from("tests").delete().eq("id", id).select("id");
     if (error) throw error;
+    if (!data?.length) {
+      return { success: false, error: "Suppression refusée ou introuvable (droits insuffisants)." };
+    }
     return { success: true };
   } catch (err: any) {
     console.error("Erreur suppression évaluation:", err);
@@ -423,15 +429,39 @@ export async function deleteAssessment(id: string): Promise<{ success: boolean; 
   }
 }
 
-// Suppression d'un résultat d'examen
-export async function deleteTestResult(id: string): Promise<{ success: boolean; error?: string }> {
+// Suppression d'un résultat d'examen avec réinitialisation optionnelle de tentative
+export async function deleteTestResult(
+  id: string,
+  resetAttempt: boolean = false
+): Promise<{ success: boolean; error?: string }> {
   if (!isSupabaseConfigured) {
+    const locals = getLocalAssessmentResults().filter((r) => r.id !== id);
+    saveLocalAssessmentResults(locals);
     return { success: true };
   }
 
   try {
-    const { error } = await supabase.from("test_results").delete().eq("id", id);
+    const isUuid = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(id);
+    if (isUuid) {
+      const { data, error } = await supabase.rpc("delete_test_result_safe", {
+        p_result_id: id,
+        p_reset_attempt: resetAttempt,
+      });
+      if (!error && data) {
+        if (data.success) {
+          const locals = getLocalAssessmentResults().filter((r) => r.id !== id);
+          saveLocalAssessmentResults(locals);
+          return { success: true };
+        }
+        return { success: false, error: data.error || "Suppression refusée par le serveur." };
+      }
+    }
+
+    const { data, error } = await supabase.from("test_results").delete().eq("id", id).select("id");
     if (error) throw error;
+    if (!data?.length) {
+      return { success: false, error: "Suppression refusée ou introuvable (droits insuffisants)." };
+    }
     // Supprimer également du cache local
     const locals = getLocalAssessmentResults().filter((r) => r.id !== id);
     saveLocalAssessmentResults(locals);

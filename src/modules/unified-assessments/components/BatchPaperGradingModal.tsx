@@ -9,6 +9,7 @@ import { useStore } from "@/lib/store";
 import { toastMsg } from "@/lib/toast";
 import { notifyAssessmentEvent, broadcastSubmissionsChange } from "../services/unifiedSyncService";
 import { generateClassGradeRoster } from "@/modules/assessments/exporters/printableExamPdf";
+import { supabase, isSupabaseConfigured } from "@/lib/supabase";
 
 interface BatchPaperGradingModalProps {
   open: boolean;
@@ -244,6 +245,24 @@ export function BatchPaperGradingModal({
         toastMsg.error("Aucune note saisie", "Veuillez renseigner au moins une note valide pour enregistrer.");
         setIsSubmitting(false);
         return;
+      }
+
+      // Persistance serveur prioritaire via RPC sécurisée
+      if (isSupabaseConfigured && /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(selectedAssessment.id)) {
+        const payloadRows = newResults.map((r, idx) => ({
+          student_id: r.studentId,
+          note: r.note,
+          appreciation: newGrades[idx]?.appreciation || "Examen papier validé",
+        }));
+        const { data: rpcRes, error: rpcErr } = await supabase.rpc("save_paper_results", {
+          p_test_id: selectedAssessment.id,
+          p_rows: payloadRows,
+        });
+        if (rpcErr) {
+          console.warn("Échec save_paper_results RPC, bascule sur la synchronisation locale:", rpcErr);
+        } else if (rpcRes && rpcRes.success === false) {
+          throw new Error(rpcRes.error || "Échec de l'enregistrement du bordereau sur le serveur.");
+        }
       }
 
       // Mise à jour atomique dans le store global

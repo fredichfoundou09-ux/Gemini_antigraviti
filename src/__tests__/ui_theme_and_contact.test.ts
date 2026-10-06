@@ -181,7 +181,22 @@ describe("Gestionnaire de Thème Réversible (uiTheme)", () => {
     expect(dispatchedEvents[0].detail.theme).toBe("uba-archives");
   });
 
+  it("permet d'activer le thème 'noir-rouge' (Noir · Rouge · Blanc) et l'applique au DOM et localStorage", () => {
+    setUiTheme("noir-rouge");
+
+    expect(mockStore["sn:ui-theme"]).toBe("noir-rouge");
+    expect(getUiTheme()).toBe("noir-rouge");
+    expect(rootAttributes["data-theme"]).toBe("noir-rouge");
+    expect(rootClasses.has("theme-noir-rouge")).toBe(true);
+    expect(rootClasses.has("theme-classic")).toBe(false);
+    expect(dispatchedEvents.length).toBeGreaterThan(0);
+    expect(dispatchedEvents[0].detail.theme).toBe("noir-rouge");
+  });
+
   it("applique le thème au DOM correctement avec applyThemeToDOM", () => {
+    applyThemeToDOM("noir-rouge");
+    expect(rootAttributes["data-theme"]).toBe("noir-rouge");
+
     applyThemeToDOM("crimson");
     expect(rootAttributes["data-theme"]).toBe("crimson");
 

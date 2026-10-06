@@ -778,6 +778,32 @@ export function AssessmentEditor({
             </Field>
           </div>
 
+          {/* Modes Auto / Manuel / Hybride (Refonte Devoirs & Évaluations) */}
+          <div className="grid grid-cols-2 gap-2 rounded-xl border border-cyan-500/20 bg-cyan-950/20 p-2.5">
+            <Field label="Mode de correction">
+              <Select
+                value={assessment.modeCorrection || "auto"}
+                onChange={(e) => setAssessment({ ...assessment, modeCorrection: e.target.value as any })}
+                className="text-xs"
+              >
+                <option value="auto">🤖 Auto (Calcul serveur)</option>
+                <option value="manuel">✋ Manuel (Saisie humaine)</option>
+                <option value="hybride">🔀 Hybride (Auto + validation)</option>
+              </Select>
+            </Field>
+            <Field label="Publication notes">
+              <Select
+                value={assessment.modePublication || "immediate"}
+                onChange={(e) => setAssessment({ ...assessment, modePublication: e.target.value as any })}
+                className="text-xs"
+              >
+                <option value="immediate">🤖 Immédiate à l'envoi</option>
+                <option value="apres_validation">✋ Après validation</option>
+                <option value="planifiee">📅 Planifiée</option>
+              </Select>
+            </Field>
+          </div>
+
           <Field label="Consignes obligatoires">
             <textarea
               rows={3}
