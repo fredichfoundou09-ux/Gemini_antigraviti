@@ -99,6 +99,35 @@ export function validateAssessmentForPublication(assessment: Assessment): Valida
   };
 }
 
+/**
+ * Normalise les réponses d'évaluation (qu'elles proviennent d'un tableau de lignes test_answers
+ * Supabase [{ question_id, reponse_donnee, reponse }] ou d'un dictionnaire { [questionId]: valeur })
+ * en un objet standardisé { [questionId]: valeur }.
+ */
+export function normalizeAnswers(raw: any): Record<string, any> {
+  if (!raw) return {};
+  if (Array.isArray(raw)) {
+    const map: Record<string, any> = {};
+    for (const item of raw) {
+      if (!item) continue;
+      const qId = item.question_id || item.questionId || item.id;
+      if (!qId) continue;
+      let val = item.reponse_donnee ?? item.reponseDonnee ?? item.reponse ?? item.answer;
+      if (typeof val === "string" && (val.startsWith("[") || val.startsWith("{"))) {
+        try {
+          val = JSON.parse(val);
+        } catch {}
+      }
+      map[qId] = val;
+    }
+    return map;
+  }
+  if (typeof raw === "object") {
+    return raw;
+  }
+  return {};
+}
+
 // 2. Assainissement du sujet pour les apprenants (Ne JAMAIS exposer les réponses)
 export function sanitizeAssessmentForStudent(assessment: Assessment): Assessment {
   return {
@@ -443,19 +472,21 @@ export async function submitAssessmentResultToSupabase(
   result: AssessmentResultSummary,
   answers: Record<string, any> = {}
 ): Promise<{ success: boolean; id: string; error?: string }> {
-  // 1. Sauvegarde locale prioritaire et inconditionnelle
-  try {
-    const existing = getLocalAssessmentResults();
-    const updated = [
-      result,
-      ...existing.filter((r) => !(r.testId === result.testId && r.studentId === result.studentId)),
-    ];
-    saveLocalAssessmentResults(updated);
-  } catch (e) {
-    console.warn("Erreur cache local résultat:", e);
-  }
+  const saveToLocal = (finalResult: AssessmentResultSummary) => {
+    try {
+      const existing = getLocalAssessmentResults();
+      const updated = [
+        finalResult,
+        ...existing.filter((r) => !(r.testId === finalResult.testId && r.studentId === finalResult.studentId)),
+      ];
+      saveLocalAssessmentResults(updated);
+    } catch (e) {
+      console.warn("Erreur cache local résultat:", e);
+    }
+  };
 
   if (!isSupabaseConfigured) {
+    saveToLocal(result);
     return { success: true, id: result.id };
   }
 
@@ -485,6 +516,7 @@ export async function submitAssessmentResultToSupabase(
     });
 
     if (!rpcErr && rpcData && rpcData.success) {
+      saveToLocal({ ...result, id: rpcData.id || result.id });
       return { success: true, id: rpcData.id || result.id };
     }
 
@@ -544,7 +576,9 @@ export async function submitAssessmentResultToSupabase(
         }
       }
 
-      return { success: true, id: insData?.id || result.id };
+      const finalId = insData?.id || result.id;
+      saveToLocal({ ...result, id: finalId });
+      return { success: true, id: finalId };
     }
 
     if (rpcErr || (rpcData && !rpcData.success)) {

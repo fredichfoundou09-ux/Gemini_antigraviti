@@ -48,15 +48,29 @@ serve(async (req: Request) => {
 
   const supabaseUrl = Deno.env.get("SUPABASE_URL") || "";
   const supabaseServiceKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY") || "";
+  const cronSecret = Deno.env.get("CRON_SECRET");
+
+  // Sécurité renforcée : Exiger le secret CRON ou la clé service_role
+  const authHeader = req.headers.get("Authorization") || "";
+  const token = authHeader.replace(/^Bearer\s+/i, "");
+  if (cronSecret && token !== cronSecret && token !== supabaseServiceKey) {
+    return new Response(JSON.stringify({ error: "Accès non autorisé : secret CRON invalide" }), {
+      status: 401,
+      headers: { "Content-Type": "application/json" },
+    });
+  }
+
   const sb = createClient(supabaseUrl, supabaseServiceKey);
 
+  // Fuseau horaire du centre d'enseignement : UTC+1 (Brazzaville / Afrique Centrale)
   const now = new Date();
-  const todayStr = now.toISOString().slice(0, 10);
-  const currentH = now.getHours();
-  const currentM = now.getMinutes();
+  const brazzavilleTime = new Date(now.getTime() + 1 * 3600 * 1000);
+  const todayStr = brazzavilleTime.toISOString().slice(0, 10);
+  const currentH = brazzavilleTime.getUTCHours();
+  const currentM = brazzavilleTime.getUTCMinutes();
 
   const daysFr = ["dimanche", "lundi", "mardi", "mercredi", "jeudi", "vendredi", "samedi"];
-  const currentDayName = daysFr[now.getDay()];
+  const currentDayName = daysFr[brazzavilleTime.getUTCDay()];
 
   const results = {
     processedSlots: 0,

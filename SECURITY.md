@@ -16,7 +16,7 @@
 - [x] `service_role` absente du frontend et confinée aux Edge Functions
 - [x] Clés de secours de production hardcodées éliminées du bundle client (`src/lib/supabase/client.ts`)
 - [x] Validation de mot de passe stricte côté serveur dans `create-user` et `config.toml` (>= 8 car., min/maj/chiffre)
-- [x] Réponses aux examens protégées contre la lecture directe côté client (`student_questions` + RPC `submit_test_answers`)
+- [x] Réponses aux examens protégées contre la lecture directe côté client (vue sécurisée `questions_apprenant`, assainissement systématique des sujets, et RPC serveur `submit_assessment`, `submit_assessment_result_safe`, `grade_test_result`)
 - [x] Messagerie interne verrouillée contre l'auto-inscription abusive et la suppression non autorisée
 - [x] Journal d'audit `audit_logs` sécurisé contre l'usurpation d'identité
 - [x] Confidentialité des taux horaires formateurs (`get_teachers_safe()` / `public_teachers`)

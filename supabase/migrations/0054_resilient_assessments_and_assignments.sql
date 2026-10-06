@@ -229,7 +229,27 @@ $$;
 
 GRANT EXECUTE ON FUNCTION public.delete_assignment_safe(uuid) TO authenticated, anon;
 
--- Activation du temps réel pour les tables tests et assignments
-ALTER PUBLICATION supabase_realtime ADD TABLE public.tests;
-ALTER PUBLICATION supabase_realtime ADD TABLE public.assignments;
-ALTER PUBLICATION supabase_realtime ADD TABLE public.assignment_submissions;
+-- Activation idempotente du temps réel pour les tables tests et assignments
+DO $$
+BEGIN
+  IF NOT EXISTS (
+    SELECT 1 FROM pg_publication_tables 
+    WHERE pubname = 'supabase_realtime' AND schemaname = 'public' AND tablename = 'tests'
+  ) THEN
+    ALTER PUBLICATION supabase_realtime ADD TABLE public.tests;
+  END IF;
+
+  IF NOT EXISTS (
+    SELECT 1 FROM pg_publication_tables 
+    WHERE pubname = 'supabase_realtime' AND schemaname = 'public' AND tablename = 'assignments'
+  ) THEN
+    ALTER PUBLICATION supabase_realtime ADD TABLE public.assignments;
+  END IF;
+
+  IF NOT EXISTS (
+    SELECT 1 FROM pg_publication_tables 
+    WHERE pubname = 'supabase_realtime' AND schemaname = 'public' AND tablename = 'assignment_submissions'
+  ) THEN
+    ALTER PUBLICATION supabase_realtime ADD TABLE public.assignment_submissions;
+  END IF;
+END $$;

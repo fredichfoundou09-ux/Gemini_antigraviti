@@ -16,6 +16,7 @@ import { useStore } from "@/lib/store";
 import { toastMsg } from "@/lib/toast";
 import { humanSize, fileKind } from "@/lib/files";
 import { exportCsv } from "@/lib/export";
+import { supabase, isSupabaseConfigured } from "@/lib/supabase/client";
 
 export interface UnifiedSubmissionItem {
   id: string;
@@ -399,6 +400,50 @@ export function UnifiedSubmissionsInbox({
       appreciation: `Évaluation : ${assessment.titre} (${isReussi ? "Validée" : "Non validée"}) - Note manuelle`,
       date: result.date || new Date().toISOString().slice(0, 10),
     };
+
+    // 1. Persistance sécurisée vers Supabase (RPC grade_test_result ou update direct)
+    if (isSupabaseConfigured) {
+      try {
+        const isUuid = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(result.id);
+        if (isUuid) {
+          const { data: rpcRes, error: rpcErr } = await supabase.rpc("grade_test_result", {
+            p_result_id: result.id,
+            p_grades: manualGrades,
+            p_comments: manualComments,
+          });
+
+          if (rpcErr || (rpcRes && rpcRes.success === false)) {
+            console.warn("RPC grade_test_result repli direct:", rpcErr || rpcRes?.error);
+            // Repli direct si la RPC n'est pas encore migrée
+            await supabase
+              .from("test_results")
+              .update({
+                note: liveTotalScore,
+                pourcentage: liveTotalPercentage,
+                statut: isReussi ? "reussi" : "echoue",
+                valide: true,
+              })
+              .eq("id", result.id);
+
+            for (const [qId, qNote] of Object.entries(manualGrades)) {
+              if (/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(qId)) {
+                await supabase
+                  .from("test_answers")
+                  .update({
+                    note_manuelle: qNote,
+                    commentaire_formateur: manualComments[qId] || null,
+                    statut_correction: "corrige",
+                  })
+                  .eq("result_id", result.id)
+                  .eq("question_id", qId);
+              }
+            }
+          }
+        }
+      } catch (err: any) {
+        console.warn("Notice persistance manuelle Supabase:", err);
+      }
+    }
 
     update((d) => ({
       ...d,

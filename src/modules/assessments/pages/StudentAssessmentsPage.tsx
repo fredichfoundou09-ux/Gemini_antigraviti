@@ -8,6 +8,7 @@ import { AssessmentRunner } from "../components/AssessmentRunner";
 import { useStore } from "@/lib/store";
 import { PageHead, Btn, Card, Badge, Empty, Modal } from "@/lib/ui";
 import { toastMsg } from "@/lib/toast";
+import { normalizeAnswers } from "../services/assessmentService";
 
 export function StudentAssessmentsPage() {
   const { db, user } = useStore();
@@ -277,7 +278,8 @@ export function StudentAssessmentsPage() {
 
             <div className="space-y-3 max-h-[420px] overflow-y-auto pr-1">
               {reviewingResult.test.questions.map((q: any, idx: number) => {
-                const given = reviewingResult.result.reponses?.[q.id];
+                const normAnswers = normalizeAnswers(reviewingResult.result.reponses);
+                const given = normAnswers[q.id];
                 const givenStr = Array.isArray(given) ? given.join(", ") : String(given || "");
                 return (
                   <div key={q.id} className="rounded-xl border border-white/5 bg-white/[0.02] p-3.5 space-y-1.5">

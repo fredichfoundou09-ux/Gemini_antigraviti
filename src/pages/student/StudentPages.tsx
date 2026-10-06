@@ -22,6 +22,7 @@ import { supabase, isSupabaseConfigured } from "@/lib/supabase/client";
 import { toastMsg } from "@/lib/toast";
 import { PasswordChangeCard } from "@/pages/shared/PasswordChangeCard";
 import { AssessmentRunner } from "@/modules/assessments/components/AssessmentRunner";
+import { normalizeAnswers } from "@/modules/assessments/services/assessmentService";
 
 function isSupportUrl(str?: string): boolean {
   if (!str) return false;
@@ -1263,7 +1264,9 @@ export function MyCourses() {
               <Badge color="gray">{reviewing.result.date}{reviewing.result.heure ? ` à ${reviewing.result.heure}` : ""}</Badge>
             </div>
             {reviewing.test.questions.map((q, i) => {
-              const mine = reviewing.result.reponses?.[q.id] ?? "—";
+              const normAnswers = normalizeAnswers(reviewing.result.reponses);
+              const rawMine = normAnswers[q.id];
+              const mine = rawMine !== undefined ? (Array.isArray(rawMine) ? rawMine.join(", ") : String(rawMine)) : "—";
               const good = (q.bonneReponse || "").trim();
               const ok = good && mine.trim().toLowerCase() === good.toLowerCase();
               return (

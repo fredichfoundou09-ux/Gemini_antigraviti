@@ -280,12 +280,7 @@ export function generateClassGradeRoster(
     doc.text(stu.matricule || stu.id.slice(0, 10), rowX + 2, cursorY + 5);
     rowX += colWidths[1];
     doc.text(`${stu.nom.toUpperCase()} ${stu.prenom}`, rowX + 2, cursorY + 5);
-    rowX += colWidths[2];
-    // Émargement (vide pour signature)
-    rowX += colWidths[3];
-    // Note (vide pour écriture)
-    rowX += colWidths[4];
-    // Observation (vide)
+    // Colonnes Émargement, Note et Observation laissées vides pour inscription manuscrite
 
     cursorY += 7.5;
   });

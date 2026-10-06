@@ -109,7 +109,15 @@ export function AssessmentRunner({
           const { data: rpcData, error } = await supabase.rpc("start_assessment_attempt", {
             p_test_id: assessment.id,
           });
-          if (!error && rpcData?.attempt_id) {
+          if (error) {
+            toastMsg.error("Accès à l'évaluation refusé", error.message || "Impossible de démarrer la session.");
+            return;
+          }
+          if (rpcData && rpcData.success === false) {
+            toastMsg.error("Accès à l'évaluation refusé", rpcData.error || "Tentative non autorisée.");
+            return;
+          }
+          if (rpcData?.attempt_id) {
             setAttemptId(rpcData.attempt_id);
             if (rpcData.heure_fin_prevue) {
               const serverEndMs = new Date(rpcData.heure_fin_prevue).getTime();
@@ -121,8 +129,10 @@ export function AssessmentRunner({
             }
           }
         }
-      } catch (e) {
+      } catch (e: any) {
         console.warn("Notice appel start_assessment_attempt:", e);
+        toastMsg.error("Erreur de connexion", e?.message || "Impossible de contacter le serveur d'examen.");
+        return;
       }
     }
 
@@ -323,11 +333,19 @@ export function AssessmentRunner({
             finalEval = submitRes;
             alreadyPersistedOnServer = true;
             serverResultId = submitRes.result_id || null;
-          } else if (error) {
-            console.warn("RPC submit_assessment retour erreur:", error);
-            if (error.message?.includes("déjà clôturée") || error.message?.includes("already closed")) {
+          } else {
+            const errMsg = submitRes?.error || error?.message || "";
+            if (errMsg.includes("déjà clôturée") || errMsg.includes("already closed")) {
               toastMsg.info("Tentative déjà transmise", "Cette évaluation a déjà été soumise et enregistrée.");
               setPhase("completed");
+              return;
+            }
+            if (errMsg) {
+              console.warn("RPC submit_assessment rejet:", errMsg);
+              toastMsg.error("Erreur de soumission", errMsg);
+              isSubmittingRef.current = false;
+              setIsSubmitting(false);
+              setConfirmModalOpen(false);
               return;
             }
           }

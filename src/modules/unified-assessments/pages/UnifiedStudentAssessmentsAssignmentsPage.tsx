@@ -22,7 +22,7 @@ import { StudentAssignmentModal } from "@/modules/assignments/components/Student
 // Évaluations
 import { Assessment, AssessmentResultSummary, AssessmentStatus } from "@/modules/assessments/types";
 import { AssessmentRunner } from "@/modules/assessments/components/AssessmentRunner";
-import { getLocalAssessmentResults } from "@/modules/assessments/services/assessmentService";
+import { getLocalAssessmentResults, normalizeAnswers } from "@/modules/assessments/services/assessmentService";
 
 // Règles de visibilité apprenant
 import { assignmentsFor, assessmentsFor } from "@/lib/access";
@@ -30,7 +30,7 @@ import { assignmentsFor, assessmentsFor } from "@/lib/access";
 // Synchronisation temps réel
 import { subscribeToAssessmentsSync } from "../services/unifiedSyncService";
 
-/** Convertit db.tests vers Assessment[] */
+/** Convertit db.tests vers Assessment[] en aseptisant strictement les réponses */
 function mapDbTestsToAssessments(tests: any[]): Assessment[] {
   return (tests || []).map((t: any) => ({
     id: t.id,
@@ -44,14 +44,15 @@ function mapDbTestsToAssessments(tests: any[]): Assessment[] {
       question: q.question,
       type: q.type || "qcm",
       options: q.options || (q.type === "vf" ? ["Vrai", "Faux"] : []),
-      bonneReponse: q.bonneReponse || "",
-      bonnesReponses: q.bonnesReponses || [],
-      valeurNumerique: q.valeurNumerique,
-      toleranceNumerique: q.toleranceNumerique,
       points: Number(q.points || 1),
-      explication: q.explication || "",
       ordre: q.ordre || idx + 1,
       obligatoire: q.obligatoire !== false,
+      // Protection stricte de l'intégrité de l'épreuve : les bonnes réponses ne sont JAMAIS exposées
+      bonneReponse: undefined,
+      bonnesReponses: undefined,
+      valeurNumerique: undefined,
+      toleranceNumerique: undefined,
+      explication: undefined,
     })),
     date: t.date || new Date().toISOString().slice(0, 10),
     duree: Number(t.duree || 45),
@@ -100,7 +101,7 @@ function mapDbResultsToSummaries(results: any[], db: any, studentObj?: any): Ass
       nbMauvaises: Number(lr.nbMauvaises || lr.nb_mauvaises || 0),
       nbNonRepondues: Number(lr.nbNonRepondues || lr.nb_non_repondues || 0),
       proctoringAlertsCount: Number(lr.proctoringAlertsCount || lr.proctoring_alerts_count || 0),
-      reponses: lr.reponses || lr.answers || {},
+      reponses: normalizeAnswers(lr.reponses || lr.answers || {}),
     };
   });
 }
@@ -301,14 +302,15 @@ export function UnifiedStudentAssessmentsAssignmentsPage({ defaultTab = "devoirs
                   question: q.question || "",
                   type: q.type || "qcm",
                   points: Number(q.points || 1),
-                  bonneReponse: q.bonne_reponse || "",
-                  bonnesReponses: q.bonnes_reponses_json || (q.bonne_reponse ? [q.bonne_reponse] : []),
-                  options: q.options_json || (q.type === "vf" ? ["Vrai", "Faux"] : []),
-                  valeurNumerique: q.valeur_numerique !== null && q.valeur_numerique !== undefined ? Number(q.valeur_numerique) : undefined,
-                  toleranceNumerique: Number(q.tolerance_numerique || 0),
-                  explication: q.explication || "",
+                  options: q.options_json || q.options || (q.type === "vf" ? ["Vrai", "Faux"] : []),
                   ordre: q.ordre || qIdx + 1,
                   obligatoire: q.obligatoire !== false,
+                  // Protection stricte : aucune bonne réponse n'est transférée à l'apprenant
+                  bonneReponse: undefined,
+                  bonnesReponses: undefined,
+                  valeurNumerique: undefined,
+                  toleranceNumerique: undefined,
+                  explication: undefined,
                 })),
             }));
 

@@ -8,6 +8,7 @@ import { useStore } from "@/lib/store";
 import { Btn, Badge, Card, Modal, Field, Input } from "@/lib/ui";
 import { exportCsv, exportJsonAsExcel } from "@/lib/export";
 import { toastMsg } from "@/lib/toast";
+import { normalizeAnswers } from "../services/assessmentService";
 
 interface Props {
   assessment: Assessment;
@@ -266,7 +267,8 @@ export function AssessmentResultsView({ assessment, onBack }: Props) {
             {/* Liste des questions & réponses données */}
             <div className="space-y-3 max-h-[440px] overflow-y-auto pr-1">
               {assessment.questions.map((q, idx) => {
-                const given = selectedResult.reponses?.[q.id];
+                const normAnswers = normalizeAnswers(selectedResult.reponses);
+                const given = normAnswers[q.id];
                 const givenStr = Array.isArray(given) ? given.join(", ") : String(given || "");
                 const isAutoGood = q.bonneReponse && givenStr.trim().toLowerCase() === q.bonneReponse.trim().toLowerCase();
                 const manual = selectedResult.notesManuelles?.[q.id];
@@ -337,7 +339,7 @@ export function AssessmentResultsView({ assessment, onBack }: Props) {
             <p className="font-semibold text-white">{gradingQuestion.question}</p>
             <div className="rounded-lg border border-white/5 bg-white/[0.02] p-3 text-slate-300 whitespace-pre-wrap">
               <strong>Réponse soumise : </strong>
-              {selectedResult?.reponses?.[gradingQuestion.id] || "—"}
+              {normalizeAnswers(selectedResult?.reponses)[gradingQuestion.id] || "—"}
             </div>
 
             <Field label={`Points attribués (sur ${gradingQuestion.points} pts)`}>
