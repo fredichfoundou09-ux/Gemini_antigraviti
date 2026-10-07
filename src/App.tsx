@@ -105,6 +105,17 @@ const UnifiedStudentAssessmentsAssignmentsPage = lazy(() =>
   }))
 );
 
+// Phase 4: N5 Portail Tuteurs, N6 Enquêtes de satisfaction, N7 Compétences
+const GuardianPortalPage = lazy(() =>
+  import("@/pages/shared/GuardianPortalPage").then((m) => ({ default: m.GuardianPortalPage }))
+);
+const SurveysAndQualityPage = lazy(() =>
+  import("@/pages/shared/SurveysAndQualityPage").then((m) => ({ default: m.SurveysAndQualityPage }))
+);
+const CompetencyBookletPage = lazy(() =>
+  import("@/pages/shared/CompetencyBookletPage").then((m) => ({ default: m.CompetencyBookletPage }))
+);
+
 function PageLoader() {
   return (
     <div className="flex min-h-[50vh] w-full flex-col items-center justify-center gap-3">
@@ -261,6 +272,9 @@ export default function App() {
               <Route path="journal" element={<Gate roles={["superadmin", "admin"]}><JournalPage /></Gate>} />
               <Route path="corbeille" element={<Gate roles={["superadmin", "admin"]}><TrashAndBackupsPage /></Gate>} />
               <Route path="sauvegardes" element={<Navigate to="/app/corbeille" replace />} />
+              <Route path="tuteurs" element={<Gate roles={["superadmin", "admin", "tuteur"]}><GuardianPortalPage /></Gate>} />
+              <Route path="qualite" element={<Gate roles={["superadmin", "admin", "teacher", "student"]}><SurveysAndQualityPage /></Gate>} />
+              <Route path="competences" element={<Gate roles={["superadmin", "admin", "teacher", "student", "partner"]}><CompetencyBookletPage /></Gate>} />
               <Route path="rapports" element={<Gate roles={["superadmin", "admin", "partner_admin"]}><ReportsPage /></Gate>} />
               <Route path="parametres" element={<Gate roles={["superadmin", "admin"]}><ParametresPage /></Gate>} />
               <Route path="mes-classes" element={<Gate roles={["teacher"]}><TeacherClasses /></Gate>} />
