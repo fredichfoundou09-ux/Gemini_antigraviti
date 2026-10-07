@@ -127,6 +127,11 @@ const ResourceLibraryPage = lazy(() =>
   import("@/pages/shared/ResourceLibraryPage").then((m) => ({ default: m.ResourceLibraryPage }))
 );
 
+// Phase 6: N15 API & Webhooks, N13 Gamification, N14 i18n
+const IntegrationsAndWebhooksPage = lazy(() =>
+  import("@/pages/admin/IntegrationsAndWebhooksPage").then((m) => ({ default: m.IntegrationsAndWebhooksPage }))
+);
+
 function PageLoader() {
   return (
     <div className="flex min-h-[50vh] w-full flex-col items-center justify-center gap-3">
@@ -291,6 +296,7 @@ export default function App() {
               <Route path="forum" element={<Gate roles={["superadmin", "admin", "teacher", "student"]}><ModuleForumPage /></Gate>} />
               <Route path="ressources" element={<Gate roles={["superadmin", "admin", "teacher", "student", "partner"]}><ResourceLibraryPage /></Gate>} />
               <Route path="rapports" element={<Gate roles={["superadmin", "admin", "partner_admin"]}><ReportsPage /></Gate>} />
+              <Route path="integrations" element={<Gate roles={["superadmin", "admin"]}><IntegrationsAndWebhooksPage /></Gate>} />
               <Route path="parametres" element={<Gate roles={["superadmin", "admin"]}><ParametresPage /></Gate>} />
               <Route path="mes-classes" element={<Gate roles={["teacher"]}><TeacherClasses /></Gate>} />
               <Route path="mes-apprenants" element={<Gate roles={["teacher"]}><TeacherStudents /></Gate>} />

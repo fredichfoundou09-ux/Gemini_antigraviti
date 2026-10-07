@@ -5,7 +5,7 @@ import {
   TestTube2, PenLine, Wallet, Award, BadgeDollarSign, MessagesSquare, Bell, Settings,
   PenSquare, LogOut, ShieldCheck, Menu, X, UserCircle, NotebookPen, FolderOpen, BookMarked,
   ScrollText, Database, Activity, Medal, Handshake, Megaphone, RotateCcw, Clock, Eye,
-  Search, ArrowRight, Home, Calendar, Palette, Bot, Brain, Archive,
+  Search, ArrowRight, Home, Calendar, Palette, Bot, Brain, Archive, Key,
 } from "lucide-react";
 import { cn } from "@/utils/cn";
 import { useStore } from "@/lib/store";
@@ -97,6 +97,7 @@ const MENU: MenuItem[] = [
   { to: "/app/forum", label: "Forum Modules", icon: <MessagesSquare size={18} />, roles: ["superadmin", "admin", "teacher", "student"] },
   { to: "/app/ressources", label: "Ressources & Savoirs", icon: <BookOpen size={18} />, roles: ["superadmin", "admin", "teacher", "student", "partner"] },
   { to: "/app/rapports", label: "Rapports", icon: <Activity size={18} />, roles: ["superadmin", "admin", "partner_admin"] },
+  { to: "/app/integrations", label: "API & Intégrations", icon: <Key size={18} />, roles: ["superadmin", "admin"] },
   { to: "/app/parametres", label: "Paramètres", icon: <Settings size={18} />, roles: ["superadmin", "admin"] },
   { to: "/app/profil", label: "Mon profil", icon: <UserCircle size={18} />, roles: ["superadmin", "admin"] },
   { to: "/app/initialisation", label: "Initialiser le logiciel", icon: <RotateCcw size={18} />, roles: ["superadmin"] },
