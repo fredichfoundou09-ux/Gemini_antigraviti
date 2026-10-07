@@ -116,6 +116,17 @@ const CompetencyBookletPage = lazy(() =>
   import("@/pages/shared/CompetencyBookletPage").then((m) => ({ default: m.CompetencyBookletPage }))
 );
 
+// Phase 5: N8 Diplômes vérifiables, N9 Insertion & Stages, N10 Forum, N12 Ressources
+const AlumniAndInternshipsPage = lazy(() =>
+  import("@/pages/shared/AlumniAndInternshipsPage").then((m) => ({ default: m.AlumniAndInternshipsPage }))
+);
+const ModuleForumPage = lazy(() =>
+  import("@/pages/shared/ModuleForumPage").then((m) => ({ default: m.ModuleForumPage }))
+);
+const ResourceLibraryPage = lazy(() =>
+  import("@/pages/shared/ResourceLibraryPage").then((m) => ({ default: m.ResourceLibraryPage }))
+);
+
 function PageLoader() {
   return (
     <div className="flex min-h-[50vh] w-full flex-col items-center justify-center gap-3">
@@ -275,6 +286,10 @@ export default function App() {
               <Route path="tuteurs" element={<Gate roles={["superadmin", "admin", "tuteur"]}><GuardianPortalPage /></Gate>} />
               <Route path="qualite" element={<Gate roles={["superadmin", "admin", "teacher", "student"]}><SurveysAndQualityPage /></Gate>} />
               <Route path="competences" element={<Gate roles={["superadmin", "admin", "teacher", "student", "partner"]}><CompetencyBookletPage /></Gate>} />
+              <Route path="insertion" element={<Gate roles={["superadmin", "admin", "partner_admin", "teacher", "student"]}><AlumniAndInternshipsPage /></Gate>} />
+              <Route path="stages" element={<Navigate to="/app/insertion" replace />} />
+              <Route path="forum" element={<Gate roles={["superadmin", "admin", "teacher", "student"]}><ModuleForumPage /></Gate>} />
+              <Route path="ressources" element={<Gate roles={["superadmin", "admin", "teacher", "student", "partner"]}><ResourceLibraryPage /></Gate>} />
               <Route path="rapports" element={<Gate roles={["superadmin", "admin", "partner_admin"]}><ReportsPage /></Gate>} />
               <Route path="parametres" element={<Gate roles={["superadmin", "admin"]}><ParametresPage /></Gate>} />
               <Route path="mes-classes" element={<Gate roles={["teacher"]}><TeacherClasses /></Gate>} />
