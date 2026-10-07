@@ -8,6 +8,13 @@ import {
 } from "./types";
 import { ClientWikipediaProvider, ClientDocumentationProvider } from "./webSearch";
 import { canUserAccessAi } from "./aiAccessControl";
+import {
+  getBrazzavilleTime,
+  getBrazzavilleDate,
+  getBrazzavilleYear,
+  getBrazzavilleDateISO,
+  getBrazzavilleContextString,
+} from "@/lib/timeUtils";
 export * from "./types";
 
 function getLocalDB(): any {
@@ -81,6 +88,106 @@ export async function localAgentProcess(messages: AiChatMessage[]): Promise<AiAg
     }
     sources.push("Mémoire Utilisateur (Non vérifiée)");
     reply = "J'ai bien noté cette information comme **connaissance candidate**. Conformément aux règles de Sentinelles Numériques, elle reste classée comme *information non vérifiée* jusqu'à validation par la direction pédagogique ou confirmation par les données officielles.";
+    return { reply, pending_actions, intent, sources };
+  }
+
+  // 0.15 Détection : Horloge & Heure en temps réel au Congo-Brazzaville (WAT UTC+1)
+  const isCourseScheduleQuery =
+    lastMsg.includes("cours") ||
+    lastMsg.includes("planning") ||
+    lastMsg.includes("classe") ||
+    lastMsg.includes("salle") ||
+    lastMsg.includes("formateur") ||
+    lastMsg.includes("enseignant");
+
+  const isTimeQuestion =
+    !isCourseScheduleQuery &&
+    (/quelle\s+heure|il\s+est\s+quelle\s+heure|l'heure\s+qu'il\s+est|l'heure\s+actuelle|donne.*l'heure|heure.*(brazzaville|congo)|fuseau.*horaire/i.test(lastMsg) ||
+      /^heure\b/i.test(lastMsg.trim()) ||
+      (lastMsg.includes("heure") && !isCourseScheduleQuery));
+
+  if (isTimeQuestion) {
+    intent = "TIME_SYNC";
+    sources.push("Horloge Système Temps Réel — Brazzaville (WAT UTC+1)");
+    const nowTime = getBrazzavilleTime(new Date(), true);
+    const nowDate = getBrazzavilleDate(new Date(), "full");
+    const nowYear = getBrazzavilleYear();
+    reply = `À Brazzaville (République du Congo, fuseau horaire WAT UTC+1), il est actuellement **${nowTime}** le **${nowDate}**.\n\nNous sommes en l'année **${nowYear}**. L'ensemble de la plateforme et des rapports sont synchronisés sur ce temps réel officiel.`;
+    return { reply, pending_actions, intent, sources };
+  }
+
+  // 0.16 Détection : Date du jour & Année actuelle (Congo-Brazzaville, WAT UTC+1)
+  const isDateQuestion =
+    /quelle\s+est\s+la\s+date|la\s+date\s+d'aujourd'hui|date\s+du\s+jour|date\s+actuelle|quel\s+jour\s+sommes|on\s+est\s+quel\s+jour|en\s+quelle\s+année|l'année\s+actuelle|l'an\s+actuel|année\s+en\s+cours/i.test(lastMsg);
+
+  if (isDateQuestion) {
+    intent = "DATE_SYNC";
+    sources.push("Horloge Système Temps Réel — Brazzaville (WAT UTC+1)");
+    const nowTime = getBrazzavilleTime(new Date(), true);
+    const nowDate = getBrazzavilleDate(new Date(), "full");
+    const nowYear = getBrazzavilleYear();
+    reply = `Nous sommes aujourd'hui le **${nowDate}** et l'année en cours est **${nowYear}** (heure locale à Brazzaville : **${nowTime}**, WAT UTC+1).`;
+    return { reply, pending_actions, intent, sources };
+  }
+
+  // 0.17 Détection : Rapport global d'activité & Bilan officiel en temps réel
+  const isFinanceQuery =
+    lastMsg.includes("financ") ||
+    lastMsg.includes("factur") ||
+    lastMsg.includes("impayé") ||
+    lastMsg.includes("impaye") ||
+    lastMsg.includes("paiement") ||
+    lastMsg.includes("trésor") ||
+    lastMsg.includes("tresor");
+
+  const isReportQuestion =
+    !isFinanceQuery &&
+    (/\brapport\b|\bbilan\b|\bsynthèse\b|\bsynthese\b|\brapports\b/i.test(lastMsg) &&
+      !lastMsg.includes("devoir") &&
+      !lastMsg.includes("exercice") &&
+      !lastMsg.includes("cours"));
+
+  if (isReportQuestion) {
+    intent = "OFFICIAL_REPORT";
+    sources.push(
+      "Rapport Administratif & Pédagogique Officiel (Temps Réel)",
+      "Registre Central Sentinelles Numériques — Brazzaville"
+    );
+
+    const nowTime = getBrazzavilleTime(new Date(), true);
+    const nowDate = getBrazzavilleDate(new Date(), "full");
+    const nowYear = getBrazzavilleYear();
+    const students = db?.students || [];
+    const activeStudents = students.filter((s: any) => s.statut === "actif").length;
+    const teachers = db?.teachers || [];
+    const modules = db?.modules || [];
+    const attendance = db?.attendance || [];
+    const presents = attendance.filter((a: any) => a.statut === "present").length;
+    const attRate = attendance.length > 0 ? Math.round((presents / attendance.length) * 100) : 0;
+    const invoices = db?.invoices || [];
+    const payments = db?.payments || [];
+    const totalFacture = invoices.reduce((acc: number, inv: any) => acc + Number(inv.montant || 0), 0);
+    const totalPaye = payments.reduce((acc: number, p: any) => acc + Number(p.montant || 0), 0);
+    const impaye = Math.max(0, totalFacture - totalPaye);
+    const fmtN = (n: number) => n.toLocaleString("fr-FR").replace(/[\u202F\u00A0]/g, " ");
+
+    reply = `📊 **RAPPORT OFFICIEL EN TEMPS RÉEL — SENTINELLES NUMÉRIQUES**\n\n` +
+      `📍 **Localisation** : Centre ENIA 2.0, Brazzaville (Congo)\n` +
+      `⏱️ **Date & Heure d'émission** : ${nowDate} à ${nowTime} (WAT, UTC+1)\n` +
+      `📅 **Exercice / Année de référence** : ${nowYear}\n\n` +
+      `---\n\n` +
+      `### 1. Effectifs & Pédagogie\n` +
+      `- **Apprenants inscrits** : ${students.length} (${activeStudents} actifs)\n` +
+      `- **Formateurs & Enseignants** : ${teachers.length} actifs\n` +
+      `- **Modules au catalogue** : ${modules.length}\n\n` +
+      `### 2. Assiduité & Émargements\n` +
+      `- **Pointages enregistrés** : ${attendance.length}\n` +
+      `- **Taux d'assiduité global** : ${attRate}%\n\n` +
+      `### 3. Trésorerie & Scolarité (${nowYear})\n` +
+      `- **Total facturé** : ${fmtN(totalFacture)} FCFA\n` +
+      `- **Total encaissé** : ${fmtN(totalPaye)} FCFA\n` +
+      `- **Solde restant à recouvrer** : ${fmtN(impaye)} FCFA\n\n` +
+      `*Données officielles consolidées en temps réel selon le fuseau horaire de Brazzaville.*`;
     return { reply, pending_actions, intent, sources };
   }
 
@@ -297,7 +404,7 @@ export async function localAgentProcess(messages: AiChatMessage[]): Promise<AiAg
           module_id: matchedModule.id,
           student_ids: sampleIds,
           statut: "present",
-          date: new Date().toISOString().slice(0, 10),
+          date: getBrazzavilleDateISO(),
         },
       });
       reply = `La feuille de présence est prête pour ${sampleIds.length} apprenant(s) sur le module **${matchedModule.titre}**. Confirmez l'enregistrement pour inscrire l'appel en base.`;
@@ -493,7 +600,7 @@ export async function localAgentProcess(messages: AiChatMessage[]): Promise<AiAg
   }
 
   // 10. Horaires & Emploi du temps
-  if (lastMsg.includes("heure") || lastMsg.includes("planning") || lastMsg.includes("cours") || lastMsg.includes("salle")) {
+  if (lastMsg.includes("horaire") || lastMsg.includes("planning") || (lastMsg.includes("cours") && (lastMsg.includes("quand") || lastMsg.includes("créneau") || lastMsg.includes("creneau"))) || lastMsg.includes("salle")) {
     intent = "SCHEDULE";
     sources.push("Emploi du temps hebdomadaire officiel");
     reply = `Votre planning de formation comprend les séances habituelles réparties du lundi au vendredi. Vous pouvez consulter les créneaux par salle dans l'onglet Planning.`;
@@ -556,7 +663,7 @@ export async function localAgentExecute(action: AiPendingAction): Promise<{ ok: 
         type: args.type || "devoir",
         content: args.contenu,
         publie: true,
-        date: new Date().toISOString().slice(0, 10),
+        date: getBrazzavilleDateISO(),
       });
       saveLocalDB(db);
     }
@@ -574,7 +681,7 @@ export async function localAgentExecute(action: AiPendingAction): Promise<{ ok: 
           moduleId: args.module_id,
           module_id: args.module_id,
           statut: args.statut,
-          date: args.date || new Date().toISOString().slice(0, 10),
+          date: args.date || getBrazzavilleDateISO(),
         });
       });
       saveLocalDB(db);
@@ -635,7 +742,7 @@ export async function localAgentExecute(action: AiPendingAction): Promise<{ ok: 
         libelle: args.libelle || "Frais de formation",
         montant: Number(args.montant) || 0,
         type: args.type || "formation",
-        date: new Date().toISOString().slice(0, 10),
+        date: getBrazzavilleDateISO(),
         createdBy: "sentinel-ai",
       };
       db.invoices.push(newInvoice);
@@ -677,7 +784,12 @@ export async function askSentinelAi(messages: AiChatMessage[]): Promise<AiAgentR
           "Content-Type": "application/json",
           Authorization: `Bearer ${session.access_token}`,
         },
-        body: JSON.stringify({ messages }),
+        body: JSON.stringify({
+          messages,
+          brazzaville_time: getBrazzavilleContextString(),
+          current_year: getBrazzavilleYear(),
+          timezone: "Africa/Brazzaville",
+        }),
       });
 
       if (res.ok) {
@@ -732,7 +844,13 @@ export async function askSentinelAiStream(
           "Content-Type": "application/json",
           Authorization: `Bearer ${session.access_token}`,
         },
-        body: JSON.stringify({ messages, stream: true }),
+        body: JSON.stringify({
+          messages,
+          stream: true,
+          brazzaville_time: getBrazzavilleContextString(),
+          current_year: getBrazzavilleYear(),
+          timezone: "Africa/Brazzaville",
+        }),
       });
 
       if (res.ok && res.body) {

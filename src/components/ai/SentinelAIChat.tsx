@@ -44,6 +44,7 @@ import {
   isSpeechSynthesisSupported,
 } from "@/lib/ai/voice";
 import { exportEvaluationToDocx, exportEvaluationToPdf } from "@/lib/ai/exportAiContent";
+import { useBrazzavilleClock } from "@/lib/timeUtils";
 
 
 interface SentinelAIChatProps {
@@ -411,6 +412,7 @@ export function SentinelAIChat({ open, onClose, userRole, userName }: SentinelAI
   const [uploadingDoc, setUploadingDoc] = useState(false);
   const fileInputRef = useRef<HTMLInputElement>(null);
   const endRef = useRef<HTMLDivElement>(null);
+  const clock = useBrazzavilleClock();
 
   const voiceState: "idle" | "listening" | "processing" | "speaking" | "error" = isListening
     ? "listening"
@@ -617,10 +619,21 @@ export function SentinelAIChat({ open, onClose, userRole, userName }: SentinelAI
                   NVIDIA NEMOTRON
                 </span>
               </div>
-              <p className="text-[11px] text-slate-400 flex items-center gap-1.5">
-                <Zap size={10} className="text-emerald-400" />
-                Intelligence contextuelle • {userRole?.toUpperCase() || "CONNECTÉ"}
-              </p>
+              <div className="flex items-center gap-2 flex-wrap">
+                <p className="text-[11px] text-slate-400 flex items-center gap-1.5">
+                  <Zap size={10} className="text-emerald-400" />
+                  {userRole?.toUpperCase() || "CONNECTÉ"}
+                </p>
+                <span className="text-cyan-500/40 text-[10px]">•</span>
+                <span
+                  className="flex items-center gap-1 text-[10px] font-mono text-cyan-300 bg-cyan-950/60 px-1.5 py-0.2 rounded border border-cyan-500/30"
+                  title="Horloge officielle de Brazzaville synchronisée"
+                >
+                  <Clock size={10} className="text-cyan-400" />
+                  {clock.time}
+                  <span className="text-[8px] text-cyan-400/70 font-sans">GMT+1</span>
+                </span>
+              </div>
             </div>
           </div>
 

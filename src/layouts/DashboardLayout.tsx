@@ -27,6 +27,7 @@ import {
 import { AiAgentPanel } from "@/components/AiAgentPanel";
 import { AcademicYearSelector } from "@/components/AcademicYearSelector";
 import { NetworkSyncIndicator } from "@/components/common/NetworkSyncIndicator";
+import { RealTimeClock } from "@/components/common/RealTimeClock";
 
 const roleLabel: Record<string, string> = {
   superadmin: "SUPER ADMIN",
@@ -901,25 +902,8 @@ export default function DashboardLayout() {
             {/* Statut Réseau, File Hors-ligne & Économie de données */}
             <NetworkSyncIndicator />
 
-            {/* Bouton Assistant IA visible dans le Header uniquement si non restreint */}
-            {!isAiBlocked && (
-              <button
-                type="button"
-                onClick={() => setAiAgentOpen(true)}
-                className="relative flex items-center gap-2 rounded-xl border border-cyan-400/60 bg-gradient-to-r from-cyan-950/80 to-[#0B111A] px-3 py-1.5 text-cyan-300 transition hover:border-cyan-300 hover:shadow-[0_0_18px_rgba(0,229,255,0.4)] shrink-0 cursor-pointer"
-                title="Ouvrir l'Assistant IA"
-                aria-label="Assistant IA Agent"
-              >
-                <div className="relative">
-                  <Bot size={18} className="text-cyan-400" />
-                  <span className="absolute -top-0.5 -right-0.5 flex h-2 w-2">
-                    <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-cyan-400 opacity-75"></span>
-                    <span className="relative inline-flex rounded-full h-2 w-2 bg-emerald-400"></span>
-                  </span>
-                </div>
-                <span className="hidden sm:inline text-xs font-bold text-cyan-200">Assistant IA</span>
-              </button>
-            )}
+            {/* Horloge et Date en Temps Réel (Congo-Brazzaville, WAT UTC+1) */}
+            <RealTimeClock />
 
             <NavLink
               to="/app/messages"

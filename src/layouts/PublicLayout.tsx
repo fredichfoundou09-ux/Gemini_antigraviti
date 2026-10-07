@@ -6,6 +6,7 @@ import { useStore } from "@/lib/store";
 import { Btn, SentinelLogo } from "@/lib/ui";
 import { ThemeToggle } from "@/components/ThemeToggle";
 import { AiAgentPanel } from "@/components/AiAgentPanel";
+import { RealTimeClock } from "@/components/common/RealTimeClock";
 
 const LINKS = [
   { to: "/", label: "Accueil" },
@@ -112,22 +113,16 @@ export default function PublicLayout() {
               </button>
             </Link>
 
-            {/* Bouton Assistant IA Public */}
-            <button
-              type="button"
-              onClick={() => setAiOpen(true)}
-              className="flex h-[38px] items-center gap-2 rounded-md border border-[#00D9FF] bg-gradient-to-r from-cyan-950/70 to-[#071A2B] px-3.5 sm:px-4 font-display text-xs font-bold tracking-wider uppercase text-[#00D9FF] shadow-[0_0_12px_rgba(0,217,255,0.35)] transition-all hover:bg-[#00D9FF]/20 hover:shadow-[0_0_20px_rgba(0,217,255,0.6)] cursor-pointer"
-            >
-              <Bot size={16} className="text-[#00F0FF] animate-pulse" />
-              <span>ASSISTANT IA</span>
-            </button>
+            {/* Horloge et Date en Temps Réel (Congo-Brazzaville, WAT UTC+1) */}
+            <RealTimeClock />
 
             {/* Sélecteur de Thème Public */}
             <ThemeToggle showLabel />
           </nav>
 
-          {/* Mobile hamburger button */}
+          {/* Mobile header controls */}
           <div className="flex items-center gap-2 lg:hidden">
+            <RealTimeClock compact />
             <ThemeToggle />
             <button
               onClick={() => setOpen(!open)}

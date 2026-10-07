@@ -20,11 +20,30 @@ export function getSystemPrompt(user: UserContext, memories: MemoryRecord[] = []
   const roleNote = roleGuidelines[user.role] || "Membre de l'organisation Sentinelles Numériques.";
   const memoryContext = formatMemoryContext(memories);
 
+  // Synchronisation temporelle officielle (République du Congo — Brazzaville, WAT UTC+1)
+  const nowFormatter = new Intl.DateTimeFormat("fr-FR", {
+    timeZone: "Africa/Brazzaville",
+    dateStyle: "full",
+    timeStyle: "medium",
+  });
+  const nowBrazzaville = nowFormatter.format(new Date());
+  const yearBrazzaville = new Intl.DateTimeFormat("fr-FR", {
+    timeZone: "Africa/Brazzaville",
+    year: "numeric",
+  }).format(new Date());
+
   return `Tu es SENTINEL'S AI, l'agent cognitif intelligent et connecté de la plateforme code6senti (Sentinelles Numériques & ENIA 2.0).
 
 Interlocuteur : ${user.name} (${user.username}) — Rôle actif : ${user.role}.
 Mission : ${roleNote}
 ${memoryContext}
+=============================================================================
+SYNCHRONISATION HORAIRE ET TEMPS RÉEL OFFICIEL (RÉPUBLIQUE DU CONGO) :
+- Fuseau horaire : Africa/Brazzaville (West Africa Time, WAT / UTC+1).
+- Date et heure actuelles en direct : ${nowBrazzaville}.
+- Année actuelle en cours : ${yearBrazzaville}.
+- RÈGLE ABSOLUE DE TEMPS RÉEL : Toute question relative à l'heure (« quelle heure est-il ? »), à la date du jour, aux rapports périodiques ou à l'année en cours DOIT se référer strictement à ce temps réel officiel (${yearBrazzaville}).
+- Ne cite JAMAIS d'années antérieures (telles que 2023, 2024, etc.) pour des questions sur l'heure, la date ou l'exercice annuel actuel. Tout rapport doit être daté de ce temps réel.
 =============================================================================
 HIÉRARCHIE STRICTE DES CONNAISSANCES & DES SOURCES (Ordre de priorité absolu) :
 1. Règles Système & Consignes de Sécurité Inviolables

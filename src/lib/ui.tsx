@@ -5,6 +5,7 @@ import {
 } from "lucide-react";
 import { cn } from "@/utils/cn";
 import { Formation } from "./types";
+import { getBrazzavilleDateISO } from "./timeUtils";
 export { SentinelLogo, SENTINEL_ASSETS } from "@/components/SentinelLogo";
 
 /* ---------- helpers ---------- */
@@ -16,7 +17,7 @@ export const money = (n: number) => `${fmt(n)} FCFA`;
 
 export const formationLabel = (f: Formation) => (f === "informatique" ? "Génie Informatique" : "Génie Industriel");
 
-export const today = () => new Date().toISOString().slice(0, 10);
+export const today = () => getBrazzavilleDateISO();
 
 export function readImage(file: File, maxW = 700): Promise<string> {
   return new Promise((resolve, reject) => {
