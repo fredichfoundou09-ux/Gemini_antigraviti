@@ -26,6 +26,8 @@ import {
   deleteNotification,
   deleteAllNotifications,
 } from "@/lib/notifications";
+import { NotificationTemplatesView } from "@/components/communication/NotificationTemplatesView";
+import { NotificationOutboxView } from "@/components/communication/NotificationOutboxView";
 
 const notifColor: Record<string, string> = {
   info: "border-cyan-400/30 text-cyan-300",
@@ -39,7 +41,7 @@ const notifColor: Record<string, string> = {
 export function MessageCenter() {
   const { db, user, update, userName, log } = useStore();
   const [searchParams] = useSearchParams();
-  const [mode, setMode] = useState<"inbox" | "new" | "ai_automations">("inbox");
+  const [mode, setMode] = useState<"inbox" | "new" | "ai_automations" | "templates" | "outbox">("inbox");
   const isStudent = user?.role === "student";
   const [to, setTo] = useState(isStudent ? "" : "all_students");
   const [subject, setSubject] = useState("");
@@ -773,6 +775,36 @@ export function MessageCenter() {
                 )}
               </button>
             )}
+            {["superadmin", "admin"].includes(user?.role || "") && (
+              <>
+                <button
+                  type="button"
+                  onClick={() => setMode(mode === "templates" ? "inbox" : "templates")}
+                  className={cn(
+                    "flex items-center gap-1.5 px-3 py-2 rounded-xl text-xs font-semibold border transition cursor-pointer",
+                    mode === "templates"
+                      ? "bg-[var(--sn-red)]/20 text-white border-[var(--sn-red)]"
+                      : "bg-white/[0.03] text-slate-300 border-white/10 hover:bg-white/10"
+                  )}
+                >
+                  <Bell size={14} className="text-[var(--sn-red)]" />
+                  <span>Modèles N2</span>
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setMode(mode === "outbox" ? "inbox" : "outbox")}
+                  className={cn(
+                    "flex items-center gap-1.5 px-3 py-2 rounded-xl text-xs font-semibold border transition cursor-pointer",
+                    mode === "outbox"
+                      ? "bg-[var(--sn-red)]/20 text-white border-[var(--sn-red)]"
+                      : "bg-white/[0.03] text-slate-300 border-white/10 hover:bg-white/10"
+                  )}
+                >
+                  <Mail size={14} className="text-[var(--sn-red)]" />
+                  <span>Journal Outbox</span>
+                </button>
+              </>
+            )}
             <Btn onClick={() => setMode(mode === "inbox" ? "new" : "inbox")}>
               {mode === "inbox" ? <><Send size={16} /> Nouveau message</> : <><Inbox size={16} /> Boîte de réception</>}
             </Btn>
@@ -780,7 +812,11 @@ export function MessageCenter() {
         }
       />
 
-      {mode === "ai_automations" ? (
+      {mode === "templates" ? (
+        <NotificationTemplatesView />
+      ) : mode === "outbox" ? (
+        <NotificationOutboxView />
+      ) : mode === "ai_automations" ? (
         <div className="space-y-6">
           {/* En-tête du panneau automatisations */}
           <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 rounded-2xl border border-purple-500/20 bg-gradient-to-r from-purple-950/20 via-slate-900/60 to-purple-950/20 p-5 shadow-xl">

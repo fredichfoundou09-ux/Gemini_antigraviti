@@ -1,4 +1,4 @@
-import { useState, useMemo } from "react";
+import { useState, useMemo, useEffect, useCallback } from "react";
 import { Link } from "react-router-dom";
 import {
   Users, GraduationCap, BookOpen, ClipboardCheck,
@@ -13,6 +13,9 @@ import { toastMsg } from "@/lib/toast";
 import { usePresence, isUserActiveOnline } from "@/hooks/usePresence";
 import { cn } from "@/utils/cn";
 import { SentinelAiBriefingCard } from "@/components/ai/SentinelAiBriefingCard";
+import { TodayActionWidget } from "@/components/dashboard/TodayActionWidget";
+import { DropoutRiskRadarCard } from "@/components/dashboard/DropoutRiskRadarCard";
+import { riskService, RiskScore } from "@/modules/students/services/riskService";
 
 /* ---------- helpers ---------- */
 function Bar({ label, value, max, color }: { label: string; value: number; max: number; color: string }) {
@@ -60,6 +63,21 @@ export function AdminDashboard() {
 
   const scholarshipsGranted = db.scholarships.filter((s) => s.statut === "bourse_attribuee").length;
   const isEmpty = db.students.length === 0 && db.teachers.length === 0 && db.modules.length === 0;
+
+  // État Radar de risque de décrochage (Module N3)
+  const [riskScores, setRiskScores] = useState<RiskScore[]>([]);
+  const [loadingRisk, setLoadingRisk] = useState(false);
+
+  const loadRisk = useCallback(async () => {
+    setLoadingRisk(true);
+    const { data } = await riskService.getRiskScores();
+    setRiskScores(data);
+    setLoadingRisk(false);
+  }, []);
+
+  useEffect(() => {
+    loadRisk();
+  }, [loadRisk]);
 
   // Calcul des présences sur les 7 derniers jours (Lundi à Dimanche)
   const last7Days = useMemo(() => {
@@ -513,6 +531,12 @@ export function AdminDashboard() {
     <div className="space-y-4">
       {/* ================= BRIEFING PROACTIF SENTINEL AI ================= */}
       <SentinelAiBriefingCard userRole={user?.role} userName={user?.name || "Administrateur"} />
+
+      {/* ================= BLOC À TRAITER AUJOURD'HUI (E1) ================= */}
+      <TodayActionWidget riskScores={riskScores} />
+
+      {/* ================= RADAR DE RISQUE DE DÉCROCHAGE (N3) ================= */}
+      <DropoutRiskRadarCard scores={riskScores} onScoresUpdated={loadRisk} loading={loadingRisk} />
 
       {/* ================= SECTION SUPÉRIEURE : 2 COLONNES ASYMÉTRIQUES ================= */}
       <div className="grid grid-cols-1 gap-3.5 lg:grid-cols-12">
