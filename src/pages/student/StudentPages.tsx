@@ -1,5 +1,6 @@
-import { useState, useMemo } from "react";
+import { useState, useMemo, useEffect } from "react";
 import { Link } from "react-router-dom";
+import { generateRotatingQrToken } from "@/lib/offlineQueue";
 import { QRCodeSVG } from "qrcode.react";
 import {
   UserCircle2, CalendarDays, Clock, MapPin, ClipboardCheck, PenLine, Wallet, Award,
@@ -33,6 +34,53 @@ function isSupportUrl(str?: string): boolean {
 function normalizeSupportUrl(str: string): string {
   const trimmed = str.trim();
   return trimmed.startsWith("www.") ? `https://${trimmed}` : trimmed;
+}
+
+function StudentRotatingQr({
+  studentId,
+  fallbackPayload,
+  size = 100,
+}: {
+  studentId: string;
+  fallbackPayload: string;
+  size?: number;
+}) {
+  const [useRotating, setUseRotating] = useState(true);
+  const [rotatingData, setRotatingData] = useState(() =>
+    generateRotatingQrToken(studentId, "session")
+  );
+
+  useEffect(() => {
+    if (!useRotating) return;
+    const interval = setInterval(() => {
+      setRotatingData(generateRotatingQrToken(studentId, "session"));
+    }, 1000);
+    return () => clearInterval(interval);
+  }, [studentId, useRotating]);
+
+  return (
+    <div className="flex flex-col items-center">
+      <div className="relative rounded-xl bg-white p-2 shadow">
+        <QRCodeSVG value={useRotating ? rotatingData.token : fallbackPayload} size={size} />
+      </div>
+      {useRotating ? (
+        <div className="mt-1.5 flex items-center gap-1.5 text-[10px] text-white/70">
+          <span className="inline-block h-2 w-2 rounded-full bg-emerald-500 animate-pulse" />
+          <span>Anti-fraude (30s) :</span>
+          <span className="font-mono font-bold text-red-400">{rotatingData.timeRemainingSec}s</span>
+        </div>
+      ) : (
+        <span className="mt-1 text-[9px] text-white/50">QR Statique</span>
+      )}
+      <button
+        type="button"
+        onClick={() => setUseRotating(!useRotating)}
+        className="mt-1 text-[9px] text-white/40 hover:text-white underline cursor-pointer"
+      >
+        {useRotating ? "Afficher QR fixe" : "Activer QR rotatif 30s"}
+      </button>
+    </div>
+  );
 }
 
 async function downloadCourseContent(course: any) {
@@ -422,9 +470,11 @@ export function StudentDashboard() {
             <Badge color="green">{student.statut}</Badge>
           </div>
           <div className="flex items-center gap-4 pt-1">
-            <div className="rounded-xl bg-white p-2 shadow">
-              <QRCodeSVG value={`SN|${student.id}|${student.nom}|${student.prenom}|${student.formation}`} size={85} />
-            </div>
+            <StudentRotatingQr
+              studentId={student.id}
+              fallbackPayload={`SN|${student.id}|${student.nom}|${student.prenom}|${student.formation}`}
+              size={85}
+            />
             <div>
               <p className="font-display text-base font-black text-white">{student.prenom} {student.nom}</p>
               <p className="font-mono text-xs font-bold text-cyan-300">{student.id}</p>
@@ -476,8 +526,12 @@ export function StudentProfile() {
             <Info label="Niveau d'étude" value={student.niveau || "—"} />
             <Info label="Inscrit le" value={student.dateInscription} />
           </div>
-          <div className="mt-4 rounded-xl bg-white p-2">
-            <QRCodeSVG value={`SN|${student.id}|${student.nom}|${student.prenom}|${student.formation}`} size={140} className="mx-auto" />
+          <div className="mt-4">
+            <StudentRotatingQr
+              studentId={student.id}
+              fallbackPayload={`SN|${student.id}|${student.nom}|${student.prenom}|${student.formation}`}
+              size={140}
+            />
           </div>
           <p className="mt-2 text-center text-[10px] uppercase tracking-[0.25em] text-slate-500">Présentez ce QR Code en salle</p>
         </Card>

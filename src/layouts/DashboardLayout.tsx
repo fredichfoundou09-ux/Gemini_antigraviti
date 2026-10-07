@@ -26,6 +26,7 @@ import {
 } from "@/lib/pushNotifications";
 import { AiAgentPanel } from "@/components/AiAgentPanel";
 import { AcademicYearSelector } from "@/components/AcademicYearSelector";
+import { NetworkSyncIndicator } from "@/components/common/NetworkSyncIndicator";
 
 const roleLabel: Record<string, string> = {
   superadmin: "SUPER ADMIN",
@@ -889,6 +890,9 @@ export default function DashboardLayout() {
           <div className="flex items-center gap-1.5 sm:gap-2.5">
             {/* Sélecteur d'Année Académique officiel */}
             <AcademicYearSelector />
+
+            {/* Statut Réseau, File Hors-ligne & Économie de données */}
+            <NetworkSyncIndicator />
 
             {/* Bouton Assistant IA visible dans le Header uniquement si non restreint */}
             {!isAiBlocked && (
