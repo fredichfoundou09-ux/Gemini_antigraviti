@@ -41,6 +41,7 @@ const TeacherHoursPage = lazy(() => import("@/pages/admin/TeacherHours").then((m
 const SentinelAiAdminPage = lazy(() => import("@/pages/admin/SentinelAiAdminPage").then((m) => ({ default: m.SentinelAiAdminPage })));
 const BulletinsPage = lazy(() => import("@/pages/admin/BulletinPage").then((m) => ({ default: m.BulletinsPage })));
 const ImportPage = lazy(() => import("@/pages/admin/ImportPage").then((m) => ({ default: m.ImportPage })));
+const TrashAndBackupsPage = lazy(() => import("@/pages/admin/TrashAndBackupsPage"));
 
 // Shared pages
 const TeacherSubmissions = lazy(() => import("@/pages/shared/Submissions").then((m) => ({ default: m.TeacherSubmissions })));
@@ -258,6 +259,8 @@ export default function App() {
               <Route path="annonces" element={<Navigate to="/app/contenu" replace />} />
               <Route path="initialisation" element={<Gate roles={["superadmin"]}><InitializationPage /></Gate>} />
               <Route path="journal" element={<Gate roles={["superadmin", "admin"]}><JournalPage /></Gate>} />
+              <Route path="corbeille" element={<Gate roles={["superadmin", "admin"]}><TrashAndBackupsPage /></Gate>} />
+              <Route path="sauvegardes" element={<Navigate to="/app/corbeille" replace />} />
               <Route path="rapports" element={<Gate roles={["superadmin", "admin", "partner_admin"]}><ReportsPage /></Gate>} />
               <Route path="parametres" element={<Gate roles={["superadmin", "admin"]}><ParametresPage /></Gate>} />
               <Route path="mes-classes" element={<Gate roles={["teacher"]}><TeacherClasses /></Gate>} />

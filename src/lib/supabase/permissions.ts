@@ -51,6 +51,18 @@ export function hasPermission(p: Profile | null | undefined, action: Permission 
     "scholarships.manage": ["superadmin", "admin"],
     "scholarships.read": ["superadmin", "admin", "partner_admin", "partner", "student"],
     "reports.read": ["superadmin", "admin", "partner_admin", "partner"],
+    "trash.read": ["superadmin", "admin", "teacher"],
+    "trash.manage": ["superadmin", "admin"],
+    "trash.restore": ["superadmin", "admin", "teacher"],
+    "notifications.manage": ["superadmin", "admin"],
+    "risk.read": ["superadmin", "admin", "teacher"],
+    "risk.manage": ["superadmin", "admin"],
+    "guardians.manage": ["superadmin", "admin"],
+    "surveys.manage": ["superadmin", "admin", "teacher"],
+    "competencies.manage": ["superadmin", "admin", "teacher"],
+    "alumni.manage": ["superadmin", "admin"],
+    "forums.manage": ["superadmin", "admin", "teacher"],
+    "resources.manage": ["superadmin", "admin", "teacher"],
   };
 
   return (matrix[action] || []).includes(role);

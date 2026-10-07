@@ -5,7 +5,7 @@ import {
   TestTube2, PenLine, Wallet, Award, BadgeDollarSign, MessagesSquare, Bell, Settings,
   PenSquare, LogOut, ShieldCheck, Menu, X, UserCircle, NotebookPen, FolderOpen, BookMarked,
   ScrollText, Database, Activity, Medal, Handshake, Megaphone, RotateCcw, Clock, Eye,
-  Search, ArrowRight, Home, Calendar, Palette, Bot, Brain,
+  Search, ArrowRight, Home, Calendar, Palette, Bot, Brain, Archive,
 } from "lucide-react";
 import { cn } from "@/utils/cn";
 import { useStore } from "@/lib/store";
@@ -88,6 +88,7 @@ const MENU: MenuItem[] = [
   { to: "/app/utilisateurs", label: "Utilisateurs", icon: <ShieldCheck size={18} />, roles: ["superadmin"] },
   { to: "/app/contenu", label: "Contenu du site", icon: <PenSquare size={18} />, roles: ["superadmin", "admin"] },
   { to: "/app/journal", label: "Journal d'activité", icon: <Activity size={18} />, roles: ["superadmin", "admin"] },
+  { to: "/app/corbeille", label: "Corbeille & Sauvegardes", icon: <Archive size={18} />, roles: ["superadmin", "admin"] },
   { to: "/app/rapports", label: "Rapports", icon: <Activity size={18} />, roles: ["superadmin", "admin", "partner_admin"] },
   { to: "/app/parametres", label: "Paramètres", icon: <Settings size={18} />, roles: ["superadmin", "admin"] },
   { to: "/app/profil", label: "Mon profil", icon: <UserCircle size={18} />, roles: ["superadmin", "admin"] },

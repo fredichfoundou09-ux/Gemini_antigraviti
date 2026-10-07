@@ -68,6 +68,18 @@ export const PERMISSIONS = [
   "audit.read",
   "enya.read",
   "enya.manage",
+  "trash.read",
+  "trash.manage",
+  "trash.restore",
+  "notifications.manage",
+  "risk.read",
+  "risk.manage",
+  "guardians.manage",
+  "surveys.manage",
+  "competencies.manage",
+  "alumni.manage",
+  "forums.manage",
+  "resources.manage",
 ] as const;
 
 export type Permission = (typeof PERMISSIONS)[number];
