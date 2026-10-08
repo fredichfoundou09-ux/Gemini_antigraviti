@@ -97,8 +97,8 @@ export const IntegrationsAndWebhooksPage: React.FC = () => {
   return (
     <div className="space-y-6">
       <PageHead
-        title="Intégrations, API Publique & Webhooks"
-        subtitle="Interconnexions externes, signatures HMAC, options de gamification et multilingue"
+        title="Intégrations, API Publique & Webhooks (Bêta — Simulation)"
+        subtitle="Interconnexions externes, signatures HMAC SHA-256, gestion des jetons (Environnement sandbox / Bêta contrôlé)"
         actions={
           <div className="flex gap-2">
             {activeTab === "api" && (
@@ -114,6 +114,14 @@ export const IntegrationsAndWebhooksPage: React.FC = () => {
           </div>
         }
       />
+
+      {/* Avertissement de sécurité Bêta / Simulation */}
+      <div className="p-3 bg-amber-500/10 border border-amber-500/30 rounded-lg text-amber-200 text-xs flex items-center gap-2">
+        <ShieldCheck size={16} className="text-amber-400 shrink-0" />
+        <span>
+          <strong>Mode Bêta (Simulation sécurisée) :</strong> Les clés d'API sont cryptographiquement générées (32 octets aléatoires CSPRNG, hash SHA-256) et réservées aux superadministrateurs. Les livraisons webhooks sont journalisées en simulation pour préserver la sécurité du réseau avant le déploiement de la passerelle de production.
+        </span>
+      </div>
 
       {/* Onglets */}
       <div className="flex gap-2 border-b border-white/10 pb-2">

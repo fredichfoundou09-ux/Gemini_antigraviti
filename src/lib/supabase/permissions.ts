@@ -63,6 +63,9 @@ export function hasPermission(p: Profile | null | undefined, action: Permission 
     "alumni.manage": ["superadmin", "admin"],
     "forums.manage": ["superadmin", "admin", "teacher"],
     "resources.manage": ["superadmin", "admin", "teacher"],
+    "api.manage": ["superadmin", "admin"],
+    "webhooks.manage": ["superadmin", "admin"],
+    "gamification.manage": ["superadmin", "admin"],
   };
 
   return (matrix[action] || []).includes(role);

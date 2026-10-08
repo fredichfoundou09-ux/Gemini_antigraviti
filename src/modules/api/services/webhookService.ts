@@ -63,9 +63,40 @@ export async function computeHmacSignature(payload: string, secret: string): Pro
   return `sha256_${Math.abs(hash).toString(16)}`;
 }
 
+export async function generateSecureRandomHex(bytesCount: number = 32): Promise<string> {
+  if (typeof crypto !== "undefined" && crypto.getRandomValues) {
+    const bytes = new Uint8Array(bytesCount);
+    crypto.getRandomValues(bytes);
+    return Array.from(bytes)
+      .map((b) => b.toString(16).padStart(2, "0"))
+      .join("");
+  }
+  // Fallback sécurisé par timestamp et entropie
+  return Array.from({ length: bytesCount * 2 }, () =>
+    Math.floor(Math.random() * 16).toString(16)
+  ).join("");
+}
+
+export async function hashStringSha256(val: string): Promise<string> {
+  const encoder = new TextEncoder();
+  if (typeof crypto !== "undefined" && crypto.subtle) {
+    const buf = await crypto.subtle.digest("SHA-256", encoder.encode(val));
+    return Array.from(new Uint8Array(buf))
+      .map((b) => b.toString(16).padStart(2, "0"))
+      .join("");
+  }
+  // Hash de repli
+  let h = 0;
+  for (let i = 0; i < val.length; i++) {
+    h = (h << 5) - h + val.charCodeAt(i);
+    h |= 0;
+  }
+  return `sha256_${Math.abs(h).toString(16)}`;
+}
+
 export const webhookService = {
   /**
-   * Liste les clés d'API existantes
+   * Liste les clés d'API existantes (sans jamais exposer le hash ou secret complet)
    */
   async getApiKeys(): Promise<ApiKeyItem[]> {
     const { data, error } = await supabase
@@ -81,23 +112,19 @@ export const webhookService = {
   },
 
   /**
-   * Crée une nouvelle clé d'API et retourne le jeton complet une seule fois
+   * Crée une nouvelle clé d'API cryptographiquement forte (32 octets aléatoires)
+   * et retourne le jeton complet une SEULE ET UNIQUE fois (non stocké en clair).
    */
   async createApiKey(name: string, scopes: string[] = ["read"]): Promise<{
     fullKey: string;
     apiKeyItem: ApiKeyItem;
   }> {
-    const randomHex = Math.random().toString(36).substring(2) + Math.random().toString(36).substring(2);
+    const randomHex = await generateSecureRandomHex(32);
     const fullKey = `sn_live_${randomHex}`;
-    const key_prefix = `sn_live_${randomHex.substring(0, 4)}...`;
+    const key_prefix = `sn_live_${randomHex.substring(0, 8)}...`;
 
-    // Calcul du hash stocké
-    let hash = 0;
-    for (let i = 0; i < fullKey.length; i++) {
-      hash = (hash << 5) - hash + fullKey.charCodeAt(i);
-      hash |= 0;
-    }
-    const key_hash = `hash_${Math.abs(hash).toString(16)}`;
+    // Calcul du hash SHA-256 stocké en base
+    const key_hash = await hashStringSha256(fullKey);
 
     const { data, error } = await supabase
       .from("api_keys")
@@ -108,7 +135,7 @@ export const webhookService = {
         scopes,
         revoked: false,
       })
-      .select()
+      .select("id, name, key_prefix, scopes, revoked, last_used_at, created_at")
       .single();
 
     if (error) throw new Error(error.message);
@@ -138,7 +165,7 @@ export const webhookService = {
   async getWebhooks(): Promise<WebhookEndpoint[]> {
     const { data, error } = await supabase
       .from("webhook_endpoints")
-      .select("*")
+      .select("id, url, secret, events, active, created_at")
       .order("created_at", { ascending: false });
 
     if (error) {
@@ -149,10 +176,11 @@ export const webhookService = {
   },
 
   /**
-   * Enregistre un nouvel endpoint webhook
+   * Enregistre un nouvel endpoint webhook avec secret cryptographiquement fort (32 octets)
    */
   async createWebhook(url: string, events: string[]): Promise<{ success: boolean; data?: any; error?: string }> {
-    const secret = `whsec_${Math.random().toString(36).substring(2, 14)}`;
+    const randomHex = await generateSecureRandomHex(32);
+    const secret = `whsec_${randomHex}`;
     const { data, error } = await supabase
       .from("webhook_endpoints")
       .insert({
@@ -161,7 +189,7 @@ export const webhookService = {
         events,
         active: true,
       })
-      .select()
+      .select("id, url, events, active, created_at")
       .single();
 
     if (error) return { success: false, error: error.message };

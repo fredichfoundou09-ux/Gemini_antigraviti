@@ -354,8 +354,19 @@ export function AssessmentRunner({
         }
       }
 
-      // Si hors-ligne ou fallback local
+      // Si hors-ligne ou fallback local (strictement interdit en mode connecté avec Supabase actif)
       if (!finalEval) {
+        if (isSupabaseConfigured && navigator.onLine) {
+          toastMsg.error(
+            "Validation serveur obligatoire",
+            "La notation officielle doit être certifiée par le serveur. Veuillez vérifier votre connexion et réitérer la soumission."
+          );
+          isSubmittingRef.current = false;
+          setIsSubmitting(false);
+          setConfirmModalOpen(false);
+          return;
+        }
+
         finalEval = evaluateAnswersLocally(
           rawAssessment.questions,
           answers,

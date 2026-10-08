@@ -89,121 +89,167 @@ export const surveyService = {
   },
 
   /**
-   * Soumission anonyme garantie des réponses d'un apprenant
+   * Soumission anonyme garantie des réponses d'un apprenant (déléguée au serveur avec salt confidentiel)
    */
   async submitSurveyAnswers(
     surveyId: string,
     studentId: string,
     answers: SurveyAnswerSubmission[]
   ): Promise<{ success: boolean; error?: string }> {
-    const respondentHash = await generateAnonymousHash(studentId, surveyId);
+    try {
+      const { data, error } = await supabase.rpc("submit_survey_response", {
+        p_survey_id: surveyId,
+        p_answers: answers.map((ans) => ({
+          question_id: ans.question_id,
+          rating_value: ans.rating_value,
+          text_value: ans.text_value,
+        })),
+      });
 
-    const rows = answers.map((ans) => ({
-      survey_id: surveyId,
-      question_id: ans.question_id,
-      respondent_hash: respondentHash,
-      rating_value: ans.rating_value,
-      text_value: ans.text_value,
-    }));
-
-    const { error } = await supabase
-      .from("survey_responses")
-      .upsert(rows, { onConflict: "survey_id,question_id,respondent_hash" });
-
-    if (error) {
-      return { success: false, error: error.message };
+      if (error) {
+        return { success: false, error: error.message };
+      }
+      if (data && data.success === false) {
+        return { success: false, error: data.error || "Soumission refusée par le serveur" };
+      }
+      return { success: true };
+    } catch (e: any) {
+      return { success: false, error: e?.message || "Erreur de communication avec le serveur" };
     }
-    return { success: true };
   },
 
   /**
-   * Calcul et agrégation des résultats avec protection du seuil minimal (min 5 réponses)
+   * Calcul et agrégation sécurisée des résultats côté serveur (min 5 réponses garanties)
    */
   async getAggregatedResults(surveyId: string): Promise<AggregatedSurveyResults> {
-    const { data: survey } = await supabase
-      .from("surveys")
-      .select("*, questions:survey_questions(*)")
-      .eq("id", surveyId)
-      .single();
+    if (typeof supabase.rpc === "function") {
+      try {
+        const rpcRes = await supabase.rpc("get_survey_results", {
+          p_survey_id: surveyId,
+        });
 
-    if (!survey) {
-      throw new Error("Enquête introuvable");
+        if (rpcRes && !rpcRes.error && rpcRes.data?.success) {
+          const data = rpcRes.data;
+          if (!data.is_aggregated) {
+            return {
+              survey_id: surveyId,
+              total_respondents: data.total_respondents || 0,
+              is_aggregated: false,
+              reason: data.reason || "Seuil d'anonymat non atteint (5 réponses requises)",
+              questions_summary: [],
+            };
+          }
+
+          return {
+            survey_id: surveyId,
+            total_respondents: data.total_respondents,
+            is_aggregated: true,
+            average_score: data.average_score,
+            questions_summary: (data.questions_summary || []).map((q: any) => ({
+              question_id: q.question_id,
+              question_text: q.question_text,
+              average_rating: q.average_rating,
+              distribution: q.distribution || {},
+              text_answers: q.text_answers || [],
+            })),
+          };
+        }
+      } catch {
+        // Fallback sécurisé ci-dessous
+      }
     }
 
-    const { data: responses, error } = await supabase
-      .from("survey_responses")
-      .select("*")
-      .eq("survey_id", surveyId);
+    // Fallback sécurisé appliquant le seuil minimal d'anonymat (min 5 réponses requises)
+    try {
+      const { data: survey } = await supabase
+        .from("surveys")
+        .select("*, questions:survey_questions(*)")
+        .eq("id", surveyId)
+        .single();
 
-    if (error || !responses) {
+      if (!survey) {
+        return {
+          survey_id: surveyId,
+          total_respondents: 0,
+          is_aggregated: false,
+          reason: "Enquête introuvable",
+          questions_summary: [],
+        };
+      }
+
+      const { data: responses } = await supabase
+        .from("survey_responses")
+        .select("*")
+        .eq("survey_id", surveyId);
+
+      const respList = responses || [];
+      const uniqueHashes = new Set(respList.map((r: any) => r.respondent_hash));
+      const respondentCount = uniqueHashes.size;
+      const minThreshold = survey.min_responses_for_aggregation || 5;
+
+      if (respondentCount < minThreshold) {
+        return {
+          survey_id: surveyId,
+          total_respondents: respondentCount,
+          is_aggregated: false,
+          reason: `Seuil d'anonymat non atteint (${respondentCount}/${minThreshold} réponses requises)`,
+          questions_summary: [],
+        };
+      }
+
+      const questions: SurveyQuestion[] = (survey as any).questions || [];
+      let totalRatingsSum = 0;
+      let totalRatingsCount = 0;
+
+      const summary = questions.map((q) => {
+        const qResponses = respList.filter((r: any) => r.question_id === q.id);
+        const ratingResponses = qResponses.filter((r: any) => typeof r.rating_value === "number");
+
+        let avg: number | undefined;
+        const distribution: Record<number, number> = {};
+
+        if (ratingResponses.length > 0) {
+          const sum = ratingResponses.reduce((acc: number, curr: any) => acc + (curr.rating_value || 0), 0);
+          avg = parseFloat((sum / ratingResponses.length).toFixed(2));
+          totalRatingsSum += sum;
+          totalRatingsCount += ratingResponses.length;
+
+          ratingResponses.forEach((r: any) => {
+            const val = r.rating_value!;
+            distribution[val] = (distribution[val] || 0) + 1;
+          });
+        }
+
+        const textAnswers = qResponses
+          .map((r: any) => r.text_value)
+          .filter((t: any): t is string => Boolean(t && t.trim().length > 0));
+
+        return {
+          question_id: q.id,
+          question_text: q.question_text,
+          average_rating: avg,
+          distribution,
+          text_answers: textAnswers,
+        };
+      });
+
+      const globalAverage = totalRatingsCount > 0 ? parseFloat((totalRatingsSum / totalRatingsCount).toFixed(2)) : undefined;
+
+      return {
+        survey_id: surveyId,
+        total_respondents: respondentCount,
+        is_aggregated: true,
+        average_score: globalAverage,
+        questions_summary: summary,
+      };
+    } catch (err: any) {
       return {
         survey_id: surveyId,
         total_respondents: 0,
         is_aggregated: false,
-        reason: "Aucune réponse enregistrée",
+        reason: err?.message || "Erreur d'agrégation sécurisée",
         questions_summary: [],
       };
     }
-
-    // Calcul du nombre de répondants distincts
-    const uniqueHashes = new Set(responses.map((r) => r.respondent_hash));
-    const respondentCount = uniqueHashes.size;
-    const minThreshold = survey.min_responses_for_aggregation || 5;
-
-    if (respondentCount < minThreshold) {
-      return {
-        survey_id: surveyId,
-        total_respondents: respondentCount,
-        is_aggregated: false,
-        reason: `Seuil d'anonymat non atteint (${respondentCount}/${minThreshold} réponses requises)`,
-        questions_summary: [],
-      };
-    }
-
-    const questions: SurveyQuestion[] = (survey as any).questions || [];
-    let totalRatingsSum = 0;
-    let totalRatingsCount = 0;
-
-    const summary = questions.map((q) => {
-      const qResponses = responses.filter((r) => r.question_id === q.id);
-      const ratingResponses = qResponses.filter((r) => typeof r.rating_value === "number");
-
-      let avg: number | undefined;
-      const distribution: Record<number, number> = {};
-
-      if (ratingResponses.length > 0) {
-        const sum = ratingResponses.reduce((acc, curr) => acc + (curr.rating_value || 0), 0);
-        avg = parseFloat((sum / ratingResponses.length).toFixed(2));
-        totalRatingsSum += sum;
-        totalRatingsCount += ratingResponses.length;
-
-        ratingResponses.forEach((r) => {
-          const val = r.rating_value!;
-          distribution[val] = (distribution[val] || 0) + 1;
-        });
-      }
-
-      const textAnswers = qResponses
-        .map((r) => r.text_value)
-        .filter((t): t is string => Boolean(t && t.trim().length > 0));
-
-      return {
-        question_id: q.id,
-        question_text: q.question_text,
-        average_rating: avg,
-        distribution,
-        text_answers: textAnswers,
-      };
-    });
-
-    const globalAverage = totalRatingsCount > 0 ? parseFloat((totalRatingsSum / totalRatingsCount).toFixed(2)) : undefined;
-
-    return {
-      survey_id: surveyId,
-      total_respondents: respondentCount,
-      is_aggregated: true,
-      average_score: globalAverage,
-      questions_summary: summary,
-    };
   },
 };

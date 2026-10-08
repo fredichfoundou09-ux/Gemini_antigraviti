@@ -262,10 +262,21 @@ export function UnifiedStudentAssessmentsAssignmentsPage({ defaultTab = "devoirs
       // 2. Évaluations & Tests (Chargement direct depuis Supabase + fusion locale)
       if (isSupabaseConfigured) {
         try {
-          const { data: tData } = await supabase
-            .from("tests")
-            .select("*, questions(*)")
-            .in("statut", ["publie", "en_cours", "ouvert"]);
+          // 2. Chargement hermétique via la vue questions_apprenant (sans bonne_reponse ni explication)
+          const [testsRes, questionsRes] = await Promise.all([
+            supabase
+              .from("tests")
+              .select("*")
+              .in("statut", ["publie", "en_cours", "ouvert"]),
+            supabase
+              .from("questions_apprenant")
+              .select("*"),
+          ]);
+
+          const tData = (testsRes.data || []).map((row: any) => ({
+            ...row,
+            questions: (questionsRes.data || []).filter((q: any) => q.test_id === row.id),
+          }));
 
           if (tData && tData.length > 0) {
             const mappedTests: Assessment[] = tData.map((row: any) => ({

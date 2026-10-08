@@ -350,6 +350,20 @@ export function StoreProvider({ children }: { children: React.ReactNode }) {
     // 2. Données privées : chargées uniquement si session active
     const syncPrivateData = async (sessionUser: any) => {
       try {
+        const isStudentAccount = user?.role === "student" || sessionUser?.user_metadata?.role === "student";
+        const testsQueryPromise = isStudentAccount
+          ? Promise.all([
+              supabase.from("tests").select("*").in("statut", ["publie", "en_cours", "ouvert"]),
+              supabase.from("questions_apprenant").select("*"),
+            ]).then(([tRes, qRes]) => ({
+              data: (tRes.data || []).map((t: any) => ({
+                ...t,
+                questions: (qRes.data || []).filter((q: any) => q.test_id === t.id),
+              })),
+              error: tRes.error || qRes.error,
+            }))
+          : supabase.from("tests").select("*, questions(*)");
+
         const [
           profilesRes, formationsRes,
           studentsRes, studentModulesRes,
@@ -372,7 +386,7 @@ export function StoreProvider({ children }: { children: React.ReactNode }) {
           supabase.from("attendance").select("*"),
           supabase.from("invoices").select("*"),
           supabase.from("payments").select("*"),
-          supabase.from("tests").select("*, questions(*)"),
+          testsQueryPromise,
           supabase.from("test_results").select("*, answers:test_answers(*)"),
           supabase.from("grades").select("*"),
           supabase.from("notifications").select("*"),
@@ -641,12 +655,12 @@ export function StoreProvider({ children }: { children: React.ReactNode }) {
                   question: q.question,
                   type: q.type,
                   options: q.options_json || q.options || [],
-                  bonneReponse: q.bonne_reponse || "",
-                  bonnesReponses: q.bonnes_reponses_json || [],
-                  valeurNumerique: q.valeur_numerique !== null && q.valeur_numerique !== undefined ? Number(q.valeur_numerique) : undefined,
-                  toleranceNumerique: q.tolerance_numerique !== null && q.tolerance_numerique !== undefined ? Number(q.tolerance_numerique) : undefined,
+                  bonneReponse: isStudentAccount ? undefined : (q.bonne_reponse || ""),
+                  bonnesReponses: isStudentAccount ? undefined : (q.bonnes_reponses_json || []),
+                  valeurNumerique: isStudentAccount ? undefined : (q.valeur_numerique !== null && q.valeur_numerique !== undefined ? Number(q.valeur_numerique) : undefined),
+                  toleranceNumerique: isStudentAccount ? undefined : (q.tolerance_numerique !== null && q.tolerance_numerique !== undefined ? Number(q.tolerance_numerique) : undefined),
                   points: Number(q.points || 1),
-                  explication: q.explication,
+                  explication: isStudentAccount ? undefined : q.explication,
                   ordre: q.ordre,
                   obligatoire: q.obligatoire !== false,
                 })),
