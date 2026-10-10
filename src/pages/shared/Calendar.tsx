@@ -1,9 +1,10 @@
 import React from "react";
 import { useMemo, useState } from "react";
-import { ChevronLeft, ChevronRight, Clock, MapPin, GraduationCap, Calendar } from "lucide-react";
+import { ChevronLeft, ChevronRight, Clock, MapPin, GraduationCap, Calendar, Video, ExternalLink } from "lucide-react";
 import { useStore } from "@/lib/store";
 import { cn } from "@/utils/cn";
 import { Badge, PageHead, formationLabel, moduleIcon } from "@/lib/ui";
+import { toastMsg } from "@/lib/toast";
 import { format, addWeeks, subWeeks, addMonths, subMonths, startOfWeek, endOfWeek, eachDayOfInterval, isSameDay, getDay, startOfMonth, endOfMonth, getWeek } from "date-fns";
 import { fr } from "date-fns/locale";
 import { scheduleFor } from "@/lib/access";
@@ -21,7 +22,7 @@ const TEXT_COLORS: Record<string, string> = {
 type ViewMode = "week" | "month";
 
 export function VisualCalendar() {
-  const { db, user } = useStore();
+  const { db, user, update } = useStore();
   const [view, setView] = useState<ViewMode>("week");
   const [currentDate, setCurrentDate] = useState(new Date());
   const [selectedItem, setSelectedItem] = useState<any>(null);
@@ -236,6 +237,58 @@ export function VisualCalendar() {
               <p className="flex items-center gap-2"><Clock size={14} className="text-cyan-300" /> {selectedItem.jour} • {selectedItem.heureDebut} — {selectedItem.heureFin}</p>
               <p className="flex items-center gap-2"><MapPin size={14} className="text-blue-400" /> {selectedItem.salle || "Salle non précisée"}</p>
               <p className="flex items-center gap-2"><GraduationCap size={14} className="text-emerald-300" /> {teacherName(selectedItem.teacherId)}</p>
+              
+              {(selectedItem.is_online || selectedItem.meeting_url) && (
+                <div className="mt-4 pt-3 border-t border-white/10 space-y-2">
+                  <div className="flex items-center gap-2 text-xs text-cyan-300 font-semibold">
+                    <Video size={15} />
+                    <span>Séance en ligne (Visioconférence)</span>
+                  </div>
+                  {selectedItem.meeting_url ? (
+                    <button
+                      type="button"
+                      onClick={() => {
+                        const url = selectedItem.meeting_url;
+                        if (user && user.role === "student") {
+                          const student = db.students.find((s) => s.userId === user.id || s.id === user.id);
+                          if (student) {
+                            const todayStr = new Date().toISOString().slice(0, 10);
+                            const existing = (db.attendance || []).some(
+                              (a) => a.studentId === student.id && a.moduleId === selectedItem.moduleId && a.date === todayStr
+                            );
+                            if (!existing) {
+                              update((d) => ({
+                                ...d,
+                                attendance: [
+                                  ...(d.attendance || []),
+                                  {
+                                    id: `ATT_ONLINE_${Date.now()}`,
+                                    studentId: student.id,
+                                    moduleId: selectedItem.moduleId,
+                                    teacherId: selectedItem.teacherId || "system",
+                                    date: todayStr,
+                                    statut: "present" as const,
+                                    heure: new Date().toLocaleTimeString("fr-FR", { hour: "2-digit", minute: "2-digit" }),
+                                    salle: "Visioconférence (En ligne)",
+                                  },
+                                ],
+                              }));
+                              toastMsg.success("Présence validée", "Votre présence a été automatiquement enregistrée à l'ouverture de la session en direct.");
+                            }
+                          }
+                        }
+                        window.open(url, "_blank", "noopener,noreferrer");
+                      }}
+                      className="w-full flex items-center justify-center gap-2 rounded-xl bg-cyan-500/20 hover:bg-cyan-500/30 border border-cyan-400/40 px-3.5 py-2.5 text-xs font-bold text-cyan-200 transition"
+                    >
+                      <ExternalLink size={14} />
+                      <span>Rejoindre la séance en direct</span>
+                    </button>
+                  ) : (
+                    <p className="text-xs text-slate-400 italic">Lien de visioconférence non encore communiqué par le formateur.</p>
+                  )}
+                </div>
+              )}
             </div>
           </div>
         </div>

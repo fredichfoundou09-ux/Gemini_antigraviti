@@ -1904,6 +1904,101 @@ a:active:not(.disabled) {
   --color-huddim: rgba(255, 255, 255, 0.45);
   accent-color: var(--sn-red);
   color-scheme: dark;
+
+  /* Remappage total des échelles Tailwind v4 vers Noir · Rouge · Blanc */
+  --color-slate-50: var(--sn-white);
+  --color-slate-100: var(--sn-white);
+  --color-slate-200: var(--sn-white);
+  --color-slate-300: var(--sn-white);
+  --color-slate-400: var(--sn-white-soft);
+  --color-slate-500: var(--sn-white-soft);
+  --color-slate-600: rgba(255, 255, 255, 0.45);
+  --color-slate-700: rgba(255, 255, 255, 0.25);
+  --color-slate-800: #0a0a0a;
+  --color-slate-900: var(--sn-black);
+  --color-slate-950: var(--sn-black);
+
+  --color-gray-50: var(--sn-white);
+  --color-gray-100: var(--sn-white);
+  --color-gray-200: var(--sn-white);
+  --color-gray-300: var(--sn-white);
+  --color-gray-400: var(--sn-white-soft);
+  --color-gray-500: var(--sn-white-soft);
+  --color-gray-600: rgba(255, 255, 255, 0.45);
+  --color-gray-700: rgba(255, 255, 255, 0.25);
+  --color-gray-800: #0a0a0a;
+  --color-gray-900: var(--sn-black);
+  --color-gray-950: var(--sn-black);
+
+  --color-zinc-50: var(--sn-white);
+  --color-zinc-100: var(--sn-white);
+  --color-zinc-200: var(--sn-white);
+  --color-zinc-300: var(--sn-white);
+  --color-zinc-400: var(--sn-white-soft);
+  --color-zinc-500: var(--sn-white-soft);
+  --color-zinc-600: rgba(255, 255, 255, 0.45);
+  --color-zinc-700: rgba(255, 255, 255, 0.25);
+  --color-zinc-800: #0a0a0a;
+  --color-zinc-900: var(--sn-black);
+  --color-zinc-950: var(--sn-black);
+
+  --color-neutral-50: var(--sn-white);
+  --color-neutral-100: var(--sn-white);
+  --color-neutral-200: var(--sn-white);
+  --color-neutral-300: var(--sn-white);
+  --color-neutral-400: var(--sn-white-soft);
+  --color-neutral-500: var(--sn-white-soft);
+  --color-neutral-600: rgba(255, 255, 255, 0.45);
+  --color-neutral-700: rgba(255, 255, 255, 0.25);
+  --color-neutral-800: #0a0a0a;
+  --color-neutral-900: var(--sn-black);
+  --color-neutral-950: var(--sn-black);
+
+  --color-cyan-50: #ffebeb;
+  --color-cyan-100: #ffd6d6;
+  --color-cyan-200: #ffadad;
+  --color-cyan-300: var(--sn-red-hover);
+  --color-cyan-400: var(--sn-red);
+  --color-cyan-500: var(--sn-red);
+  --color-cyan-600: var(--sn-red-fill);
+  --color-cyan-700: var(--sn-red-press);
+  --color-cyan-800: var(--sn-red-dark);
+  --color-cyan-900: #400000;
+  --color-cyan-950: #200000;
+
+  --color-sky-300: var(--sn-red-hover);
+  --color-sky-400: var(--sn-red);
+  --color-sky-500: var(--sn-red);
+  --color-sky-950: #200000;
+
+  --color-blue-300: var(--sn-red-hover);
+  --color-blue-400: var(--sn-red);
+  --color-blue-500: var(--sn-red);
+  --color-blue-600: var(--sn-red-fill);
+  --color-blue-950: #200000;
+
+  --color-indigo-400: var(--sn-red);
+  --color-indigo-500: var(--sn-red);
+  --color-indigo-600: var(--sn-red-fill);
+
+  --color-emerald-300: var(--sn-white);
+  --color-emerald-400: var(--sn-white);
+  --color-emerald-500: var(--sn-white);
+  --color-emerald-950: #0a0a0a;
+
+  --color-green-400: var(--sn-white);
+  --color-green-500: var(--sn-white);
+
+  --color-amber-300: var(--sn-white-soft);
+  --color-amber-400: var(--sn-white);
+  --color-amber-500: var(--sn-red);
+  --color-amber-950: #200000;
+
+  --color-yellow-400: var(--sn-white);
+  --color-orange-400: var(--sn-red);
+  --color-orange-500: var(--sn-red);
+  --color-purple-400: var(--sn-red);
+  --color-violet-400: var(--sn-red);
 }
 
 [data-theme="noir-rouge"] body {
@@ -2143,6 +2238,23 @@ a:active:not(.disabled) {
 [data-theme="noir-rouge"] svg path[stroke="#FFB300"] {
   stroke: rgba(255, 255, 255, 0.45) !important;
   stroke-dasharray: 2 2 !important;
+}
+
+[data-theme="noir-rouge"] svg line {
+  stroke: var(--sn-line) !important;
+}
+
+[data-theme="noir-rouge"] svg text {
+  fill: var(--sn-white-soft) !important;
+}
+
+[data-theme="noir-rouge"] svg g[fill="#006DFF"] circle,
+[data-theme="noir-rouge"] svg circle[fill="#00E5FF"] {
+  fill: var(--sn-red) !important;
+}
+
+[data-theme="noir-rouge"] svg linearGradient stop[stop-color="#00E5FF"] {
+  stop-color: var(--sn-red) !important;
 }
 
 

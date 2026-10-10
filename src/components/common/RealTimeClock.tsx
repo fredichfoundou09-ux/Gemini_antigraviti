@@ -25,22 +25,14 @@ export const RealTimeClock: React.FC<RealTimeClockProps> = ({ compact = false, c
         </span>
       </div>
 
-      {/* Affichage de l'heure et de la date */}
+      {/* Affichage de l'heure et de la date (compact sans texte Brazzaville GMT+1) */}
       <div className="flex flex-col text-left leading-none">
-        <div className="flex items-center gap-1.5">
-          <span className="font-mono text-xs font-black tracking-wider text-cyan-200">
-            {time}
-          </span>
-          {!compact && (
-            <span className="hidden xl:inline-block rounded bg-cyan-950/60 px-1 py-0.2 font-mono text-[9px] font-bold text-cyan-400 border border-cyan-500/20 uppercase tracking-tight">
-              {timezoneLabel}
-            </span>
-          )}
-        </div>
+        <span className="font-mono text-xs font-black tracking-wider text-cyan-200">
+          {time}
+        </span>
         {!compact && (
-          <div className="mt-0.5 flex items-center gap-1 text-[10px] text-slate-300 font-medium">
+          <div className="mt-0.5 flex items-center gap-1 text-[10px] text-slate-300 font-medium whitespace-nowrap">
             <span className="capitalize">{dateMedium}</span>
-            <span className="hidden sm:inline text-cyan-400/50">• Congo</span>
           </div>
         )}
       </div>

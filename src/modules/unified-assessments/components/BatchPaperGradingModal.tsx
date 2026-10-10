@@ -10,6 +10,7 @@ import { toastMsg } from "@/lib/toast";
 import { notifyAssessmentEvent, broadcastSubmissionsChange } from "../services/unifiedSyncService";
 import { generateClassGradeRoster } from "@/modules/assessments/exporters/printableExamPdf";
 import { supabase, isSupabaseConfigured } from "@/lib/supabase";
+import { batchPersistGradesToBulletin } from "@/modules/assessments/services/bulletinGradeService";
 
 interface BatchPaperGradingModalProps {
   open: boolean;
@@ -264,6 +265,17 @@ export function BatchPaperGradingModal({
           throw new Error(rpcRes.error || "Échec de l'enregistrement du bordereau sur le serveur.");
         }
       }
+
+      // Persistance officielle dans le bulletin (upsert_grade_safe)
+      void batchPersistGradesToBulletin(
+        newGrades.map((g) => ({
+          studentId: g.studentId,
+          moduleId: g.moduleId,
+          note: g.note,
+          appreciation: g.appreciation,
+          date: g.date,
+        }))
+      );
 
       // Mise à jour atomique dans le store global
       update((d) => {

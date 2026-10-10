@@ -6,6 +6,7 @@ import {
   ProctoringEventType,
   AssessmentResultSummary,
 } from "../types";
+import { trashService } from "@/modules/admin/services/trashService";
 
 export interface ValidationDiagnostic {
   isValid: boolean;
@@ -399,28 +400,16 @@ export async function persistAssessmentToSupabase(assessment: Assessment): Promi
   }
 }
 
-// Suppression sécurisée d'une évaluation
+// Suppression sécurisée d'une évaluation (Corbeille douce - Phase B.2)
 export async function deleteAssessment(id: string): Promise<{ success: boolean; error?: string }> {
   if (!isSupabaseConfigured) {
     return { success: true };
   }
 
   try {
-    const isUuid = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(id);
-    if (isUuid) {
-      const { data, error } = await supabase.rpc("delete_test_safe", { p_test_id: id });
-      if (error) {
-        console.warn("delete_test_safe RPC non disponible, repli sécurisé:", error);
-      } else if (data) {
-        if (data.success) return { success: true };
-        return { success: false, error: data.error || "Échec de suppression de l'évaluation." };
-      }
-    }
-
-    const { data, error } = await supabase.from("tests").delete().eq("id", id).select("id");
-    if (error) throw error;
-    if (!data?.length) {
-      return { success: false, error: "Suppression refusée ou introuvable (droits insuffisants)." };
+    const res = await trashService.softDeleteItem("tests", id);
+    if (!res.success) {
+      return { success: false, error: res.error || "Impossible de déplacer l'évaluation vers la corbeille." };
     }
     return { success: true };
   } catch (err: any) {
@@ -429,10 +418,10 @@ export async function deleteAssessment(id: string): Promise<{ success: boolean; 
   }
 }
 
-// Suppression d'un résultat d'examen avec réinitialisation optionnelle de tentative
+// Suppression sécurisée d'un résultat d'examen (Corbeille douce - Phase B.2)
 export async function deleteTestResult(
   id: string,
-  resetAttempt: boolean = false
+  _resetAttempt: boolean = false
 ): Promise<{ success: boolean; error?: string }> {
   if (!isSupabaseConfigured) {
     const locals = getLocalAssessmentResults().filter((r) => r.id !== id);
@@ -441,26 +430,9 @@ export async function deleteTestResult(
   }
 
   try {
-    const isUuid = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(id);
-    if (isUuid) {
-      const { data, error } = await supabase.rpc("delete_test_result_safe", {
-        p_result_id: id,
-        p_reset_attempt: resetAttempt,
-      });
-      if (!error && data) {
-        if (data.success) {
-          const locals = getLocalAssessmentResults().filter((r) => r.id !== id);
-          saveLocalAssessmentResults(locals);
-          return { success: true };
-        }
-        return { success: false, error: data.error || "Suppression refusée par le serveur." };
-      }
-    }
-
-    const { data, error } = await supabase.from("test_results").delete().eq("id", id).select("id");
-    if (error) throw error;
-    if (!data?.length) {
-      return { success: false, error: "Suppression refusée ou introuvable (droits insuffisants)." };
+    const res = await trashService.softDeleteItem("test_results", id);
+    if (!res.success) {
+      return { success: false, error: res.error || "Impossible de déplacer le résultat vers la corbeille." };
     }
     // Supprimer également du cache local
     const locals = getLocalAssessmentResults().filter((r) => r.id !== id);

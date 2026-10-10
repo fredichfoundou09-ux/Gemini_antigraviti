@@ -20,6 +20,7 @@ import { hashPassword, generateTempPassword, passwordStrong, checkPassword } fro
 import { toastMsg } from "@/lib/toast";
 import { invokeCreateUser } from "@/lib/supabase/auth";
 import { supabase, isSupabaseConfigured } from "@/lib/supabase/client";
+import { trashService } from "@/modules/admin/services/trashService";
 import { financialSummary, statusLabel } from "@/lib/finance";
 import { teacherFinanceSummary } from "@/lib/teacher";
 import { getTeacherModuleIds, getTeachersOfStudent } from "@/lib/access";
@@ -614,12 +615,12 @@ export function StudentsPage() {
     const userId = deleteTarget.userId;
     if (isSupabaseConfigured) {
       try {
-        await supabase.from("students").delete().eq("id", id);
-        if (userId) {
-          await supabase.from("profiles").delete().eq("id", userId);
+        const res = await trashService.softDeleteItem("students", id);
+        if (!res.success) {
+          throw new Error(res.error || "Échec déplacement vers la corbeille");
         }
         window.dispatchEvent(new Event("sentinelles:supabase-refresh"));
-        toastMsg.success("Apprenant et compte supprimés avec succès ✓");
+        toastMsg.success("Apprenant déplacé vers la corbeille avec succès ✓");
       } catch (err: any) {
         toastMsg.error("Erreur suppression", err.message);
       }

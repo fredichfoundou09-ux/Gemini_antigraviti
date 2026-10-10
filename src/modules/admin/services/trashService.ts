@@ -189,4 +189,21 @@ export const trashService = {
       return { success: false, error: err instanceof Error ? err.message : "Erreur inattendue" };
     }
   },
+
+  async deleteSystemBackup(backupId: string): Promise<{ success: boolean; error: string | null }> {
+    try {
+      const { error } = await supabase.from("system_backups").delete().eq("id", backupId);
+      if (error) {
+        const raw = localStorage.getItem("sentinelles_local_backups");
+        if (raw) {
+          const list = JSON.parse(raw) as SystemBackup[];
+          localStorage.setItem("sentinelles_local_backups", JSON.stringify(list.filter((b) => b.id !== backupId)));
+        }
+        return { success: true, error: null };
+      }
+      return { success: true, error: null };
+    } catch (err: unknown) {
+      return { success: false, error: err instanceof Error ? err.message : "Erreur inattendue" };
+    }
+  },
 };

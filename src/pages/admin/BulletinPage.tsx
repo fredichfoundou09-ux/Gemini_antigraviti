@@ -1,16 +1,19 @@
 import { useState } from "react";
-import { FileText, Download, Users, Award } from "lucide-react";
+import { FileText, Download, Users, Award, RefreshCw, CheckCircle2 } from "lucide-react";
 import { useStore } from "@/lib/store";
 import { Btn, Card, Empty, Field, PageHead, Select, Badge } from "@/lib/ui";
 import { generateBulletin } from "@/lib/bulletin";
 import { formationLabel, money } from "@/lib/ui";
 import { financialSummary, statusLabel } from "@/lib/finance";
+import { batchPersistGradesToBulletin } from "@/modules/assessments/services/bulletinGradeService";
+import { toastMsg } from "@/lib/toast";
 
 export function BulletinsPage() {
   const { db } = useStore();
   const [selectedStudentId, setSelectedStudentId] = useState("");
   const [formationFilter, setFormationFilter] = useState("");
   const [selectedAcademicYearId, setSelectedAcademicYearId] = useState("");
+  const [isSyncing, setIsSyncing] = useState(false);
 
   const selectedYearLabel = db.academicYears?.find((y) => y.id === selectedAcademicYearId)?.label;
 
@@ -25,16 +28,45 @@ export function BulletinsPage() {
   const avg = grades.length ? (grades.reduce((a, g) => a + g.note, 0) / grades.length).toFixed(2) : "—";
   const summary = student ? financialSummary(db, student.id) : null;
 
+  const handleSyncToBulletin = async () => {
+    if (!grades.length) {
+      toastMsg.error("Aucune note", "Cet apprenant n'a aucune note à synchroniser.");
+      return;
+    }
+    setIsSyncing(true);
+    const res = await batchPersistGradesToBulletin(
+      grades.map((g) => ({
+        studentId: g.studentId,
+        moduleId: g.moduleId,
+        note: g.note,
+        appreciation: g.appreciation || "",
+        date: g.date,
+      }))
+    );
+    setIsSyncing(false);
+    if (res.success) {
+      toastMsg.success("Report au bulletin réussi ✓", `${res.savedCount} note(s) officielle(s) enregistrée(s) sur le serveur.`);
+    } else {
+      toastMsg.error("Erreur de report", res.errors.join(", ") || "Échec partiel de l'enregistrement.");
+    }
+  };
+
   return (
     <div className="space-y-5">
       <PageHead
         title="Bulletins de notes"
-        subtitle="Générer et imprimer les bulletins officiels par apprenant"
+        subtitle="Générer, reporter et imprimer les bulletins officiels par apprenant"
         actions={
           student && (
-            <Btn onClick={() => generateBulletin(db, selectedStudentId, undefined, selectedYearLabel)}>
-              <Download size={15} /> Générer le bulletin PDF
-            </Btn>
+            <div className="flex items-center gap-2">
+              <Btn variant="outline" onClick={handleSyncToBulletin} disabled={isSyncing}>
+                <RefreshCw size={15} className={isSyncing ? "animate-spin" : ""} />
+                Reporter au bulletin
+              </Btn>
+              <Btn onClick={() => generateBulletin(db, selectedStudentId, undefined, selectedYearLabel)}>
+                <Download size={15} /> Générer le bulletin PDF
+              </Btn>
+            </div>
           )
         }
       />

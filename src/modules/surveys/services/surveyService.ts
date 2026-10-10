@@ -66,6 +66,23 @@ export async function generateAnonymousHash(studentId: string, surveyId: string)
   return `hash_${Math.abs(hash).toString(16)}`;
 }
 
+const LOCAL_SURVEYS_KEY = "sentinelles_local_surveys";
+
+function getLocalSurveys(): Survey[] {
+  try {
+    const raw = localStorage.getItem(LOCAL_SURVEYS_KEY);
+    return raw ? JSON.parse(raw) : [];
+  } catch {
+    return [];
+  }
+}
+
+function saveLocalSurveys(list: Survey[]) {
+  try {
+    localStorage.setItem(LOCAL_SURVEYS_KEY, JSON.stringify(list));
+  } catch {}
+}
+
 export const surveyService = {
   /**
    * Récupère les enquêtes actives avec leurs questions
@@ -82,10 +99,103 @@ export const surveyService = {
 
     const { data, error } = await query;
     if (error) {
-      console.error("Erreur chargement enquêtes:", error);
-      return [];
+      console.warn("Erreur chargement enquêtes Supabase, utilisation des données locales:", error);
     }
-    return data || [];
+    if (data && data.length > 0) return data;
+
+    const locals = getLocalSurveys();
+    return moduleId ? locals.filter((s) => s.module_id === moduleId) : locals;
+  },
+
+  /**
+   * Crée une nouvelle enquête de satisfaction
+   */
+  async createSurvey(survey: {
+    title: string;
+    description?: string;
+    module_id?: string;
+    questions: { question_text: string; category: string }[];
+  }): Promise<{ success: boolean; data?: any; error?: string }> {
+    const surveyId = "srv_" + Date.now() + "_" + Math.random().toString(36).substring(2, 6);
+    const newQuestions: SurveyQuestion[] = survey.questions.map((q, idx) => ({
+      id: "q_" + Date.now() + "_" + idx,
+      survey_id: surveyId,
+      order_index: idx + 1,
+      question_text: q.question_text,
+      question_type: "rating_5",
+      category: q.category || "pedagogie",
+    }));
+
+    const newSurvey: Survey = {
+      id: surveyId,
+      title: survey.title,
+      description: survey.description || "",
+      module_id: survey.module_id,
+      mode: "manual",
+      status: "active",
+      is_anonymous: true,
+      min_responses_for_aggregation: 5,
+      created_at: new Date().toISOString(),
+      questions: newQuestions,
+    };
+
+    const locals = getLocalSurveys();
+    saveLocalSurveys([newSurvey, ...locals]);
+
+    try {
+      const { data, error } = await supabase.from("surveys").insert({
+        title: survey.title,
+        description: survey.description,
+        module_id: survey.module_id,
+        status: "active",
+        is_anonymous: true,
+        min_responses_for_aggregation: 5,
+      }).select().single();
+
+      if (!error && data) {
+        if (newQuestions.length > 0) {
+          await supabase.from("survey_questions").insert(
+            newQuestions.map((q) => ({ ...q, survey_id: data.id }))
+          );
+        }
+        return { success: true, data };
+      }
+    } catch {}
+
+    return { success: true, data: newSurvey };
+  },
+
+  /**
+   * Modifie une enquête existante
+   */
+  async updateSurvey(
+    id: string,
+    updates: { title: string; description?: string; status?: "active" | "draft" | "closed" }
+  ): Promise<{ success: boolean; error?: string }> {
+    const locals = getLocalSurveys();
+    const updated = locals.map((s) => (s.id === id ? { ...s, ...updates } : s));
+    saveLocalSurveys(updated);
+
+    try {
+      await supabase.from("surveys").update(updates).eq("id", id);
+    } catch {}
+
+    return { success: true };
+  },
+
+  /**
+   * Supprime une enquête et ses questions associées
+   */
+  async deleteSurvey(id: string): Promise<{ success: boolean; error?: string }> {
+    const locals = getLocalSurveys();
+    saveLocalSurveys(locals.filter((s) => s.id !== id));
+
+    try {
+      await supabase.from("survey_questions").delete().eq("survey_id", id);
+      await supabase.from("surveys").delete().eq("id", id);
+    } catch {}
+
+    return { success: true };
   },
 
   /**

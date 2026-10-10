@@ -1,9 +1,9 @@
 import React, { useEffect, useState } from "react";
-import { Key, Webhook, Plus, ShieldCheck, Copy, Check, Trash2, Globe, Award, Sparkles } from "lucide-react";
+import { Key, Webhook, Plus, ShieldCheck, Copy, Check, Trash2, Globe, Award, Sparkles, Printer, Play } from "lucide-react";
 import { webhookService, ApiKeyItem, WebhookEndpoint } from "@/modules/api/services/webhookService";
 import { gamificationService } from "@/modules/gamification/services/gamificationService";
 import { i18nService, SUPPORTED_LOCALES, SupportedLocale } from "@/modules/i18n/services/i18nService";
-import { Card, PageHead, Badge, Btn, Modal, Field, Input, Select } from "@/lib/ui";
+import { Card, PageHead, Badge, Btn, Modal, Field, Input, Select, printHTML } from "@/lib/ui";
 import { toastMsg } from "@/lib/toast";
 
 export const IntegrationsAndWebhooksPage: React.FC = () => {
@@ -94,6 +94,122 @@ export const IntegrationsAndWebhooksPage: React.FC = () => {
     setTimeout(() => setCopiedKey(false), 3000);
   };
 
+  const handleDeleteKey = async (id: string) => {
+    if (!window.confirm("Supprimer définitivement cette clé d'API ? Cette action est irréversible.")) return;
+    const res = await webhookService.deleteApiKey(id);
+    if (res.success) {
+      toastMsg.success("Clé supprimée", "L'entrée a été effacée.");
+      loadData();
+    } else {
+      toastMsg.error("Erreur", res.error);
+    }
+  };
+
+  const handleDeleteWebhook = async (id: string) => {
+    if (!window.confirm("Supprimer ce webhook cible ?")) return;
+    const res = await webhookService.deleteWebhook(id);
+    if (res.success) {
+      toastMsg.success("Webhook supprimé", "L'endpoint a été retiré.");
+      loadData();
+    } else {
+      toastMsg.error("Erreur", res.error);
+    }
+  };
+
+  const handleTestWebhook = async (w: WebhookEndpoint) => {
+    const res = await webhookService.testWebhookSimulation(w.id);
+    if (res.success) {
+      toastMsg.success(
+        "Ping HMAC simulé avec succès",
+        `Latence : ${res.latencyMs}ms | Signature HMAC SHA-256 générée : ${res.signature.substring(0, 16)}...`
+      );
+    } else {
+      toastMsg.error("Échec du test", "Impossible de joindre l'endpoint cible.");
+    }
+  };
+
+  const handlePrintReport = () => {
+    const activeKeysCount = apiKeys.filter((k) => !k.revoked).length;
+    const activeWebhooksCount = webhooks.filter((w) => w.active).length;
+
+    const html = `
+      <div style="font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif; color: #0f172a; padding: 24px;">
+        <div style="display: flex; justify-content: space-between; align-items: center; border-bottom: 2px solid #0284c7; padding-bottom: 16px; margin-bottom: 24px;">
+          <div>
+            <h1 style="color: #0369a1; margin: 0; font-size: 24px; font-weight: 800;">SENTINELLES NUMERIQUES</h1>
+            <p style="color: #64748b; margin: 4px 0 0 0; font-size: 13px;">Rapport d'Audit Technique des Integrations et API (Beta)</p>
+          </div>
+          <div style="text-align: right; font-size: 12px; color: #64748b;">
+            <div>Date : ${new Date().toLocaleDateString("fr-FR")}</div>
+            <div style="font-weight: 700; color: #0284c7;">Securite HMAC SHA-256</div>
+          </div>
+        </div>
+
+        <div style="display: grid; grid-template-columns: repeat(3, 1fr); gap: 16px; margin-bottom: 24px;">
+          <div style="background: #f0fdf4; border: 1px solid #86efac; border-radius: 8px; padding: 12px;">
+            <div style="font-size: 11px; color: #166534; font-weight: 700;">CLES D'API ACTIVES</div>
+            <div style="font-size: 22px; font-weight: 800; color: #15803d; margin-top: 4px;">${activeKeysCount} / ${apiKeys.length}</div>
+          </div>
+          <div style="background: #f0f9ff; border: 1px solid #7dd3fc; border-radius: 8px; padding: 12px;">
+            <div style="font-size: 11px; color: #075985; font-weight: 700;">ENDPOINTS WEBHOOKS</div>
+            <div style="font-size: 22px; font-weight: 800; color: #0284c7; margin-top: 4px;">${activeWebhooksCount} actifs</div>
+          </div>
+          <div style="background: #fefce8; border: 1px solid #fde047; border-radius: 8px; padding: 12px;">
+            <div style="font-size: 11px; color: #854d0e; font-weight: 700;">SYSTEME & LOCALISATION</div>
+            <div style="font-size: 13px; font-weight: 700; color: #a16207; margin-top: 6px;">Langue : ${currentLocale.toUpperCase()} | Gamif : ${gamificationActive ? "ACTIVE" : "INACTIVE"}</div>
+          </div>
+        </div>
+
+        <h3 style="font-size: 14px; color: #0f172a; margin: 20px 0 8px 0; border-left: 4px solid #0284c7; padding-left: 8px;">1. Inventaire des Cles d'API</h3>
+        <table style="width: 100%; border-collapse: collapse; font-size: 12px; margin-bottom: 24px;">
+          <thead>
+            <tr style="background: #0284c7; color: #ffffff; text-align: left;">
+              <th style="padding: 8px 12px;">Nom de l'Application</th>
+              <th style="padding: 8px 12px;">Prefixe</th>
+              <th style="padding: 8px 12px;">Date de Creation</th>
+              <th style="padding: 8px 12px;">Statut</th>
+            </tr>
+          </thead>
+          <tbody>
+            ${apiKeys.map((k, idx) => `
+              <tr style="border-bottom: 1px solid #e2e8f0; background: ${idx % 2 === 0 ? "#ffffff" : "#f8fafc"};">
+                <td style="padding: 8px 12px; font-weight: 600;">${k.name}</td>
+                <td style="padding: 8px 12px; font-family: monospace;">${k.key_prefix}</td>
+                <td style="padding: 8px 12px;">${k.created_at.slice(0, 10)}</td>
+                <td style="padding: 8px 12px; font-weight: 700; color: ${k.revoked ? "#dc2626" : "#16a34a"};">${k.revoked ? "REVOQUEE" : "ACTIVE"}</td>
+              </tr>
+            `).join("")}
+          </tbody>
+        </table>
+
+        <h3 style="font-size: 14px; color: #0f172a; margin: 20px 0 8px 0; border-left: 4px solid #0284c7; padding-left: 8px;">2. Endpoints Webhooks Configures</h3>
+        <table style="width: 100%; border-collapse: collapse; font-size: 12px; margin-bottom: 24px;">
+          <thead>
+            <tr style="background: #0284c7; color: #ffffff; text-align: left;">
+              <th style="padding: 8px 12px;">URL Cible</th>
+              <th style="padding: 8px 12px;">Evenements Ecoutes</th>
+              <th style="padding: 8px 12px;">Statut</th>
+            </tr>
+          </thead>
+          <tbody>
+            ${webhooks.map((w, idx) => `
+              <tr style="border-bottom: 1px solid #e2e8f0; background: ${idx % 2 === 0 ? "#ffffff" : "#f8fafc"};">
+                <td style="padding: 8px 12px; font-family: monospace;">${w.url}</td>
+                <td style="padding: 8px 12px;">${w.events.join(", ")}</td>
+                <td style="padding: 8px 12px; font-weight: 700; color: ${w.active ? "#16a34a" : "#dc2626"};">${w.active ? "ACTIF" : "INACTIF"}</td>
+              </tr>
+            `).join("")}
+          </tbody>
+        </table>
+
+        <div style="font-size: 10px; color: #64748b; border-top: 1px solid #cbd5e1; padding-top: 12px; text-align: center; margin-top: 32px;">
+          Sentinelles Numeriques - Plateforme de Gouvernance et de Formation Professionnelle - Rapport Technique genere le ${new Date().toLocaleString("fr-FR")}
+        </div>
+      </div>
+    `;
+    printHTML(html, "Audit_Integrations_API_Sentinelles");
+  };
+
   return (
     <div className="space-y-6">
       <PageHead
@@ -101,6 +217,9 @@ export const IntegrationsAndWebhooksPage: React.FC = () => {
         subtitle="Interconnexions externes, signatures HMAC SHA-256, gestion des jetons (Environnement sandbox / Bêta contrôlé)"
         actions={
           <div className="flex gap-2">
+            <Btn onClick={handlePrintReport} variant="outline" className="border-white/20 text-white/80 hover:text-white">
+              <Printer size={14} /> Imprimer / PDF
+            </Btn>
             {activeTab === "api" && (
               <Btn onClick={() => { setShowAddKey(true); setCreatedKeySecret(null); }} className="bg-[#E60000] hover:bg-[#FF2A2A] text-white">
                 <Plus size={14} /> Nouvelle Clé d'API
@@ -196,15 +315,25 @@ export const IntegrationsAndWebhooksPage: React.FC = () => {
                       </td>
                       <td className="p-3 text-white/60 font-mono">{k.created_at.slice(0, 10)}</td>
                       <td className="p-3 text-right">
-                        {!k.revoked && (
+                        <div className="flex items-center justify-end gap-2">
+                          {!k.revoked && (
+                            <button
+                              type="button"
+                              onClick={() => handleRevokeKey(k.id)}
+                              className="text-amber-400 hover:text-amber-300 text-xs font-bold cursor-pointer"
+                            >
+                              Révoquer
+                            </button>
+                          )}
                           <button
                             type="button"
-                            onClick={() => handleRevokeKey(k.id)}
-                            className="text-red-400 hover:text-red-300 text-xs font-bold cursor-pointer"
+                            onClick={() => handleDeleteKey(k.id)}
+                            className="text-red-400 hover:text-red-300 text-xs font-bold cursor-pointer flex items-center gap-1"
+                            title="Supprimer la clé"
                           >
-                            Révoquer
+                            <Trash2 size={12} /> Supprimer
                           </button>
-                        )}
+                        </div>
                       </td>
                     </tr>
                   ))
@@ -235,12 +364,13 @@ export const IntegrationsAndWebhooksPage: React.FC = () => {
                   <th className="p-3">Événements</th>
                   <th className="p-3">Statut</th>
                   <th className="p-3">Secret HMAC</th>
+                  <th className="p-3 text-right">Actions</th>
                 </tr>
               </thead>
               <tbody className="divide-y divide-white/10">
                 {webhooks.length === 0 ? (
                   <tr>
-                    <td colSpan={4} className="p-6 text-center text-white/50">
+                    <td colSpan={5} className="p-6 text-center text-white/50">
                       Aucun webhook configuré.
                     </td>
                   </tr>
@@ -261,6 +391,26 @@ export const IntegrationsAndWebhooksPage: React.FC = () => {
                         <Badge color={w.active ? "green" : "red"}>{w.active ? "ACTIF" : "INACTIF"}</Badge>
                       </td>
                       <td className="p-3 font-mono text-white/50 text-[11px]">whsec_••••••••</td>
+                      <td className="p-3 text-right">
+                        <div className="flex items-center justify-end gap-2">
+                          <button
+                            type="button"
+                            onClick={() => handleTestWebhook(w)}
+                            className="px-2 py-1 bg-cyan-500/20 hover:bg-cyan-500/40 text-cyan-300 text-xs font-bold rounded flex items-center gap-1 cursor-pointer transition"
+                            title="Tester l'envoi de ping HMAC"
+                          >
+                            <Play size={10} /> Tester (Ping)
+                          </button>
+                          <button
+                            type="button"
+                            onClick={() => handleDeleteWebhook(w.id)}
+                            className="p-1 text-red-400 hover:text-red-300 rounded cursor-pointer transition"
+                            title="Supprimer ce webhook"
+                          >
+                            <Trash2 size={13} />
+                          </button>
+                        </div>
+                      </td>
                     </tr>
                   ))
                 )}

@@ -221,6 +221,9 @@ export interface ScheduleItem {
   formation: Formation;
   groupe?: string;
   studentIds?: string[];
+  is_online?: boolean;
+  meeting_url?: string;
+  online_attendance_mode?: "auto_join" | "manual";
 }
 
 export type AttendanceStatus = "present" | "absent" | "retard";

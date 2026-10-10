@@ -3,7 +3,7 @@ import { Link } from "react-router-dom";
 import {
   Settings, Activity, Shield, Play, CheckCircle2, AlertTriangle, RotateCcw,
   Palette, Moon, Flame, Sparkles, Wallet, School, Compass, Volume2,
-  Calendar, Lock, Plus, Check, Eye, RefreshCw, MessageSquare
+  Calendar, Lock, Plus, Check, Eye, RefreshCw, MessageSquare, Layers
 } from "lucide-react";
 import { useStore } from "@/lib/store";
 import { Btn, Card, PageHead, Field, Input, today } from "@/lib/ui";
@@ -123,8 +123,34 @@ export function SettingsPage() {
   const s = db.settings;
 
   const [activeCategory, setActiveCategory] = useState<
-    "automatisations" | "general" | "apparence" | "annees" | "restrictions" | "communication" | "securite" | "enseignement" | "maintenance"
+    "automatisations" | "modules" | "general" | "apparence" | "annees" | "restrictions" | "communication" | "securite" | "enseignement" | "maintenance"
   >("automatisations");
+
+  const handleToggleFeatureFlag = async (featureKey: string, nextState: boolean) => {
+    const currentFlags = (db.settings as any)?.feature_flags || {};
+    const updatedFlags = { ...currentFlags, [featureKey]: nextState };
+    update((d) => ({
+      ...d,
+      settings: {
+        ...d.settings,
+        feature_flags: updatedFlags,
+      },
+    }));
+
+    if (isSupabaseConfigured) {
+      try {
+        await supabase.rpc("set_module_feature_flag", {
+          p_feature: featureKey,
+          p_enabled: nextState,
+        });
+      } catch (err) {
+        console.warn("Notice RPC set_module_feature_flag:", err);
+      }
+    }
+
+    log(`Module « ${featureKey} » : ${nextState ? "ACTIVÉ" : "DÉSACTIVÉ"}`);
+    toastMsg.info(`Module « ${featureKey} » : ${nextState ? "ACTIVÉ" : "DÉSACTIVÉ"}`);
+  };
 
   // Politique de messagerie & restrictions communication
   const initialCommPolicy = db.settings?.communicationPolicy || {
@@ -294,6 +320,20 @@ export function SettingsPage() {
           <span className="rounded-full bg-cyan-400/20 px-2 py-0.5 text-[10px] text-cyan-300 font-mono">
             {automations.filter((a) => a.enabled).length}/{automations.length}
           </span>
+        </button>
+
+        <button
+          type="button"
+          onClick={() => setActiveCategory("modules")}
+          className={cn(
+            "flex items-center gap-2 rounded-xl px-4 py-2.5 text-xs font-bold transition-all cursor-pointer",
+            activeCategory === "modules"
+              ? "bg-gradient-to-r from-cyan-500/20 to-emerald-500/20 text-cyan-300 border border-cyan-400/40 shadow-[0_0_15px_rgba(0,229,255,0.25)]"
+              : "text-slate-400 hover:text-white hover:bg-white/5"
+          )}
+        >
+          <Layers size={15} className="text-cyan-400" />
+          <span>Modules & Interrupteurs</span>
         </button>
 
         <button
@@ -568,6 +608,91 @@ export function SettingsPage() {
                   </p>
                 )}
               </div>
+            </div>
+          </Card>
+        </div>
+      )}
+
+      {/* ================= ONGLET : MODULES & INTERRUPTEURS (Phase B.4 - site_settings.feature_flags) ================= */}
+      {activeCategory === "modules" && (
+        <div className="space-y-4">
+          <Card className="p-6">
+            <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3 border-b border-white/10 pb-4">
+              <div>
+                <div className="flex items-center gap-2.5">
+                  <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-cyan-500/20 text-cyan-400 border border-cyan-400/40">
+                    <Layers size={18} />
+                  </div>
+                  <h3 className="font-display text-base font-bold text-white">
+                    Interrupteurs de fonctionnalités & Modules optionnels
+                  </h3>
+                </div>
+                <p className="text-xs text-slate-400 mt-1">
+                  Activez ou désactivez les modules système. Les modules désactivés disparaissent automatiquement du menu de navigation et leurs accès sont restreints.
+                </p>
+              </div>
+            </div>
+
+            <div className="mt-5 grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
+              {[
+                { key: "trash", label: "Corbeille & Sauvegardes", desc: "Suppression douce (soft-delete), restauration et sauvegardes système." },
+                { key: "competencies", label: "Compétences & Livret", desc: "Livret de compétences par domaine et validation formateur." },
+                { key: "surveys", label: "Qualité & Enquêtes", desc: "Enquêtes de satisfaction anonymes avec quorum serveur de 5 réponses." },
+                { key: "guardians", label: "Portail Tuteurs", desc: "Accès parental avec journal d'audit et droits par rubrique." },
+                { key: "alumni", label: "Insertion & Alumni", desc: "Suivi post-formation, offres de stages et réseau des diplômés." },
+                { key: "forum", label: "Forum des Modules", desc: "Espace communautaire de discussion modéré par module." },
+                { key: "resources", label: "Ressources & Savoirs", desc: "Bibliothèque pédagogique de supports, cours et documents." },
+                { key: "api_keys", label: "API & Intégrations", desc: "Gestion des clés API SHA-256 et webhooks sécurisés HMAC." },
+                { key: "gamification", label: "Gamification & Badges", desc: "Attribution de badges officiels et progression ludique." },
+                { key: "risk_radar", label: "Radar de Décrochage", desc: "Détection prédictive des risques d'abandon basée sur présences et notes." },
+                { key: "online_sessions", label: "Séances en ligne", desc: "Liens de visioconférence et pointage automatique à l'ouverture." },
+                { key: "regrade", label: "Révision de notes", desc: "Demandes officielles de révision d'épreuves par les apprenants." },
+              ].map((mod) => {
+                const flags = (db.settings as any)?.feature_flags || {};
+                const isEnabled = flags[mod.key] !== false; // activé par défaut
+                return (
+                  <div
+                    key={mod.key}
+                    className="flex flex-col justify-between rounded-xl border border-white/10 bg-white/[0.02] p-4 transition hover:border-white/20"
+                  >
+                    <div>
+                      <div className="flex items-center justify-between">
+                        <span className="font-bold text-white text-sm">{mod.label}</span>
+                        <span
+                          className={cn(
+                            "rounded-full px-2 py-0.5 text-[10px] font-bold",
+                            isEnabled
+                              ? "bg-emerald-500/20 text-emerald-300 border border-emerald-500/30"
+                              : "bg-slate-800 text-slate-400 border border-white/10"
+                          )}
+                        >
+                          {isEnabled ? "Actif" : "Masqué"}
+                        </span>
+                      </div>
+                      <p className="mt-2 text-xs text-slate-400 leading-relaxed">
+                        {mod.desc}
+                      </p>
+                    </div>
+
+                    <div className="mt-4 pt-3 border-t border-white/5 flex items-center justify-between">
+                      <span className="font-mono text-[10px] text-slate-500">{mod.key}</span>
+                      <button
+                        type="button"
+                        onClick={() => handleToggleFeatureFlag(mod.key, !isEnabled)}
+                        className={cn(
+                          "inline-flex items-center gap-1.5 rounded-lg px-3 py-1.5 text-xs font-semibold transition cursor-pointer border",
+                          isEnabled
+                            ? "bg-emerald-500/10 border-emerald-500/40 text-emerald-300 hover:bg-emerald-500/20"
+                            : "bg-slate-800/80 border-white/10 text-slate-400 hover:text-white hover:bg-slate-800"
+                        )}
+                      >
+                        <span className={cn("h-2 w-2 rounded-full", isEnabled ? "bg-emerald-400" : "bg-slate-500")} />
+                        <span>{isEnabled ? "Désactiver" : "Activer"}</span>
+                      </button>
+                    </div>
+                  </div>
+                );
+              })}
             </div>
           </Card>
         </div>

@@ -353,7 +353,7 @@ export function StoreProvider({ children }: { children: React.ReactNode }) {
         const isStudentAccount = user?.role === "student" || sessionUser?.user_metadata?.role === "student";
         const testsQueryPromise = isStudentAccount
           ? Promise.all([
-              supabase.from("tests").select("*").in("statut", ["publie", "en_cours", "ouvert"]),
+              supabase.from("tests").select("*").in("statut", ["publie", "en_cours", "ouvert"]).is("deleted_at", null),
               supabase.from("questions_apprenant").select("*"),
             ]).then(([tRes, qRes]) => ({
               data: (tRes.data || []).map((t: any) => ({
@@ -362,7 +362,7 @@ export function StoreProvider({ children }: { children: React.ReactNode }) {
               })),
               error: tRes.error || qRes.error,
             }))
-          : supabase.from("tests").select("*, questions(*)");
+          : supabase.from("tests").select("*, questions(*)").is("deleted_at", null);
 
         const [
           profilesRes, formationsRes,
@@ -377,17 +377,17 @@ export function StoreProvider({ children }: { children: React.ReactNode }) {
         ] = await Promise.all([
           supabase.from("profiles").select("*"),
           supabase.from("formations").select("*"),
-          supabase.from("students").select("*"),
+          supabase.from("students").select("*").is("deleted_at", null),
           supabase.from("student_modules").select("*"),
           supabase.from("teachers").select("*"),
           supabase.from("teacher_modules").select("*"),
           supabase.from("courses").select("*, course_files(*), course_targets(student_id)"),
           supabase.from("schedule").select("*"),
           supabase.from("attendance").select("*"),
-          supabase.from("invoices").select("*"),
+          supabase.from("invoices").select("*").is("deleted_at", null),
           supabase.from("payments").select("*"),
           testsQueryPromise,
-          supabase.from("test_results").select("*, answers:test_answers(*)"),
+          supabase.from("test_results").select("*, answers:test_answers(*)").is("deleted_at", null),
           supabase.from("grades").select("*"),
           supabase.from("notifications").select("*"),
           supabase.from("certificates").select("*, modules:certificate_modules(*)"),

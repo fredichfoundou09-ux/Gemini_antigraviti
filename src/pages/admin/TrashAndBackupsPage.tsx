@@ -12,8 +12,9 @@ import {
   User,
   Layers,
   XCircle,
+  Printer,
 } from "lucide-react";
-import { Card, Btn, Badge, Modal, PageHead, Empty } from "@/lib/ui";
+import { Card, Btn, Badge, Modal, PageHead, Empty, printHTML } from "@/lib/ui";
 import {
   trashService,
   TrashItem,
@@ -163,6 +164,76 @@ export default function TrashAndBackupsPage() {
     showNotice("success", "Export de la sauvegarde téléchargé au format JSON.");
   };
 
+  const handleDeleteBackup = async (b: SystemBackup) => {
+    if (!window.confirm(`Supprimer définitivement la sauvegarde « ${b.title} » ?`)) return;
+    const { success, error } = await trashService.deleteSystemBackup(b.id);
+    if (!success) {
+      showNotice("error", `Échec de suppression: ${error}`);
+    } else {
+      showNotice("success", "Sauvegarde supprimée avec succès.");
+      loadBackups();
+    }
+  };
+
+  const handlePrintAudit = () => {
+    const rowsHtml =
+      activeTab === "trash"
+        ? trashItems
+            .map(
+              (i) => `
+          <tr>
+            <td><strong>${i.label}</strong></td>
+            <td><span class="badge-official">${i.entity_type}</span></td>
+            <td>${i.deleted_by_name || 'Système'}</td>
+            <td>${new Date(i.deleted_at).toLocaleString('fr-FR')}</td>
+          </tr>
+        `
+            )
+            .join("")
+        : backups
+            .map(
+              (b) => `
+          <tr>
+            <td><strong>${b.title}</strong></td>
+            <td>${b.tables_included.join(', ')}</td>
+            <td>${b.record_counts ? JSON.stringify(b.record_counts) : '—'}</td>
+            <td>${new Date(b.created_at).toLocaleString('fr-FR')}</td>
+          </tr>
+        `
+            )
+            .join("");
+
+    printHTML(
+      activeTab === "trash" ? "Rapport d'Audit — Corbeille Système" : "Rapport d'Audit — Sauvegardes Système",
+      `
+      <div class="document-container">
+        <div style="border-bottom:2px solid #0284c7;padding-bottom:12px;margin-bottom:16px">
+          <span class="badge-official">RÉSILIENCE N1 · SÉCURITÉ & AUDIT</span>
+          <h1 style="margin:8px 0 4px 0;font-size:18px;color:#0c4a6e">
+            ${activeTab === "trash" ? "État de la Corbeille (Éléments en rétention)" : "Catalogue des Sauvegardes Système"}
+          </h1>
+          <p style="margin:0;font-size:11px;color:#64748b">Émis le ${new Date().toLocaleDateString('fr-FR')} à ${new Date().toLocaleTimeString('fr-FR')} · Opérateur : ${profile?.name || 'Administrateur'}</p>
+        </div>
+
+        <table>
+          <thead>
+            <tr>
+              ${
+                activeTab === "trash"
+                  ? '<th>Élément</th><th>Type</th><th>Supprimé par</th><th>Date de suppression</th>'
+                  : '<th>Intitulé</th><th>Tables incluses</th><th>Enregistrements</th><th>Date de création</th>'
+              }
+            </tr>
+          </thead>
+          <tbody>
+            ${rowsHtml || '<tr><td colspan="4" style="text-align:center;color:#64748b">Aucun élément à signaler.</td></tr>'}
+          </tbody>
+        </table>
+      </div>
+    `
+    );
+  };
+
   const filteredTrash = trashItems.filter((i) => {
     if (!searchFilter.trim()) return true;
     return (
@@ -199,10 +270,15 @@ export default function TrashAndBackupsPage() {
         title="Corbeille & Sauvegardes du Système"
         subtitle="Restauration en 1 clic des données supprimées, purge administrative et gestion des sauvegardes sécurisées"
         actions={
-          <span className="inline-flex items-center gap-1.5 rounded-full border border-[var(--sn-red)]/40 bg-[var(--sn-black)] px-3 py-1 text-xs font-semibold text-[var(--sn-white)]">
-            <Archive className="h-3.5 w-3.5 text-[var(--sn-red)]" />
-            Module Résilience N1
-          </span>
+          <div className="flex items-center gap-2">
+            <Btn onClick={handlePrintAudit} variant="outline" className="border-cyan-500/30 text-cyan-200">
+              <Printer size={14} /> Imprimer / PDF
+            </Btn>
+            <span className="inline-flex items-center gap-1.5 rounded-full border border-[var(--sn-red)]/40 bg-[var(--sn-black)] px-3 py-1 text-xs font-semibold text-[var(--sn-white)]">
+              <Archive className="h-3.5 w-3.5 text-[var(--sn-red)]" />
+              Module Résilience N1
+            </span>
+          </div>
         }
       />
 
@@ -499,6 +575,15 @@ export default function TrashAndBackupsPage() {
                             >
                               <Download className="h-3.5 w-3.5 text-white/70" />
                               Export
+                            </Btn>
+                            <Btn
+                              variant="ghost"
+                              onClick={() => handleDeleteBackup(b)}
+                              className="px-2.5 py-1 text-xs text-red-400 hover:text-red-300 hover:bg-red-950/40"
+                              title="Supprimer cette sauvegarde"
+                            >
+                              <Trash2 className="h-3.5 w-3.5" />
+                              Supprimer
                             </Btn>
                           </div>
                         </td>

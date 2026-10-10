@@ -1,5 +1,5 @@
 import React, { useEffect, useState } from "react";
-import { FolderGit2, Search, Download, Tag, FileText, Plus, BookOpen, ExternalLink } from "lucide-react";
+import { FolderGit2, Search, Download, Tag, FileText, Plus, BookOpen, ExternalLink, Edit2, Trash2 } from "lucide-react";
 import { useAuth } from "@/contexts/AuthContext";
 import { useStore } from "@/lib/store";
 import { resourceService, EducationalResource } from "@/modules/resources/services/resourceService";
@@ -13,6 +13,8 @@ export const ResourceLibraryPage: React.FC = () => {
   const [search, setSearch] = useState("");
   const [selectedTag, setSelectedTag] = useState<string>("all");
   const [selectedModuleId, setSelectedModuleId] = useState<string>("all");
+
+  // Modales
   const [showAddModal, setShowAddModal] = useState(false);
   const [newResource, setNewResource] = useState({
     title: "",
@@ -23,7 +25,19 @@ export const ResourceLibraryPage: React.FC = () => {
     tagsStr: "cours, supports",
   });
 
-  const isTeacherOrStaff = profile?.role === "teacher" || profile?.role === "admin" || profile?.role === "superadmin";
+  const [showEditModal, setShowEditModal] = useState(false);
+  const [editingResource, setEditingResource] = useState<EducationalResource | null>(null);
+  const [editData, setEditData] = useState({
+    title: "",
+    description: "",
+    module_id: "",
+    file_url: "",
+    file_type: "PDF",
+    tagsStr: "",
+  });
+
+  const isTeacherOrStaff =
+    profile?.role === "teacher" || profile?.role === "admin" || profile?.role === "superadmin";
 
   useEffect(() => {
     loadResources();
@@ -39,7 +53,7 @@ export const ResourceLibraryPage: React.FC = () => {
   };
 
   const handleCreateResource = async () => {
-    if (!newResource.title || !newResource.file_url) {
+    if (!newResource.title.trim() || !newResource.file_url.trim()) {
       toastMsg.error("Champs obligatoires", "Veuillez renseigner le titre et l'URL du document.");
       return;
     }
@@ -50,10 +64,10 @@ export const ResourceLibraryPage: React.FC = () => {
       .filter(Boolean);
 
     const res = await resourceService.createResource({
-      title: newResource.title,
-      description: newResource.description,
+      title: newResource.title.trim(),
+      description: newResource.description.trim(),
       module_id: newResource.module_id || undefined,
-      file_url: newResource.file_url,
+      file_url: newResource.file_url.trim(),
       file_type: newResource.file_type,
       tags,
       created_by: profile?.name || "Formateur",
@@ -76,6 +90,55 @@ export const ResourceLibraryPage: React.FC = () => {
     }
   };
 
+  const handleOpenEdit = (r: EducationalResource) => {
+    setEditingResource(r);
+    setEditData({
+      title: r.title,
+      description: r.description || "",
+      module_id: r.module_id || "",
+      file_url: r.file_url,
+      file_type: r.file_type || "PDF",
+      tagsStr: (r.tags || []).join(", "),
+    });
+    setShowEditModal(true);
+  };
+
+  const handleSaveEdit = async () => {
+    if (!editingResource) return;
+    const tags = editData.tagsStr
+      .split(",")
+      .map((t) => t.trim().toLowerCase())
+      .filter(Boolean);
+
+    const res = await resourceService.updateResource(editingResource.id, {
+      title: editData.title.trim(),
+      description: editData.description.trim(),
+      module_id: editData.module_id || undefined,
+      file_url: editData.file_url.trim(),
+      file_type: editData.file_type,
+      tags,
+    });
+
+    if (res.success) {
+      toastMsg.success("Ressource modifiée", "Les modifications sont enregistrées.");
+      setShowEditModal(false);
+      loadResources();
+    } else {
+      toastMsg.error("Erreur", res.error);
+    }
+  };
+
+  const handleDeleteResource = async (id: string) => {
+    if (!window.confirm("Êtes-vous sûr de vouloir supprimer cette ressource ?")) return;
+    const res = await resourceService.deleteResource(id);
+    if (res.success) {
+      toastMsg.success("Ressource supprimée", "Le document a été retiré du catalogue.");
+      loadResources();
+    } else {
+      toastMsg.error("Erreur", res.error);
+    }
+  };
+
   const handleDownload = async (r: EducationalResource) => {
     await resourceService.trackDownload(r.id);
     window.open(r.file_url, "_blank");
@@ -90,7 +153,10 @@ export const ResourceLibraryPage: React.FC = () => {
         subtitle="Catalogue centralisé de supports de cours, guides pratiques et manuels techniques"
         actions={
           isTeacherOrStaff ? (
-            <Btn onClick={() => setShowAddModal(true)} className="bg-[#E60000] hover:bg-[#FF2A2A] text-white">
+            <Btn
+              onClick={() => setShowAddModal(true)}
+              className="bg-gradient-to-r from-cyan-600 to-blue-600 hover:from-cyan-500 hover:to-blue-500 text-white font-bold"
+            >
               <Plus size={14} /> Ajouter une ressource
             </Btn>
           ) : undefined
@@ -98,16 +164,16 @@ export const ResourceLibraryPage: React.FC = () => {
       />
 
       {/* Barre de recherche et filtres */}
-      <Card className="p-4 border border-white/10 bg-black/60">
+      <Card className="p-4 border border-cyan-500/30 bg-[#0B1220]/90">
         <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
           <div className="relative">
-            <Search size={15} className="absolute left-3 top-1/2 -translate-y-1/2 text-white/40" />
+            <Search size={15} className="absolute left-3 top-1/2 -translate-y-1/2 text-cyan-400/60" />
             <input
               type="text"
               value={search}
               onChange={(e) => setSearch(e.target.value)}
-              placeholder="Rechercher par titre..."
-              className="w-full rounded-lg border border-white/15 bg-black py-2 pl-9 pr-3 text-xs text-white placeholder:text-white/40 focus:border-red-500 focus:outline-none"
+              placeholder="Rechercher par titre ou mot-clé..."
+              className="w-full rounded-xl border border-cyan-500/30 bg-[#07101E] py-2 pl-9 pr-3 text-xs text-white placeholder:text-slate-500 focus:border-cyan-400 focus:outline-none"
             />
           </div>
 
@@ -115,7 +181,7 @@ export const ResourceLibraryPage: React.FC = () => {
             <select
               value={selectedModuleId}
               onChange={(e) => setSelectedModuleId(e.target.value)}
-              className="w-full rounded-lg border border-white/15 bg-black px-3 py-2 text-xs text-white focus:border-red-500 focus:outline-none"
+              className="w-full rounded-xl border border-cyan-500/30 bg-[#07101E] px-3 py-2 text-xs text-white focus:border-cyan-400 focus:outline-none"
             >
               <option value="all">Tous les modules</option>
               {db.modules.map((m) => (
@@ -130,7 +196,7 @@ export const ResourceLibraryPage: React.FC = () => {
             <select
               value={selectedTag}
               onChange={(e) => setSelectedTag(e.target.value)}
-              className="w-full rounded-lg border border-white/15 bg-black px-3 py-2 text-xs text-white focus:border-red-500 focus:outline-none"
+              className="w-full rounded-xl border border-cyan-500/30 bg-[#07101E] px-3 py-2 text-xs text-white focus:border-cyan-400 focus:outline-none"
             >
               <option value="all">Toutes les étiquettes (tags)</option>
               {allTags.map((t) => (
@@ -146,37 +212,64 @@ export const ResourceLibraryPage: React.FC = () => {
       {/* Grille des ressources */}
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
         {resources.length === 0 ? (
-          <Card className="col-span-full p-8 text-center text-white/50">
+          <Card className="col-span-full p-10 border border-cyan-500/30 bg-[#0B1220]/90 text-center text-slate-400">
             Aucun document ne correspond à vos critères de recherche.
           </Card>
         ) : (
           resources.map((r) => {
             const modObj = db.modules.find((m) => m.id === r.module_id);
             return (
-              <Card key={r.id} className="p-5 border border-white/10 bg-black/60 flex flex-col justify-between space-y-3">
+              <Card
+                key={r.id}
+                className="p-5 border border-cyan-500/30 bg-[#0B1220]/90 flex flex-col justify-between space-y-3 shadow-lg"
+              >
                 <div className="space-y-2">
                   <div className="flex items-start justify-between gap-2">
                     <div className="flex items-center gap-2">
-                      <div className="h-8 w-8 rounded-lg bg-red-950/60 border border-red-500/40 flex items-center justify-center text-red-400 shrink-0">
+                      <div className="h-8 w-8 rounded-lg bg-cyan-950/60 border border-cyan-500/30 flex items-center justify-center text-cyan-300 shrink-0">
                         <FileText size={16} />
                       </div>
                       <h3 className="font-bold text-sm text-white line-clamp-1">{r.title}</h3>
                     </div>
-                    <Badge color="red">{r.file_type || "DOC"}</Badge>
+                    <div className="flex items-center gap-1 shrink-0">
+                      <Badge color="blue">{r.file_type || "DOC"}</Badge>
+                      {isTeacherOrStaff && (
+                        <button
+                          type="button"
+                          onClick={() => handleOpenEdit(r)}
+                          title="Modifier la ressource"
+                          className="p-1 text-slate-400 hover:text-cyan-300"
+                        >
+                          <Edit2 size={13} />
+                        </button>
+                      )}
+                      {isTeacherOrStaff && (
+                        <button
+                          type="button"
+                          onClick={() => handleDeleteResource(r.id)}
+                          title="Supprimer la ressource"
+                          className="p-1 text-slate-400 hover:text-red-400"
+                        >
+                          <Trash2 size={13} />
+                        </button>
+                      )}
+                    </div>
                   </div>
 
                   {modObj && (
-                    <p className="text-[11px] font-mono text-white/50">{modObj.titre}</p>
+                    <p className="text-[11px] font-mono text-cyan-400">{modObj.titre}</p>
                   )}
 
                   {r.description && (
-                    <p className="text-xs text-white/70 line-clamp-2">{r.description}</p>
+                    <p className="text-xs text-slate-300 line-clamp-2 leading-relaxed">
+                      {r.description}
+                    </p>
                   )}
 
                   {r.tags && r.tags.length > 0 && (
                     <div className="flex flex-wrap gap-1 pt-1">
                       {r.tags.map((t) => (
-                        <span key={t} className="text-[10px] rounded bg-white/5 px-1.5 py-0.5 text-white/60">
+                        <span key={t} className="text-[10px] rounded bg-white/5 px-2 py-0.5 text-slate-400 font-mono">
                           #{t}
                         </span>
                       ))}
@@ -184,9 +277,9 @@ export const ResourceLibraryPage: React.FC = () => {
                   )}
                 </div>
 
-                <div className="pt-3 border-t border-white/10 flex items-center justify-between text-xs text-white/50">
-                  <span>{r.downloads_count} téléchargement(s)</span>
-                  <Btn onClick={() => handleDownload(r)} className="text-xs py-1 bg-[#E60000] hover:bg-[#FF2A2A] text-white">
+                <div className="pt-3 border-t border-white/10 flex items-center justify-between text-xs text-slate-400">
+                  <span>{r.downloads_count} consultation(s)</span>
+                  <Btn onClick={() => handleDownload(r)} className="text-xs py-1 bg-cyan-600 hover:bg-cyan-500 text-white font-bold">
                     <Download size={13} /> Ouvrir
                   </Btn>
                 </div>
@@ -253,9 +346,78 @@ export const ResourceLibraryPage: React.FC = () => {
               placeholder="Contenu synthétique du document..."
             />
           </Field>
-          <Btn onClick={handleCreateResource} className="w-full bg-[#E60000] hover:bg-[#FF2A2A] text-white font-bold">
-            Ajouter au catalogue
-          </Btn>
+          <div className="flex justify-end gap-2 pt-2">
+            <Btn variant="ghost" onClick={() => setShowAddModal(false)}>
+              Annuler
+            </Btn>
+            <Btn onClick={handleCreateResource} className="bg-cyan-600 hover:bg-cyan-500 text-white font-bold">
+              Ajouter au catalogue
+            </Btn>
+          </div>
+        </div>
+      </Modal>
+
+      {/* Modal Modifier Ressource */}
+      <Modal open={showEditModal} onClose={() => setShowEditModal(false)} title="Modifier la ressource">
+        <div className="space-y-4">
+          <Field label="Titre du document">
+            <Input
+              value={editData.title}
+              onChange={(e) => setEditData({ ...editData, title: e.target.value })}
+            />
+          </Field>
+          <Field label="Module associé">
+            <Select
+              value={editData.module_id}
+              onChange={(e) => setEditData({ ...editData, module_id: e.target.value })}
+            >
+              <option value="">Général / Non rattaché</option>
+              {db.modules.map((m) => (
+                <option key={m.id} value={m.id}>
+                  {m.numero}. {m.titre}
+                </option>
+              ))}
+            </Select>
+          </Field>
+          <Field label="URL du fichier">
+            <Input
+              value={editData.file_url}
+              onChange={(e) => setEditData({ ...editData, file_url: e.target.value })}
+            />
+          </Field>
+          <div className="grid grid-cols-2 gap-3">
+            <Field label="Format">
+              <Select
+                value={editData.file_type}
+                onChange={(e) => setEditData({ ...editData, file_type: e.target.value })}
+              >
+                <option value="PDF">PDF</option>
+                <option value="DOCX">Word (.docx)</option>
+                <option value="ZIP">Archive (.zip)</option>
+                <option value="VIDEO">Vidéo (.mp4)</option>
+              </Select>
+            </Field>
+            <Field label="Étiquettes">
+              <Input
+                value={editData.tagsStr}
+                onChange={(e) => setEditData({ ...editData, tagsStr: e.target.value })}
+              />
+            </Field>
+          </div>
+          <Field label="Description">
+            <Textarea
+              value={editData.description}
+              onChange={(e) => setEditData({ ...editData, description: e.target.value })}
+            />
+          </Field>
+          <div className="flex justify-end gap-2 pt-2">
+            <Btn variant="ghost" onClick={() => setShowEditModal(false)}>
+              Annuler
+            </Btn>
+            <Btn onClick={handleSaveEdit} className="bg-cyan-600 hover:bg-cyan-500 text-white font-bold">
+              Enregistrer
+            </Btn>
+          </div>
         </div>
       </Modal>
     </div>

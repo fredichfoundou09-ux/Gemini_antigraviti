@@ -28,6 +28,7 @@ import { AiAgentPanel } from "@/components/AiAgentPanel";
 import { AcademicYearSelector } from "@/components/AcademicYearSelector";
 import { NetworkSyncIndicator } from "@/components/common/NetworkSyncIndicator";
 import { RealTimeClock } from "@/components/common/RealTimeClock";
+import { i18nService } from "@/modules/i18n/services/i18nService";
 
 const roleLabel: Record<string, string> = {
   superadmin: "SUPER ADMIN",
@@ -90,15 +91,15 @@ const MENU: MenuItem[] = [
   { to: "/app/utilisateurs", label: "Utilisateurs", icon: <ShieldCheck size={18} />, roles: ["superadmin"] },
   { to: "/app/contenu", label: "Contenu du site", icon: <PenSquare size={18} />, roles: ["superadmin", "admin"] },
   { to: "/app/journal", label: "Journal d'activité", icon: <Activity size={18} />, roles: ["superadmin", "admin"] },
-  { to: "/app/corbeille", label: "Corbeille & Sauvegardes", icon: <Archive size={18} />, roles: ["superadmin", "admin"] },
-  { to: "/app/competences", label: "Compétences & Livret", icon: <Award size={18} />, roles: ["superadmin", "admin", "teacher", "student", "partner"] },
-  { to: "/app/qualite", label: "Qualité & Enquêtes", icon: <Activity size={18} />, roles: ["superadmin", "admin", "teacher", "student"] },
-  { to: "/app/tuteurs", label: "Portail Tuteurs", icon: <Users size={18} />, roles: ["superadmin", "admin", "tuteur"] },
-  { to: "/app/insertion", label: "Alumni & Stages", icon: <Award size={18} />, roles: ["superadmin", "admin", "partner_admin", "teacher", "student"] },
-  { to: "/app/forum", label: "Forum Modules", icon: <MessagesSquare size={18} />, roles: ["superadmin", "admin", "teacher", "student"] },
-  { to: "/app/ressources", label: "Ressources & Savoirs", icon: <BookOpen size={18} />, roles: ["superadmin", "admin", "teacher", "student", "partner"] },
-  { to: "/app/rapports", label: "Rapports", icon: <Activity size={18} />, roles: ["superadmin", "admin", "partner_admin"] },
-  { to: "/app/integrations", label: "API & Intégrations (Bêta)", icon: <Key size={18} />, roles: ["superadmin", "admin"] },
+  { to: "/app/corbeille", label: "Corbeille & Sauvegardes", icon: <Archive size={18} />, roles: ["superadmin", "admin"], moduleKey: "trash" },
+  { to: "/app/competences", label: "Compétences & Livret", icon: <Award size={18} />, roles: ["superadmin", "admin", "teacher", "student", "partner"], moduleKey: "competencies" },
+  { to: "/app/qualite", label: "Qualité & Enquêtes", icon: <Activity size={18} />, roles: ["superadmin", "admin", "teacher", "student"], moduleKey: "surveys" },
+  { to: "/app/tuteurs", label: "Portail Tuteurs", icon: <Users size={18} />, roles: ["superadmin", "admin", "tuteur"], moduleKey: "guardians" },
+  { to: "/app/insertion", label: "Alumni & Stages", icon: <Award size={18} />, roles: ["superadmin", "admin", "partner_admin", "teacher", "student"], moduleKey: "alumni" },
+  { to: "/app/forum", label: "Forum Modules", icon: <MessagesSquare size={18} />, roles: ["superadmin", "admin", "teacher", "student"], moduleKey: "forum" },
+  { to: "/app/ressources", label: "Ressources & Savoirs", icon: <BookOpen size={18} />, roles: ["superadmin", "admin", "teacher", "student", "partner"], moduleKey: "resources" },
+  { to: "/app/rapports", label: "Rapports", icon: <Activity size={18} />, roles: ["superadmin", "admin", "partner_admin"], moduleKey: "reports" },
+  { to: "/app/integrations", label: "API & Intégrations (Bêta)", icon: <Key size={18} />, roles: ["superadmin", "admin"], moduleKey: "api_keys" },
   { to: "/app/parametres", label: "Paramètres", icon: <Settings size={18} />, roles: ["superadmin", "admin"] },
   { to: "/app/profil", label: "Mon profil", icon: <UserCircle size={18} />, roles: ["superadmin", "admin"] },
   { to: "/app/initialisation", label: "Initialiser le logiciel", icon: <RotateCcw size={18} />, roles: ["superadmin"] },
@@ -140,6 +141,14 @@ export default function DashboardLayout() {
     window.addEventListener("sentinelles:exam-lock", onExamLock);
     return () => window.removeEventListener("sentinelles:exam-lock", onExamLock);
   }, []);
+
+  const [, setLocaleTicker] = useState(0);
+  useEffect(() => {
+    const handleLocaleChange = () => setLocaleTicker((c) => c + 1);
+    window.addEventListener("sentinelles:locale-changed", handleLocaleChange);
+    return () => window.removeEventListener("sentinelles:locale-changed", handleLocaleChange);
+  }, []);
+
   const [searchQuery, setSearchQuery] = useState("");
   const searchInputRef = useRef<HTMLInputElement>(null);
   const searchContainerRef = useRef<HTMLDivElement>(null);
@@ -331,6 +340,11 @@ export default function DashboardLayout() {
       const check = isModuleBlockedForUser(m.moduleKey, user);
       if (check.blocked) return false;
     }
+    // Interrupteurs de fonctionnalités (Phase B.4 - site_settings.feature_flags)
+    const flags = (db.settings as any)?.feature_flags;
+    if (m.moduleKey && flags && flags[m.moduleKey] === false) {
+      return false;
+    }
     return true;
   });
 
@@ -408,7 +422,7 @@ export default function DashboardLayout() {
             }
           >
             <span className="shrink-0">{m.icon}</span>
-            <span className="truncate">{m.label}</span>
+            <span className="truncate">{i18nService.t(m.label, m.label)}</span>
           </NavLink>
         ))}
       </nav>
@@ -470,8 +484,8 @@ export default function DashboardLayout() {
             </div>
           </div>
 
-          {/* Barre de Recherche Globale Interactive (Saisie directe ultra-fluide) */}
-          <div className="relative flex-1 max-w-md mx-2 sm:mx-4" ref={searchContainerRef}>
+          {/* Barre de Recherche Globale Interactive (Saisie directe ultra-fluide & élargie) */}
+          <div className="relative flex-1 max-w-xl lg:max-w-2xl mx-2 sm:mx-4 min-w-[200px]" ref={searchContainerRef}>
             <div className="relative flex items-center">
               <Search size={15} className="pointer-events-none absolute left-3.5 top-1/2 -translate-y-1/2 text-[#00E5FF] shrink-0" />
               <input

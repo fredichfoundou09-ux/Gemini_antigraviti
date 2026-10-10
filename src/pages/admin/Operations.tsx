@@ -21,6 +21,7 @@ import { studentsOfCourse, studentsOfSchedule, getTeacherModuleIds } from "@/lib
 import { financialSummary, nextReceiptRef, statusLabel, calculateModuleProfitability } from "@/lib/finance";
 import { cancelPaymentWithAudit, executeDailyClosure, fetchDailyClosures } from "@/lib/supabase/finance";
 import { supabase, isSupabaseConfigured } from "@/lib/supabase/client";
+import { trashService } from "@/modules/admin/services/trashService";
 import { resolveFormationId } from "@/lib/supabase/formations";
 import { UnifiedAssessmentsAssignmentsPage } from "@/modules/unified-assessments/pages/UnifiedAssessmentsAssignmentsPage";
 
@@ -3727,19 +3728,9 @@ export function PaymentsPage() {
     const i = deletingInv;
     if (isSupabaseConfigured) {
       try {
-        const { error } = await supabase.from("invoices").delete().eq("id", i.id);
-        if (error) throw error;
-
-        try {
-          await supabase.from("audit_logs").insert({
-            user_id: user?.id || null,
-            action: "DELETE",
-            entity_type: "invoices",
-            entity_id: i.id,
-            description: `Suppression facture ${i.libelle} : ${student?.prenom} ${student?.nom} — ${money(i.montant)}`,
-          });
-        } catch { /* ignore audit */ }
-        toastMsg.success("Facture supprimée ✓");
+        const res = await trashService.softDeleteItem("invoices", i.id);
+        if (!res.success) throw new Error(res.error || "Échec déplacement vers la corbeille");
+        toastMsg.success("Facture déplacée vers la corbeille ✓");
       } catch (err: any) {
         console.error("Erreur suppression facture:", err);
         toastMsg.error("Erreur de suppression", err.message);

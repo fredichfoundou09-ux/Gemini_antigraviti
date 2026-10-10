@@ -532,12 +532,6 @@ export function AdminDashboard() {
       {/* ================= BRIEFING PROACTIF SENTINEL AI ================= */}
       <SentinelAiBriefingCard userRole={user?.role} userName={user?.name || "Administrateur"} />
 
-      {/* ================= BLOC À TRAITER AUJOURD'HUI (E1) ================= */}
-      <TodayActionWidget riskScores={riskScores} />
-
-      {/* ================= RADAR DE RISQUE DE DÉCROCHAGE (N3) ================= */}
-      <DropoutRiskRadarCard scores={riskScores} onScoresUpdated={loadRisk} loading={loadingRisk} />
-
       {/* ================= SECTION SUPÉRIEURE : 2 COLONNES ASYMÉTRIQUES ================= */}
       <div className="grid grid-cols-1 gap-3.5 lg:grid-cols-12">
         {/* COLONNE GAUCHE (5 cols) : ÉVOLUTION DES INDICATEURS + PRÉSENCES 7 JOURS */}
@@ -1647,6 +1641,12 @@ export function AdminDashboard() {
           ))}
         </div>
       </div>
+
+      {/* ================= BLOC À TRAITER AUJOURD'HUI (E1 - PRIORITÉS OPÉRATIONNELLES) ================= */}
+      <TodayActionWidget riskScores={riskScores} />
+
+      {/* ================= RADAR DE RISQUE DE DÉCROCHAGE (N3) ================= */}
+      <DropoutRiskRadarCard scores={riskScores} onScoresUpdated={loadRisk} loading={loadingRisk} />
     </div>
   );
 }

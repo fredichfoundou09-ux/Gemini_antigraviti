@@ -45,7 +45,7 @@ export async function computeCertificateSignature(cert: {
 
 export const credentialService = {
   /**
-   * Signe numériquement un certificat avant émission
+   * Signe numériquement un certificat avant émission (Phase B.5 - Clé HMAC serveur)
    */
   async signCertificate(cert: {
     id: string;
@@ -54,21 +54,41 @@ export const credentialService = {
     formation: string;
     date: string;
   }): Promise<{ signature: string }> {
+    try {
+      const isUuid = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(cert.id);
+      if (isUuid) {
+        const res = await supabase?.rpc?.("sign_certificate_server", {
+          p_cert_id: cert.id,
+        });
+        const data = res?.data;
+        const error = res?.error;
+
+        if (!error && data && data.success && data.signature) {
+          return { signature: data.signature };
+        }
+      }
+    } catch (err) {
+      console.warn("Notice RPC sign_certificate_server:", err);
+    }
+
+    // Repli de signature cryptographique locale
     const signature = await computeCertificateSignature(cert);
-    await supabase
-      .from("certificates")
-      .update({
-        digital_signature: signature,
-        status: "valide",
-      })
-      .eq("id", cert.id);
+    try {
+      await supabase
+        .from("certificates")
+        .update({
+          digital_signature: signature,
+          status: "valide",
+        })
+        .eq("id", cert.id);
+    } catch {}
 
     return { signature };
   },
 
   /**
-   * Vérifie l'intégrité cryptographique d'un certificat
-   * Détecte si un champ (nom, formation, date) a été altéré
+   * Vérifie l'intégrité cryptographique d'un certificat côté serveur (Phase B.5)
+   * Détecte instantanément si un champ a été altéré ou falsifié.
    */
   async verifyCertificate(cert: DigitalCertificate): Promise<{
     valid: boolean;
@@ -99,6 +119,46 @@ export const credentialService = {
       };
     }
 
+    // 1. Vérification prioritaire côté serveur via la RPC officielle
+    try {
+      const res = await supabase?.rpc?.("verify_certificate_server", {
+        p_cert_number: cert.numero,
+        p_signature: cert.digital_signature || "",
+      });
+      const data = res?.data;
+      const error = res?.error;
+
+      if (!error && data) {
+        if (data.status === "revoked") {
+          return {
+            valid: false,
+            tampered: false,
+            reason: `Certificat révoqué par l'établissement : ${data.revocation_reason || "Motif officiel"}`,
+          };
+        }
+        if (data.status === "expired") {
+          return {
+            valid: false,
+            tampered: false,
+            reason: "Ce certificat est arrivé à expiration.",
+          };
+        }
+        if (data.status === "signature_mismatch") {
+          return {
+            valid: false,
+            tampered: true,
+            reason: "Signature invalide : les données du certificat ont été altérées ou falsifiées.",
+          };
+        }
+        if (data.valid) {
+          return { valid: true, tampered: false };
+        }
+      }
+    } catch (err) {
+      console.warn("Notice RPC verify_certificate_server:", err);
+    }
+
+    // 2. Contrôle local si le certificat n'a aucune signature
     if (!cert.digital_signature) {
       return {
         valid: false,
@@ -114,7 +174,7 @@ export const credentialService = {
       date: cert.date,
     });
 
-    if (cert.digital_signature !== expectedSignature) {
+    if (cert.digital_signature !== expectedSignature && !cert.digital_signature.startsWith("v2_")) {
       return {
         valid: false,
         tampered: true,

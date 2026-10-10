@@ -1,6 +1,7 @@
 import { supabase, isSupabaseConfigured } from "@/lib/supabase/client";
 import { Assignment, AssignmentSubmission, AssignmentValidationDiagnostic } from "../types";
 import { safeFileName } from "@/lib/files";
+import { trashService } from "@/modules/admin/services/trashService";
 
 const ASSIGNMENTS_STORAGE_KEY = "sentinels_assignments_cache_v1";
 const SUBMISSIONS_STORAGE_KEY = "sentinels_assignment_submissions_cache_v1";
@@ -507,7 +508,7 @@ export async function gradeAssignmentSubmission(
   }
 }
 
-// 9. Suppression sécurisée d'un devoir
+// 9. Suppression sécurisée d'un devoir (Corbeille douce - Phase B.2)
 export async function deleteAssignment(id: string): Promise<{ success: boolean; error?: string }> {
   if (!isSupabaseConfigured) {
     const localList = getLocalAssignments().filter((a) => a.id !== id);
@@ -518,27 +519,9 @@ export async function deleteAssignment(id: string): Promise<{ success: boolean; 
   }
 
   try {
-    const isUuid = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(id);
-    if (isUuid) {
-      const { data, error } = await supabase.rpc("delete_assignment_safe", { p_assignment_id: id });
-      if (error) {
-        console.warn("delete_assignment_safe RPC error, repli direct:", error);
-      } else if (data) {
-        if (data.success) {
-          const localList = getLocalAssignments().filter((a) => a.id !== id);
-          saveLocalAssignments(localList);
-          const localSubs = getLocalSubmissions().filter((s) => s.assignmentId !== id);
-          saveLocalSubmissions(localSubs);
-          return { success: true };
-        }
-        return { success: false, error: data.error || "Suppression refusée par le serveur." };
-      }
-    }
-
-    const { data, error } = await supabase.from("assignments").delete().eq("id", id).select("id");
-    if (error) throw error;
-    if (!data?.length) {
-      return { success: false, error: "Suppression refusée ou devoir introuvable (droits insuffisants)." };
+    const res = await trashService.softDeleteItem("assignments", id);
+    if (!res.success) {
+      return { success: false, error: res.error || "Impossible de déplacer le devoir vers la corbeille." };
     }
     const localList = getLocalAssignments().filter((a) => a.id !== id);
     saveLocalAssignments(localList);
@@ -551,7 +534,7 @@ export async function deleteAssignment(id: string): Promise<{ success: boolean; 
   }
 }
 
-// 10. Suppression d'une remise
+// 10. Suppression sécurisée d'une remise (Corbeille douce - Phase B.2)
 export async function deleteSubmission(id: string): Promise<{ success: boolean; error?: string }> {
   if (!isSupabaseConfigured) {
     const localSubs = getLocalSubmissions().filter((s) => s.id !== id);
@@ -560,25 +543,9 @@ export async function deleteSubmission(id: string): Promise<{ success: boolean; 
   }
 
   try {
-    const isUuid = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(id);
-    if (isUuid) {
-      const { data, error } = await supabase.rpc("delete_submission_safe", { p_submission_id: id });
-      if (error) {
-        console.warn("delete_submission_safe RPC error, repli direct:", error);
-      } else if (data) {
-        if (data.success) {
-          const localSubs = getLocalSubmissions().filter((s) => s.id !== id);
-          saveLocalSubmissions(localSubs);
-          return { success: true };
-        }
-        return { success: false, error: data.error || "Suppression refusée par le serveur." };
-      }
-    }
-
-    const { data, error } = await supabase.from("assignment_submissions").delete().eq("id", id).select("id");
-    if (error) throw error;
-    if (!data?.length) {
-      return { success: false, error: "Suppression refusée ou remise introuvable (droits insuffisants)." };
+    const res = await trashService.softDeleteItem("assignment_submissions", id);
+    if (!res.success) {
+      return { success: false, error: res.error || "Impossible de déplacer la remise vers la corbeille." };
     }
     const localSubs = getLocalSubmissions().filter((s) => s.id !== id);
     saveLocalSubmissions(localSubs);

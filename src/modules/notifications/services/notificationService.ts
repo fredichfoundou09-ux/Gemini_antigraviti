@@ -127,15 +127,30 @@ export const notificationService = {
 
   async markOutboxSent(id: string): Promise<{ success: boolean; error: string | null }> {
     try {
-      const { error } = await supabase
-        .from("notification_outbox")
-        .update({
-          status: "sent",
-          sent_at: new Date().toISOString(),
-        })
-        .eq("id", id);
+      const { data, error } = await supabase.rpc("mark_notification_outbox_sent", {
+        p_outbox_id: id,
+        p_status: "sent",
+        p_error: null,
+      });
 
-      if (error) return { success: false, error: error.message };
+      if (error) {
+        // Repli direct si la RPC n'est pas encore disponible localement
+        const { error: updErr } = await supabase
+          .from("notification_outbox")
+          .update({
+            status: "sent",
+            sent_at: new Date().toISOString(),
+          })
+          .eq("id", id);
+        if (updErr) return { success: false, error: updErr.message };
+        return { success: true, error: null };
+      }
+
+      const res = data as { success?: boolean; error?: string };
+      if (res && res.success === false) {
+        return { success: false, error: res.error || "Action refusée" };
+      }
+
       return { success: true, error: null };
     } catch (err: unknown) {
       return { success: false, error: err instanceof Error ? err.message : "Erreur inattendue" };

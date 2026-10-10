@@ -17,6 +17,7 @@ import { toastMsg } from "@/lib/toast";
 import { humanSize, fileKind } from "@/lib/files";
 import { exportCsv } from "@/lib/export";
 import { supabase, isSupabaseConfigured } from "@/lib/supabase/client";
+import { persistGradeToBulletinSafe } from "@/modules/assessments/services/bulletinGradeService";
 
 export interface UnifiedSubmissionItem {
   id: string;
@@ -277,7 +278,7 @@ export function UnifiedSubmissionsInbox({
         toastMsg.success("Note enregistrée ✓", `La note de ${num}/${assignment.bareme} a été validée et enregistrée dans le bulletin.`);
         setGradingSubmission(null);
 
-        // Synchronisation automatique dans le module Notes (db.grades)
+        // Synchronisation automatique et officielle dans le module Notes (upsert_grade_safe)
         if (assignment.moduleId && submission.studentId) {
           const bareme = assignment.bareme > 0 ? assignment.bareme : 20;
           const noteSur20 = Math.round(((num / bareme) * 20) * 10) / 10;
@@ -289,6 +290,15 @@ export function UnifiedSubmissionsInbox({
             appreciation: appreciationVal || `Devoir: ${assignment.titre}`,
             date: new Date().toISOString().slice(0, 10),
           };
+
+          void persistGradeToBulletinSafe({
+            studentId: submission.studentId,
+            moduleId: assignment.moduleId,
+            note: noteSur20,
+            appreciation: autoGrade.appreciation,
+            date: autoGrade.date,
+          });
+
           update((d) => ({
             ...d,
             grades: [
@@ -296,7 +306,7 @@ export function UnifiedSubmissionsInbox({
               autoGrade,
             ],
           }));
-          log(`Note synchronisée automatiquement dans le module Notes pour l'apprenant : ${noteSur20}/20`);
+          log(`Note synchronisée officiellement dans le bulletin pour l'apprenant : ${noteSur20}/20`);
         }
 
         // Notifier l'apprenant concerné
@@ -450,6 +460,16 @@ export function UnifiedSubmissionsInbox({
       } catch (err: any) {
         console.warn("Notice persistance manuelle Supabase:", err);
       }
+    }
+
+    if (assessment.moduleId && result.studentId) {
+      void persistGradeToBulletinSafe({
+        studentId: result.studentId,
+        moduleId: assessment.moduleId,
+        note: noteSur20,
+        appreciation: `Correction manuelle : ${assessment.titre}`,
+        date: result.date || new Date().toISOString().slice(0, 10),
+      });
     }
 
     update((d) => ({
