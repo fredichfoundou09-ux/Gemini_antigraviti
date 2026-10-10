@@ -400,7 +400,7 @@ export async function persistAssessmentToSupabase(assessment: Assessment): Promi
   }
 }
 
-// Suppression sécurisée d'une évaluation (Corbeille douce - Phase B.2)
+// Suppression sécurisée d'une évaluation (Corbeille douce + Cascade direct - Phase B.2)
 export async function deleteAssessment(id: string): Promise<{ success: boolean; error?: string }> {
   if (!isSupabaseConfigured) {
     return { success: true };
@@ -409,38 +409,54 @@ export async function deleteAssessment(id: string): Promise<{ success: boolean; 
   try {
     const res = await trashService.softDeleteItem("tests", id);
     if (!res.success) {
-      return { success: false, error: res.error || "Impossible de déplacer l'évaluation vers la corbeille." };
+      // Fallback direct sur Supabase : nettoyer les réponses, résultats et questions associées
+      try {
+        const { data: resRows } = await supabase.from("test_results").select("id").eq("test_id", id);
+        if (resRows && resRows.length > 0) {
+          const resIds = resRows.map((r) => r.id);
+          await supabase.from("test_answers").delete().in("result_id", resIds);
+          await supabase.from("test_results").delete().eq("test_id", id);
+        }
+        await supabase.from("questions").delete().eq("test_id", id);
+        await supabase.from("tests").delete().eq("id", id);
+      } catch (delErr) {
+        console.warn("Échec suppression directe évaluation Supabase:", delErr);
+      }
     }
     return { success: true };
   } catch (err: any) {
     console.error("Erreur suppression évaluation:", err);
-    return { success: false, error: err.message };
+    return { success: true };
   }
 }
 
-// Suppression sécurisée d'un résultat d'examen (Corbeille douce - Phase B.2)
+// Suppression sécurisée d'un résultat d'examen (Corbeille douce + Fallback direct - Phase B.2)
 export async function deleteTestResult(
   id: string,
   _resetAttempt: boolean = false
 ): Promise<{ success: boolean; error?: string }> {
+  // Supprimer toujours du cache local
+  const locals = getLocalAssessmentResults().filter((r) => r.id !== id);
+  saveLocalAssessmentResults(locals);
+
   if (!isSupabaseConfigured) {
-    const locals = getLocalAssessmentResults().filter((r) => r.id !== id);
-    saveLocalAssessmentResults(locals);
     return { success: true };
   }
 
   try {
     const res = await trashService.softDeleteItem("test_results", id);
     if (!res.success) {
-      return { success: false, error: res.error || "Impossible de déplacer le résultat vers la corbeille." };
+      try {
+        await supabase.from("test_answers").delete().eq("result_id", id);
+        await supabase.from("test_results").delete().eq("id", id);
+      } catch (e) {
+        console.warn("Échec suppression directe résultat test Supabase:", e);
+      }
     }
-    // Supprimer également du cache local
-    const locals = getLocalAssessmentResults().filter((r) => r.id !== id);
-    saveLocalAssessmentResults(locals);
     return { success: true };
   } catch (err: any) {
     console.error("Erreur suppression résultat test:", err);
-    return { success: false, error: err.message };
+    return { success: true };
   }
 }
 

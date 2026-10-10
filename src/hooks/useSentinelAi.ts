@@ -145,6 +145,19 @@ export function useSentinelAi() {
     } catch {}
   }, []);
 
+  // Supprimer / Effacer la conversation courante
+  const clearCurrentConversation = useCallback(async () => {
+    if (activeConversationId) {
+      await deleteConversation(activeConversationId);
+    } else {
+      setActiveConversationId(null);
+      setMessages([]);
+      setPendingActions([]);
+      sessionStorage.removeItem(STORAGE_KEY);
+      toastMsg.info("Conversation effacée avec succès.");
+    }
+  }, [activeConversationId, deleteConversation]);
+
   // Exporter la discussion en fichier Markdown (.md)
   const exportToMarkdown = useCallback(() => {
     if (messages.length === 0) {
@@ -392,6 +405,7 @@ export function useSentinelAi() {
     selectConversation,
     deleteConversation,
     startNewConversation,
+    clearCurrentConversation,
     exportToMarkdown,
     loadConversations,
   };

@@ -137,20 +137,21 @@ export function printHTML(title: string, body: string) {
     }
     h1, h2, h3, h4, h5, h6 {
       margin: 0 0 8px 0;
-      color: #0c4a6e !important;
+      color: #E60000 !important;
       font-weight: 800;
       line-height: 1.2;
     }
     p {
       margin: 0 0 6px 0;
+      color: #000000 !important;
     }
     .row {
       display: flex;
       justify-content: space-between;
       align-items: center;
       padding: 8px 0;
-      border-bottom: 1px solid #e2e8f0;
-      color: #0f172a !important;
+      border-bottom: 1px solid #fee2e2;
+      color: #000000 !important;
     }
     .grid {
       display: grid;
@@ -158,7 +159,7 @@ export function printHTML(title: string, body: string) {
       gap: 16px;
     }
     .label {
-      color: #475569 !important;
+      color: #4b5563 !important;
       font-size: 11px;
       font-weight: 700;
       text-transform: uppercase;
@@ -172,33 +173,34 @@ export function printHTML(title: string, body: string) {
       width: 100%;
       border-collapse: collapse;
       margin: 16px 0;
+      border: 1.5px solid #E60000;
     }
     th, td {
-      border: 1px solid #cbd5e1;
+      border: 1px solid #fca5a5;
       padding: 9px 12px;
       text-align: left;
       font-size: 12.5px;
-      color: #0f172a !important;
+      color: #000000 !important;
     }
     th {
-      background-color: #0284c7 !important;
+      background-color: #E60000 !important;
       color: #ffffff !important;
-      font-weight: 700;
+      font-weight: 800;
       text-transform: uppercase;
       font-size: 11px;
       letter-spacing: 0.5px;
     }
     tr:nth-child(even) td {
-      background-color: #f8fafc;
+      background-color: #fffaf0;
     }
     hr {
       border: none !important;
-      border-top: 2px solid #0284c7 !important;
+      border-top: 2px solid #E60000 !important;
       margin: 18px 0 !important;
     }
-    /* Styles colorés Sentinelle préservés pour impression papier nette et professionnelle */
-    .accent, .cyan {
-      color: #0284c7 !important;
+    /* Charte officielle d'impression : Noir, Rouge et Blanc */
+    .accent, .cyan, .subtitle, .brand-red {
+      color: #E60000 !important;
       font-weight: 700;
     }
     .gold {
@@ -206,7 +208,7 @@ export function printHTML(title: string, body: string) {
       font-weight: 700;
     }
     .red {
-      color: #dc2626 !important;
+      color: #E60000 !important;
       font-weight: 700;
     }
     .green {
@@ -217,23 +219,24 @@ export function printHTML(title: string, body: string) {
       display: inline-block;
       padding: 4px 10px;
       border-radius: 4px;
-      border: 1.5px solid #0284c7;
-      background: #f0f9ff;
+      border: 1.5px solid #E60000;
+      background: #fef2f2;
       font-size: 10.5px;
       font-weight: 800;
-      color: #0369a1;
+      color: #E60000;
       text-transform: uppercase;
     }
     @media print {
       body {
         padding: 0 !important;
         background: #ffffff !important;
+        color: #000000 !important;
       }
       .print-actions-toolbar {
         display: none !important;
       }
       .receipt, .print-doc, .document-container {
-        border: 2px solid #0284c7 !important;
+        border: 2px solid #E60000 !important;
         border-radius: 0 !important;
         padding: 16px 20px !important;
         max-width: 100% !important;
@@ -248,9 +251,9 @@ export function printHTML(title: string, body: string) {
 </head>
 <body>
   <div class="print-actions-toolbar">
-    <div class="brand-title">SENTINELLES NUMÉRIQUES — Impression & Export PDF</div>
+    <div class="brand-title" style="color: #E60000; font-weight: 900;">SENTINELLES NUMÉRIQUES — Impression & Export PDF</div>
     <div class="btn-group">
-      <button onclick="window.print()">Imprimer / Enregistrer en PDF (Ctrl+P)</button>
+      <button onclick="window.print()" style="background: #E60000; color: #ffffff; font-weight: bold;">Imprimer / Enregistrer en PDF (Ctrl+P)</button>
       <button class="btn-secondary" onclick="downloadDoc()">Télécharger (HTML / Document)</button>
       <button class="btn-secondary" onclick="window.close()">Fermer</button>
     </div>

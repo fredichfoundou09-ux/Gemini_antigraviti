@@ -1016,42 +1016,42 @@ export function AdminDashboard() {
                   </div>
                 </div>
 
-                {/* TABLE DYNAMIQUE DE RÉPARTITION (Section 6 du Prompt Maître) */}
-                <div className="mt-2 overflow-x-auto rounded border border-[#006DFF]/20 bg-[#071322]/80">
+                {/* TABLE DYNAMIQUE DE RÉPARTITION (Charte Noir, Rouge, Blanc) */}
+                <div className="mt-2 overflow-x-auto rounded border border-red-500/30 bg-black">
                   <table className="w-full text-left text-[9.5px]">
-                    <thead className="border-b border-[#006DFF]/20 bg-white/[0.02] font-bold text-[#4C91B5] uppercase">
+                    <thead className="bg-[#E60000] text-white font-bold uppercase">
                       <tr>
-                        <th className="p-1.5">Groupe</th>
-                        <th className="p-1.5">Filière</th>
-                        <th className="p-1.5 text-center">Présents</th>
-                        <th className="p-1.5 text-center">Absents</th>
-                        <th className="p-1.5 text-center">Retards</th>
-                        <th className="p-1.5 text-right">Taux</th>
+                        <th className="p-1.5 text-white">Groupe</th>
+                        <th className="p-1.5 text-white">Filière</th>
+                        <th className="p-1.5 text-center text-white">Présents</th>
+                        <th className="p-1.5 text-center text-white">Absents</th>
+                        <th className="p-1.5 text-center text-white">Retards</th>
+                        <th className="p-1.5 text-right text-white">Taux</th>
                       </tr>
                     </thead>
-                    <tbody className="divide-y divide-[#006DFF]/10 font-mono">
+                    <tbody className="divide-y divide-white/10 font-mono bg-black text-white">
                       {groupPresenceBreakdown.length === 0 ? (
                         <tr>
-                          <td colSpan={6} className="p-3 text-center text-[#4C91B5] italic">
+                          <td colSpan={6} className="p-3 text-center text-white/50 italic">
                             Aucun enregistrement pour cette sélection
                           </td>
                         </tr>
                       ) : (
                         groupPresenceBreakdown.map((row, idx) => (
-                          <tr key={idx} className="hover:bg-white/[0.02] transition">
+                          <tr key={idx} className="hover:bg-white/[0.04] transition">
                             <td className="p-1.5 font-bold text-white font-sans truncate max-w-[90px]">
                               {row.groupe}
                             </td>
-                            <td className="p-1.5 text-[#4C91B5] font-sans truncate max-w-[80px]">
+                            <td className="p-1.5 text-white/80 font-sans truncate max-w-[80px]">
                               {row.formation === "informatique" ? "Info" : "Ind."}
                             </td>
-                            <td className="p-1.5 text-center text-[#00E5FF]">
+                            <td className="p-1.5 text-center text-white font-bold">
                               {row.presents}
                             </td>
-                            <td className="p-1.5 text-center text-[#FF174F]">
+                            <td className="p-1.5 text-center text-red-400 font-bold">
                               {row.absents}
                             </td>
-                            <td className="p-1.5 text-center text-[#FFB300]">
+                            <td className="p-1.5 text-center text-amber-300 font-bold">
                               {row.retards}
                             </td>
                             <td className="p-1.5 text-right font-bold">
@@ -1707,36 +1707,35 @@ export function JournalPage() {
   const exportPDF = () => {
     printHTML(`Journal_Audit_${today()}`, `
       <div class="receipt" style="max-width:850px;margin:auto;font-family:sans-serif">
-        <div style="display:flex;justify-content:space-between;align-items:center">
+        <div style="display:flex;justify-content:space-between;align-items:center;border-bottom:2px solid #E60000;padding-bottom:12px">
           <div>
-            <h1 class="accent" style="margin:0;color:#38bdf8">SENTINELLES NUMÉRIQUES</h1>
-            <p style="font-size:11px;color:#94a3b8;margin:2px 0 0 0">ENIA 2.0 • REGISTRE OFFICIEL D'AUDIT ET DE TRAÇABILITÉ (${logTab === "active" ? "LOGS ACTIFS" : "ARCHIVES"})</p>
+            <h1 class="accent" style="margin:0;color:#E60000;font-weight:900">SENTINELLES NUMÉRIQUES</h1>
+            <p style="font-size:11px;color:#000000;margin:2px 0 0 0;font-weight:600">ENIA 2.0 • REGISTRE OFFICIEL D'AUDIT ET DE TRAÇABILITÉ (${logTab === "active" ? "LOGS ACTIFS" : "ARCHIVES"})</p>
           </div>
           <div style="text-align:right">
-            <p style="font-size:10px;text-transform:uppercase;color:#94a3b8;margin:0">Émis le</p>
-            <p style="font-family:monospace;font-size:13px;color:#38bdf8;margin:2px 0 0 0">${today()}</p>
+            <p style="font-size:10px;text-transform:uppercase;color:#4b5563;margin:0">Émis le</p>
+            <p style="font-family:monospace;font-size:13px;color:#E60000;font-weight:bold;margin:2px 0 0 0">${today()}</p>
           </div>
         </div>
-        <hr style="border-color:#1d2b45;margin:16px 0">
-        <table style="width:100%;border-collapse:collapse;font-size:11px;text-align:left">
+        <table style="width:100%;border-collapse:collapse;font-size:11px;text-align:left;margin-top:16px;border:1.5px solid #E60000">
           <thead>
-            <tr style="border-bottom:2px solid #334155;color:#94a3b8">
-              <th style="padding:6px">Horodatage</th>
-              <th style="padding:6px">Utilisateur</th>
-              <th style="padding:6px">Action / Événement tracé</th>
+            <tr style="background:#E60000;color:#ffffff">
+              <th style="padding:8px;color:#ffffff">Horodatage</th>
+              <th style="padding:8px;color:#ffffff">Utilisateur</th>
+              <th style="padding:8px;color:#ffffff">Action / Événement tracé</th>
             </tr>
           </thead>
           <tbody>
             ${filteredLogs.map(l => `
-              <tr style="border-bottom:1px solid #1e293b">
-                <td style="padding:6px;font-family:monospace;color:#94a3b8">${l.date}</td>
-                <td style="padding:6px;font-weight:bold;color:#38bdf8">${l.user}</td>
-                <td style="padding:6px;color:#f1f5f9">${l.action}</td>
+              <tr style="border-bottom:1px solid #fee2e2">
+                <td style="padding:8px;font-family:monospace;color:#000000">${l.date}</td>
+                <td style="padding:8px;font-weight:bold;color:#E60000">${l.user}</td>
+                <td style="padding:8px;color:#000000">${l.action}</td>
               </tr>
             `).join("")}
           </tbody>
         </table>
-        <p style="margin-top:20px;text-align:center;font-size:10px;color:#64748b">Document certifié conforme issu du système d'audit intégré de Sentinelles Numériques v2.1</p>
+        <p style="margin-top:20px;text-align:center;font-size:10px;color:#4b5563">Document certifié conforme issu du système d'audit intégré de Sentinelles Numériques v2.1</p>
       </div>
     `);
   };

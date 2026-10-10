@@ -399,6 +399,7 @@ export function SentinelAIChat({ open, onClose, userRole, userName }: SentinelAI
     selectConversation,
     deleteConversation,
     startNewConversation,
+    clearCurrentConversation,
     exportToMarkdown,
   } = useSentinelAi();
 
@@ -406,6 +407,7 @@ export function SentinelAIChat({ open, onClose, userRole, userName }: SentinelAI
   const [input, setInput] = useState("");
   const [copiedIdx, setCopiedIdx] = useState<number | null>(null);
   const [isListening, setIsListening] = useState(false);
+  const initialInputRef = useRef<string>("");
   const stopListeningRef = useRef<(() => void) | null>(null);
   const [speakingIdx, setSpeakingIdx] = useState<number | null>(null);
   const [isDragging, setIsDragging] = useState(false);
@@ -439,22 +441,28 @@ export function SentinelAIChat({ open, onClose, userRole, userName }: SentinelAI
     if (isListening) {
       stopListeningRef.current?.();
       setIsListening(false);
+      toastMsg.info("Dictée vocale arrêtée");
       return;
     }
     if (!isVoiceRecognitionSupported()) {
       toastMsg.warning("La reconnaissance vocale n'est pas supportée sur ce navigateur.");
       return;
     }
+    initialInputRef.current = input;
     setIsListening(true);
+    toastMsg.info("Microphone activé", "Parlez en français pour dicter votre message...");
     const stopFn = startVoiceRecognition({
       lang: "fr-FR",
-      continuous: true,
+      continuous: false,
+      interimResults: true,
       onResult: (transcript) => {
-        setInput((prev) => (prev ? `${prev} ${transcript}` : transcript));
+        const prefix = initialInputRef.current.trim();
+        setInput(prefix ? `${prefix} ${transcript}` : transcript);
       },
       onError: (err) => {
         console.warn("Erreur vocale :", err);
         setIsListening(false);
+        toastMsg.warning("Microphone indisponible ou permission refusée.");
       },
       onEnd: () => {
         setIsListening(false);
@@ -544,30 +552,14 @@ export function SentinelAIChat({ open, onClose, userRole, userName }: SentinelAI
     setTimeout(() => setCopiedIdx(null), 2000);
   };
 
-  // Suggestions rapides contextualisées selon le rôle de l'utilisateur
+  // Suggestions directes et prioritaires demandées
   const getSuggestions = () => {
-    if (userRole === "student") {
-      return [
-        "À quelle heure est mon prochain cours aujourd'hui ?",
-        "Explique-moi le chiffrement asymétrique simplement.",
-        "Fais-moi réviser avec un quiz de 3 questions.",
-        "Quelles sont les conditions pour obtenir mon certificat ?",
-      ];
-    }
-    if (userRole === "teacher") {
-      return [
-        "Quels apprenants sont inscrits à mon module ?",
-        "Fais l'appel des présences pour la séance d'aujourd'hui.",
-        "Crée une évaluation QCM de 3 questions sur la cybersécurité.",
-        "Rédige un devoir pratique à faire pour vendredi.",
-      ];
-    }
-    // Admin / superadmin / partner
     return [
-      "Donne-moi le résumé financier et le total des impayés.",
-      "Affiche les statistiques globales de l'école (élèves, profs).",
-      "Prépare une annonce pour les apprenants.",
-      "Y a-t-il des anomalies d'assiduité récentes ?",
+      "Donne mon emploi du temps",
+      "C'est quoi le programme du jour",
+      "Le nombre de professeurs",
+      "Le nombre des apprenants",
+      "Nous sommes dans quel mois ?",
     ];
   };
 
@@ -700,16 +692,16 @@ export function SentinelAIChat({ open, onClose, userRole, userName }: SentinelAI
           {messages.length === 0 && (
             <div className="rounded-2xl border border-cyan-400/20 bg-gradient-to-b from-cyan-950/20 to-transparent p-5 text-sm text-slate-300">
               <div className="flex items-center gap-2 text-cyan-300 font-bold mb-3">
-                <Sparkles size={16} /> Suggestions contextuelles pour vous :
+                <Sparkles size={16} /> Questions préparées & Accès direct :
               </div>
               <div className="space-y-2 text-xs">
                 {getSuggestions().map((sug, i) => (
                   <button
                     key={i}
                     onClick={() => send(sug)}
-                    className="w-full text-left rounded-xl border border-white/5 bg-black/40 p-2.5 text-slate-300 hover:border-cyan-400/40 hover:text-cyan-200 transition cursor-pointer"
+                    className="w-full text-left rounded-xl border border-white/5 bg-black/40 p-2.5 text-slate-300 hover:border-cyan-400/40 hover:text-cyan-200 transition cursor-pointer font-medium"
                   >
-                    • « {sug} »
+                    « {sug} »
                   </button>
                 ))}
               </div>
@@ -958,6 +950,19 @@ export function SentinelAIChat({ open, onClose, userRole, userName }: SentinelAI
                 title={isListening ? "Arrêter la dictée" : "Dicter vocalement en français"}
               >
                 {isListening ? <MicOff size={16} /> : <Mic size={16} />}
+              </button>
+            )}
+
+            {/* Bouton Supprimer / Effacer la conversation courante */}
+            {messages.length > 0 && (
+              <button
+                type="button"
+                onClick={clearCurrentConversation}
+                disabled={!aiAccess.allowed || loading}
+                className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl border border-white/10 bg-white/[0.04] text-slate-400 hover:border-red-500/50 hover:bg-red-950/30 hover:text-red-400 transition cursor-pointer"
+                title="Supprimer la conversation"
+              >
+                <Trash2 size={16} />
               </button>
             )}
 

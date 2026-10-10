@@ -151,6 +151,7 @@ export function UnifiedAssessmentsAssignmentsPage({ defaultTab = "devoirs" }: Pr
   const [allResults, setAllResults] = useState<AssessmentResultSummary[]>([]);
   const prevTestsFingerprint = useRef<string>("");
   const prevResultsFingerprint = useRef<string>("");
+  const deletedItemIds = useRef<Set<string>>(new Set());
 
   const [isLoading, setIsLoading] = useState(true);
   const [selectedParentIdForRemises, setSelectedParentIdForRemises] = useState<string>("all");
@@ -229,10 +230,10 @@ export function UnifiedAssessmentsAssignmentsPage({ defaultTab = "devoirs" }: Pr
               createdAt: att.created_at,
             })),
             createdAt: row.created_at,
-          }));
+          })).filter((a) => !deletedItemIds.current.has(a.id));
           setAllAssignments(mappedA);
         } else {
-          setAllAssignments(getLocalAssignments());
+          setAllAssignments(getLocalAssignments().filter((a) => !deletedItemIds.current.has(a.id)));
         }
 
         // Remises devoirs
@@ -329,13 +330,13 @@ export function UnifiedAssessmentsAssignmentsPage({ defaultTab = "devoirs" }: Pr
                   ordre: q.ordre || qIdx + 1,
                   obligatoire: q.obligatoire !== false,
                 })),
-            }));
+            })).filter((t) => !deletedItemIds.current.has(t.id));
 
             // Fusion avec les tests locaux qui sont des brouillons en cours d'édition
-            const localOnly = (db.tests || []).filter(
-              (lt: any) => !mappedTests.some((st) => st.id === lt.id)
-            );
-            const combined = [...mappedTests, ...mapDbTestsToAssessments(localOnly)];
+            const localOnly = (db.tests || [])
+              .filter((lt: any) => !deletedItemIds.current.has(lt.id))
+              .filter((lt: any) => !mappedTests.some((st) => st.id === lt.id));
+            const combined = [...mappedTests, ...mapDbTestsToAssessments(localOnly)].filter((t) => !deletedItemIds.current.has(t.id));
             const testsFp = JSON.stringify(combined.map((t) => [t.id, t.titre, t.statut, t.date, t.questions?.length]));
             if (testsFp !== prevTestsFingerprint.current) {
               prevTestsFingerprint.current = testsFp;
@@ -343,15 +344,15 @@ export function UnifiedAssessmentsAssignmentsPage({ defaultTab = "devoirs" }: Pr
               update((d) => ({ ...d, tests: combined }));
             }
           } else {
-            const fallbackTests = mapDbTestsToAssessments(db.tests);
+            const fallbackTests = mapDbTestsToAssessments(db.tests).filter((t) => !deletedItemIds.current.has(t.id));
             setAllAssessments(fallbackTests);
           }
         } catch (tErr) {
           console.warn("Erreur chargement tests Supabase, fallback local:", tErr);
-          setAllAssessments(mapDbTestsToAssessments(db.tests));
+          setAllAssessments(mapDbTestsToAssessments(db.tests).filter((t) => !deletedItemIds.current.has(t.id)));
         }
       } else {
-        setAllAssessments(mapDbTestsToAssessments(db.tests));
+        setAllAssessments(mapDbTestsToAssessments(db.tests).filter((t) => !deletedItemIds.current.has(t.id)));
       }
 
       // 4. Chargement des résultats de tests (Supabase + fallback local)
@@ -575,17 +576,16 @@ export function UnifiedAssessmentsAssignmentsPage({ defaultTab = "devoirs" }: Pr
     const target = deletingAssignment;
     setIsDeleting(true);
     setDeletingAssignment(null);
+    deletedItemIds.current.add(target.id);
     try {
       // 1. Suppression locale immédiate pour réactivité maximale
       setAllAssignments((prev) => prev.filter((a) => a.id !== target.id));
       setAllSubmissions((prev) => prev.filter((s) => s.assignmentId !== target.id));
+
+      // 2. Suppression persistante (local + Supabase)
+      await deleteAssignment(target.id);
       broadcastSubmissionsChange();
 
-      // 2. Suppression persistante Supabase
-      const res = await deleteAssignment(target.id);
-      if (!res.success) {
-        console.warn("Avertissement suppression Supabase devoir:", res.error);
-      }
       toastMsg.success("Devoir supprimé", `Le devoir « ${target.titre} » a été supprimé.`);
     } catch (e: any) {
       console.warn("Erreur suppression devoir:", e);
@@ -745,6 +745,7 @@ export function UnifiedAssessmentsAssignmentsPage({ defaultTab = "devoirs" }: Pr
     const target = deletingAssessment;
     setIsDeleting(true);
     setDeletingAssessment(null);
+    deletedItemIds.current.add(target.id);
     try {
       // 1. Suppression locale immédiate dans l'état et le store
       setAllAssessments((prev) => prev.filter((t) => t.id !== target.id));
@@ -760,13 +761,11 @@ export function UnifiedAssessmentsAssignmentsPage({ defaultTab = "devoirs" }: Pr
           results: remainingResults,
         };
       });
+
+      // 2. Suppression persistante (local + Supabase)
+      await deleteAssessment(target.id);
       broadcastSubmissionsChange();
 
-      // 2. Suppression persistante Supabase
-      const res = await deleteAssessment(target.id);
-      if (!res.success) {
-        console.warn("Avertissement suppression Supabase évaluation:", res.error);
-      }
       toastMsg.success("Évaluation supprimée", `L'évaluation « ${target.titre} » a été supprimée.`);
     } catch (e: any) {
       console.warn("Erreur suppression évaluation:", e);

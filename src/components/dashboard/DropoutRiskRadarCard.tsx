@@ -208,17 +208,17 @@ export function DropoutRiskRadarCard({
             Aucun apprenant correspondant au filtre sélectionné.
           </div>
         ) : (
-          <table className="w-full text-left text-xs">
-            <thead className="border-b border-[var(--sn-line)] bg-white/[0.02] text-[10px] font-bold uppercase text-white/60">
+          <table className="w-full text-left text-xs bg-black rounded-lg overflow-hidden border border-white/10">
+            <thead className="bg-[#E60000] text-[10px] font-bold uppercase text-white tracking-wider">
               <tr>
-                <th className="px-3 py-2">Apprenant</th>
-                <th className="px-3 py-2">Niveau</th>
-                <th className="px-3 py-2">Score</th>
-                <th className="px-3 py-2">Facteurs explicatifs constatés</th>
-                <th className="px-3 py-2 text-right">Intervention</th>
+                <th className="px-3 py-2 text-white">Apprenant</th>
+                <th className="px-3 py-2 text-white">Niveau</th>
+                <th className="px-3 py-2 text-white">Score</th>
+                <th className="px-3 py-2 text-white">Facteurs explicatifs constatés</th>
+                <th className="px-3 py-2 text-right text-white">Intervention</th>
               </tr>
             </thead>
-            <tbody className="divide-y divide-[var(--sn-line)]">
+            <tbody className="divide-y divide-[var(--sn-line)] bg-black text-white">
               {filteredScores.slice(0, 10).map((item) => (
                 <tr key={item.id} className="hover:bg-white/[0.02]">
                   <td className="px-3 py-2.5 font-medium text-white whitespace-nowrap">

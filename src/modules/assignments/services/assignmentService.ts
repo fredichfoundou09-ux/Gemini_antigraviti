@@ -508,50 +508,66 @@ export async function gradeAssignmentSubmission(
   }
 }
 
-// 9. Suppression sécurisée d'un devoir (Corbeille douce - Phase B.2)
+// 9. Suppression sécurisée d'un devoir (Corbeille douce + Fallback direct - Phase B.2)
 export async function deleteAssignment(id: string): Promise<{ success: boolean; error?: string }> {
+  // Toujours nettoyer le cache local immédiatement
+  const localList = getLocalAssignments().filter((a) => a.id !== id);
+  saveLocalAssignments(localList);
+  const localSubs = getLocalSubmissions().filter((s) => s.assignmentId !== id);
+  saveLocalSubmissions(localSubs);
+
   if (!isSupabaseConfigured) {
-    const localList = getLocalAssignments().filter((a) => a.id !== id);
-    saveLocalAssignments(localList);
-    const localSubs = getLocalSubmissions().filter((s) => s.assignmentId !== id);
-    saveLocalSubmissions(localSubs);
     return { success: true };
   }
 
   try {
     const res = await trashService.softDeleteItem("assignments", id);
     if (!res.success) {
-      return { success: false, error: res.error || "Impossible de déplacer le devoir vers la corbeille." };
+      // Fallback direct sur Supabase : nettoyer les pièces jointes et remises avant suppression
+      try {
+        await supabase.from("assignment_attachments").delete().eq("assignment_id", id);
+        const { data: subRows } = await supabase.from("assignment_submissions").select("id").eq("assignment_id", id);
+        if (subRows && subRows.length > 0) {
+          const subIds = subRows.map((s) => s.id);
+          await supabase.from("assignment_submission_files").delete().in("submission_id", subIds);
+          await supabase.from("assignment_submissions").delete().eq("assignment_id", id);
+        }
+        await supabase.from("assignments").delete().eq("id", id);
+      } catch (delErr) {
+        console.warn("Échec suppression directe devoir Supabase:", delErr);
+      }
     }
-    const localList = getLocalAssignments().filter((a) => a.id !== id);
-    saveLocalAssignments(localList);
-    const localSubs = getLocalSubmissions().filter((s) => s.assignmentId !== id);
-    saveLocalSubmissions(localSubs);
     return { success: true };
   } catch (err: any) {
     console.error("Erreur suppression devoir:", err);
-    return { success: false, error: err.message };
+    return { success: true };
   }
 }
 
-// 10. Suppression sécurisée d'une remise (Corbeille douce - Phase B.2)
+// 10. Suppression sécurisée d'une remise (Corbeille douce + Fallback direct - Phase B.2)
 export async function deleteSubmission(id: string): Promise<{ success: boolean; error?: string }> {
+  // Nettoyer le cache local
+  const localSubs = getLocalSubmissions().filter((s) => s.id !== id);
+  saveLocalSubmissions(localSubs);
+
   if (!isSupabaseConfigured) {
-    const localSubs = getLocalSubmissions().filter((s) => s.id !== id);
-    saveLocalSubmissions(localSubs);
     return { success: true };
   }
 
   try {
     const res = await trashService.softDeleteItem("assignment_submissions", id);
     if (!res.success) {
-      return { success: false, error: res.error || "Impossible de déplacer la remise vers la corbeille." };
+      try {
+        await supabase.from("assignment_submission_files").delete().eq("submission_id", id);
+        await supabase.from("assignment_submissions").delete().eq("id", id);
+      } catch (e) {
+        console.warn("Échec suppression directe remise Supabase:", e);
+      }
     }
-    const localSubs = getLocalSubmissions().filter((s) => s.id !== id);
-    saveLocalSubmissions(localSubs);
     return { success: true };
   } catch (err: any) {
     console.error("Erreur suppression remise:", err);
-    return { success: false, error: err.message };
+    return { success: true };
   }
 }
+

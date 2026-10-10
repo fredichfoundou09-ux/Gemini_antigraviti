@@ -91,7 +91,93 @@ export async function localAgentProcess(messages: AiChatMessage[]): Promise<AiAg
     return { reply, pending_actions, intent, sources };
   }
 
-  // 0.15 Détection : Horloge & Heure en temps réel au Congo-Brazzaville (WAT UTC+1)
+  // 0.14 Détection : Mois en cours en temps réel (Résout l'anomalie de décalage temporel)
+  const isMonthQuestion =
+    /quel\s+mois|dans\s+quel\s+mois|en\s+quel\s+mois|le\s+mois\s+actuel|mois\s+en\s+cours|sommes-nous\s+en\s+quel\s+mois|on\s+est\s+en\s+quel\s+mois/i.test(lastMsg);
+
+  if (isMonthQuestion) {
+    intent = "DATE_SYNC";
+    sources.push("Horloge Système Temps Réel");
+    const now = new Date();
+    const months = [
+      "janvier", "février", "mars", "avril", "mai", "juin",
+      "juillet", "août", "septembre", "octobre", "novembre", "décembre"
+    ];
+    const currentMonthName = months[now.getMonth()];
+    const nowDate = getBrazzavilleDate(now, "full");
+    const nowTime = getBrazzavilleTime(now, false);
+    const nowYear = getBrazzavilleYear(now);
+    reply = `Nous sommes actuellement au mois d'${currentMonthName} ${nowYear}. Aujourd'hui nous sommes le ${nowDate} et il est ${nowTime}. Notre système est synchronisé en temps réel avec la date exacte.`;
+    return { reply, pending_actions, intent, sources };
+  }
+
+  // 0.15 Détection : Emploi du temps & Programme du jour (Phrases fluides, sans puces ni tirets ni astérisques)
+  const isScheduleOrProgramQuestion =
+    /donne\s+(mon\s+)?emploi\s+du\s+temps|programme\s+du\s+jour|c'est\s+quoi\s+le\s+programme|planning\s+du\s+jour|mon\s+planning|cours\s+d'aujourd'hui|programme\s+d'aujourd'hui/i.test(lastMsg);
+
+  if (isScheduleOrProgramQuestion || lastMsg.includes("emploi du temps") || lastMsg.includes("programme du jour")) {
+    intent = "SCHEDULE";
+    sources.push("Emploi du temps officiel");
+    const now = new Date();
+    const nowDate = getBrazzavilleDate(now, "full");
+    const dayNames = ["Dimanche", "Lundi", "Mardi", "Mercredi", "Jeudi", "Vendredi", "Samedi"];
+    const currentDayName = dayNames[now.getDay()];
+
+    const schedulesList = (db as any)?.schedule || (db as any)?.schedules || [];
+    const todaySchedules = schedulesList.filter((s: any) => {
+      if (s.date) return s.date.slice(0, 10) === now.toISOString().slice(0, 10);
+      return (s.jour || "").toLowerCase() === currentDayName.toLowerCase();
+    });
+
+    if (todaySchedules.length > 0) {
+      const descriptions = todaySchedules.map((s: any) => {
+        const mod = (db?.modules || []).find((m: any) => m.id === s.moduleId);
+        const titre = mod?.titre || s.matiere || s.title || "Séance de formation";
+        const debut = s.heureDebut || s.heure_debut || s.start_time || "08h30";
+        const fin = s.heureFin || s.heure_fin || s.end_time || "11h30";
+        const salle = s.salle || s.room || "Salle 101";
+        return `le cours de ${titre} de ${debut} à ${fin} en ${salle}`;
+      });
+      reply = `Pour la journée d'aujourd'hui ${nowDate}, votre planning et emploi du temps comprend ${descriptions.join(", puis ")}. Pensez à vous munir de votre badge pour l'enregistrement des présences.`;
+    } else {
+      reply = `Pour la journée d'aujourd'hui ${nowDate}, aucun cours magistral n'est inscrit à votre planning et emploi du temps. Vous pouvez profiter de cette journée pour réviser vos modules ou finaliser vos devoirs en ligne. Vos prochaines sessions reprendront dès le prochain jour ouvré à partir de 08h30.`;
+    }
+    return { reply, pending_actions, intent, sources };
+  }
+
+  // 0.16 Détection : Nombre de professeurs & Nombre d'apprenants (Réponses structurées sans astérisques)
+  const asksStudents = /apprenant|élève|eleve|etudiant/i.test(lastMsg);
+  const asksTeachers = /professeur|prof|formateur|enseignant/i.test(lastMsg);
+  const isCombinedCountQuery = (/combien/i.test(lastMsg) || /nombre/i.test(lastMsg) || /effectif/i.test(lastMsg)) && asksStudents && asksTeachers;
+
+  if (isCombinedCountQuery) {
+    intent = "GENERAL";
+    sources.push("Base de données centrale Sentinelles Numériques");
+    const studentCount = (db?.students || []).length;
+    const teacherCount = (db?.teachers || []).length;
+    reply = `La plateforme Sentinelles Numériques compte actuellement ${studentCount} apprenants inscrits et ${teacherCount} formateurs actifs (Formateurs actifs : ${teacherCount}).`;
+    return { reply, pending_actions, intent, sources };
+  }
+
+  const isTeacherCountQuery = /nombre\s+de\s+(professeurs|professeur|profs|formateurs|enseignants)|combien\s+de\s+(professeurs|profs|formateurs|enseignants)/i.test(lastMsg);
+  if (isTeacherCountQuery) {
+    intent = "GENERAL";
+    sources.push("Registre officiel du corps enseignant");
+    const count = (db?.teachers || []).length;
+    reply = `L'établissement Sentinelles Numériques compte actuellement ${count} formateurs et professeurs en fonction, encadrant l'ensemble de nos filières technologiques.`;
+    return { reply, pending_actions, intent, sources };
+  }
+
+  const isStudentCountQuery = /nombre\s+d(es|')\s*(apprenants|élèves|etudiants)|combien\s+d(es|')\s*(apprenants|élèves|etudiants)/i.test(lastMsg);
+  if (isStudentCountQuery) {
+    intent = "GENERAL";
+    sources.push("Registre des effectifs apprenants");
+    const count = (db?.students || []).length;
+    reply = `La plateforme Sentinelles Numériques compte actuellement ${count} apprenants inscrits dans nos programmes de formation.`;
+    return { reply, pending_actions, intent, sources };
+  }
+
+  // 0.17 Détection : Horloge & Heure en temps réel au Congo-Brazzaville (WAT UTC+1)
   const isCourseScheduleQuery =
     lastMsg.includes("cours") ||
     lastMsg.includes("planning") ||
@@ -112,11 +198,11 @@ export async function localAgentProcess(messages: AiChatMessage[]): Promise<AiAg
     const nowTime = getBrazzavilleTime(new Date(), true);
     const nowDate = getBrazzavilleDate(new Date(), "full");
     const nowYear = getBrazzavilleYear();
-    reply = `À Brazzaville (République du Congo, fuseau horaire WAT UTC+1), il est actuellement **${nowTime}** le **${nowDate}**.\n\nNous sommes en l'année **${nowYear}**. L'ensemble de la plateforme et des rapports sont synchronisés sur ce temps réel officiel.`;
+    reply = `À Brazzaville (République du Congo, fuseau horaire WAT UTC+1), il est actuellement ${nowTime} le ${nowDate}. Nous sommes en l'année ${nowYear}. L'ensemble de la plateforme et des rapports sont synchronisés sur ce temps réel officiel.`;
     return { reply, pending_actions, intent, sources };
   }
 
-  // 0.16 Détection : Date du jour & Année actuelle (Congo-Brazzaville, WAT UTC+1)
+  // 0.18 Détection : Date du jour & Année actuelle (Congo-Brazzaville, WAT UTC+1)
   const isDateQuestion =
     /quelle\s+est\s+la\s+date|la\s+date\s+d'aujourd'hui|date\s+du\s+jour|date\s+actuelle|quel\s+jour\s+sommes|on\s+est\s+quel\s+jour|en\s+quelle\s+année|l'année\s+actuelle|l'an\s+actuel|année\s+en\s+cours/i.test(lastMsg);
 
@@ -126,7 +212,7 @@ export async function localAgentProcess(messages: AiChatMessage[]): Promise<AiAg
     const nowTime = getBrazzavilleTime(new Date(), true);
     const nowDate = getBrazzavilleDate(new Date(), "full");
     const nowYear = getBrazzavilleYear();
-    reply = `Nous sommes aujourd'hui le **${nowDate}** et l'année en cours est **${nowYear}** (heure locale à Brazzaville : **${nowTime}**, WAT UTC+1).`;
+    reply = `Nous sommes aujourd'hui le ${nowDate} et l'année en cours est ${nowYear} (heure locale : ${nowTime}, WAT UTC+1).`;
     return { reply, pending_actions, intent, sources };
   }
 

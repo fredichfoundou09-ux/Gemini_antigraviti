@@ -367,10 +367,10 @@ export const CompetencyBookletPage: React.FC = () => {
       </div>
 
       {/* Tableau des compétences */}
-      <Card className="overflow-hidden border border-cyan-500/30 bg-[#0B1220]/90 shadow-lg p-0">
+      <Card className="overflow-hidden border border-white/10 bg-black shadow-lg p-0">
         <div className="overflow-x-auto">
           <table className="w-full text-left text-xs text-white">
-            <thead className="bg-[#07101E] text-cyan-300 uppercase text-[10px] tracking-wider border-b border-cyan-500/20">
+            <thead className="bg-[#E60000] text-white uppercase text-[10px] tracking-wider font-bold">
               <tr>
                 <th className="p-3">Code</th>
                 <th className="p-3">Compétence</th>
