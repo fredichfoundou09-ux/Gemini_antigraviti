@@ -29,7 +29,203 @@
   --theme-white: #FFFFFF;
   --theme-text: #263136;
   --theme-text-light: #E6E5E1;
+
+  /* ==========================================================================
+     MATRICE STRICTE DES 4 NIVEAUX DE DENSITE
+     - Normal (100%)       : Boutons 40px | Tables 10px 12px | Textes 14px (Base 100%)
+     - Compact (88%)      : Boutons 32px | Tables 6px 10px  | Textes 12.5px (-15%)
+     - Ultra-Compact (75%): Boutons 26px | Tables 4px 6px   | Textes 11px (-25%)
+     - Micro (65%)        : Boutons 22px | Tables 2px 4px   | Textes 9.75px (-35%)
+     ========================================================================== */
+  --density-level: "normal";
+  --density-btn-h: 40px;
+  --density-btn-px: 16px;
+  --density-btn-font: 14px;
+  --density-btn-radius: 8px;
+  --density-table-py: 10px;
+  --density-table-px: 12px;
+  --density-table-font: 14px;
+  --density-font-base: 14px;
+  --density-font-sm: 12px;
+  --density-font-xs: 11px;
+  --density-input-h: 40px;
+  --density-input-py: 10px;
+  --density-input-px: 12px;
+  --density-input-font: 14px;
+  --density-gap: 16px;
+  --density-icon-size: 18px;
+  --density-scale: 1;
 }
+
+[data-density="normal"] {
+  --density-level: "normal";
+  --density-btn-h: 40px;
+  --density-btn-px: 16px;
+  --density-btn-font: 14px;
+  --density-btn-radius: 8px;
+  --density-table-py: 10px;
+  --density-table-px: 12px;
+  --density-table-font: 14px;
+  --density-font-base: 14px;
+  --density-font-sm: 12px;
+  --density-font-xs: 11px;
+  --density-input-h: 40px;
+  --density-input-py: 10px;
+  --density-input-px: 12px;
+  --density-input-font: 14px;
+  --density-gap: 16px;
+  --density-icon-size: 18px;
+  --density-scale: 1;
+}
+
+[data-density="compact"] {
+  --density-level: "compact";
+  --density-btn-h: 32px;
+  --density-btn-px: 12px;
+  --density-btn-font: 12.5px;
+  --density-btn-radius: 6px;
+  --density-table-py: 6px;
+  --density-table-px: 10px;
+  --density-table-font: 12.5px;
+  --density-font-base: 12.5px;
+  --density-font-sm: 11px;
+  --density-font-xs: 10px;
+  --density-input-h: 32px;
+  --density-input-py: 6px;
+  --density-input-px: 10px;
+  --density-input-font: 12.5px;
+  --density-gap: 12px;
+  --density-icon-size: 16px;
+  --density-scale: 0.88;
+}
+
+[data-density="ultra-compact"] {
+  --density-level: "ultra-compact";
+  --density-btn-h: 26px;
+  --density-btn-px: 8px;
+  --density-btn-font: 11px;
+  --density-btn-radius: 5px;
+  --density-table-py: 4px;
+  --density-table-px: 6px;
+  --density-table-font: 11px;
+  --density-font-base: 11px;
+  --density-font-sm: 10px;
+  --density-font-xs: 9px;
+  --density-input-h: 26px;
+  --density-input-py: 4px;
+  --density-input-px: 8px;
+  --density-input-font: 11px;
+  --density-gap: 8px;
+  --density-icon-size: 14px;
+  --density-scale: 0.75;
+}
+
+[data-density="micro"] {
+  --density-level: "micro";
+  --density-btn-h: 22px;
+  --density-btn-px: 6px;
+  --density-btn-font: 9.75px;
+  --density-btn-radius: 4px;
+  --density-table-py: 2px;
+  --density-table-px: 4px;
+  --density-table-font: 9.75px;
+  --density-font-base: 9.75px;
+  --density-font-sm: 9px;
+  --density-font-xs: 8.5px;
+  --density-input-h: 22px;
+  --density-input-py: 2px;
+  --density-input-px: 6px;
+  --density-input-font: 9.75px;
+  --density-gap: 6px;
+  --density-icon-size: 12px;
+  --density-scale: 0.65;
+}
+
+/* Classes utilitaires universelles de densite */
+.btn-density {
+  height: var(--density-btn-h) !important;
+  min-height: var(--density-btn-h) !important;
+  padding-left: var(--density-btn-px) !important;
+  padding-right: var(--density-btn-px) !important;
+  font-size: var(--density-btn-font) !important;
+  border-radius: var(--density-btn-radius) !important;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  line-height: 1;
+  transition: all 0.15s ease-in-out;
+}
+
+.table-density th,
+.table-density td {
+  padding-top: var(--density-table-py) !important;
+  padding-bottom: var(--density-table-py) !important;
+  padding-left: var(--density-table-px) !important;
+  padding-right: var(--density-table-px) !important;
+  font-size: var(--density-table-font) !important;
+  line-height: 1.25;
+}
+
+.input-density {
+  height: var(--density-input-h) !important;
+  min-height: var(--density-input-h) !important;
+  padding-top: var(--density-input-py) !important;
+  padding-bottom: var(--density-input-py) !important;
+  padding-left: var(--density-input-px) !important;
+  padding-right: var(--density-input-px) !important;
+  font-size: var(--density-input-font) !important;
+  line-height: 1.2;
+}
+
+.density-text-base {
+  font-size: var(--density-font-base) !important;
+}
+
+.density-text-sm {
+  font-size: var(--density-font-sm) !important;
+}
+
+.density-text-xs {
+  font-size: var(--density-font-xs) !important;
+}
+
+.density-gap {
+  gap: var(--density-gap) !important;
+}
+
+.density-icon {
+  width: var(--density-icon-size) !important;
+  height: var(--density-icon-size) !important;
+}
+
+/* Ajustement d'heritage dynamique pour les tableaux */
+[data-density="compact"] table:not(.no-density) th,
+[data-density="compact"] table:not(.no-density) td {
+  padding-top: 6px;
+  padding-bottom: 6px;
+  padding-left: 10px;
+  padding-right: 10px;
+  font-size: 12.5px;
+}
+
+[data-density="ultra-compact"] table:not(.no-density) th,
+[data-density="ultra-compact"] table:not(.no-density) td {
+  padding-top: 4px;
+  padding-bottom: 4px;
+  padding-left: 6px;
+  padding-right: 6px;
+  font-size: 11px;
+}
+
+[data-density="micro"] table:not(.no-density) th,
+[data-density="micro"] table:not(.no-density) td {
+  padding-top: 2px;
+  padding-bottom: 2px;
+  padding-left: 4px;
+  padding-right: 4px;
+  font-size: 9.75px;
+}
+
 
 @theme {
   --font-display: "Oxanium", "Orbitron", "Rajdhani", sans-serif;

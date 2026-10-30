@@ -19,6 +19,8 @@ import { subscribeToAllMessages, subscribeToNotifications } from "@/lib/supabase
 import { toastMsg } from "@/lib/toast";
 import { getUnreadNotificationCount, syncNotificationReadsFromSupabase } from "@/lib/notifications";
 import { ThemeToggle } from "@/components/ThemeToggle";
+import { DensitySwitcher } from "@/components/common/DensitySwitcher";
+
 import {
   requestNotificationPermission,
   sendTestNotification,
@@ -946,6 +948,7 @@ export default function DashboardLayout() {
             </NavLink>
 
             {/* Bouton bascule UI/UX réversible */}
+            <DensitySwitcher />
             <ThemeToggle showLabel />
 
             <NavLink

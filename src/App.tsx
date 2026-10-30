@@ -7,6 +7,8 @@ import Home from "@/pages/public/Home";
 import { LoginPage } from "@/pages/public/PublicPages";
 import { ShieldCheck, Loader2 } from "lucide-react";
 import { useAuth } from "@/contexts/AuthContext";
+import { DensityProvider } from "@/contexts/DensityContext";
+
 import { IntroSplash } from "@/components/IntroSplash";
 
 // Public pages lazy loaded
@@ -208,6 +210,7 @@ export default function App() {
   return (
     <StoreProvider>
       <IntroSplash />
+      <DensityProvider>
       <HashRouter>
         <Suspense fallback={<PageLoader />}>
           <Routes>
@@ -323,6 +326,7 @@ export default function App() {
           </Routes>
         </Suspense>
       </HashRouter>
+      </DensityProvider>
     </StoreProvider>
   );
 }
