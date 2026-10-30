@@ -51,7 +51,7 @@ export function CertificateVerifyPage() {
   };
 
   const handleCopyLink = () => {
-    const url = window.location.href.split("?")[0] + `?id=${cert?.numero}`;
+    const url = window.location.href.split("?")[0] + `?id=${encodeURIComponent(cert?.numero || "")}`;
     navigator.clipboard.writeText(url);
     toastMsg.success("Lien copié !", "Lien public de vérification prêt à être partagé.");
   };

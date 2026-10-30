@@ -42,12 +42,30 @@ export function readImage(file: File, maxW = 700): Promise<string> {
   });
 }
 
+export function escapeHtml(str: unknown): string {
+  if (str === null || str === undefined) return "";
+  return String(str)
+    .replace(/&/g, "&amp;")
+    .replace(/</g, "&lt;")
+    .replace(/>/g, "&gt;")
+    .replace(/"/g, "&quot;")
+    .replace(/'/g, "&#39;");
+}
+
 function sanitizePrintHtml(html: string): string {
-  // Supprime les émojis bruts pour un document officiel, net et épuré
-  return html.replace(/([\u2700-\u27BF]|[\uE000-\uF8FF]|\uD83C[\uDC00-\uDFFF]|\uD83D[\uDC00-\uDFFF]|[\u2011-\u26FF]|\uD83E[\uDD10-\uDDFF])/g, '').trim();
+  if (!html) return "";
+  // 1. Supprime les émojis bruts pour un document officiel, net et épuré
+  let clean = html.replace(/([\u2700-\u27BF]|[\uE000-\uF8FF]|\uD83C[\uDC00-\uDFFF]|\uD83D[\uDC00-\uDFFF]|[\u2011-\u26FF]|\uD83E[\uDD10-\uDDFF])/g, '').trim();
+  // 2. Neutralise les balises de scripts ou d'injections potentiellement malveillantes
+  clean = clean.replace(/<script\b[^<]*(?:(?!<\/script>)<[^<]*)*<\/script>/gi, "");
+  clean = clean.replace(/<iframe\b[^<]*(?:(?!<\/iframe>)<[^<]*)*<\/iframe>/gi, "");
+  clean = clean.replace(/javascript\s*:/gi, "");
+  clean = clean.replace(/\son\w+\s*=\s*(['"]).*?\1/gi, "");
+  return clean;
 }
 
 export function printHTML(title: string, body: string) {
+  const safeTitle = escapeHtml(title || "Document Officiel");
   const cleanedBody = sanitizePrintHtml(body);
   const w = window.open("", "_blank", "width=960,height=800");
   if (!w) return;
@@ -56,7 +74,7 @@ export function printHTML(title: string, body: string) {
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>${title}</title>
+  <title>${safeTitle}</title>
   <style>
     @page {
       size: A4 portrait;
@@ -264,7 +282,7 @@ export function printHTML(title: string, body: string) {
       const blob = new Blob([document.documentElement.outerHTML], { type: 'text/html;charset=utf-8' });
       const a = document.createElement('a');
       a.href = URL.createObjectURL(blob);
-      a.download = '${title.replace(/[^a-zA-Z0-9_-]/g, "_")}.html';
+      a.download = '${safeTitle.replace(/[^a-zA-Z0-9_-]/g, "_")}.html';
       a.click();
     }
     window.onload = function() {

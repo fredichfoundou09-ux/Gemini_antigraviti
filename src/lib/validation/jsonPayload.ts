@@ -40,8 +40,15 @@ export function sanitizeJsonPayload<T>(data: T): T {
 
       const res: Record<string, any> = {};
       for (const key of Object.keys(val)) {
-        // Éviter les propriétés internes de React ou du DOM
-        if (key.startsWith("__react") || key.startsWith("$$typeof") || key === "stateNode") {
+        // Protection Prototype Pollution & exclusion des propriétés internes de React ou du DOM
+        if (
+          key === "__proto__" ||
+          key === "constructor" ||
+          key === "prototype" ||
+          key.startsWith("__react") ||
+          key.startsWith("$$typeof") ||
+          key === "stateNode"
+        ) {
           continue;
         }
         const cleanedValue = clean(val[key]);

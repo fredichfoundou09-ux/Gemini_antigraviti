@@ -180,6 +180,15 @@ function getLocal2faMap(): Record<string, { secret: string; enabled: boolean }> 
 
 function saveLocal2faMap(map: Record<string, { secret: string; enabled: boolean }>) {
   try {
+    if (isSupabaseConfigured) {
+      // Sécurité : Ne jamais persister les secrets privés TOTP en clair dans le localStorage permanent
+      const sanitized: Record<string, { secret: string; enabled: boolean }> = {};
+      for (const [k, v] of Object.entries(map)) {
+        sanitized[k] = { secret: "", enabled: v.enabled };
+      }
+      localStorage.setItem(LOCAL_2FA_STORAGE_KEY, JSON.stringify(sanitized));
+      return;
+    }
     localStorage.setItem(LOCAL_2FA_STORAGE_KEY, JSON.stringify(map));
   } catch { /* ignore */ }
 }

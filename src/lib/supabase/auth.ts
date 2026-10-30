@@ -162,15 +162,13 @@ export async function bootstrapFirstSuperadmin(payload: {
   if (promoError) throw promoError;
   if (!promoted) throw new Error("Un Administrateur Supérieur existe déjà.");
 
-  // 4) Assure username/name
+  // 4) Assure username/name (le rôle superadmin et le statut actif sont appliqués côté serveur par la RPC)
   const { data: userData } = await sb.auth.getUser();
   if (userData.user) {
     await sb.from("profiles").update({
       username: payload.username.toLowerCase(),
       name: payload.name,
       email: payload.email,
-      role: "superadmin",
-      active: true,
     }).eq("id", userData.user.id);
   }
 

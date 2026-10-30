@@ -14,7 +14,7 @@ import {
   XCircle,
   Printer,
 } from "lucide-react";
-import { Card, Btn, Badge, Modal, PageHead, Empty, printHTML } from "@/lib/ui";
+import { Card, Btn, Badge, Modal, PageHead, Empty, printHTML, escapeHtml } from "@/lib/ui";
 import {
   trashService,
   TrashItem,
@@ -182,9 +182,9 @@ export default function TrashAndBackupsPage() {
             .map(
               (i) => `
           <tr>
-            <td><strong>${i.label}</strong></td>
-            <td><span class="badge-official">${i.entity_type}</span></td>
-            <td>${i.deleted_by_name || 'Système'}</td>
+            <td><strong>${escapeHtml(i.label)}</strong></td>
+            <td><span class="badge-official">${escapeHtml(i.entity_type)}</span></td>
+            <td>${escapeHtml(i.deleted_by_name || 'Système')}</td>
             <td>${new Date(i.deleted_at).toLocaleString('fr-FR')}</td>
           </tr>
         `
@@ -194,9 +194,9 @@ export default function TrashAndBackupsPage() {
             .map(
               (b) => `
           <tr>
-            <td><strong>${b.title}</strong></td>
-            <td>${b.tables_included.join(', ')}</td>
-            <td>${b.record_counts ? JSON.stringify(b.record_counts) : '—'}</td>
+            <td><strong>${escapeHtml(b.title)}</strong></td>
+            <td>${escapeHtml(b.tables_included.join(', '))}</td>
+            <td>${escapeHtml(b.record_counts ? JSON.stringify(b.record_counts) : '—')}</td>
             <td>${new Date(b.created_at).toLocaleString('fr-FR')}</td>
           </tr>
         `
@@ -212,7 +212,7 @@ export default function TrashAndBackupsPage() {
           <h1 style="margin:8px 0 4px 0;font-size:18px;color:#0c4a6e">
             ${activeTab === "trash" ? "État de la Corbeille (Éléments en rétention)" : "Catalogue des Sauvegardes Système"}
           </h1>
-          <p style="margin:0;font-size:11px;color:#64748b">Émis le ${new Date().toLocaleDateString('fr-FR')} à ${new Date().toLocaleTimeString('fr-FR')} · Opérateur : ${profile?.name || 'Administrateur'}</p>
+          <p style="margin:0;font-size:11px;color:#64748b">Émis le ${new Date().toLocaleDateString('fr-FR')} à ${new Date().toLocaleTimeString('fr-FR')} · Opérateur : ${escapeHtml(profile?.name || 'Administrateur')}</p>
         </div>
 
         <table>

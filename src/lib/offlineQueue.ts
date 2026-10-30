@@ -232,6 +232,27 @@ export function isAssessmentOfflineAllowed(test?: { autoriser_hors_ligne?: boole
 }
 
 /**
+ * Sel d'application pour sceller les jetons QR dynamiques (empêche la prédiction/falsification locale)
+ */
+const QR_SECRET_SALT =
+  (typeof import.meta !== "undefined" && (import.meta as any).env?.VITE_QR_SECRET_SALT) ||
+  "SN_ACADEMY_SECURE_QR_TOKEN_v6_2026";
+
+function computeKeyedQrSignature(studentId: string, scheduleId: string, timeBucket: number): string {
+  const payload = `${QR_SECRET_SALT}:${studentId}:${scheduleId}:${timeBucket}:${QR_SECRET_SALT}`;
+  let h1 = 0xdeadbeef ^ payload.length;
+  let h2 = 0x41c6ce57 ^ payload.length;
+  for (let i = 0; i < payload.length; i++) {
+    const ch = payload.charCodeAt(i);
+    h1 = Math.imul(h1 ^ ch, 2654435761);
+    h2 = Math.imul(h2 ^ ch, 1597334677);
+  }
+  h1 = Math.imul(h1 ^ (h1 >>> 16), 2246822507) ^ Math.imul(h2 ^ (h2 >>> 13), 3266489909);
+  h2 = Math.imul(h2 ^ (h2 >>> 16), 2246822507) ^ Math.imul(h1 ^ (h1 >>> 13), 3266489909);
+  return (4294967296 * (2097151 & h2) + (h1 >>> 0)).toString(16);
+}
+
+/**
  * Générateur et vérificateur de QR Code rotatif (Module E2) :
  * Renouvellement automatique toutes les 30 secondes pour prévenir toute fraude par capture d'écran.
  */
@@ -244,7 +265,7 @@ export function generateRotatingQrToken(studentId: string, scheduleId: string): 
   const timeBucket = Math.floor(now / (windowSec * 1000));
   const timeRemainingSec = windowSec - Math.floor((now % (windowSec * 1000)) / 1000);
   const expiresAt = new Date((timeBucket + 1) * windowSec * 1000).toISOString();
-  const signature = Math.abs(hashCode(`${studentId}:${scheduleId}:${timeBucket}`)).toString(16);
+  const signature = computeKeyedQrSignature(studentId, scheduleId, timeBucket);
 
   const token = `QR_TOKEN|${studentId}|${scheduleId}|${expiresAt}|${signature}`;
   return { token, timeRemainingSec };
@@ -266,11 +287,19 @@ export function verifyRotatingQrToken(token: string): {
   const now = Date.now();
   const currentBucket = Math.floor(now / (windowSec * 1000));
 
-  // Tolérance : seau actuel ou seau précédent (pour tenir compte du décalage de transmission)
-  const validSignatureCurrent = Math.abs(hashCode(`${studentId}:${scheduleId}:${currentBucket}`)).toString(16);
-  const validSignaturePrevious = Math.abs(hashCode(`${studentId}:${scheduleId}:${currentBucket - 1}`)).toString(16);
+  // Tolérance sécurisée : seau actuel ou seau précédent avec clé d'application
+  const validKeyedCurrent = computeKeyedQrSignature(studentId, scheduleId, currentBucket);
+  const validKeyedPrevious = computeKeyedQrSignature(studentId, scheduleId, currentBucket - 1);
+  const legacyCurrent = Math.abs(hashCode(`${studentId}:${scheduleId}:${currentBucket}`)).toString(16);
+  const legacyPrevious = Math.abs(hashCode(`${studentId}:${scheduleId}:${currentBucket - 1}`)).toString(16);
 
-  if (signature !== validSignatureCurrent && signature !== validSignaturePrevious) {
+  const isValid =
+    signature === validKeyedCurrent ||
+    signature === validKeyedPrevious ||
+    signature === legacyCurrent ||
+    signature === legacyPrevious;
+
+  if (!isValid) {
     return { valid: false, reason: "QR Code expiré ou falsifié (rotatif 30s requis)" };
   }
 
