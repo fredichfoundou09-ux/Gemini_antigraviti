@@ -198,32 +198,67 @@
   height: var(--density-icon-size) !important;
 }
 
-/* Ajustement d'heritage dynamique pour les tableaux */
+/* Ajustement d'heritage dynamique pour les tableaux (priorite stricte) */
 [data-density="compact"] table:not(.no-density) th,
 [data-density="compact"] table:not(.no-density) td {
-  padding-top: 6px;
-  padding-bottom: 6px;
-  padding-left: 10px;
-  padding-right: 10px;
-  font-size: 12.5px;
+  padding-top: 6px !important;
+  padding-bottom: 6px !important;
+  padding-left: 10px !important;
+  padding-right: 10px !important;
+  font-size: 12.5px !important;
 }
 
 [data-density="ultra-compact"] table:not(.no-density) th,
 [data-density="ultra-compact"] table:not(.no-density) td {
-  padding-top: 4px;
-  padding-bottom: 4px;
-  padding-left: 6px;
-  padding-right: 6px;
-  font-size: 11px;
+  padding-top: 4px !important;
+  padding-bottom: 4px !important;
+  padding-left: 6px !important;
+  padding-right: 6px !important;
+  font-size: 11px !important;
 }
 
 [data-density="micro"] table:not(.no-density) th,
 [data-density="micro"] table:not(.no-density) td {
-  padding-top: 2px;
-  padding-bottom: 2px;
-  padding-left: 4px;
-  padding-right: 4px;
-  font-size: 9.75px;
+  padding-top: 2px !important;
+  padding-bottom: 2px !important;
+  padding-left: 4px !important;
+  padding-right: 4px !important;
+  font-size: 9.75px !important;
+}
+
+/* Optimisation tactile Mobile & iOS (Apple HIG & Material Design touch target) */
+@media (pointer: coarse) {
+  .btn-density {
+    position: relative;
+    touch-action: manipulation;
+  }
+  /* Hitbox invisible pour conformite accessibilite tactile (44x44px minimum) */
+  .btn-density::after {
+    content: "";
+    position: absolute;
+    top: 50%;
+    left: 50%;
+    transform: translate(-50%, -50%);
+    min-width: 44px;
+    min-height: 44px;
+    width: 100%;
+    height: 100%;
+    pointer-events: auto;
+  }
+}
+
+/* Defilement tactile inertiel fluide pour tables sur iOS */
+.overflow-x-auto {
+  -webkit-overflow-scrolling: touch;
+}
+
+/* Prise en charge des zones sures encoche iPhone / Dynamic Island */
+@supports (padding-top: env(safe-area-inset-top)) {
+  header.no-print {
+    padding-top: max(0.75rem, env(safe-area-inset-top));
+    padding-left: max(1rem, env(safe-area-inset-left));
+    padding-right: max(1rem, env(safe-area-inset-right));
+  }
 }
 
 

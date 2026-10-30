@@ -487,7 +487,7 @@ export default function DashboardLayout() {
           </div>
 
           {/* Barre de Recherche Globale Interactive (Saisie directe ultra-fluide & élargie) */}
-          <div className="relative flex-1 max-w-xl lg:max-w-2xl mx-2 sm:mx-4 min-w-[200px]" ref={searchContainerRef}>
+          <div className="relative flex-1 max-w-xl lg:max-w-2xl mx-2 sm:mx-4 min-w-[120px] sm:min-w-[200px]" ref={searchContainerRef}>
             <div className="relative flex items-center">
               <Search size={15} className="pointer-events-none absolute left-3.5 top-1/2 -translate-y-1/2 text-[#00E5FF] shrink-0" />
               <input
@@ -913,13 +913,17 @@ export default function DashboardLayout() {
           {/* Actions Header : Année Académique, Messages, Notifications, Site public, Déconnexion */}
           <div className="flex items-center gap-1.5 sm:gap-2.5">
             {/* Sélecteur d'Année Académique officiel */}
-            <AcademicYearSelector />
+            <div className="hidden sm:block">
+              <AcademicYearSelector />
+            </div>
 
             {/* Statut Réseau, File Hors-ligne & Économie de données */}
             <NetworkSyncIndicator />
 
             {/* Horloge et Date en Temps Réel (Congo-Brazzaville, WAT UTC+1) */}
-            <RealTimeClock />
+            <div className="hidden lg:block">
+              <RealTimeClock />
+            </div>
 
             <NavLink
               to="/app/messages"
